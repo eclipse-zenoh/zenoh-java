@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright (c) 2017, 2020 ADLINK Technology Inc.
+ 
+  This program and the accompanying materials are made available under the
+  terms of the Eclipse Public License 2.0 which is available at
+  http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0
+  which is available at https://www.apache.org/licenses/LICENSE-2.0.
+ 
+  SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
+ 
+  Contributors:
+    ADLINK zenoh team, <zenoh@adlink-labs.tech>
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.eclipse.zenoh</groupId>
+    <artifactId>parent-pom</artifactId>
+    <relativePath>../parent-pom</relativePath>
+    <version>0.5.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>zenoh</artifactId>
+  <packaging>jar</packaging>
+  <name>Zenoh</name>
+  <description>The Zenoh client API in Java</description>
+
+  <properties>
+    <generatedSources>${project.build.directory}/generated-sources/java</generatedSources>
+    <!-- The Git tag (or branch or commit id) of zenoh-c that this build will automatically checkout.      -->
+    <!-- If not specified, the build will try to find zenoh-c sources in $ZENOHC_HOME or in ../../zenoh-c. -->
+    <!-- And if zenoh-c sources cannot be found, it will checkout the master branch.                       -->
+    <zenohc.git-tag></zenohc.git-tag>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.scijava</groupId>
+      <artifactId>native-lib-loader</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- For logging of tests (Zenoh uses SLF4J that needs a logging framework) -->
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+    </dependency>
+  </dependencies>
+
+  <!-- plugins for all profiles -->
+  <build>
+    <plugins>
+
+      <!-- Call make to build zenoh-c native lib, including SWIG generated sources -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>make-natives</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>make</executable>
+              <arguments>
+                <argument>${zenohc.make-target}</argument>
+              </arguments>
+              <environmentVariables>
+                <ZENOH_GIT_TAG>${zenohc.git-tag}</ZENOH_GIT_TAG>
+                <ZENOH_DEBUG>${zenohc.debug-level}</ZENOH_DEBUG>
+                <CMAKE_BUILD_TYPE>${zenohc.build-type}</CMAKE_BUILD_TYPE>
+              </environmentVariables>
+              <workingDirectory>${project.basedir}</workingDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Add Java sources to compile -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <executions>
+          <!-- SWIG generated sources -->
+          <execution>
+            <id>add-source</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>add-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>${generatedSources}</source>
+              </sources>
+            </configuration>
+          </execution>
+          <!-- integration tests -->
+          <execution>
+            <id>add-it-source</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>add-test-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>src/it/java</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Add the generated native libs into the jar -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <configuration>
+          <resources>
+            <resource>
+              <directory>${project.build.directory}/resources</directory>
+              <filtering>false</filtering>
+            </resource>
+          </resources>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!-- default profile: zenoh-c is compiled in default mode
+         with ZENOH_DEBUG unset (i.e. default value) -->
+    <profile>
+      <id>default</id>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+      <properties>
+        <zenohc.make-target>all</zenohc.make-target>
+        <zenohc.debug-level></zenohc.debug-level>
+        <zenohc.build-type></zenohc.build-type>
+      </properties>
+    </profile>
+
+    <!-- debug profile: zenoh-c is compiled in debug mode
+         with ZENOH_DEBUG=2 -->
+    <profile>
+      <id>debug</id>
+      <properties>
+        <zenohc.make-target>all</zenohc.make-target>
+        <zenohc.debug-level>2</zenohc.debug-level>
+        <zenohc.build-type>Debug</zenohc.build-type>
+      </properties>
+    </profile>
+
+    <!-- release profile: zenoh-c is cross-compiled for all supported platforms
+         in release mode with ZENOH_DEBUG=0, and no Java exception check in JNI code.
+         Moreover, the javadoc and sources jars are generated.
+    -->
+    <profile>
+      <id>release</id>
+      <properties>
+        <zenohc.make-target>all-cross</zenohc.make-target>
+        <zenohc.debug-level>0</zenohc.debug-level>
+        <zenohc.build-type>Release</zenohc.build-type>
+      </properties>
+      <build>
+        <plugins>
+          <!-- sources jar -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <!-- javadoc jar -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <executions>
+              <execution>
+                <phase>prepare-package</phase>
+                <goals>
+                  <goal>javadoc</goal>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+            <configuration>
+              <sourceFileIncludes>
+                <sourceFileInclude>org/eclipse/zenoh/*.java</sourceFileInclude>
+              </sourceFileIncludes>
+              <reportOutputDirectory>${project.build.directory}/site/docs/apidocs</reportOutputDirectory>
+              <doclint>none</doclint>
+              <groups>
+                <group>
+                  <title>Zenoh client API</title>
+                  <packages>org.eclipse.zenoh.*</packages>
+                </group>
+              </groups>
+              <header>Zenoh ${project.version}</header>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <!-- it profile: run the integration tests (in src/it/java). -->
+    <profile>
+      <id>it</id>
+      <build>
+        <plugins>
+          <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-failsafe-plugin</artifactId>
+              <executions>
+                  <execution>
+                      <id>integration-test</id>
+                      <goals>
+                          <goal>integration-test</goal>
+                      </goals>
+                  </execution>
+                  <execution>
+                      <id>verify</id>
+                      <goals>
+                          <goal>verify</goal>
+                      </goals>
+                  </execution>
+              </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <!-- Codecov profile: measure the code coverage of tests (unit + integration) -->
+    <profile>
+      <id>codecov</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.jacoco</groupId>
+            <artifactId>jacoco-maven-plugin</artifactId>
+            <executions>
+                <execution>
+                    <id>jacoco-prepare-agent</id>
+                    <goals>
+                        <goal>prepare-agent</goal>
+                    </goals>
+                </execution>
+                <execution>
+                    <id>jacoco-prepare-agent-integration</id>
+                    <goals>
+                        <goal>prepare-agent-integration</goal>
+                    </goals>
+                </execution>
+                <execution>
+                    <id>jacoco-report</id>
+                    <goals>
+                        <goal>report</goal>
+                    </goals>
+                </execution>
+                <execution>
+                    <id>jacoco-integration</id>
+                    <goals>
+                        <goal>report-integration</goal>
+                    </goals>
+                </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+  </profiles>
+
+</project>
