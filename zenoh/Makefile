@@ -81,7 +81,7 @@ all: $(LOCAL_LIB)
 	@cp $(LOCAL_LIB) $(NATIVES_DIR)/$(OS)_$(ARCH)/$(LOCAL_LIB_NAME)
 	
 all-cross: $(ZENOHC_COPY_DIR)/Makefile $(SWIG_C_FILE) $(JNI_INCLUDE_ALL_PLATFORMS)/jni.h
-	ZENOH_JAVA=ON make -C$(ZENOHC_COPY_DIR) manylinux2010-x86 manylinux2010-x64 linux-armv6 linux-arm64 osx-64
+	ZENOH_JAVA=ON JNI_INCLUDE_HOME=jni-include make -C$(ZENOHC_COPY_DIR) manylinux2010-x86 manylinux2010-x64 linux-armv6 linux-arm64 osx-64
 	@mkdir -p $(NATIVES_DIR)/linux_32
 	@cp $(ZENOHC_BUILD_DIR)/crossbuilds/manylinux2010-x86/lib* $(NATIVES_DIR)/linux_32
 	@mkdir -p $(NATIVES_DIR)/linux_64
