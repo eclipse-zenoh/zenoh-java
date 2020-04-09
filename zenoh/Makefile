@@ -40,13 +40,13 @@ JNI_INCLUDE_ALL_PLATFORMS := $(ZENOHC_COPY_DIR)/jni-include
 NATIVES_DIR := $(TARGET_DIR)/resources/natives
 
 
-CMAKE_OPTIONS := -DSWIG_JAVA=ON -DTESTS=OFF -DEXAMPLES=OFF
-ifneq ($(ZENOH_DEBUG),)
-	CMAKE_OPTIONS += -DZENOH_DEBUG=$(ZENOH_DEBUG)
-endif
-ifneq ($(CMAKE_BUILD_TYPE),)
-	CMAKE_OPTIONS += -DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE)
-endif
+# CMAKE_OPTIONS := -DSWIG_JAVA=ON -DTESTS=OFF -DEXAMPLES=OFF
+# ifneq ($(ZENOH_DEBUG),)
+# 	CMAKE_OPTIONS += -DZENOH_DEBUG=$(ZENOH_DEBUG)
+# endif
+# ifneq ($(CMAKE_BUILD_TYPE),)
+# 	CMAKE_OPTIONS += -DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE)
+# endif
 
 # Naive OS detection... TODO: probably to be improved
 UNAME_S := $(shell uname -s)
@@ -80,73 +80,38 @@ all: $(LOCAL_LIB)
 	@mkdir -p $(NATIVES_DIR)/$(OS)_$(ARCH)
 	@cp $(LOCAL_LIB) $(NATIVES_DIR)/$(OS)_$(ARCH)/$(LOCAL_LIB_NAME)
 	
+all-cross: $(ZENOHC_COPY_DIR)/Makefile $(SWIG_C_FILE) $(JNI_INCLUDE_ALL_PLATFORMS)/jni.h
+	ZENOH_JAVA=ON JNI_INCLUDE_HOME=jni-include make -C$(ZENOHC_COPY_DIR) manylinux2010-x86 manylinux2010-x64 linux-armv6 linux-arm64 osx-64
+	@mkdir -p $(NATIVES_DIR)/linux_32
+	@cp $(ZENOHC_BUILD_DIR)/crossbuilds/manylinux2010-x86/lib* $(NATIVES_DIR)/linux_32
+	@mkdir -p $(NATIVES_DIR)/linux_64
+	@cp $(ZENOHC_BUILD_DIR)/crossbuilds/manylinux2010-x64/lib* $(NATIVES_DIR)/linux_64
+	@mkdir -p $(NATIVES_DIR)/arm
+	@cp $(ZENOHC_BUILD_DIR)/crossbuilds/linux-armv6/lib* $(NATIVES_DIR)/arm
+	@mkdir -p $(NATIVES_DIR)/aarch64
+	@cp $(ZENOHC_BUILD_DIR)/crossbuilds/linux-arm64/lib* $(NATIVES_DIR)/aarch64
+	@mkdir -p $(NATIVES_DIR)/osx_64
+	@cp $(ZENOHC_BUILD_DIR)/crossbuilds/osx-64/lib* $(NATIVES_DIR)/osx_64
 
-$(LOCAL_LIB): $(ZENOHC_COPY_DIR)/CMakeLists.txt $(SWIG_C_FILE)
-	cmake $(CMAKE_OPTIONS) -B$(ZENOHC_BUILD_DIR) -H$(ZENOHC_COPY_DIR)
-	make -C$(ZENOHC_BUILD_DIR)
 
-$(ZENOHC_COPY_DIR)/CMakeLists.txt:
+$(LOCAL_LIB): $(ZENOHC_COPY_DIR)/Makefile $(SWIG_C_FILE)
+	ZENOH_JAVA=ON make -C$(ZENOHC_COPY_DIR)
+
+$(ZENOHC_COPY_DIR)/Makefile:
 	@rm -fr $(ZENOHC_COPY_DIR)
 	@mkdir -p $(ZENOHC_COPY_DIR)
 	@if [ -z "$(ZENOH_GIT_TAG)" -a -d $(ZENOHC_DEV_DIR) ]; then \
    		echo "Found zenoh-c sources in $(ZENOHC_DEV_DIR) . Copy them to $(ZENOHC_COPY_DIR)"; \
-		cp -r $(ZENOHC_DEV_DIR)/CMakeLists.txt $(ZENOHC_DEV_DIR)/include $(ZENOHC_DEV_DIR)/src $(ZENOHC_DEV_DIR)/dockcross $(ZENOHC_COPY_DIR)/ ; \
+		cp -r $(ZENOHC_DEV_DIR)/Makefile $(ZENOHC_DEV_DIR)/CMakeLists.txt $(ZENOHC_DEV_DIR)/include $(ZENOHC_DEV_DIR)/src $(ZENOHC_DEV_DIR)/dockcross $(ZENOHC_COPY_DIR)/ ; \
 	else \
 		echo "Clone tag '$${ZENOH_GIT_TAG:-master}' from Github to $(ZENOHC_COPY_DIR)" ; \
 		git clone --branch $${ZENOH_GIT_TAG:-master} https://github.com/eclipse-zenoh/zenoh-c $(ZENOHC_COPY_DIR) ; \
 	fi
 
-$(SWIG_C_FILE): $(SWIG_FILE)
+$(SWIG_C_FILE): $(ZENOHC_COPY_DIR)/Makefile $(SWIG_FILE)
 	@mkdir -p $(SWIG_JAVA_OUTDIR)
 	swig -java -package org.eclipse.zenoh.swig -I$(ZENOHC_COPY_DIR)/include -outdir $(SWIG_JAVA_OUTDIR) -o $(SWIG_C_FILE) $(SWIG_FILE)
 
-
-
-all-cross: all check-docker $(ZENOHC_COPY_DIR)/CMakeLists.txt \
-$(NATIVES_DIR)/linux_32/lib$(ZENOHC_LIB_NAME).so \
-$(NATIVES_DIR)/linux_64/lib$(ZENOHC_LIB_NAME).so \
-# $(NATIVES_DIR)/windows_32/$(ZENOHC_LIB_NAME).dll \
-# $(NATIVES_DIR)/windows_64/$(ZENOHC_LIB_NAME).dll
-
-DOCKER_OK := $(shell docker version 2> /dev/null)
-
-check-docker:
-ifndef DOCKER_OK
-	$(error "Docker is not available please install Docker")
-endif
-
-$(NATIVES_DIR)/linux_32/lib$(ZENOHC_LIB_NAME).so: $(ZENOHC_BUILD_DIR)/linux-x86
-	@mkdir -p $(NATIVES_DIR)/linux_32
-	@cp $</lib$(ZENOHC_LIB_NAME).so $(NATIVES_DIR)/linux_32/
-
-$(NATIVES_DIR)/linux_64/lib$(ZENOHC_LIB_NAME).so: $(ZENOHC_BUILD_DIR)/linux-x64
-	@mkdir -p $(NATIVES_DIR)/linux_64
-	@cp $</lib$(ZENOHC_LIB_NAME).so $(NATIVES_DIR)/linux_64/
-
-# $(NATIVES_DIR)/osx_32/lib$(ZENOHC_LIB_NAME).dylib: $(ZENOHC_BUILD_DIR)/????
-#	@mkdir -p $(NATIVES_DIR)/osx_32
-# 	@cp $</lib$(ZENOHC_LIB_NAME).dylib $(NATIVES_DIR)/osx_32/
-
-# $(NATIVES_DIR)/osx_64/lib$(ZENOHC_LIB_NAME).dylib: $(ZENOHC_BUILD_DIR)/????
-#	@mkdir -p $(NATIVES_DIR)/osx_64
-# 	@cp $</lib$(ZENOHC_LIB_NAME).dylib $(NATIVES_DIR)/osx_64/
-
-# $(NATIVES_DIR)/windows_32/$(ZENOHC_LIB_NAME).dll: $(ZENOHC_BUILD_DIR)/windows-shared-x86
-# 	@mkdir -p $(NATIVES_DIR)/windows_32
-# 	@cp $</$(ZENOHC_LIB_NAME).dll $(NATIVES_DIR)/windows_32/
-
-# $(NATIVES_DIR)/windows_64/$(ZENOHC_LIB_NAME).dll: $(ZENOHC_BUILD_DIR)/windows-shared-x64
-# 	@mkdir -p $(NATIVES_DIR)/windows_64
-# 	@cp $</$(ZENOHC_LIB_NAME).dll $(NATIVES_DIR)/windows_64/
-
-
-
-
-$(ZENOHC_BUILD_DIR)/%: $(JNI_INCLUDE_ALL_PLATFORMS)/jni.h
-	@echo "Cross-compile for $* into $(ZENOHC_CROSS_BUILD_DIR)"
-	@mkdir -p $@
-	$(ZENOHC_COPY_DIR)/dockcross/dockcross-$* cmake $(CMAKE_OPTIONS) -DJNI_INCLUDE_HOME=jni-include -DCMAKE_BUILD_TYPE=Release -B$@ -H$(ZENOHC_COPY_DIR)
-	$(ZENOHC_COPY_DIR)/dockcross/dockcross-$* make -C$@
 
 $(JNI_INCLUDE_ALL_PLATFORMS)/jni.h:
 	@echo "Retrieve JNI headers for all platforms"

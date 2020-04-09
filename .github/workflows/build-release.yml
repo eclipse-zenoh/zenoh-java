@@ -1,0 +1,36 @@
+name: Build (for all supported platform)
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up JDK 1.8
+      uses: actions/setup-java@v1
+      with:
+        java-version: 1.8
+    - name: Set up SWIG
+      run: sudo apt-get install swig
+    - name: Build with Maven
+      run: mvn -B package --file pom.xml -Prelease
+    - name: Gather artifacts
+      run: |
+        mkdir -p artifacts/zenoh-java/examples/zenoh artifacts/zenoh-java/examples/zenoh-net
+        cp zenoh/target/zenoh-*.jar artifacts/zenoh-java/
+        cp examples/zenoh/target/zenoh-examples-*.jar artifacts/zenoh-java/examples/zenoh/
+        cp examples/zenoh-net/target/zenoh-net-examples-*.jar artifacts/zenoh-java/examples/zenoh-net/
+    - name: Upload artifact
+      uses: actions/upload-artifact@v1.0.0
+      with:
+        # Artifact name
+        name: zenoh-java
+        # Directory containing files to upload
+        path: artifacts/zenoh-java
