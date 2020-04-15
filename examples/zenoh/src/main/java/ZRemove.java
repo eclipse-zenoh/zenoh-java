@@ -17,14 +17,17 @@ import org.eclipse.zenoh.*;
 public class ZRemove {
 
     public static void main(String[] args) {
-        // If not specified as 1st argument, use a relative path (to the workspace
-        // below): "zenoh-java-put"
-        String path = "zenoh-java-put";
+        
+        String path = "/zenoh/examples/java/put/hello";        
+        String locator = null;
+
+        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
+            System.out.println("USAGE:\n\t ZRemove  [<path> = " + path + " [<locator>=auto]\n\n");
+            System.exit(0);
+        }
         if (args.length > 0) {
             path = args[0];
-        }
-
-        String locator = null;
+        }        
         if (args.length > 1) {
             locator = args[1];
         }
@@ -35,8 +38,7 @@ public class ZRemove {
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
             Zenoh z = Zenoh.login(locator, null);
 
-            System.out.println("Use Workspace on '/demo/example'");
-            Workspace w = z.workspace(new Path("/demo/example"));
+            Workspace w = z.workspace();
 
             System.out.println("Remove " + p);
             w.remove(p);

@@ -16,7 +16,7 @@ package org.eclipse.zenoh;
 /**
  * A zenoh Path is a set of strings separated by '/' , as in a filesystem path.
  * A Path cannot contain any '*' character. Examples of paths:
- * "/demo/example/test" , "/com/adlink/building/fr/floor/1/office/2" ...
+ * "/zenoh/examples/test" , "/com/adlink/building/fr/floor/1/office/2" ...
  * <p>
  * A path can be absolute (i.e. starting with a `'/'`) or relative to a
  * {@link Workspace}.
@@ -28,7 +28,7 @@ public class Path implements Comparable<Path> {
     private String path;
 
     /**
-     * Create a Path from a string such as "/demo/example/test".
+     * Create a Path from a string such as "/zenoh/examples/test".
      *
      * @param p the string
      */

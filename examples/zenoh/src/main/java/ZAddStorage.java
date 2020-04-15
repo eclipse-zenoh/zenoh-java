@@ -19,24 +19,27 @@ import java.util.Properties;
 public class ZAddStorage {
 
     public static void main(String[] args) {
-        String selector = "/demo/example/**";
+        String selector = "/zenoh/examples/**";
+        String storageId = "zenoh-examples-storage";
+        String locator = null;
+
+        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
+            System.out.println("USAGE:\n\t ZAddStorage  [<selector>=" + selector + "] [<storage-id>=" + storageId + "] [<locator>=auto]\n\n");
+            System.exit(0);
+        }
         if (args.length > 0) {
             selector = args[0];
         }
-
-        String storageId = "Demo";
         if (args.length > 1) {
             storageId = args[1];
         }
-
-        String locator = null;
         if (args.length > 2) {
             locator = args[2];
         }
 
         try {
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
-            Zenoh z = Zenoh.login(locator, null);
+            Zenoh z = Zenoh.login();
 
             Admin admin = z.admin();
 

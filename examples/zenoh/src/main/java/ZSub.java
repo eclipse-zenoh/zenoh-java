@@ -18,14 +18,17 @@ import java.io.InputStreamReader;
 import java.util.List;
 
 public class ZSub {
-
     public static void main(String[] args) {
-        String s = "/demo/example/**";
+        String s = "/zenoh/examples/**";        
+        String locator = null;
+
+        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
+            System.out.println("USAGE:\n\t ZSub  [<selector>=" + s + "] [<locator>=auto]\n\n");
+            System.exit(0);
+        }
         if (args.length > 0) {
             s = args[0];
-        }
-
-        String locator = null;
+        }        
         if (args.length > 1) {
             locator = args[1];
         }
@@ -35,9 +38,8 @@ public class ZSub {
 
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
             Zenoh z = Zenoh.login(locator, null);
-
-            System.out.println("Use Workspace on '/'");
-            Workspace w = z.workspace(new Path("/"));
+        
+            Workspace w = z.workspace();
 
             System.out.println("Subscribe on " + selector);
             SubscriptionId subid = w.subscribe(selector, new Listener() {

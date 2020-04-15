@@ -16,7 +16,7 @@ import org.eclipse.zenoh.net.*;
 class ZNWrite {
 
     public static void main(String[] args) {
-        String uri = "/demo/example/zenoh-java-write";
+        String uri = "/zenoh/examples/java/write";
         if (args.length > 0) {
             uri = args[0];
         }

@@ -38,7 +38,11 @@ public enum Encoding {
     /**
      * The value is a JSON structure in an UTF-8 string.
      */
-    JSON((short) 0x04, StringValue.Decoder);
+    JSON((short) 0x04, StringValue.Decoder),
+
+    INT(IntValue.Decoder.getEncodingFlag(), IntValue.Decoder),
+
+    FLOAT(FloatValue.Decoder.getEncodingFlag(), FloatValue.Decoder);
 
     private short flag;
     private Value.Decoder decoder;

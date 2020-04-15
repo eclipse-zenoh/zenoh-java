@@ -18,7 +18,7 @@ import java.nio.ByteBuffer;
 
 class ZNEval implements QueryHandler {
 
-    private static String uri = "/demo/example/zenoh-java-eval";
+    private static String uri = "/zenoh/examples/java/eval";
 
     public void handleQuery(String rname, String predicate, RepliesSender repliesSender) {
         System.out.printf(">> [Query handler] Handling '%s?%s'\n", rname, predicate);

@@ -49,6 +49,7 @@ public class Workspace {
     private ExecutorService threadPool;
     private Map<Path, org.eclipse.zenoh.net.Eval> evals;
 
+
     protected Workspace(Path path, Session session, ExecutorService threadPool) {
         this.path = path;
         this.session = session;
@@ -70,6 +71,40 @@ public class Workspace {
         } else {
             return s;
         }
+    }
+
+    /**
+     * Put a path/value into Zenoh.
+     *
+     * @param path  the string representing the path. Can be absolute or relative to the workspace.
+     * @param value the value {@link java.lang.String}.
+     * @throws ZException if put failed.
+     */
+    public void put(String path, String value) throws ZException {
+        this.put(new Path(path), new StringValue(value));
+    }
+
+    /**
+     * Put a path/value into Zenoh.
+     *
+     * @param path  the string representing the path. Can be absolute or relative to the workspace.
+     * @param value the int value
+     * @throws ZException if put failed.
+     */
+    public void put(String path, int value) throws ZException {
+        this.put(new Path(path), new IntValue(value));
+    }
+
+    /**
+     * Put a path/value into Zenoh.
+     *
+     * @param path  the string representing the path. Can be absolute or relative to the workspace.
+     * @param value the float value.
+     * @throws ZException if put failed.
+     */
+
+    public void put(String path, float value) throws ZException {
+        this.put(new Path(path), new FloatValue(value));
     }
 
     /**

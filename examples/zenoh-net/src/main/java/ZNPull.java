@@ -33,7 +33,7 @@ class ZNPull {
     }
 
     public static void main(String[] args) {
-        String uri = "/demo/example/**";
+        String uri = "/zenoh/examples/**";
         if (args.length > 1) {
             uri = args[1];
         }

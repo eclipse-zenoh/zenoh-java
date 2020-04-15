@@ -16,7 +16,7 @@ import org.eclipse.zenoh.net.*;
 class ZNStream {
 
     public static void main(String[] args) {
-        String uri = "/demo/example/zenoh-java-stream";
+        String uri = "/zenoh/examples/java/stream";
         if (args.length > 0) {
             uri = args[0];
         }
