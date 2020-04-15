@@ -24,7 +24,6 @@ class ZPutThr {
         String locator = null;
         String path = "/zenoh/examples/throughput/data'";
         String value = "Zenitude put from zenoh-java!";
-        String locator = null;
 
         if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
             System.out.println("USAGE:\n\t ZPutThr  [<path>=" + path + "] [<value>] [<locator>=auto]\n\n");
