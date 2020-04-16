@@ -24,9 +24,12 @@ Just add the dependency in your POM:
 
 ## Building
 Requirements:
- - Java >= 8
- - Apache Maven >= 3.6.0
- - cmake, make, gcc (for zenoh-c compilation)
+
+ - [Java >= 8](http://openjdk.java.net)
+ - [Apache Maven >= 3.6.0](https://maven.apache.org/download.cgi)
+ - [SWIG](http://swig.org)
+ - [CMake](https://cmake.org)
+ - make, gcc (for zenoh-c compilation)
 
 Optional for cross-compilation:
  - Docker

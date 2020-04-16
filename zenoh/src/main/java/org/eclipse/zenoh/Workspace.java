@@ -49,6 +49,7 @@ public class Workspace {
     private ExecutorService threadPool;
     private Map<Path, org.eclipse.zenoh.net.Eval> evals;
 
+
     protected Workspace(Path path, Session session, ExecutorService threadPool) {
         this.path = path;
         this.session = session;
@@ -81,10 +82,78 @@ public class Workspace {
      */
     public void put(Path path, Value value) throws ZException {
         path = toAsbsolutePath(path);
-        LOG.debug("Put on {} of {}", path, value);
+        LOG.debug("Put on {} : {}", path, value);
         try {
             ByteBuffer data = value.encode();
             session.writeData(path.toString(), data, value.getEncoding().getFlag(), KIND_PUT);
+        } catch (ZException e) {
+            throw new ZException("Put on " + path + " failed", e);
+        }
+    }
+
+    /**
+     * Put a path/String into Zenoh.
+     *
+     * @param path  the {@link Path}. Can be absolute or relative to the workspace.
+     * @param value the value {@link java.lang.String}.
+     * @throws ZException if put failed.
+     */
+    public void put(Path path, String value) throws ZException {
+        path = toAsbsolutePath(path);
+        LOG.debug("Put string on {} : {}", path, value);
+        try {
+            this.session.writeData(path.toString(), StringValue.encode(value), Encoding.STRING.getFlag(), KIND_PUT);            
+        } catch (ZException e) {
+            throw new ZException("Put on " + path + " failed", e);
+        }
+    }
+
+    /**
+     * Put a path/integer into Zenoh.
+     *
+     * @param path  the {@link Path}. Can be absolute or relative to the workspace.
+     * @param value the integer value as a long
+     * @throws ZException if put failed.
+     */
+    public void put(Path path, long value) throws ZException {
+        path = toAsbsolutePath(path);
+        LOG.debug("Put int on {} : {}", path, value);
+        try {
+            this.session.writeData(path.toString(), IntValue.encode(value), Encoding.INT.getFlag(), KIND_PUT);            
+        } catch (ZException e) {
+            throw new ZException("Put on " + path + " failed", e);
+        }
+    }
+
+    /**
+     * Put a path/float into Zenoh.
+     *
+     * @param path  the {@link Path}. Can be absolute or relative to the workspace.
+     * @param value the float value as a double.
+     * @throws ZException if put failed.
+     */
+    public void put(Path path, double value) throws ZException {
+        path = toAsbsolutePath(path);
+        LOG.debug("Put float on {} : {}", path, value);
+        try {
+            this.session.writeData(path.toString(), FloatValue.encode(value), Encoding.FLOAT.getFlag(), KIND_PUT);            
+        } catch (ZException e) {
+            throw new ZException("Put on " + path + " failed", e);
+        }
+    }
+
+    /**
+     * Put a path/ByteBuffer into Zenoh using the RAW encoding.
+     *
+     * @param path  the {@link Path}. Can be absolute or relative to the workspace.
+     * @param value the ByteBuffer.
+     * @throws ZException if put failed.
+     */
+    public void put(Path path, ByteBuffer value) throws ZException {
+        path = toAsbsolutePath(path);
+        LOG.debug("Put float on {} : {}", path, value);
+        try {
+            this.session.writeData(path.toString(), value, Encoding.RAW.getFlag(), KIND_PUT);            
         } catch (ZException e) {
             throw new ZException("Put on " + path + " failed", e);
         }

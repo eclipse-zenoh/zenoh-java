@@ -22,7 +22,9 @@ class ZPutThr {
 
     public static void main(String[] args) {
         String locator = null;
-        if (args.length < 1) {
+        String path = "/zenoh/examples/throughput/data'";
+
+        if ((args.length < 1) || ((args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))))) {
             System.out.println("USAGE:");
             System.out.println("\tYPutThr [I|W]<payload-size> [<zenoh-locator>]");
             System.out.println("\t\tWhere the optional character in front of payload size means:");
@@ -59,17 +61,14 @@ class ZPutThr {
         data.position(posInit);
 
         try {
-            String path = "/test/thr";
-
             Path p = new Path(path);
 
             Value v = new RawValue(data);
 
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
-            Zenoh z = Zenoh.login(locator, null);
+            Zenoh z = Zenoh.login(locator);
 
-            System.out.println("Use Workspace on '/'");
-            Workspace w = z.workspace(new Path("/"));
+            Workspace w = z.workspace();
 
             System.out.println("Put on " + p + " : " + data.remaining() + "b");
 

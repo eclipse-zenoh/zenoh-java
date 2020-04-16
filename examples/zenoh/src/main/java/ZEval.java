@@ -21,12 +21,17 @@ import java.util.Properties;
 public class ZEval {
 
     public static void main(String[] args) {
-        String p = "/demo/example/zenoh-java-eval";
+        String p = "/zenoh/examples/java/eval";
+        String locator = null;
+        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
+            System.out.println("USAGE:\n\t ZEval  [<path>=" + p + "] [<locator>=auto]\n\n");
+            System.exit(0);
+        }
+
         if (args.length > 0) {
             p = args[0];
         }
 
-        String locator = null;
         if (args.length > 1) {
             locator = args[1];
         }
@@ -35,13 +40,13 @@ public class ZEval {
             Path path = new Path(p);
 
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
-            Zenoh z = Zenoh.login(locator, null);
+            Zenoh z = Zenoh.login(locator);
 
             System.out.println("Use Workspace on '/'");
             // Note that we use a Workspace with executor here, for our Eval.callback
             // below to be called in a separate thread rather that in Zenoh I/O thread.
             // Thus, the callback can perform some Zenoh operations (e.g.: get)
-            Workspace w = z.workspaceWithExecutor(new Path("/"));
+            Workspace w = z.workspaceWithExecutor();
 
             System.out.println("Register eval " + path);
             w.registerEval(path, new Eval() {
@@ -50,11 +55,11 @@ public class ZEval {
                     // StringValue in 3 possible ways,
                     // depending the properties specified in the selector. For example, with the
                     // following selectors:
-                    // - "/demo/example/zenoh-java-eval" : no properties are set, a default value is
+                    // - "/zenoh/examples/java/eval" : no properties are set, a default value is
                     // used for the name
-                    // - "/demo/example/zenoh-java-eval?(name=Bob)" : "Bob" is used for the name
-                    // - "/demo/example/zenoh-java-eval?(name=/demo/example/name)" :
-                    // the Eval function does a GET on "/demo/example/name" an uses the 1st result
+                    // - "/zenoh/examples/java/eval?(name=Bob)" : "Bob" is used for the name
+                    // - "/zenoh/examples/java/eval?(name=/zenoh/examples/name)" :
+                    // the Eval function does a GET on "/zenoh/examples/name" an uses the 1st result
                     // for the name
 
                     System.out.printf(">> Processing eval for path %s with properties: %s\n", p, properties);

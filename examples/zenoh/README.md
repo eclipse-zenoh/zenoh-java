@@ -27,7 +27,7 @@
    ```
    where the optional arguments are:
    - **selector** :  the selector matching the keys (path) that have to be stored.  
-                     Default value: `/demo/example/**`
+                     Default value: `/zenoh/examples/**`
    - **storage-id** : the storage identifier.  
                       Default value: `Demo` 
    - **locator** : the locator of the Zenoh router to connect.  
@@ -43,15 +43,35 @@
    The key/value will be stored by all the storages with a selector that matches the key.
    It will also be received by all the matching subscribers (see [ZSub](#ZSub) below).  
    Note that if no storage and no subscriber are matching the key, the key/value will be dropped.
-   Therefore, you probably should run [ZAddStorage](#ZAddStorage) and/or [ZSub](#ZSub) before YPut.
+   Therefore, you probably should run [ZAddStorage](#ZAddStorage) and/or [ZSub](#ZSub) before ZPut.
 
    Usage:
    ```bash
-   java -cp target/zenoh-examples-<version>.jar YPut [path] [value] [locator]
+   java -cp target/zenoh-examples-<version>.jar ZPut [path] [value] [locator]
    ```
    where the optional arguments are:
    - **path** : the path used as a key for the value.  
-                Default value: `/demo/example/zenoh-java-put` 
+                Default value: `/zenoh/examples/java/put` 
+   - **value** : the value (as a string).  
+                Default value: `"Put from Zenoh Java!"` 
+   - **locator** : the locator of the Zenoh service to connect.  
+                   Default value: none, meaning the Zenoh router is found via multicast.
+
+### ZPutFloat
+
+   Put a key/value into Zenoh where the value is a float.  
+   The key/value will be stored by all the storages with a selector that matches the key.
+   It will also be received by all the matching subscribers (see [ZSub](#ZSub) below).  
+   Note that if no storage and no subscriber are matching the key, the key/value will be dropped.
+   Therefore, you probably should run [ZAddStorage](#ZAddStorage) and/or [ZSub](#ZSub) before ZPutFloat.
+
+   Usage:
+   ```bash
+   java -cp target/zenoh-examples-<version>.jar ZPut [path] [value] [locator]
+   ```
+   where the optional arguments are:
+   - **path** : the path used as a key for the value.  
+                Default value: `/zenoh/examples/native/float` 
    - **value** : the value (as a string).  
                 Default value: `"Put from Zenoh Java!"` 
    - **locator** : the locator of the Zenoh service to connect.  
@@ -70,7 +90,7 @@
    ```
    where the optional arguments are:
    - **selector** : the selector that all replies shall match.  
-                    Default value: `/demo/example/**` 
+                    Default value: `/zenoh/examples/**` 
    - **locator** : the locator of the Zenoh router to connect.  
                    Default value: none, meaning the Zenoh router is found via multicast.
 
@@ -87,7 +107,7 @@
    ```
    where the optional arguments are:
    - **path** : the key to be removed.  
-                Default value: `/demo/example/zenoh-java-put` 
+                Default value: `/zenoh/examples/java/put` 
    - **locator** : the locator of the Zenoh router to connect.  
                    Default value: none, meaning the Zenoh router is found via multicast.
 
@@ -103,7 +123,7 @@
    ```
    where the optional arguments are:
    - **selector** : the subscription selector.  
-                    Default value: `/demo/example/**` 
+                    Default value: `/zenoh/examples/**` 
    - **locator** : the locator of the Zenoh router to connect.  
                    Default value: none, meaning the Zenoh router is found via multicast.
 
@@ -120,7 +140,7 @@
    ```
    where the optional arguments are:
    - **path** : the eval path.  
-                Default value: `/demo/example/zenoh-java-eval` 
+                Default value: `/zenoh/examples/java/eval` 
    - **locator** : the locator of the Zenoh router to connect.  
                    Default value: none, meaning the Zenoh router is found via multicast.
 

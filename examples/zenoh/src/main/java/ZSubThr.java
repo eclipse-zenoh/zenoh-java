@@ -15,7 +15,6 @@ import java.util.List;
 
 import org.eclipse.zenoh.Change;
 import org.eclipse.zenoh.Listener;
-import org.eclipse.zenoh.Path;
 import org.eclipse.zenoh.Selector;
 import org.eclipse.zenoh.Workspace;
 import org.eclipse.zenoh.Zenoh;
@@ -52,19 +51,23 @@ class ZSubThr {
 
     public static void main(String[] args) {
         String locator = null;
+        String s = "/zenoh/examples/throughput/data'";        
+
+        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
+            System.out.println("USAGE:\n\t ZSubThr [<locator>=auto]\n\n");
+            System.exit(0);
+        }
         if (args.length > 0) {
             locator = args[0];
         }
 
-        String s = "/test/thr";
         try {
             Selector selector = new Selector(s);
 
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
-            Zenoh z = Zenoh.login(locator, null);
+            Zenoh z = Zenoh.login(locator);
 
-            System.out.println("Use Workspace on '/'");
-            Workspace w = z.workspace(new Path("/"));
+            Workspace w = z.workspace();
 
             System.out.println("Subscribe on " + selector);
             w.subscribe(selector, new Observer());

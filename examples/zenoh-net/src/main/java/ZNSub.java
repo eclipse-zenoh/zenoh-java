@@ -33,12 +33,16 @@ class ZNSub {
     }
 
     public static void main(String[] args) {
-        String uri = "/demo/example/**";
-        if (args.length > 0) {
-            uri = args[0];
-        }
-
+        String selector = "/zenoh/examples/**";        
         String locator = null;
+
+        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
+            System.out.println("USAGE:\n\t ZNSub  [<selector>=" + selector + "] [<locator>=auto]\n\n");
+            System.exit(0);
+        }
+        if (args.length > 0) {
+            selector = args[0];
+        }        
         if (args.length > 1) {
             locator = args[1];
         }
@@ -47,8 +51,8 @@ class ZNSub {
             System.out.println("Openning session...");
             Session s = Session.open(locator);
 
-            System.out.println("Declaring Subscriber on '" + uri + "'...");
-            Subscriber sub = s.declareSubscriber(uri, SubMode.push(), new Listener());
+            System.out.println("Declaring Subscriber on '" + selector + "'...");
+            Subscriber sub = s.declareSubscriber(selector, SubMode.push(), new Listener());
 
             InputStreamReader stdin = new InputStreamReader(System.in);
             while ((char) stdin.read() != 'q')

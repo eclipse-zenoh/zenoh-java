@@ -17,19 +17,20 @@ import org.eclipse.zenoh.*;
 public class ZPut {
 
     public static void main(String[] args) {
-        // If not specified as 1st argument, use a relative path (to the workspace
-        // below): "zenoh-java-put"
-        String path = "zenoh-java-put";
+        String path = "/zenoh/examples/java/put/hello";
+        String value = "Zenitude put from zenoh-java!";
+        String locator = null;
+
+        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
+            System.out.println("USAGE:\n\t ZPut  [<path>=" + path + "] [<value>] [<locator>=auto]\n\n");
+            System.exit(0);
+        }
         if (args.length > 0) {
             path = args[0];
         }
-
-        String value = "Put from Zenoh Java!";
         if (args.length > 1) {
             value = args[1];
         }
-
-        String locator = null;
         if (args.length > 2) {
             locator = args[2];
         }
@@ -39,10 +40,9 @@ public class ZPut {
             Value v = new StringValue(value);
 
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
-            Zenoh z = Zenoh.login(locator, null);
+            Zenoh z = Zenoh.login(locator);
 
-            System.out.println("Use Workspace on '/demo/example'");
-            Workspace w = z.workspace(new Path("/demo/example"));
+            Workspace w = z.workspace();
 
             System.out.println("Put on " + p + " : " + v);
             w.put(p, v);

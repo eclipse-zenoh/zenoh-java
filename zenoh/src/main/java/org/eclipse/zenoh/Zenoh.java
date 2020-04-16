@@ -59,6 +59,43 @@ public class Zenoh {
     }
 
     /**
+     * Establish a zenoh session through dynamic discovered peers/routers/brokers.
+     *
+     * @return a {@link Zenoh} object.
+     * @throws ZException if login fails.
+     */
+    public static Zenoh login() throws ZException {
+        return Zenoh.login(null, null);
+    }
+
+    /**
+     * Establish a zenoh session via a provided locator. Locator is a string
+     * representing the network endpoint to which establish the session. If the
+     * provided locator is <tt>null</tt>, login will perform some dynamic discovery
+     * and try to establish the session automatically. When not <tt>null</tt>, the
+     * locator must have the format: {@code tcp/<ip>:<port>} (for instance
+     * {@code tcp/127.0.0.1:7447}).
+     *
+     * @param locator the locator or <tt>null</tt>.
+     * @return a {@link Zenoh} object.
+     * @throws ZException if login fails.
+     */
+    public static Zenoh login(String locator) throws ZException {
+        return Zenoh.login(locator, null);
+    }
+
+    /**
+     * Establish a zenoh session through dynamic discovered peers/routers/brokers.
+     *
+     * @param properties the Properties to be used for this session (e.g. "user",
+     *                   "password"...). Can be <tt>null</tt>.
+     * @return a {@link Zenoh} object.
+     * @throws ZException if login fails.
+     */
+    public static Zenoh login(Properties properties) throws ZException {
+        return Zenoh.login(null, properties);
+    }
+    /**
      * Establish a zenoh session via a provided locator. Locator is a string
      * representing the network endpoint to which establish the session. If the
      * provided locator is <tt>null</tt>, login will perform some dynamic discovery
@@ -122,6 +159,20 @@ public class Zenoh {
     }
 
     /**
+     * Creates a Workspace on the root path. All relative {@link Selector} or
+     * {@link Path} used with this Workspace will be relative to this path.
+     * <p>
+     * Notice that all subscription listeners and eval callbacks declared in this
+     * workspace will be executed by the I/O thread. This implies that no long
+     * operations or other call to Zenoh shall be performed in those callbacks.
+     *
+     * @return a {@link Workspace}.
+     */
+    public Workspace workspace() {
+        return this.workspace(new Path("/"));
+    }
+
+    /**
      * Creates a Workspace using the provided path. All relative {@link Selector} or
      * {@link Path} used with this Workspace will be relative to this path.
      * <p>
@@ -152,6 +203,20 @@ public class Zenoh {
         return new Workspace(path, session, threadPool);
     }
 
+    /**
+     * Creates a Workspace using the provided path. All relative {@link Selector} or
+     * {@link Path} used with this Workspace will be relative to this path.
+     * <p>
+     * Notice that all subscription listeners and eval callbacks declared in this
+     * workspace will be executed by a CachedThreadPool. This is useful when
+     * listeners and/or callbacks need to perform long operations or need to call
+     * other Zenoh operations.
+     *
+     * @return a {@link Workspace}.
+     */
+    public Workspace workspaceWithExecutor() {
+        return new Workspace(new Path("/"), session, threadPool);
+    }
     /**
      * Returns the {@link Admin} object that provides helper operations to
      * administer Zenoh.

@@ -12,22 +12,24 @@
  *   ADLINK zenoh team, <zenoh@adlink-labs.tech>
  */
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
 import org.eclipse.zenoh.*;
 
-public class ZRemove {
+public class ZPutFloat {
 
     public static void main(String[] args) {
-        
-        String path = "/zenoh/examples/java/put/hello";        
+        String path = "/zenoh/examples/native/float";
         String locator = null;
 
         if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            System.out.println("USAGE:\n\t ZRemove  [<path> = " + path + " [<locator>=auto]\n\n");
+            System.out.println("USAGE:\n\t ZPut  [<path>=" + path + "] [<value>] [<locator>=auto]\n\n");
             System.exit(0);
         }
         if (args.length > 0) {
             path = args[0];
-        }        
+        }
         if (args.length > 1) {
             locator = args[1];
         }
@@ -35,13 +37,20 @@ public class ZRemove {
         try {
             Path p = new Path(path);
 
-            System.out.println("Login to Zenoh (locator=" + locator + ")...");
             Zenoh z = Zenoh.login(locator);
-
             Workspace w = z.workspace();
 
-            System.out.println("Remove " + p);
-            w.remove(p);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+            String v = null;
+            while (! ".".equals(v)) {
+                System.out.print("Insert value ('.' to exit): ");
+                v = reader.readLine();
+                try {
+                    w.put(p, Float.parseFloat(v));
+                } catch (NumberFormatException e) {
+                    System.err.println("Invalid float!");
+                }
+            }
 
             z.logout();
         } catch (Throwable e) {

@@ -77,7 +77,7 @@ public final class Selector implements Comparable<Selector> {
     private String toString;
 
     /**
-     * Create a Selector from a string such as "/demo/example/**?(name=Bob)".
+     * Create a Selector from a string such as "/zenoh/examples/**?(name=Bob)".
      *
      * @param p the string
      */

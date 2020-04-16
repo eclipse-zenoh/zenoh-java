@@ -15,9 +15,11 @@ import org.eclipse.zenoh.net.*;
 
 class ZNPubThr {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) {        
         String locator = null;
-        if (args.length < 1) {
+        String path = "/zenoh/examples/throughput/data'";
+
+        if ((args.length < 1) || ((args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))))) {
             System.out.println("USAGE:");
             System.out.println("\tZPubThr [I|W]<payload-size> [<zenoh-locator>]");
             System.out.println("\t\tWhere the optional character in front of payload size means:");
@@ -55,7 +57,7 @@ class ZNPubThr {
 
         try {
             Session s = Session.open(locator);
-            Publisher pub = s.declarePublisher("/test/thr");
+            Publisher pub = s.declarePublisher(path);
 
             while (true) {
                 pub.streamData(data);

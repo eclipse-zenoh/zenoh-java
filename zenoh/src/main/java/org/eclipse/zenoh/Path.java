@@ -16,7 +16,7 @@ package org.eclipse.zenoh;
 /**
  * A zenoh Path is a set of strings separated by '/' , as in a filesystem path.
  * A Path cannot contain any '*' character. Examples of paths:
- * "/demo/example/test" , "/com/adlink/building/fr/floor/1/office/2" ...
+ * "/zenoh/examples/test" , "/com/adlink/building/fr/floor/1/office/2" ...
  * <p>
  * A path can be absolute (i.e. starting with a `'/'`) or relative to a
  * {@link Workspace}.
@@ -28,7 +28,7 @@ public class Path implements Comparable<Path> {
     private String path;
 
     /**
-     * Create a Path from a string such as "/demo/example/test".
+     * Create a Path from a string such as "/zenoh/examples/test".
      *
      * @param p the string
      */
@@ -38,7 +38,7 @@ public class Path implements Comparable<Path> {
         }
         if (p.isEmpty()) {
             throw new IllegalArgumentException("Invalid path (empty String)");
-        }
+        }   
         for (int i = 0; i < p.length(); ++i) {
             char c = p.charAt(i);
             if (c == '?' || c == '#' || c == '[' || c == ']' || c == '*')
@@ -47,7 +47,7 @@ public class Path implements Comparable<Path> {
         this.path = removeUselessSlashes(p);
     }
 
-    private String removeUselessSlashes(String s) {
+    private static String removeUselessSlashes(String s) {
         String result = s.replaceAll("/+", "/");
         if (result.charAt(result.length() - 1) == '/') {
             return result.substring(0, result.length() - 1);
@@ -55,7 +55,7 @@ public class Path implements Comparable<Path> {
             return result;
         }
     }
-
+    
     @Override
     public String toString() {
         return path;
@@ -94,6 +94,10 @@ public class Path implements Comparable<Path> {
         return path.length();
     }
 
+    static boolean isRelative(String p) {
+        return p.length() == 0 || p.charAt(0) != '/';        
+    } 
+    
     /**
      * Returns true if the Path is relative (i.e. it doesn't start with '/')
      * 
