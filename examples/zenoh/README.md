@@ -43,11 +43,31 @@
    The key/value will be stored by all the storages with a selector that matches the key.
    It will also be received by all the matching subscribers (see [ZSub](#ZSub) below).  
    Note that if no storage and no subscriber are matching the key, the key/value will be dropped.
-   Therefore, you probably should run [ZAddStorage](#ZAddStorage) and/or [ZSub](#ZSub) before YPut.
+   Therefore, you probably should run [ZAddStorage](#ZAddStorage) and/or [ZSub](#ZSub) before ZPut.
 
    Usage:
    ```bash
-   java -cp target/zenoh-examples-<version>.jar YPut [path] [value] [locator]
+   java -cp target/zenoh-examples-<version>.jar ZPut [path] [value] [locator]
+   ```
+   where the optional arguments are:
+   - **path** : the path used as a key for the value.  
+                Default value: `/zenoh/examples/java/put` 
+   - **value** : the value (as a string).  
+                Default value: `"Put from Zenoh Java!"` 
+   - **locator** : the locator of the Zenoh service to connect.  
+                   Default value: none, meaning the Zenoh router is found via multicast.
+
+### ZPutFloat
+
+   Put a key/value into Zenoh where the value is a float.  
+   The key/value will be stored by all the storages with a selector that matches the key.
+   It will also be received by all the matching subscribers (see [ZSub](#ZSub) below).  
+   Note that if no storage and no subscriber are matching the key, the key/value will be dropped.
+   Therefore, you probably should run [ZAddStorage](#ZAddStorage) and/or [ZSub](#ZSub) before ZPutFloat.
+
+   Usage:
+   ```bash
+   java -cp target/zenoh-examples-<version>.jar ZPut [path] [value] [locator]
    ```
    where the optional arguments are:
    - **path** : the path used as a key for the value.  
