@@ -15,7 +15,6 @@ import java.util.List;
 
 import org.eclipse.zenoh.Change;
 import org.eclipse.zenoh.Listener;
-import org.eclipse.zenoh.Path;
 import org.eclipse.zenoh.Selector;
 import org.eclipse.zenoh.Workspace;
 import org.eclipse.zenoh.Zenoh;

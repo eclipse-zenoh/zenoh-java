@@ -30,11 +30,15 @@ class ZNEval implements QueryHandler {
     }
 
     public static void main(String[] args) {
-        if (args.length > 0) {
-            uri = args[0];
-        }
-
+        String path = "/zenoh/examples/java/eval";
         String locator = null;
+        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
+            System.out.println("USAGE:\n\t ZNEval  [<path>=" + path + "] [<locator>=auto]\n\n");
+            System.exit(0);
+        }
+        if (args.length > 0) {
+            path = args[0];
+        }
         if (args.length > 1) {
             locator = args[1];
         }
@@ -43,8 +47,8 @@ class ZNEval implements QueryHandler {
             System.out.println("Openning session...");
             Session s = Session.open(locator);
 
-            System.out.println("Declaring Eval on '" + uri + "'...");
-            Eval e = s.declareEval(uri, new ZNEval());
+            System.out.println("Declaring Eval on '" + path + "'...");
+            Eval e = s.declareEval(path, new ZNEval());
 
             InputStreamReader stdin = new InputStreamReader(System.in);
             while ((char) stdin.read() != 'q')

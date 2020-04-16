@@ -29,6 +29,10 @@ class ZNInfo {
 
     public static void main(String[] args) {
         String locator = null;
+        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
+            System.out.println("USAGE:\n\t ZNInfo  [<locator>=auto]\n\n");
+            System.exit(0);
+        }
         if (args.length > 0) {
             locator = args[0];
         }

@@ -52,12 +52,16 @@ class ZNStorage implements StorageHandler {
     }
 
     public static void main(String[] args) {
-        String uri = "/zenoh/examples/**";
-        if (args.length > 0) {
-            uri = args[0];
-        }
-
+        String selector = "/zenoh/examples/**";
         String locator = null;
+
+        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
+            System.out.println("USAGE:\n\t ZNStorage  [<selector>=" + selector + "]  [<locator>=auto]\n\n");
+            System.exit(0);
+        }
+        if (args.length > 0) {
+            selector = args[0];
+        }        
         if (args.length > 1) {
             locator = args[1];
         }
@@ -66,8 +70,8 @@ class ZNStorage implements StorageHandler {
             System.out.println("Openning session...");
             Session s = Session.open(locator);
 
-            System.out.println("Declaring Storage on '" + uri + "'...");
-            Storage sto = s.declareStorage(uri, new ZNStorage());
+            System.out.println("Declaring Storage on '" + selector + "'...");
+            Storage sto = s.declareStorage(selector, new ZNStorage());
 
             InputStreamReader stdin = new InputStreamReader(System.in);
             while ((char) stdin.read() != 'q')

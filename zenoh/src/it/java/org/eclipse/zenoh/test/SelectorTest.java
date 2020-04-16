@@ -13,7 +13,6 @@
  */
 package org.eclipse.zenoh.test;
 
-import java.nio.ByteBuffer;
 import org.junit.Assert;
 import org.junit.Test;
 

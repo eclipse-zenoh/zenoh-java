@@ -15,28 +15,31 @@ import org.eclipse.zenoh.net.*;
 
 class ZNStream {
 
-    public static void main(String[] args) {
-        String uri = "/zenoh/examples/java/stream";
-        if (args.length > 0) {
-            uri = args[0];
-        }
+    public static void main(String[] args) {        
+        String path = "/zenoh/examples/java/put/hello";
+        String value = "Zenitude streamed from zenoh-net-java!";
+        String locator = null;
 
-        String value = "Stream from Java!";
+        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
+            System.out.println("USAGE:\n\t ZNStream  [<path>=" + path + "] [<value>] [<locator>=auto]\n\n");
+            System.exit(0);
+        }
+        if (args.length > 0) {
+            path = args[0];
+        }
         if (args.length > 1) {
             value = args[1];
         }
-
-        String locator = null;
         if (args.length > 2) {
             locator = args[2];
         }
-
+        
         try {
             System.out.println("Openning session...");
             Session s = Session.open(locator);
 
-            System.out.println("Declaring Publisher on '" + uri + "'...");
-            Publisher pub = s.declarePublisher(uri);
+            System.out.println("Declaring Publisher on '" + path + "'...");
+            Publisher pub = s.declarePublisher(path);
 
             System.out.println("Streaming Data...");
             java.nio.ByteBuffer buf = java.nio.ByteBuffer.allocateDirect(256);
@@ -44,7 +47,7 @@ class ZNStream {
                 Thread.sleep(1000);
                 String str = String.format("[%4d] %s", idx, value);
                 buf.put(str.getBytes("UTF-8"));
-                System.out.printf("Streaming Data ('%s': '%s')...\n", uri, str);
+                System.out.printf("Streaming Data ('%s': '%s')...\n", path, str);
                 pub.streamData(buf);
                 buf.rewind();
             }

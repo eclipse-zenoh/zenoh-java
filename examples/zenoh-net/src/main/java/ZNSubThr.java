@@ -47,13 +47,19 @@ class ZNSubThr {
 
     public static void main(String[] args) {
         String locator = null;
+        String path = "/zenoh/examples/throughput/data'";        
+
+        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
+            System.out.println("USAGE:\n\t ZSubThr [<locator>=auto]\n\n");
+            System.exit(0);
+        }
         if (args.length > 0) {
             locator = args[0];
-        }
+        }        
 
         try {
             Session s = Session.open(locator);
-            Subscriber sub = s.declareSubscriber("/test/thr", SubMode.push(), new Listener());
+            Subscriber sub = s.declareSubscriber(path, SubMode.push(), new Listener());
 
             Thread.sleep(60000);
 

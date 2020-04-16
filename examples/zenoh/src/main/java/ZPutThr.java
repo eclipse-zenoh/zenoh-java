@@ -23,21 +23,7 @@ class ZPutThr {
     public static void main(String[] args) {
         String locator = null;
         String path = "/zenoh/examples/throughput/data'";
-        String value = "Zenitude put from zenoh-java!";
 
-        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            System.out.println("USAGE:\n\t ZPutThr  [<path>=" + path + "] [<value>] [<locator>=auto]\n\n");
-            System.exit(0);
-        }
-        if (args.length > 0) {
-            path = args[0];
-        }
-        if (args.length > 1) {
-            value = args[1];
-        }
-        if (args.length > 2) {
-            locator = args[2];
-        }
         if ((args.length < 1) || ((args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))))) {
             System.out.println("USAGE:");
             System.out.println("\tYPutThr [I|W]<payload-size> [<zenoh-locator>]");

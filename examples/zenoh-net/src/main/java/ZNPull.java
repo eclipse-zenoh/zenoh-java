@@ -33,22 +33,26 @@ class ZNPull {
     }
 
     public static void main(String[] args) {
-        String uri = "/zenoh/examples/**";
-        if (args.length > 1) {
-            uri = args[1];
-        }
-
+        String selector = "/zenoh/examples/**";
         String locator = null;
+
+        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
+            System.out.println("USAGE:\n\t ZNPull  [<selector>=" + selector + "] [<locator>=auto]\n\n");
+            System.exit(0);
+        }
         if (args.length > 0) {
-            locator = args[0];
+            selector = args[0];
+        }
+        if (args.length > 1) {
+            locator = args[1];
         }
 
         try {
             System.out.println("Openning session...");
             Session s = Session.open(locator);
 
-            System.out.println("Declaring Subscriber on '" + uri + "'...");
-            Subscriber sub = s.declareSubscriber(uri, SubMode.pull(), new Listener());
+            System.out.println("Declaring Subscriber on '" + selector + "'...");
+            Subscriber sub = s.declareSubscriber(selector, SubMode.pull(), new Listener());
 
             System.out.println("Press <enter> to pull data...");
             InputStreamReader stdin = new InputStreamReader(System.in);

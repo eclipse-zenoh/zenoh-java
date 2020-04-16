@@ -16,28 +16,32 @@ import org.eclipse.zenoh.net.*;
 class ZNWrite {
 
     public static void main(String[] args) {
-        String uri = "/zenoh/examples/java/write";
-        if (args.length > 0) {
-            uri = args[0];
-        }
+        String path = "/zenoh/examples/java/put/hello";
+        String value = "Zenitude wrote from zenoh-net-java!";
+        String locator = null;
 
-        String value = "Write from Java!";
+        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
+            System.out.println("USAGE:\n\t ZNWrite  [<path>=" + path + "] [<value>] [<locator>=auto]\n\n");
+            System.exit(0);
+        }
+        if (args.length > 0) {
+            path = args[0];
+        }
         if (args.length > 1) {
             value = args[1];
         }
-
-        String locator = null;
-        if (args.length > 3) {
-            locator = args[3];
+        if (args.length > 2) {
+            locator = args[2];
         }
+
 
         try {
             System.out.println("Openning session...");
             Session s = Session.open(locator);
 
-            System.out.printf("Writing Data ('%s': '%s')...\n", uri, value);
+            System.out.printf("Writing Data ('%s': '%s')...\n", path, value);
             java.nio.ByteBuffer buf = java.nio.ByteBuffer.wrap(value.getBytes("UTF-8"));
-            s.writeData(uri, buf);
+            s.writeData(path, buf);
 
             s.close();
 
