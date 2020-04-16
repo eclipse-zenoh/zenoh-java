@@ -71,7 +71,7 @@
    ```
    where the optional arguments are:
    - **path** : the path used as a key for the value.  
-                Default value: `/zenoh/examples/java/put` 
+                Default value: `/zenoh/examples/native/float` 
    - **value** : the value (as a string).  
                 Default value: `"Put from Zenoh Java!"` 
    - **locator** : the locator of the Zenoh service to connect.  
