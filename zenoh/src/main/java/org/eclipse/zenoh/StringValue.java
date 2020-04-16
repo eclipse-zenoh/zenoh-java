@@ -50,9 +50,13 @@ public class StringValue implements Value {
         return Encoding.STRING;
     }
 
+    public static ByteBuffer encode(String s) {
+        return ByteBuffer.wrap(s.getBytes(utf8));
+    }
+
     @Override
     public ByteBuffer encode() {
-        return ByteBuffer.wrap(s.getBytes(utf8));
+        return StringValue.encode(s);
     }
 
     @Override

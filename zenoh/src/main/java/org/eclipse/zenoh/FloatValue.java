@@ -34,9 +34,13 @@ public class FloatValue  implements Value {
         return Encoding.FLOAT;
     }
 
+    public static ByteBuffer encode(float v) {
+        return ByteBuffer.wrap(Float.toString(v).getBytes());
+    }
+
     @Override
     public ByteBuffer encode() {
-        return ByteBuffer.wrap(Float.toString(this.v).getBytes());
+        return FloatValue.encode(this.v);
     }
 
     @Override

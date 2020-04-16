@@ -18,9 +18,6 @@ import java.util.Properties;
 import java.util.Map;
 import java.util.Hashtable;
 
-import org.eclipse.zenoh.Path;
-import org.eclipse.zenoh.Value;
-import org.eclipse.zenoh.Workspace;
 import org.eclipse.zenoh.core.ZException;
 
 /**

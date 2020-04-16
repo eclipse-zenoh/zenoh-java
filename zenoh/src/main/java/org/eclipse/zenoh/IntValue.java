@@ -34,9 +34,13 @@ public class IntValue  implements Value {
         return Encoding.INT;
     }
 
+    public static ByteBuffer encode(int v) {
+        return ByteBuffer.wrap(Integer.toString(v).getBytes());
+    }
+
     @Override
     public ByteBuffer encode() {
-        return ByteBuffer.wrap(Integer.toString(this.v).getBytes());
+        return IntValue.encode(this.v);        
     }
 
     @Override

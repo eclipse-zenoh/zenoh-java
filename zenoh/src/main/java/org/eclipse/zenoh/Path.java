@@ -26,7 +26,26 @@ package org.eclipse.zenoh;
 public class Path implements Comparable<Path> {
 
     private String path;
+    
+    /**
+     * Preditate that tests if a string follows the path syntax.
+     *  
+     * @param p the string to be checked
+     * @return true if the string is a path false otherwise
+     */
 
+    
+    private static int hasInvalidCharacter(String p) {
+        for (int i = 0; i < p.length(); ++i) {
+            char c = p.charAt(i);
+            if (c == '?' || c == '#' || c == '[' || c == ']' || c == '*')
+                return i;
+        }
+        return -1;
+    }
+    public static boolean isPath(String p) {
+        return Path.hasInvalidCharacter(p) == -1;
+    }
     /**
      * Create a Path from a string such as "/zenoh/examples/test".
      *
@@ -38,22 +57,30 @@ public class Path implements Comparable<Path> {
         }
         if (p.isEmpty()) {
             throw new IllegalArgumentException("Invalid path (empty String)");
+        }   
+        int i = hasInvalidCharacter(p);     
+        if (i != -1) {
+            throw new IllegalArgumentException("Invalid path: " + p + " (forbidden character at index " + i + ")");
         }
-        for (int i = 0; i < p.length(); ++i) {
-            char c = p.charAt(i);
-            if (c == '?' || c == '#' || c == '[' || c == ']' || c == '*')
-                throw new IllegalArgumentException("Invalid path: " + p + " (forbidden character at index " + i + ")");
-        }
+        
         this.path = removeUselessSlashes(p);
     }
 
-    private String removeUselessSlashes(String s) {
+    private static String removeUselessSlashes(String s) {
         String result = s.replaceAll("/+", "/");
         if (result.charAt(result.length() - 1) == '/') {
             return result.substring(0, result.length() - 1);
         } else {
             return result;
         }
+    }
+    
+    static String toPathString(String s) {
+        String p = null;
+        if (isPath(s)) {
+            p = removeUselessSlashes(s);
+        }
+        return p;
     }
 
     @Override
@@ -94,6 +121,10 @@ public class Path implements Comparable<Path> {
         return path.length();
     }
 
+    static boolean isRelative(String p) {
+        return p.length() == 0 || p.charAt(0) != '/';        
+    } 
+    
     /**
      * Returns true if the Path is relative (i.e. it doesn't start with '/')
      * 

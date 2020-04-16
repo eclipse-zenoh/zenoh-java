@@ -65,6 +65,13 @@ public class Workspace {
         }
     }
 
+    private static String toAsbsolutePath(Path path, String p) {
+        if (Path.isRelative(p)) {
+            return path.toString() + "/" + p; 
+        } else {
+            return p;
+        }
+    }
     private Selector toAsbsoluteSelector(Selector s) {
         if (s.isRelative()) {
             return s.addPrefix(this.path);
@@ -81,7 +88,19 @@ public class Workspace {
      * @throws ZException if put failed.
      */
     public void put(String path, String value) throws ZException {
-        this.put(new Path(path), new StringValue(value));
+        String p = Path.toPathString(path);
+        if (p != null) {
+            p = Workspace.toAsbsolutePath(this.path, p);
+            LOG.debug("Put on {} of {}", path, value);
+            try {
+                this.session.writeData(p, StringValue.encode(value), Encoding.STRING.getFlag(), KIND_PUT);            
+            } catch (ZException e) {
+                throw new ZException("Put on " + path + " failed", e);
+            }
+        }        
+        else {
+            throw new ZException("Put on " + path + " failed because of invalid path: " + path);
+        }
     }
 
     /**
@@ -92,7 +111,19 @@ public class Workspace {
      * @throws ZException if put failed.
      */
     public void put(String path, int value) throws ZException {
-        this.put(new Path(path), new IntValue(value));
+        String p = Path.toPathString(path);
+        if (p != null) {
+            p = Workspace.toAsbsolutePath(this.path, p);
+            LOG.debug("Put on {} of {}", path, value);
+            try {
+                this.session.writeData(p, IntValue.encode(value), Encoding.INT.getFlag(), KIND_PUT);            
+            } catch (ZException e) {
+                throw new ZException("Put on " + path + " failed", e);
+            }
+        }        
+        else {
+            throw new ZException("Put on " + path + " failed because of invalid path: " + path);
+        }
     }
 
     /**
@@ -104,7 +135,19 @@ public class Workspace {
      */
 
     public void put(String path, float value) throws ZException {
-        this.put(new Path(path), new FloatValue(value));
+        String p = Path.toPathString(path);
+        if (p != null) {
+            p = Workspace.toAsbsolutePath(this.path, p);
+            LOG.debug("Put on {} of {}", path, value);
+            try {
+                this.session.writeData(p, FloatValue.encode(value), Encoding.FLOAT.getFlag(), KIND_PUT);            
+            } catch (ZException e) {
+                throw new ZException("Put on " + path + " failed", e);
+            }
+        }        
+        else {
+            throw new ZException("Put on " + path + " failed because of invalid path: " + path);
+        }
     }
 
     /**
