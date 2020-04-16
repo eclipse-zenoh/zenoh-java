@@ -3,20 +3,23 @@ package org.eclipse.zenoh;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 
+/**
+ * A {@link Value} containing a 64-bits signed float (i.e. a Java double).
+ */
 public class FloatValue  implements Value {
 
-    private static final short ENCODING_FLAG = 0x08;
+    private static final short ENCODING_FLAG = 0x07;
 
     private static final Charset utf8 = Charset.forName("UTF-8");
 
-    private float v;
+    private double v;
 
     /**
      * Creates an IntValue containing a int.
      *
      * @param v the float
      */
-    public FloatValue(float v) {
+    public FloatValue(double v) {
         this.v = v;
     }
 
@@ -25,7 +28,7 @@ public class FloatValue  implements Value {
      *
      * @return the string
      */
-    public float getFloat() {
+    public double getFloat() {
         return this.v;
     }
 
@@ -34,8 +37,8 @@ public class FloatValue  implements Value {
         return Encoding.FLOAT;
     }
 
-    public static ByteBuffer encode(float v) {
-        return ByteBuffer.wrap(Float.toString(v).getBytes());
+    public static ByteBuffer encode(double v) {
+        return ByteBuffer.wrap(Double.toString(v).getBytes());
     }
 
     @Override
@@ -45,7 +48,7 @@ public class FloatValue  implements Value {
 
     @Override
     public String toString() {
-        return Float.toString(this.v);
+        return Double.toString(this.v);
     }
 
     @Override

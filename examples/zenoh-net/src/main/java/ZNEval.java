@@ -17,20 +17,18 @@ import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 
 class ZNEval implements QueryHandler {
-
-    private static String uri = "/zenoh/examples/java/eval";
+    private static String path = "/zenoh/examples/java/eval";
 
     public void handleQuery(String rname, String predicate, RepliesSender repliesSender) {
         System.out.printf(">> [Query handler] Handling '%s?%s'\n", rname, predicate);
 
         ByteBuffer data = ByteBuffer.wrap("Eval from Java!".getBytes());
-        Resource[] replies = { new Resource(uri, data, 0, 0) };
+        Resource[] replies = { new Resource(path, data, 0, 0) };
 
         repliesSender.sendReplies(replies);
     }
 
     public static void main(String[] args) {
-        String path = "/zenoh/examples/java/eval";
         String locator = null;
         if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
             System.out.println("USAGE:\n\t ZNEval  [<path>=" + path + "] [<locator>=auto]\n\n");

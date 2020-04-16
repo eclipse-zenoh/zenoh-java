@@ -80,6 +80,10 @@ public enum Encoding {
             return PROPERTIES;
         } else if (flag == JSON.getFlag()) {
             return JSON;
+        } else if (flag == INT.getFlag()) {
+            return INT;
+        } else if (flag == FLOAT.getFlag()) {
+            return FLOAT;
         } else {
             throw new ZException("Unkown encoding flag: " + flag);
         }

@@ -39,7 +39,7 @@ public class ZAddStorage {
 
         try {
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
-            Zenoh z = Zenoh.login();
+            Zenoh z = Zenoh.login(locator);
 
             Admin admin = z.admin();
 

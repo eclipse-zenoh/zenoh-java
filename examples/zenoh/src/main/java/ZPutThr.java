@@ -66,7 +66,7 @@ class ZPutThr {
             Value v = new RawValue(data);
 
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
-            Zenoh z = Zenoh.login(locator, null);
+            Zenoh z = Zenoh.login(locator);
 
             Workspace w = z.workspace();
 

@@ -65,7 +65,7 @@ class ZSubThr {
             Selector selector = new Selector(s);
 
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
-            Zenoh z = Zenoh.login(locator, null);
+            Zenoh z = Zenoh.login(locator);
 
             Workspace w = z.workspace();
 

@@ -35,13 +35,13 @@ public class ZGet {
             Selector s = new Selector(selector);
 
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
-            Zenoh z = Zenoh.login(locator, null);
+            Zenoh z = Zenoh.login(locator);
             
             Workspace w = z.workspace();
 
             System.out.println("Get from " + s);
             for (Data data : w.get(s)) {
-                System.out.println("  " + data.getPath() + " : " + data.getValue());
+                System.out.println("  " + data.getPath() + " : " + data.getValue() + " - " + data.getValue().getEncoding());
             }
 
             z.logout();

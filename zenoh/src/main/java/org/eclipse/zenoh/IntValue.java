@@ -3,20 +3,23 @@ package org.eclipse.zenoh;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 
+/**
+ * A {@link Value} containing a 64-bits signed integer (i.e. a Java long).
+ */
 public class IntValue  implements Value {
 
-    private static final short ENCODING_FLAG = 0x07;
+    private static final short ENCODING_FLAG = 0x06;
 
     private static final Charset utf8 = Charset.forName("UTF-8");
 
-    private int v;
+    private long v;
 
     /**
-     * Creates an IntValue containing a int.
+     * Creates an IntValue containing a long.
      *
-     * @param v the int
+     * @param v the long
      */
-    public IntValue(int v) {
+    public IntValue(long v) {
         this.v = v;
     }
 
@@ -25,7 +28,7 @@ public class IntValue  implements Value {
      *
      * @return the string
      */
-    public int getInt() {
+    public long getInt() {
         return this.v;
     }
 
@@ -34,8 +37,8 @@ public class IntValue  implements Value {
         return Encoding.INT;
     }
 
-    public static ByteBuffer encode(int v) {
-        return ByteBuffer.wrap(Integer.toString(v).getBytes());
+    public static ByteBuffer encode(long v) {
+        return ByteBuffer.wrap(Long.toString(v).getBytes());
     }
 
     @Override
@@ -45,7 +48,7 @@ public class IntValue  implements Value {
 
     @Override
     public String toString() {
-        return Integer.toString(this.v);
+        return Long.toString(this.v);
     }
 
     @Override

@@ -32,7 +32,6 @@ public class ZEval {
             p = args[0];
         }
 
-
         if (args.length > 1) {
             locator = args[1];
         }
@@ -41,7 +40,7 @@ public class ZEval {
             Path path = new Path(p);
 
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
-            Zenoh z = Zenoh.login();
+            Zenoh z = Zenoh.login(locator);
 
             System.out.println("Use Workspace on '/'");
             // Note that we use a Workspace with executor here, for our Eval.callback

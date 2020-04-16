@@ -40,8 +40,8 @@ public class ZPut {
             Value v = new StringValue(value);
 
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
-            Zenoh z = Zenoh.login(locator, null);
-            
+            Zenoh z = Zenoh.login(locator);
+
             Workspace w = z.workspace();
 
             System.out.println("Put on " + p + " : " + v);

@@ -16,7 +16,7 @@ import org.eclipse.zenoh.net.*;
 class ZNStream {
 
     public static void main(String[] args) {        
-        String path = "/zenoh/examples/java/put/hello";
+        String path = "/zenoh/examples/java/stream/hello";
         String value = "Zenitude streamed from zenoh-net-java!";
         String locator = null;
 
