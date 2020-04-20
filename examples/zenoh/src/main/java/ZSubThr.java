@@ -19,10 +19,23 @@ import org.eclipse.zenoh.Selector;
 import org.eclipse.zenoh.Workspace;
 import org.eclipse.zenoh.Zenoh;
 
-class ZSubThr {
+import picocli.CommandLine;
+import picocli.CommandLine.Option;
+
+class ZSubThr implements Runnable {
+
+    @Option(names = {"-h", "--help"}, usageHelp = true, description = "display this help message")
+    private boolean helpRequested = false;
+
+    @Option(names = {"-p", "--path"},
+        description = "The subscriber path.\n  [default: ${DEFAULT-VALUE}]")
+    private String path = "/zenoh/examples/throughput/data";
+
+    @Option(names = {"-l", "--locator"},
+        description = "The locator to be used to boostrap the zenoh session. By default dynamic discovery is used")
+    private String locator = null;
 
     private static final long N = 50000;
-
     private static long count = 0;
     private static long start;
     private static long stop;
@@ -49,20 +62,10 @@ class ZSubThr {
         }
     }
 
-    public static void main(String[] args) {
-        String locator = null;
-        String s = "/zenoh/examples/throughput/data'";        
-
-        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            System.out.println("USAGE:\n\t ZSubThr [<locator>=auto]\n\n");
-            System.exit(0);
-        }
-        if (args.length > 0) {
-            locator = args[0];
-        }
-
+    @Override
+    public void run() {
         try {
-            Selector selector = new Selector(s);
+            Selector selector = new Selector(path);
 
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
             Zenoh z = Zenoh.login(locator);
@@ -77,5 +80,10 @@ class ZSubThr {
         } catch (Throwable e) {
             e.printStackTrace();
         }
+    }
+
+    public static void main(String[] args) {
+        int exitCode = new CommandLine(new ZSubThr()).execute(args);
+        System.exit(exitCode);
     }
 }

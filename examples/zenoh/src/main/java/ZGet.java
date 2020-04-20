@@ -13,24 +13,24 @@
  */
 
 import org.eclipse.zenoh.*;
+import picocli.CommandLine;
+import picocli.CommandLine.Option;
 
-public class ZGet {
+public class ZGet implements Runnable {
 
-    public static void main(String[] args) {
-        String selector = "/zenoh/examples/**";
-        String locator = null;
+    @Option(names = {"-h", "--help"}, usageHelp = true, description = "display this help message")
+    private boolean helpRequested = false;
 
-        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            System.out.println("USAGE:\n\t ZGet  [<selector>=" + selector + "] [<locator>=auto]\n\n");
-            System.exit(0);
-        }
-        if (args.length > 0) {
-            selector = args[0];
-        }
-        if (args.length > 1) {
-            locator = args[1];
-        }        
+    @Option(names = {"-s", "--selector"},
+        description = "The selector to be used for issuing the query.\n  [default: ${DEFAULT-VALUE}]")
+    private String selector = "/zenoh/examples/**";
 
+    @Option(names = {"-l", "--locator"},
+        description = "The locator to be used to boostrap the zenoh session. By default dynamic discovery is used")
+    private String locator = null;
+
+    @Override
+    public void run() {
         try {
             Selector s = new Selector(selector);
 
@@ -50,4 +50,8 @@ public class ZGet {
         }
     }
 
+    public static void main(String[] args) {
+        int exitCode = new CommandLine(new ZGet()).execute(args);
+        System.exit(exitCode);
+    }
 }

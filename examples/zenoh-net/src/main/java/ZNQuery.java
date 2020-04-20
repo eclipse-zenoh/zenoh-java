@@ -13,7 +13,21 @@
  */
 import org.eclipse.zenoh.net.*;
 
-class ZNQuery {
+import picocli.CommandLine;
+import picocli.CommandLine.Option;
+
+class ZNQuery implements Runnable {
+
+    @Option(names = {"-h", "--help"}, usageHelp = true, description = "display this help message")
+    private boolean helpRequested = false;
+
+    @Option(names = {"-l", "--locator"},
+        description = "The locator to be used to boostrap the zenoh session. By default dynamic discovery is used")
+    private String locator = null;
+
+    @Option(names = {"-s", "--selector"},
+        description = "The selector to be used for issuing the pull query.\n  [default: ${DEFAULT-VALUE}]")
+    private String selector = "/zenoh/examples/**";
 
     private static class Handler implements ReplyHandler {
 
@@ -50,25 +64,9 @@ class ZNQuery {
         }
     }
 
-    public static void main(String[] args) {
-        String selector = "/zenoh/examples/**";
-        String locator = null;
 
-        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            System.out.println("USAGE:\n\t ZNQuery  [<selector>=" + selector + "] [<locator>=auto]\n\n");
-            System.exit(0);
-        }
-        if (args.length > 0) {
-            selector = args[0];
-        }
-        if (args.length > 1) {
-            locator = args[1];
-        }        
-
-        if (args.length > 1) {
-            locator = args[1];
-        }
-
+    @Override
+    public void run() {
         try {
             System.out.println("Openning session...");
             Session s = Session.open(locator);
@@ -82,5 +80,10 @@ class ZNQuery {
         } catch (Throwable e) {
             e.printStackTrace();
         }
+    }
+
+    public static void main(String[] args) {
+        int exitCode = new CommandLine(new ZNQuery()).execute(args);
+        System.exit(exitCode);
     }
 }

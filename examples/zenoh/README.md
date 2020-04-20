@@ -15,6 +15,8 @@
    java -cp target/zenoh-examples-<version>.jar <classname> <args>
    ```
 
+   Each example accepts the -h or --help option that provides a description of its arguments and their default values.
+
 ## Examples description
 
 ### ZAddStorage
@@ -23,15 +25,8 @@
 
    Usage:
    ```bash
-   java -cp target/zenoh-examples-<version>.jar ZAddStorage [selector] [storage-id] [locator]
+   java -cp target/zenoh-examples-<version>.jar ZAddStorage [--selector SELECTOR] [--id ID] [--locator LOCATOR]
    ```
-   where the optional arguments are:
-   - **selector** :  the selector matching the keys (path) that have to be stored.  
-                     Default value: `/zenoh/examples/**`
-   - **storage-id** : the storage identifier.  
-                      Default value: `Demo` 
-   - **locator** : the locator of the Zenoh router to connect.  
-                   Default value: none, meaning the Zenoh router is found via multicast.
 
    Note that his example doesn't specify the Backend that Zenoh has to use for storage creation.  
    Therefore, Zenoh will automatically select the memory backend, meaning the storage will be in memory
@@ -47,19 +42,12 @@
 
    Usage:
    ```bash
-   java -cp target/zenoh-examples-<version>.jar ZPut [path] [value] [locator]
+   java -cp target/zenoh-examples-<version>.jar ZPut [--path PATH] [--locator LOCATOR] [--msg MSG]
    ```
-   where the optional arguments are:
-   - **path** : the path used as a key for the value.  
-                Default value: `/zenoh/examples/java/put` 
-   - **value** : the value (as a string).  
-                Default value: `"Put from Zenoh Java!"` 
-   - **locator** : the locator of the Zenoh service to connect.  
-                   Default value: none, meaning the Zenoh router is found via multicast.
 
 ### ZPutFloat
 
-   Put a key/value into Zenoh where the value is a float.  
+   Put a key/value into Zenoh where the value is a float.
    The key/value will be stored by all the storages with a selector that matches the key.
    It will also be received by all the matching subscribers (see [ZSub](#ZSub) below).  
    Note that if no storage and no subscriber are matching the key, the key/value will be dropped.
@@ -67,15 +55,8 @@
 
    Usage:
    ```bash
-   java -cp target/zenoh-examples-<version>.jar ZPut [path] [value] [locator]
+   java -cp target/zenoh-examples-<version>.jar ZPutFloat [-l=<locator>] [-p=<path>]
    ```
-   where the optional arguments are:
-   - **path** : the path used as a key for the value.  
-                Default value: `/zenoh/examples/native/float` 
-   - **value** : the value (as a string).  
-                Default value: `"Put from Zenoh Java!"` 
-   - **locator** : the locator of the Zenoh service to connect.  
-                   Default value: none, meaning the Zenoh router is found via multicast.
 
 ### ZGet
 
@@ -86,14 +67,8 @@
 
    Usage:
    ```bash
-   java -cp target/zenoh-examples-<version>.jar ZGet [selector] [locator]
+   java -cp target/zenoh-examples-<version>.jar ZGet [--selector SELECTOR] [--locator LOCATOR]
    ```
-   where the optional arguments are:
-   - **selector** : the selector that all replies shall match.  
-                    Default value: `/zenoh/examples/**` 
-   - **locator** : the locator of the Zenoh router to connect.  
-                   Default value: none, meaning the Zenoh router is found via multicast.
-
 
 ### ZRemove
 
@@ -103,13 +78,8 @@
 
    Usage:
    ```bash
-   java -cp target/zenoh-examples-<version>.jar ZRemove [path] [locator]
+   java -cp target/zenoh-examples-<version>.jar ZRemove [--path PATH] [--locator LOCATOR]
    ```
-   where the optional arguments are:
-   - **path** : the key to be removed.  
-                Default value: `/zenoh/examples/java/put` 
-   - **locator** : the locator of the Zenoh router to connect.  
-                   Default value: none, meaning the Zenoh router is found via multicast.
 
 ### ZSub
 
@@ -119,13 +89,8 @@
 
    Usage:
    ```bash
-   java -cp target/zenoh-examples-<version>.jar ZSub [selector] [locator]
+   java -cp target/zenoh-examples-<version>.jar ZSub [--selector SELECTOR] [--locator LOCATOR]
    ```
-   where the optional arguments are:
-   - **selector** : the subscription selector.  
-                    Default value: `/zenoh/examples/**` 
-   - **locator** : the locator of the Zenoh router to connect.  
-                   Default value: none, meaning the Zenoh router is found via multicast.
 
 ### ZEval
 
@@ -136,14 +101,8 @@
 
    Usage:
    ```bash
-   java -cp target/zenoh-examples-<version>.jar ZEval [selector] [locator]
+   java -cp target/zenoh-examples-<version>.jar ZEval [--path PATH] [--locator LOCATOR]
    ```
-   where the optional arguments are:
-   - **path** : the eval path.  
-                Default value: `/zenoh/examples/java/eval` 
-   - **locator** : the locator of the Zenoh router to connect.  
-                   Default value: none, meaning the Zenoh router is found via multicast.
-
 
 ### ZPutThr & ZSubThr
 
@@ -152,23 +111,17 @@
    put operations and a subscriber receiving notifications of those put.
    Note that you can run this example with or without any storage.
 
-   Publisher usage:
-   ```bash
-   java -cp target/zenoh-examples-<version>.jar ZPutThr [I|W]<payload-size> [locator]
-   ```
-   where the arguments are:
-   - **[I|W]** : the way to allocate the java.util.ByteBuffer payload that will be put into Zenoh.  
-                 **I**: use a non-direct ByteBuffer (created via ByteBuffer.allocate())  
-                 **W**: use a wrapped ByteBuffer (created via ByteBuffer.wrap())  
-                 **unset**: by default use a direct ByteBuffer
-   - **payload-size** : the size of the payload in bytes.  
-   - **locator** : the locator of the Zenoh router to connect.  
-                   Default value: none, meaning the Zenoh router is found via multicast.
-
    Subscriber usage:
    ```bash
-   java -cp target/zenoh-examples-<version>.jar ZSubThr [locator]
+   java -cp target/zenoh-examples-<version>.jar ZSubThr [--path PATH] [--locator LOCATOR]
    ```
-   where the optional arguments are:
-   - **locator** : the locator of the Zenoh router to connect.  
-                   Default value: none, meaning the Zenoh router is found via multicast.
+
+   Publisher usage:
+   ```bash
+   java -cp target/zenoh-examples-<version>.jar ZPutThr [--size SIZE] [--locator LOCATOR] [--path PATH] [-b=BUFFER_KIND]
+   ```
+
+   where the BUFFER_KIND option specifies the way to allocate the java.util.ByteBuffer payload that will be put into Zenoh. The possible values are:
+   - **DIRECT**: use a direct ByteBuffer. This is the default value.
+   - **NON_DIRECT**: use a non-direct ByteBuffer (created via ByteBuffer.allocate())  
+   - **WRAPPED**: use a wrapped ByteBuffer (created via ByteBuffer.wrap())  

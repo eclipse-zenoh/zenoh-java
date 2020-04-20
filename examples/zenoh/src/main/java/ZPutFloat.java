@@ -12,28 +12,29 @@
  *   ADLINK zenoh team, <zenoh@adlink-labs.tech>
  */
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 
 import org.eclipse.zenoh.*;
 
-public class ZPutFloat {
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import picocli.CommandLine;
+import picocli.CommandLine.Option;
 
-    public static void main(String[] args) {
-        String path = "/zenoh/examples/native/float";
-        String locator = null;
+public class ZPutFloat implements Runnable {
 
-        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            System.out.println("USAGE:\n\t ZPut  [<path>=" + path + "] [<value>] [<locator>=auto]\n\n");
-            System.exit(0);
-        }
-        if (args.length > 0) {
-            path = args[0];
-        }
-        if (args.length > 1) {
-            locator = args[1];
-        }
+    @Option(names = {"-h", "--help"}, usageHelp = true, description = "display this help message")
+    private boolean helpRequested = false;
 
+    @Option(names = {"-p", "--path"},
+        description = "the path representing the float resource.\n  [default: ${DEFAULT-VALUE}]")
+    private String path = "/zenoh/examples/native/float";
+
+    @Option(names = {"-l", "--locator"},
+        description = "The locator to be used to boostrap the zenoh session. By default dynamic discovery is used")
+    private String locator = null;
+
+    @Override
+    public void run() {
         try {
             Path p = new Path(path);
 
@@ -56,5 +57,10 @@ public class ZPutFloat {
         } catch (Throwable e) {
             e.printStackTrace();
         }
+    }
+
+    public static void main(String[] args) {
+        int exitCode = new CommandLine(new ZPutFloat()).execute(args);
+        System.exit(exitCode);
     }
 }

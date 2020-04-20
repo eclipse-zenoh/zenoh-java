@@ -17,27 +17,26 @@ import org.eclipse.zenoh.*;
 import java.io.InputStreamReader;
 import java.util.Collection;
 import java.util.Properties;
+import picocli.CommandLine;
+import picocli.CommandLine.Option;
 
-public class ZEval {
+public class ZEval implements Runnable {
 
-    public static void main(String[] args) {
-        String p = "/zenoh/examples/java/eval";
-        String locator = null;
-        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            System.out.println("USAGE:\n\t ZEval  [<path>=" + p + "] [<locator>=auto]\n\n");
-            System.exit(0);
-        }
+    @Option(names = {"-h", "--help"}, usageHelp = true, description = "display this help message")
+    private boolean helpRequested = false;
 
-        if (args.length > 0) {
-            p = args[0];
-        }
+    @Option(names = {"-p", "--path"},
+        description = "the path representing the URI.\n  [default: ${DEFAULT-VALUE}]")
+    private String path = "/zenoh/examples/java/eval";
 
-        if (args.length > 1) {
-            locator = args[1];
-        }
+    @Option(names = {"-l", "--locator"},
+        description = "The locator to be used to boostrap the zenoh session. By default dynamic discovery is used")
+    private String locator = null;
 
+    @Override
+    public void run() {
         try {
-            Path path = new Path(p);
+            Path p = new Path(path);
 
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
             Zenoh z = Zenoh.login(locator);
@@ -48,8 +47,8 @@ public class ZEval {
             // Thus, the callback can perform some Zenoh operations (e.g.: get)
             Workspace w = z.workspaceWithExecutor();
 
-            System.out.println("Register eval " + path);
-            w.registerEval(path, new Eval() {
+            System.out.println("Register eval " + p);
+            w.registerEval(p, new Eval() {
                 public Value callback(Path p, Properties properties) {
                     // In this Eval function, we choosed to get the name to be returned in the
                     // StringValue in 3 possible ways,
@@ -87,10 +86,15 @@ public class ZEval {
             while ((char) stdin.read() != 'q')
                 ;
 
-            w.unregisterEval(path);
+            w.unregisterEval(p);
             z.logout();
         } catch (Throwable e) {
             e.printStackTrace();
         }
+    }
+
+    public static void main(String[] args) {
+        int exitCode = new CommandLine(new ZEval()).execute(args);
+        System.exit(exitCode);
     }
 }

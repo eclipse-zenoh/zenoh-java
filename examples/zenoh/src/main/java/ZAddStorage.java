@@ -15,28 +15,28 @@
 import org.eclipse.zenoh.*;
 
 import java.util.Properties;
+import picocli.CommandLine;
+import picocli.CommandLine.Option;
 
-public class ZAddStorage {
+public class ZAddStorage implements Runnable {
 
-    public static void main(String[] args) {
-        String selector = "/zenoh/examples/**";
-        String storageId = "zenoh-examples-storage";
-        String locator = null;
+    @Option(names = {"-h", "--help"}, usageHelp = true, description = "display this help message")
+    private boolean helpRequested = false;
 
-        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            System.out.println("USAGE:\n\t ZAddStorage  [<selector>=" + selector + "] [<storage-id>=" + storageId + "] [<locator>=auto]\n\n");
-            System.exit(0);
-        }
-        if (args.length > 0) {
-            selector = args[0];
-        }
-        if (args.length > 1) {
-            storageId = args[1];
-        }
-        if (args.length > 2) {
-            locator = args[2];
-        }
+    @Option(names = {"-l", "--locator"},
+        description = "The locator to be used to boostrap the zenoh session. By default dynamic discovery is used")
+    private String locator = null;
 
+    @Option(names = {"-s", "--selector"},
+        description = "the selector associated with this storage.\n  [default: ${DEFAULT-VALUE}]")
+    private String selector = "/zenoh/examples/**";
+
+    @Option(names = {"-i", "--id"},
+        description = "the storage identifier.\n  [default: ${DEFAULT-VALUE}]")
+    private String storageId = "zenoh-examples-storage";
+
+    @Override
+    public void run() {
         try {
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
             Zenoh z = Zenoh.login(locator);
@@ -54,4 +54,8 @@ public class ZAddStorage {
         }
     }
 
+    public static void main(String[] args) {
+        int exitCode = new CommandLine(new ZAddStorage()).execute(args);
+        System.exit(exitCode);
+    }
 }

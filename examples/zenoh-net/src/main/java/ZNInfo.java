@@ -16,7 +16,18 @@ import java.util.Map;
 
 import org.eclipse.zenoh.net.*;
 
-class ZNInfo {
+import picocli.CommandLine;
+import picocli.CommandLine.Option;
+
+class ZNInfo implements Runnable {
+
+    @Option(names = {"-h", "--help"}, usageHelp = true, description = "display this help message")
+    private boolean helpRequested = false;
+
+    @Option(names = {"-l", "--locator"},
+        description = "The locator to be used to boostrap the zenoh session. By default dynamic discovery is used")
+    private String locator = null;
+
     private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
 
     public static String hexdump(byte[] bytes) {
@@ -27,16 +38,8 @@ class ZNInfo {
         return sb.toString();
     }
 
-    public static void main(String[] args) {
-        String locator = null;
-        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            System.out.println("USAGE:\n\t ZNInfo  [<locator>=auto]\n\n");
-            System.exit(0);
-        }
-        if (args.length > 0) {
-            locator = args[0];
-        }
-
+    @Override
+    public void run() {
         try {
             System.out.println("Openning session...");
             Map<Integer, byte[]> properties = new HashMap<Integer, byte[]>(2);
@@ -53,5 +56,10 @@ class ZNInfo {
         } catch (Throwable e) {
             e.printStackTrace();
         }
+    }
+
+    public static void main(String[] args) {
+        int exitCode = new CommandLine(new ZNInfo()).execute(args);
+        System.exit(exitCode);
     }
 }
