@@ -18,43 +18,58 @@ import org.eclipse.zenoh.Value;
 import org.eclipse.zenoh.Workspace;
 import org.eclipse.zenoh.Zenoh;
 
-class ZPutThr {
+import picocli.CommandLine;
+import picocli.CommandLine.Option;
 
-    public static void main(String[] args) {
-        String locator = null;
-        String path = "/zenoh/examples/throughput/data'";
+class ZPutThr implements Runnable {
 
-        if ((args.length < 1) || ((args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))))) {
-            System.out.println("USAGE:");
-            System.out.println("\tYPutThr [I|W]<payload-size> [<zenoh-locator>]");
-            System.out.println("\t\tWhere the optional character in front of payload size means:");
-            System.out.println("\t\t\tI : use a non-direct ByteBuffer (created via ByteBuffer.allocate())");
-            System.out.println("\t\t\tW : use a wrapped ByteBuffer (created via ByteBuffer.wrap())");
-            System.out.println("\t\t\tunset : use a direct ByteBuffer");
-            System.exit(-1);
-        }
+    @Option(names = {"-h", "--help"}, usageHelp = true, description = "display this help message")
+    private boolean helpRequested = false;
 
-        java.nio.ByteBuffer data;
-        int len;
-        String lenArg = args[0];
-        if (lenArg.startsWith("I")) {
-            len = Integer.parseInt(lenArg.substring(1));
-            data = java.nio.ByteBuffer.allocate(len);
-            System.out.println("Running throughput test for payload of " + len + " bytes from a non-direct ByteBuffer");
-        } else if (lenArg.startsWith("W")) {
-            len = Integer.parseInt(lenArg.substring(1));
-            // allocate more than len, to wrap with an offset and test the impact
-            byte[] array = new byte[len + 1024];
-            data = java.nio.ByteBuffer.wrap(array, 100, len);
-            System.out.println("Running throughput test for payload of " + len + " bytes from a wrapped ByteBuffer");
-        } else {
-            len = Integer.parseInt(lenArg);
-            data = java.nio.ByteBuffer.allocateDirect(len);
-            System.out.println("Running throughput test for payload of " + len + " bytes from a direct ByteBuffer");
+    @Option(names = {"-s", "--size"},
+        description = "the size in bytes of the payload used for the throughput test. [default: ${DEFAULT-VALUE}]")
+    private int size = 256;
+
+    @Option(names = {"-l", "--locator"},
+        description = "The locator to be used to boostrap the zenoh session. By default dynamic discovery is used")
+    private String locator = null;
+
+    @Option(names = {"-p", "--path"},
+        description = "the resource used to write throughput data.\n  [default: ${DEFAULT-VALUE}]")
+    private String path = "/zenoh/examples/throughput/data";
+
+    @Option(names = {"-b", "--buffer"},
+    description = "The type of ByteBuffer to use. Valid values: ${COMPLETION-CANDIDATES}. [default: ${DEFAULT-VALUE}]")
+    private BufferKind bufferKind = BufferKind.DIRECT;
+
+    private enum BufferKind {
+        DIRECT,
+        NON_DIRECT,
+        WRAPPED,
+    }
+
+    @Override
+    public void run() {
+        java.nio.ByteBuffer data = null;
+        switch (bufferKind) {
+            case DIRECT:
+                data = java.nio.ByteBuffer.allocateDirect(size);
+                System.out.println("Running throughput test for payload of " + size + " bytes from a direct ByteBuffer");
+                break;
+            case NON_DIRECT:
+                data = java.nio.ByteBuffer.allocate(size);
+                System.out.println("Running throughput test for payload of " + size + " bytes from a non-direct ByteBuffer");
+                break;
+            case WRAPPED: 
+                // allocate more than len, to wrap with an offset and test the impact
+                byte[] array = new byte[size + 1024];
+                data = java.nio.ByteBuffer.wrap(array, 100, size);
+                System.out.println("Running throughput test for payload of " + size + " bytes from a wrapped ByteBuffer");
+                break;
         }
 
         int posInit = data.position();
-        for (int i = 0; i < len; ++i) {
+        for (int i = 0; i < size; ++i) {
             data.put((byte) (i % 10));
         }
         data.flip();
@@ -79,5 +94,10 @@ class ZPutThr {
         } catch (Throwable e) {
             e.printStackTrace();
         }
+    }
+
+    public static void main(String[] args) {
+        int exitCode = new CommandLine(new ZPutThr()).execute(args);
+        System.exit(exitCode);
     }
 }

@@ -13,34 +13,34 @@
  */
 import org.eclipse.zenoh.net.*;
 
-class ZNWrite {
+import picocli.CommandLine;
+import picocli.CommandLine.Option;
 
-    public static void main(String[] args) {
-        String path = "/zenoh/examples/java/write/hello";
-        String value = "Zenitude written from zenoh-net-java!";
-        String locator = null;
+class ZNWrite implements Runnable {
 
-        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            System.out.println("USAGE:\n\t ZNWrite  [<path>=" + path + "] [<value>] [<locator>=auto]\n\n");
-            System.exit(0);
-        }
-        if (args.length > 0) {
-            path = args[0];
-        }
-        if (args.length > 1) {
-            value = args[1];
-        }
-        if (args.length > 2) {
-            locator = args[2];
-        }
+    @Option(names = {"-h", "--help"}, usageHelp = true, description = "display this help message")
+    private boolean helpRequested = false;
 
+    @Option(names = {"-p", "--path"},
+        description = "the path representing the URI.\n  [default: ${DEFAULT-VALUE}]")
+    private String path = "/zenoh/examples/java/write/hello";
 
+    @Option(names = {"-l", "--locator"},
+        description = "The locator to be used to boostrap the zenoh session. By default dynamic discovery is used")
+    private String locator = null;
+
+    @Option(names = {"-m", "--msg"},
+        description = "The quote associated with the welcoming resource.\n  [default: ${DEFAULT-VALUE}]")
+    private String msg = "Zenitude written from zenoh-net-java!";
+
+    @Override
+    public void run() {
         try {
             System.out.println("Openning session...");
             Session s = Session.open(locator);
 
-            System.out.printf("Writing Data ('%s': '%s')...\n", path, value);
-            java.nio.ByteBuffer buf = java.nio.ByteBuffer.wrap(value.getBytes("UTF-8"));
+            System.out.printf("Writing Data ('%s': '%s')...\n", path, msg);
+            java.nio.ByteBuffer buf = java.nio.ByteBuffer.wrap(msg.getBytes("UTF-8"));
             s.writeData(path, buf);
 
             s.close();
@@ -48,5 +48,10 @@ class ZNWrite {
         } catch (Throwable e) {
             e.printStackTrace();
         }
+    }
+
+    public static void main(String[] args) {
+        int exitCode = new CommandLine(new ZNWrite()).execute(args);
+        System.exit(exitCode);
     }
 }

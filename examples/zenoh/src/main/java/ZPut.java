@@ -14,30 +14,31 @@
 
 import org.eclipse.zenoh.*;
 
-public class ZPut {
+import picocli.CommandLine;
+import picocli.CommandLine.Option;
 
-    public static void main(String[] args) {
-        String path = "/zenoh/examples/java/put/hello";
-        String value = "Zenitude put from zenoh-java!";
-        String locator = null;
+public class ZPut implements Runnable {
 
-        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            System.out.println("USAGE:\n\t ZPut  [<path>=" + path + "] [<value>] [<locator>=auto]\n\n");
-            System.exit(0);
-        }
-        if (args.length > 0) {
-            path = args[0];
-        }
-        if (args.length > 1) {
-            value = args[1];
-        }
-        if (args.length > 2) {
-            locator = args[2];
-        }
+    @Option(names = {"-h", "--help"}, usageHelp = true, description = "display this help message")
+    private boolean helpRequested = false;
 
+    @Option(names = {"-p", "--path"},
+        description = "the path representing the URI.\n  [default: ${DEFAULT-VALUE}]")
+    private String path = "/zenoh/examples/java/put/hello";
+
+    @Option(names = {"-l", "--locator"},
+        description = "The locator to be used to boostrap the zenoh session. By default dynamic discovery is used")
+    private String locator = null;
+
+    @Option(names = {"-m", "--msg"},
+        description = "The quote associated with the welcoming resource.\n  [default: ${DEFAULT-VALUE}]")
+    private String msg = "Zenitude put from zenoh-java!";
+
+    @Override
+    public void run() {
         try {
             Path p = new Path(path);
-            Value v = new StringValue(value);
+            Value v = new StringValue(msg);
 
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
             Zenoh z = Zenoh.login(locator);
@@ -51,5 +52,10 @@ public class ZPut {
         } catch (Throwable e) {
             e.printStackTrace();
         }
+    }
+
+    public static void main(String[] args) {
+        int exitCode = new CommandLine(new ZPut()).execute(args);
+        System.exit(exitCode);
     }
 }

@@ -22,7 +22,21 @@ import java.util.Vector;
 import java.util.HashMap;
 import java.util.List;
 
-class ZNStorage implements StorageHandler {
+import picocli.CommandLine;
+import picocli.CommandLine.Option;
+
+class ZNStorage implements StorageHandler, Runnable {
+
+    @Option(names = {"-h", "--help"}, usageHelp = true, description = "display this help message")
+    private boolean helpRequested = false;
+
+    @Option(names = {"-l", "--locator"},
+        description = "The locator to be used to boostrap the zenoh session. By default dynamic discovery is used")
+    private String locator = null;
+
+    @Option(names = {"-s", "--selector"},
+        description = "the selector associated with this storage.\n  [default: ${DEFAULT-VALUE}]")
+    private String selector = "/zenoh/examples/**";
 
     private Map<String, ByteBuffer> stored = new HashMap<String, ByteBuffer>();
 
@@ -51,21 +65,9 @@ class ZNStorage implements StorageHandler {
         repliesSender.sendReplies(replies.toArray(new Resource[replies.size()]));
     }
 
-    public static void main(String[] args) {
-        String selector = "/zenoh/examples/**";
-        String locator = null;
 
-        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            System.out.println("USAGE:\n\t ZNStorage  [<selector>=" + selector + "]  [<locator>=auto]\n\n");
-            System.exit(0);
-        }
-        if (args.length > 0) {
-            selector = args[0];
-        }        
-        if (args.length > 1) {
-            locator = args[1];
-        }
-
+    @Override
+    public void run() {
         try {
             System.out.println("Openning session...");
             Session s = Session.open(locator);
@@ -82,5 +84,10 @@ class ZNStorage implements StorageHandler {
         } catch (Throwable e) {
             e.printStackTrace();
         }
+    }
+
+    public static void main(String[] args) {
+        int exitCode = new CommandLine(new ZNStorage()).execute(args);
+        System.exit(exitCode);
     }
 }

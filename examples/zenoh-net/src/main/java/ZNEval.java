@@ -16,9 +16,23 @@ import org.eclipse.zenoh.net.*;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 
-class ZNEval implements QueryHandler {
-    private static String path = "/zenoh/examples/java/eval";
+import picocli.CommandLine;
+import picocli.CommandLine.Option;
 
+class ZNEval implements QueryHandler, Runnable {
+
+    @Option(names = {"-h", "--help"}, usageHelp = true, description = "display this help message")
+    private boolean helpRequested = false;
+
+    @Option(names = {"-p", "--path"}, description = "the path representing the URI.\n  [default: ${DEFAULT-VALUE}]")
+    private String path = "/zenoh/examples/java/eval";
+
+    @Option(names = {"-l", "--locator"},
+        description = "The locator to be used to boostrap the zenoh session. By default dynamic discovery is used")
+    private String locator = null;
+
+    // zenoh Eval's callback
+    @Override
     public void handleQuery(String rname, String predicate, RepliesSender repliesSender) {
         System.out.printf(">> [Query handler] Handling '%s?%s'\n", rname, predicate);
 
@@ -28,19 +42,8 @@ class ZNEval implements QueryHandler {
         repliesSender.sendReplies(replies);
     }
 
-    public static void main(String[] args) {
-        String locator = null;
-        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            System.out.println("USAGE:\n\t ZNEval  [<path>=" + path + "] [<locator>=auto]\n\n");
-            System.exit(0);
-        }
-        if (args.length > 0) {
-            path = args[0];
-        }
-        if (args.length > 1) {
-            locator = args[1];
-        }
-
+    @Override
+    public void run() {
         try {
             System.out.println("Openning session...");
             Session s = Session.open(locator);
@@ -59,4 +62,10 @@ class ZNEval implements QueryHandler {
             e.printStackTrace();
         }
     }
+
+    public static void main(String[] args) {
+        int exitCode = new CommandLine(new ZNEval()).execute(args);
+        System.exit(exitCode);
+    }
+
 }

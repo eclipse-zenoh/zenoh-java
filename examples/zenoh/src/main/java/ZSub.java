@@ -17,24 +17,26 @@ import org.eclipse.zenoh.*;
 import java.io.InputStreamReader;
 import java.util.List;
 
-public class ZSub {
-    public static void main(String[] args) {
-        String s = "/zenoh/examples/**";        
-        String locator = null;
+import picocli.CommandLine;
+import picocli.CommandLine.Option;
 
-        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            System.out.println("USAGE:\n\t ZSub  [<selector>=" + s + "] [<locator>=auto]\n\n");
-            System.exit(0);
-        }
-        if (args.length > 0) {
-            s = args[0];
-        }        
-        if (args.length > 1) {
-            locator = args[1];
-        }
+public class ZSub implements Runnable {
 
+    @Option(names = {"-h", "--help"}, usageHelp = true, description = "display this help message")
+    private boolean helpRequested = false;
+
+    @Option(names = {"-s", "--selector"},
+        description = "The selector specifying the subscription.\n  [default: ${DEFAULT-VALUE}]")
+    private String selector = "/zenoh/examples/**";
+
+    @Option(names = {"-l", "--locator"},
+        description = "The locator to be used to boostrap the zenoh session. By default dynamic discovery is used")
+    private String locator = null;
+
+    @Override
+    public void run() {
         try {
-            Selector selector = new Selector(s);
+            Selector s = new Selector(selector);
 
             System.out.println("Login to Zenoh (locator=" + locator + ")...");
             Zenoh z = Zenoh.login(locator);
@@ -42,7 +44,7 @@ public class ZSub {
             Workspace w = z.workspace();
 
             System.out.println("Subscribe on " + selector);
-            SubscriptionId subid = w.subscribe(selector, new Listener() {
+            SubscriptionId subid = w.subscribe(s, new Listener() {
                 public void onChanges(List<Change> changes) {
                     for (Change c : changes) {
                         switch (c.getKind()) {
@@ -79,4 +81,8 @@ public class ZSub {
         }
     }
 
+    public static void main(String[] args) {
+        int exitCode = new CommandLine(new ZSub()).execute(args);
+        System.exit(exitCode);
+    }
 }
