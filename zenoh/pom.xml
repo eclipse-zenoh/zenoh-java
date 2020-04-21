@@ -63,8 +63,26 @@
 
   <!-- plugins for all profiles -->
   <build>
-    <plugins>
 
+    <resources>
+      <!-- Add LICENSE and NOTICE.md into META-INF -->
+      <resource>
+        <targetPath>META-INF</targetPath>
+        <directory>${project.basedir}/..</directory>
+        <includes>
+          <include>LICENSE</include>
+          <include>NOTICE.md</include>
+        </includes>
+        <filtering>false</filtering>
+      </resource>
+      <!-- Add the generated native libs into the jar -->
+      <resource>
+        <directory>${project.build.directory}/resources</directory>
+        <filtering>false</filtering>
+      </resource>
+    </resources>
+
+    <plugins>
       <!-- Call make to build zenoh-c native lib, including SWIG generated sources -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
@@ -125,20 +143,6 @@
           </execution>
         </executions>
       </plugin>
-
-      <!-- Add the generated native libs into the jar -->
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-resources-plugin</artifactId>
-        <configuration>
-          <resources>
-            <resource>
-              <directory>${project.build.directory}/resources</directory>
-              <filtering>false</filtering>
-            </resource>
-          </resources>
-        </configuration>
-      </plugin>
     </plugins>
   </build>
 
@@ -189,7 +193,7 @@
               <execution>
                 <id>attach-sources</id>
                 <goals>
-                  <goal>jar</goal>
+                  <goal>jar-no-fork</goal>
                 </goals>
               </execution>
             </executions>
@@ -202,7 +206,7 @@
               <execution>
                 <phase>prepare-package</phase>
                 <goals>
-                  <goal>javadoc</goal>
+                  <goal>javadoc-no-fork</goal>
                   <goal>jar</goal>
                 </goals>
               </execution>
