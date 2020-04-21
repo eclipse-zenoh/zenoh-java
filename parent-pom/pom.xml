@@ -18,7 +18,7 @@
 
   <groupId>org.eclipse.zenoh</groupId>
   <artifactId>parent-pom</artifactId>
-  <version>0.5.0-SNAPSHOT</version>
+  <version>0.4.2-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <name>Zenoh parent-pom</name>
