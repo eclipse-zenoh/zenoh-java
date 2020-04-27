@@ -102,7 +102,7 @@ $(ZENOHC_COPY_DIR)/Makefile:
 	@mkdir -p $(ZENOHC_COPY_DIR)
 	@if [ -z "$(ZENOH_GIT_TAG)" -a -d $(ZENOHC_DEV_DIR) ]; then \
    		echo "Found zenoh-c sources in $(ZENOHC_DEV_DIR) . Copy them to $(ZENOHC_COPY_DIR)"; \
-		cp -r $(ZENOHC_DEV_DIR)/Makefile $(ZENOHC_DEV_DIR)/CMakeLists.txt $(ZENOHC_DEV_DIR)/include $(ZENOHC_DEV_DIR)/src $(ZENOHC_DEV_DIR)/dockcross $(ZENOHC_COPY_DIR)/ ; \
+		cp -r $(ZENOHC_DEV_DIR)/Makefile $(ZENOHC_DEV_DIR)/CMakeLists.txt $(ZENOHC_DEV_DIR)/include $(ZENOHC_DEV_DIR)/src $(ZENOHC_COPY_DIR)/ ; \
 	else \
 		echo "Clone tag '$${ZENOH_GIT_TAG:-master}' from Github to $(ZENOHC_COPY_DIR)" ; \
 		git clone --branch $${ZENOH_GIT_TAG:-master} https://github.com/eclipse-zenoh/zenoh-c $(ZENOHC_COPY_DIR) ; \
