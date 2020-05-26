@@ -83,33 +83,6 @@
     </resources>
 
     <plugins>
-      <!-- Call make to build zenoh-c native lib, including SWIG generated sources -->
-      <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>exec-maven-plugin</artifactId>
-        <executions>
-          <execution>
-            <id>make-natives</id>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <configuration>
-              <executable>make</executable>
-              <arguments>
-                <argument>${zenohc.make-target}</argument>
-              </arguments>
-              <environmentVariables>
-                <ZENOH_GIT_TAG>${zenohc.git-tag}</ZENOH_GIT_TAG>
-                <ZENOH_DEBUG>${zenohc.debug-level}</ZENOH_DEBUG>
-                <CMAKE_BUILD_TYPE>${zenohc.build-type}</CMAKE_BUILD_TYPE>
-              </environmentVariables>
-              <workingDirectory>${project.basedir}</workingDirectory>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-
       <!-- Add Java sources to compile -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
@@ -147,6 +120,49 @@
   </build>
 
   <profiles>
+    <!-- "Not in Eclipse Jenkins" profile: when running on JIPP, 
+         the native libs are built in advance on a specific host supporting Docker.
+         Therefore, the 'make' command will be called only when Maven is not on JIPP.
+    -->
+    <profile>
+      <id>not-in-jipp</id>
+      <activation>
+        <property>
+          <name>!jipp</name>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <!-- Call make to build zenoh-c native lib, including SWIG generated sources -->
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>make-natives</id>
+                <phase>generate-sources</phase>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+                <configuration>
+                  <executable>make</executable>
+                  <arguments>
+                    <argument>${zenohc.make-target}</argument>
+                  </arguments>
+                  <environmentVariables>
+                    <ZENOH_GIT_TAG>${zenohc.git-tag}</ZENOH_GIT_TAG>
+                    <ZENOH_DEBUG>${zenohc.debug-level}</ZENOH_DEBUG>
+                    <CMAKE_BUILD_TYPE>${zenohc.build-type}</CMAKE_BUILD_TYPE>
+                  </environmentVariables>
+                  <workingDirectory>${project.basedir}</workingDirectory>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
     <!-- default profile: zenoh-c is compiled in default mode
          with ZENOH_DEBUG unset (i.e. default value) -->
     <profile>
