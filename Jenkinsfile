@@ -17,7 +17,7 @@ pipeline {
                   extensions: [],
                   gitTool: 'Default',
                   submoduleCfg: [],
-                  userRemoteConfigs: [[url: 'https://github.com/atolab/eclipse-zenoh-java.git']]
+                  userRemoteConfigs: [[url: 'https://github.com/eclipse-zenoh/zenoh-java.git']]
                 ])
         sh '''
           git log --graph --date=short --pretty=tformat:'%ad - %h - %cn -%d %s' -n 20 || true
@@ -41,7 +41,7 @@ pipeline {
                   extensions: [],
                   gitTool: 'Default',
                   submoduleCfg: [],
-                  userRemoteConfigs: [[url: 'https://github.com/atolab/eclipse-zenoh-java.git']]
+                  userRemoteConfigs: [[url: 'https://github.com/eclipse-zenoh/zenoh-java.git']]
                 ])
         unstash 'nativeLibs'
         sh '''
