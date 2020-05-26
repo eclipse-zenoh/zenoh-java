@@ -1,5 +1,5 @@
 pipeline {
-  agent none
+  agent any
   parameters {
     gitParameter name: 'TAG', 
                  type: 'PT_TAG',
@@ -29,7 +29,6 @@ pipeline {
     }
 
     stage('Release build') {
-      agent any
       tools {
           maven 'apache-maven-latest'
           jdk 'adoptopenjdk-hotspot-jdk8-latest'
