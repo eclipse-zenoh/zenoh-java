@@ -180,6 +180,33 @@
   </build>
 
   <profiles>
+    <!-- "jipp" profile: when on Eclipse Jenkins, add the '- -pinentry-mode option' to gpg -->
+    <profile>
+      <id>jipp</id>
+      <activation>
+        <property>
+          <name>jipp</name>
+        </property>
+      </activation>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-gpg-plugin</artifactId>
+              <configuration>
+                <gpgArguments>
+                  <arg>--pinentry-mode</arg>
+                  <arg>loopback</arg>
+                </gpgArguments>
+              </configuration>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
+    </profile>
+
+    <!-- release profile: sign and deploy to Maven Central -->
     <profile>
       <id>release</id>
       <build>
