@@ -30,7 +30,7 @@ pipeline {
         cd zenoh
         mvn -Prelease generate-sources
         '''
-        stash includes: 'zenoh/target/generated-sources/**/*.java, zenoh/target/resources/**/*zenohc_java.*' name: 'nativeLibs'
+        stash includes: 'zenoh/target/generated-sources/**/*.java, zenoh/target/resources/**/*zenohc_java.*', name: 'nativeLibs'
       }
     }
 
