@@ -11,14 +11,7 @@ pipeline {
       agent { label 'MacMini' }
       steps {
         cleanWs()
-        checkout([$class: 'GitSCM',
-                  branches: [[name: "${params.TAG}"]],
-                  doGenerateSubmoduleConfigurations: false,
-                  extensions: [],
-                  gitTool: 'Default',
-                  submoduleCfg: [],
-                  userRemoteConfigs: [[url: 'https://github.com/eclipse-zenoh/zenoh-java.git']]
-                ])
+        checkout scm
         sh '''
           . ~/.zshrc
           git log --graph --date=short --pretty=tformat:'%ad - %h - %cn -%d %s' -n 20 || true
@@ -36,14 +29,7 @@ pipeline {
       }
       steps {
         cleanWs()
-        checkout([$class: 'GitSCM',
-                  branches: [[name: "${params.TAG}"]],
-                  doGenerateSubmoduleConfigurations: false,
-                  extensions: [],
-                  gitTool: 'Default',
-                  submoduleCfg: [],
-                  userRemoteConfigs: [[url: 'https://github.com/eclipse-zenoh/zenoh-java.git']]
-                ])
+        checkout scm
         unstash 'nativeLibs'
         sh '''
           ls -al zenoh/target/generated-sources/java/org/eclipse/zenoh/swig/
