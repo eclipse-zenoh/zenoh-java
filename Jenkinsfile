@@ -13,7 +13,7 @@ pipeline {
         cleanWs()
         checkout scm
         sh '''
-          . ~/.zshrc
+          source ~/.zshrc
           git log --graph --date=short --pretty=tformat:'%ad - %h - %cn -%d %s' -n 20 || true
           cd zenoh
           mvn -Prelease generate-sources
