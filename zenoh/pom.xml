@@ -195,7 +195,7 @@
     <profile>
       <id>release</id>
       <properties>
-        <zenohc.make-target>all-cross</zenohc.make-target>
+        <zenohc.make-target>all all-cross</zenohc.make-target>
         <zenohc.debug-level>0</zenohc.debug-level>
         <zenohc.build-type>Release</zenohc.build-type>
       </properties>

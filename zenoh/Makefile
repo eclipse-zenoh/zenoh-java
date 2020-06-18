@@ -90,8 +90,6 @@ all-cross: $(ZENOHC_COPY_DIR)/Makefile $(SWIG_C_FILE) $(JNI_INCLUDE_ALL_PLATFORM
 	@cp $(ZENOHC_BUILD_DIR)/crossbuilds/linux-armv6/lib* $(NATIVES_DIR)/arm
 	@mkdir -p $(NATIVES_DIR)/aarch64
 	@cp $(ZENOHC_BUILD_DIR)/crossbuilds/linux-arm64/lib* $(NATIVES_DIR)/aarch64
-	@mkdir -p $(NATIVES_DIR)/osx_64
-	@cp $(ZENOHC_BUILD_DIR)/crossbuilds/osx-64/lib* $(NATIVES_DIR)/osx_64
 
 
 $(LOCAL_LIB): $(ZENOHC_COPY_DIR)/Makefile $(SWIG_C_FILE)

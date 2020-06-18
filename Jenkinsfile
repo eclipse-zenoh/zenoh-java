@@ -3,7 +3,7 @@ pipeline {
   parameters {
     gitParameter name: 'TAG', 
                  type: 'PT_TAG',
-                 defaultValue: 'master'
+                 defaultValue: 'Jenkins_tests'
   }
 
   stages {
