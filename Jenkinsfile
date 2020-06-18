@@ -8,7 +8,7 @@ pipeline {
 
   stages {
     stage('Native libs build (on dedicated agent)') {
-      agent { label 'UbuntuVM' }
+      agent { label 'MacMini' }
       steps {
         cleanWs()
         checkout([$class: 'GitSCM',
@@ -47,12 +47,15 @@ pipeline {
         sh '''
           ls -al zenoh/target/generated-sources/java/org/eclipse/zenoh/swig/
           ls -al zenoh/target/resources/natives/*
+          ls -al ~/.m2/repository
+          ls -al /home/jenkins/.m2
+          ls -al /home/jenkins/.m2/repository
         '''
         withCredentials([file(credentialsId: 'secret-subkeys.asc', variable: 'KEYRING')]) {
           sh 'gpg --batch --import "${KEYRING}"'
           sh 'for fpr in $(gpg --list-keys --with-colons  | awk -F: \'/fpr:/ {print $10}\' | sort -u); do echo -e "5\ny\n" |  gpg --batch --command-fd 0 --expert --edit-key ${fpr} trust; done'
         }
-        sh 'mvn -Djipp -Prelease install'
+        sh 'mvn -Djipp -Prelease deploy'
       }
     }
   }
