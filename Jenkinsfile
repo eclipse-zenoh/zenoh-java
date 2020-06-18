@@ -20,6 +20,7 @@ pipeline {
                   userRemoteConfigs: [[url: 'https://github.com/eclipse-zenoh/zenoh-java.git']]
                 ])
         sh '''
+          . ~/.zshrc
           git log --graph --date=short --pretty=tformat:'%ad - %h - %cn -%d %s' -n 20 || true
           cd zenoh
           mvn -Prelease generate-sources
