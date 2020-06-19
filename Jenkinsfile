@@ -14,7 +14,7 @@ pipeline {
         checkout scm
         sh '''
           source ~/.zshrc
-          eval "$(jenv init -)"
+          source ~/jenv-init.sh
 
           git log --graph --date=short --pretty=tformat:'%ad - %h - %cn -%d %s' -n 20 || true
           echo $PATH
