@@ -14,7 +14,11 @@ pipeline {
         checkout scm
         sh '''
           source ~/.zshrc
+          eval "$(jenv init -)"
+
           git log --graph --date=short --pretty=tformat:'%ad - %h - %cn -%d %s' -n 20 || true
+          echo $PATH
+          echo $JAVA_HOME
           cd zenoh
           mvn -Prelease generate-sources
         '''
