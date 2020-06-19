@@ -20,7 +20,7 @@
     <groupId>org.eclipse.zenoh</groupId>
     <artifactId>parent-pom</artifactId>
     <relativePath>parent-pom</relativePath>
-    <version>0.4.2-SNAPSHOT</version>
+    <version>0.4.2-M1</version>
   </parent>
 
   <artifactId>zenoh-java</artifactId>

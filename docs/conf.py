@@ -18,7 +18,7 @@
 project = 'zenoh-java'
 copyright = '2017, 2020 ADLINK Technology Inc'
 author = 'ADLINK zenoh team'
-release = '0.5.0-SNAPSHOT'
+release = '0.4.2-M1'
 
 # -- General configuration ---------------------------------------------------
 master_doc = 'index'

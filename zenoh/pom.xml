@@ -20,7 +20,7 @@
     <groupId>org.eclipse.zenoh</groupId>
     <artifactId>parent-pom</artifactId>
     <relativePath>../parent-pom</relativePath>
-    <version>0.4.2-SNAPSHOT</version>
+    <version>0.4.2-M1</version>
   </parent>
 
   <artifactId>zenoh</artifactId>
@@ -33,7 +33,7 @@
     <!-- The Git tag (or branch or commit id) of zenoh-c that this build will automatically checkout.      -->
     <!-- If not specified, the build will try to find zenoh-c sources in $ZENOHC_HOME or in ../../zenoh-c. -->
     <!-- And if zenoh-c sources cannot be found, it will checkout the master branch.                       -->
-    <zenohc.git-tag></zenohc.git-tag>
+    <zenohc.git-tag>0.4.2-M1</zenohc.git-tag>
   </properties>
 
   <dependencies>

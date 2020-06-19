@@ -18,7 +18,7 @@ Just add the dependency in your POM:
   <dependency>
     <groupId>org.eclipse.zenoh</groupId>
     <artifactId>zenoh</artifactId>
-    <version>0.5.0-SNAPSHOT</version>
+    <version>0.4.2-M1</version>
   </dependency>
 ```
 
