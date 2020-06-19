@@ -13,15 +13,7 @@ pipeline {
         cleanWs()
         checkout scm
         sh '''
-          echo LOADED_ENV=$LOADED_ENV
-          echo "---------------"
           env
-          echo "---------------"
-          source ~/.zshrc
-          source ~/jenv-init.sh
-          echo "---------------"
-          env
-          echo "---------------"
 
           git log --graph --date=short --pretty=tformat:'%ad - %h - %cn -%d %s' -n 20 || true
           echo $PATH
