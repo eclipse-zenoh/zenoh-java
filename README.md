@@ -10,7 +10,7 @@
 
 The Java API for [Eclipse zenoh](https://zenoh.io), based on the zenoh-c API via JNI.
 
-:warning: zenoh has been subjet to a complete rewrite with major protocol updates between versions 0.4.2 and 0.5.0. The Java API does not yet integrate those changes and is only compatible with version 0.4.2 of the zenoh daemon and the underlying zenoh-c stack.
+:warning: **zenoh has been subjet to a complete rewrite with major protocol updates between versions 0.4.2 and 0.5.0. The Java API does not yet integrate those changes and is only compatible with version 0.4.2 of the zenoh daemon and the underlying zenoh-c stack.**
 
 ## Installation
 
