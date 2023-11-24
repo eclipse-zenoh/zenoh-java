@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  schedule:
+    - cron: "0 1 * * 1-5"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: Build on ${{ matrix.os }}
+    runs-on: [ "${{ matrix.os }}" ]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macOS-latest ]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: 11
+
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26
+          add-to-path: false
+          link-to-sdk: true
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          override: true
+          components: rustfmt, clippy
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+
+      - name: Clippy Check
+        working-directory: zenoh-jni
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Cargo Format
+        working-directory: zenoh-jni
+        run: cargo fmt --all --check
+
+      - name: Gradle Test
+        run: gradle jvmTest --info
+
+  build_doc_and_deploy:
+    name: Build and Deploy Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+
+      - name: Build doc
+        run: gradle dokkaHtml
+
+      - name: Deploy doc
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./zenoh-kotlin/build/dokka/html
