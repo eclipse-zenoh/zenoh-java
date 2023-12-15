@@ -1,4 +1,4 @@
-# Notices for Eclipse zenoh-java
+# Notices for Eclipse zenoh
 
 This content is produced and maintained by the Eclipse zenoh project.
 
