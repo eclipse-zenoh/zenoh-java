@@ -54,36 +54,6 @@ class SessionTest {
     }
 
     @Test
-    fun sessionClose_succeedsDespiteNotFreeingAllDeclarations() {
-        val session = Session.open()
-        session.declareQueryable(TEST_KEY_EXP).with {}.res()
-        session.declareSubscriber(TEST_KEY_EXP).with {}.res()
-        session.declarePublisher(TEST_KEY_EXP).res()
-        session.close()
-    }
-
-    @Test
-    fun sessionClose_declarationsAreAliveAfterClosingSessionTest() {
-        val session = Session.open()
-        var receivedSample: Sample? = null
-
-        val publisher = session.declarePublisher(TEST_KEY_EXP).res()
-        val subscriber = session.declareSubscriber(TEST_KEY_EXP).with { sample -> receivedSample = sample }.res()
-        session.close()
-
-        assertTrue(publisher.isValid())
-        assertTrue(subscriber.isValid())
-
-        publisher.put("Test").res()
-        Thread.sleep(1000)
-        assertNotNull(receivedSample)
-        assertEquals("Test", receivedSample!!.value.payload.decodeToString())
-
-        subscriber.close()
-        publisher.close()
-    }
-
-    @Test
     fun sessionClose_newDeclarationsReturnNullAfterClosingSession() {
         val session = Session.open()
         session.close()

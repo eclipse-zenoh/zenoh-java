@@ -97,6 +97,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      *
      * However, any session declaration that was still alive and bound to the session previous to closing it, will still be alive.
      */
+    @Throws(SessionException::class)
     override fun close() {
         jniSession?.close()
         jniSession = null

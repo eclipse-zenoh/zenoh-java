@@ -70,6 +70,44 @@ pub extern "C" fn Java_io_zenoh_jni_JNISession_openSessionViaJNI(
     }
 }
 
+/// Open a Zenoh session via JNI.
+///
+/// This function is meant to be called from Java/Kotlin through JNI.
+///
+/// Parameters:
+/// - `env`: The JNI environment.
+/// - `_class`: The JNI class (parameter required by the JNI interface but unused).
+/// - `config`: The path to the Zenoh config file.
+///
+/// Returns:
+/// - An [Arc] raw pointer to the Zenoh Session, which should be stored as a private read-only attribute
+///   of the session object in the Java/Kotlin code. Subsequent calls to other session functions will require
+///   this raw pointer to retrieve the [Session] using `Arc::from_raw`.
+///
+/// If opening the session fails, a `SessionException` is thrown on the JVM, and a null pointer is returned.
+///
+#[no_mangle]
+#[allow(non_snake_case)]
+pub extern "C" fn Java_io_zenoh_jni_JNISession_openSessionWithJsonConfigViaJNI(
+    mut env: JNIEnv,
+    _class: JClass,
+    json_config: JString,
+) -> *const zenoh::Session {
+    let session = open_session_with_json_config(&mut env, json_config);
+    match session {
+        Ok(session) => Arc::into_raw(Arc::new(session)),
+        Err(err) => {
+            log::error!("Unable to open session: {}", err);
+            _ = Error::Session(err.to_string())
+                .throw_on_jvm(&mut env)
+                .map_err(|err| {
+                    log::error!("Unable to throw exception on session failure: {}", err)
+                });
+            null()
+        }
+    }
+}
+
 /// Open a Zenoh session.
 ///
 /// Loads the session with the provided by [config_path]. If the config path provided is empty then
@@ -84,6 +122,33 @@ fn open_session(env: &mut JNIEnv, config_path: JString) -> Result<zenoh::Session
         Config::default()
     } else {
         Config::from_file(config_file_path).map_err(|err| Error::Session(err.to_string()))?
+    };
+    zenoh::open(config)
+        .res()
+        .map_err(|err| Error::Session(err.to_string()))
+}
+
+/// Open a Zenoh session.
+///
+/// Loads the session with the provided by [config_path]. If the config path provided is empty then
+/// the default configuration is loaded.
+///
+/// Returns:
+/// - A [Result] with a [zenoh::Session] in case of success or an [Error::Session] in case of failure.
+///
+fn open_session_with_json_config(env: &mut JNIEnv, json_config: JString) -> Result<zenoh::Session> {
+    let json_config = decode_string(env, json_config)?;
+    let config = if json_config.is_empty() {
+        Config::default()
+    } else {
+        let mut deserializer = match json5::Deserializer::from_str(&json_config) {
+            Ok(deserializer) => Ok(deserializer),
+            Err(err) => Err(Error::Session(err.to_string())),
+        }?;
+        Config::from_deserializer(&mut deserializer).map_err(|err| match err {
+            Ok(c) => Error::Session(format!("Invalid configuration: {}", c)),
+            Err(e) => Error::Session(format!("JSON error: {}", e)),
+        })?
     };
     zenoh::open(config)
         .res()
@@ -115,19 +180,22 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_closeSessionViaJNI(
     _class: JClass,
     ptr: *const zenoh::Session,
 ) {
-    log::info!("Closing session...");
     let ptr = Arc::try_unwrap(Arc::from_raw(ptr));
     match ptr {
         Ok(session) => {
             // Do nothing, the pointer will be freed.
         }
         Err(arc_session) => {
-            // In case of error (meaning a reference to the session is still alive) the session
-            // will be closed and thus be no more valid, but the declarations (publishers, subscribers...)
-            // will still be alive.
             let ref_count = Arc::strong_count(&arc_session);
-            log::warn!("Closed the session but there are still {} declarations (i.e. publishers,
-                 subscribers, queryables or key expressions) that are still alive and bound to the session!", ref_count - 1 );
+            log::error!("Unable to close the session.");
+            _ = Error::Session(format!(
+                "Attempted to close the session, but at least one strong reference to it is still alive
+                (ref count: {}). All the declared publishers, subscribers, and queryables need to be
+                dropped first.",
+                ref_count
+            ))
+            .throw_on_jvm(&mut env)
+            .map_err(|err| log::error!("Unable to throw exception on session failure: {}", err));
         }
     };
 }
