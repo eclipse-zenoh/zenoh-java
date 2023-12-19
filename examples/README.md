@@ -1,33 +1,17 @@
-# Examples
+# Zenoh Kotlin examples
 
 ----
 
 ## Start instructions
 
 
+
 ```bash
-./gradle <example>
+  ./gradle <example>
 ```
 
 :warning: Passing arguments to these examples has not been enabled yet for this first version. Altering the Zenoh
 configuration for these examples must be done programmatically. :warning:
-
-The examples are available for both Java and Kotlin versions. To chose one over the other, you need to specify the proper task. For instance,
-to run the ZPub example with Kotlin run:
-
-```bash
-./gradle examples:kotlin:ZPub
-```
-
-while to run the same example with the Java version, run:
-
-```bash
-./gradle examples:java:ZPub
-```
-
-
-The Java examples use the Java compatible Zenoh-Kotlin library, 
-so there are some differences inherent to the language.   
 
 ---- 
 
@@ -41,7 +25,7 @@ The path/value will be received by all matching subscribers, for instance the [Z
 Usage:
 
 ```bash
-./gradle examples:kotlin:ZPub
+./gradle ZPub
 ```
 
 ### ZSub
@@ -52,7 +36,7 @@ the subscriber's key expression, and will print this notification.
 Usage:
 
 ```bash
-./gradle examples:kotlin:ZSub
+./gradle ZSub
 ```
 
 ### ZGet
@@ -62,9 +46,9 @@ The queryables with a matching path or selector (for instance [ZQueryable](#zque
 will receive this query and reply with paths/values that will be received by the query callback.
 
 ```bash
-./gradle examples:kotlin:ZGet
+./gradle ZGet
 ```
-    
+
 ### ZPut
 
 Puts a path/value into Zenoh.
@@ -73,7 +57,7 @@ The path/value will be received by all matching subscribers, for instance the [Z
 Usage:
 
 ```bash
-./gradle examples:kotlin:ZPut
+./gradle ZPut
 ```
 
 ### ZDelete
@@ -82,7 +66,7 @@ Performs a Delete operation into a path/value into Zenoh.
 Usage:
 
 ```bash
-./gradle examples:kotlin:ZDelete
+./gradle ZDelete
 ```
 
 ### ZQueryable
@@ -94,7 +78,7 @@ with a selector that matches the key expression, and will return a value to the 
 Usage:
 
 ```bash
-./gradle examples:kotlin:ZQueryable
+./gradle ZQueryable
 ```
 
 ### ZPubThr & ZSubThr
@@ -106,11 +90,11 @@ put operations and a subscriber receiving notifications of those puts.
 Subscriber usage:
 
 ```bash
-./gradle examples:kotlin:ZSubThr
+./gradle ZSubThr
 ```
 
 Publisher usage:
 
 ```bash
-./gradle examples:kotlin:ZPubThr
+./gradle ZPubThr
 ```
