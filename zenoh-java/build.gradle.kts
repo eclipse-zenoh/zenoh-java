@@ -11,6 +11,8 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
+import org.jetbrains.dokka.versioning.VersioningConfiguration
+import org.jetbrains.dokka.versioning.VersioningPlugin
 
 group = "io.zenoh"
 version = "0.11.0-dev"
@@ -146,5 +148,25 @@ tasks.whenObjectAdded {
     if ((this.name == "mergeDebugJniLibFolders" || this.name == "mergeReleaseJniLibFolders")) {
         this.dependsOn("cargoBuild")
         this.inputs.dir(buildDir.resolve("rustJniLibs/android"))
+    }
+}
+
+val dokkaPlugin by configurations
+dependencies {
+    dokkaPlugin("org.jetbrains.dokka:versioning-plugin:1.9.10")
+}
+
+tasks.dokkaHtml {
+    val lastDocsVersionDirectory = project.rootProject.projectDir.resolve("docs")
+    val olderDocsVersionsDirectory = project.rootProject.projectDir.resolve("docs/older")
+
+    pluginConfiguration<VersioningPlugin, VersioningConfiguration> {
+        renderVersionsNavigationOnAllPages = true
+        // Because we want to keep versioning for the documentation, we specify both the directory pointing to the last
+        // version of the documentation (under /docs) and the directories containing the older versions (under docs/older).
+        // This way running `gradle dokkaHtml` after upgrading the version of the repository will take into consideration
+        // those old versions, which will be accessible via a dropdown menu.
+        olderVersionsDir = file(olderDocsVersionsDirectory)
+        olderVersions = arrayListOf(file(lastDocsVersionDirectory))
     }
 }
