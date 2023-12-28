@@ -1,0 +1,1 @@
+sourceset_dependencies='{":zenoh-java:dokkaHtml/androidDebug":[":zenoh-java:dokkaHtml/commonMain"],":zenoh-java:dokkaHtml/androidMain":[":zenoh-java:dokkaHtml/commonMain"],":zenoh-java:dokkaHtml/androidRelease":[":zenoh-java:dokkaHtml/commonMain"],":zenoh-java:dokkaHtml/commonMain":[],":zenoh-java:dokkaHtml/jvmMain":[":zenoh-java:dokkaHtml/commonMain"]}'
