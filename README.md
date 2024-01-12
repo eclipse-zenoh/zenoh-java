@@ -35,7 +35,7 @@ Alternatively, you can build it locally as [explained below](#building-the-docum
 ----
 # How to import
 
-## <img src="android-robot.png" alt="Android" height="50"> Android
+## <img src="android-robot.png" alt="Android" height="50">  For Android applications
 
 For this first version we have published a Github package with the library which can be imported on your projects.
 
@@ -72,7 +72,7 @@ implementation("io.zenoh:zenoh-java-android:0.10.1-rc")
 
 The library targets the following platforms:
 - x86
-- x86_64
+- x86_64 / amd64
 - arm
 - arm64
 
@@ -88,8 +88,8 @@ Zenoh is a communications protocol, therefore the permissions required are:
 <uses-permission android:name="android.permission.INTERNET"/>
 <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 ```
----
-# <img src="jvm.png" alt="Java" height="50">  JVM
+
+## <img src="jvm.png" alt="Java" height="50">  For JVM-based applications
 
 Similar to Android, we have published a Github package to import on your projects.
 
@@ -144,9 +144,9 @@ Basically:
 * Rust ([Installation guide](https://doc.rust-lang.org/cargo/getting-started/installation.html))
 * Kotlin ([Installation guide](https://kotlinlang.org/docs/getting-started.html#backend))
 * Gradle ([Installation guide](https://gradle.org/install/))
-* Android SDK ([Installation guide](https://developer.android.com/about/versions/11/setup-sdk))
+* For Android applications: Android SDK ([Installation guide](https://developer.android.com/about/versions/11/setup-sdk))
 
-## <img src="android-robot.png" alt="Android" height="50"> Android
+## <img src="android-robot.png" alt="Android" height="50"> For Android applications
 
 In order to use these bindings in a native Android project, what we will do is to build them as an Android NDK Library,
 publishing it into Maven local for us to be able to easily import it in our project.
@@ -159,7 +159,7 @@ or alternatively it can be found [here](https://developer.android.com/ndk/downlo
 The native platforms we are going to target are the following ones:
 ```
 - x86
-- x86_64
+- x86_64 / amd64
 - arm
 - arm64
 ```
@@ -218,7 +218,7 @@ And finally, do not forget to add the required internet permissions on your mani
 
 And that was it! You can now import the code from the `io.zenoh` package and use it at your will.
 
-## <img src="jvm.png" alt="JVM" height="50"> JVM
+## <img src="jvm.png" alt="JVM" height="50"> For JVM-based applications
 
 To publish a library for a JVM project into Maven local, we first need to build zenoh-jni in order for it to be loaded into the JAR that will be generated.
 
@@ -275,7 +275,9 @@ This will compile the native library on debug mode (if not already available) an
 Running the tests against the Android target (by using `gradle testDebugUnitTest`) is equivalent to running them against the JVM one, since they are common
 tests executed locally as Unit tests.
 
-## Logging
+---
+
+# Logging
 
 Rust logs are propagated when setting the property `zenoh.logger=debug` (using `RUST_LOG=debug` will result in nothing)
 
