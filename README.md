@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/eclipse-zenoh/zenoh/master/zenoh-dragon.png" height="150">
+<img src="https://raw.githubusercontent.com/eclipse-zenoh/zenoh/main/zenoh-dragon.png" height="150">
 
 [![CI](https://github.com/eclipse-zenoh/zenoh-java/actions/workflows/ci.yml/badge.svg)](https://github.com/eclipse-zenoh/zenoh-java/actions/workflows/ci.yml)
 [![Release](https://github.com/eclipse-zenoh/zenoh-java/actions/workflows/release.yml/badge.svg)](https://github.com/eclipse-zenoh/zenoh-java/actions/workflows/release.yml)
