@@ -19,6 +19,7 @@ import io.zenoh.Session
 import io.zenoh.exceptions.ZenohException
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Handler
+import io.zenoh.sample.Attachment
 import io.zenoh.selector.Selector
 import io.zenoh.value.Value
 import java.time.Duration
@@ -83,6 +84,7 @@ class Get<R> private constructor() {
         private var target: QueryTarget = QueryTarget.BEST_MATCHING
         private var consolidation: ConsolidationMode = ConsolidationMode.NONE
         private var value: Value? = null
+        private var attachment: Attachment? = null
         private var onClose: (() -> Unit)? = null
 
         private constructor(other: Builder<*>, handler: Handler<Reply, R>?) : this(other.session, other.selector) {
@@ -100,6 +102,7 @@ class Get<R> private constructor() {
             this.target = other.target
             this.consolidation = other.consolidation
             this.value = other.value
+            this.attachment = other.attachment
             this.onClose = other.onClose
         }
 
@@ -133,6 +136,12 @@ class Get<R> private constructor() {
         /** Specify a [Value]. */
         fun withValue(value: Value): Builder<R> {
             this.value = value
+            return this
+        }
+
+        /** Specify an [Attachment]. */
+        fun withAttachment(attachment: Attachment): Builder<R> {
+            this.attachment = attachment
             return this
         }
 
@@ -177,7 +186,8 @@ class Get<R> private constructor() {
                     timeout,
                     target,
                     consolidation,
-                    value
+                    value,
+                    attachment
                 )
             }
         }
