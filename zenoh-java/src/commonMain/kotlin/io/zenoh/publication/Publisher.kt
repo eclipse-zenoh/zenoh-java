@@ -20,6 +20,7 @@ import io.zenoh.exceptions.ZenohException
 import io.zenoh.jni.JNIPublisher
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.prelude.SampleKind
+import io.zenoh.sample.Attachment
 import io.zenoh.value.Value
 import kotlin.Throws
 
@@ -71,16 +72,10 @@ class Publisher internal constructor(
     }
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [value]. */
-    @Throws(ZenohException::class)
-    fun put(value: Value): Resolvable<Unit> = Resolvable {
-        return@Resolvable jniPublisher?.put(value) ?: throw(sessionException)
-    }
+    fun put(value: Value) = Put(jniPublisher, value)
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified string [value]. */
-    @Throws(ZenohException::class)
-    fun put(value: String): Resolvable<Unit> = Resolvable {
-        return@Resolvable jniPublisher?.put(Value(value)) ?: throw(sessionException)
-    }
+    fun put(value: String) = Put(jniPublisher, Value(value))
 
     /**
      * Performs a WRITE operation on the specified [keyExpr]
@@ -89,20 +84,16 @@ class Publisher internal constructor(
      * @param value The [Value] to send.
      * @return A [Resolvable] operation.
      */
-    @Throws(ZenohException::class)
-    fun write(kind: SampleKind, value: Value): Resolvable<Unit> = Resolvable {
-        return@Resolvable jniPublisher?.write(kind, value) ?: throw(sessionException)
-    }
+    fun write(kind: SampleKind, value: Value) = Write(jniPublisher, value, kind)
+
 
     /**
      * Performs a DELETE operation on the specified [keyExpr]
      *
      * @return A [Resolvable] operation.
      */
-    @Throws(ZenohException::class)
-    fun delete(): Resolvable<Unit> = Resolvable {
-        return@Resolvable jniPublisher?.delete() ?: throw(sessionException)
-    }
+    fun delete() = Delete(jniPublisher)
+
 
     /** Get congestion control policy. */
     fun getCongestionControl(): CongestionControl {
@@ -155,6 +146,48 @@ class Publisher internal constructor(
 
     protected fun finalize() {
         jniPublisher?.close()
+    }
+
+    class Put internal constructor(
+        private var jniPublisher: JNIPublisher?,
+        val value: Value,
+        var attachment: Attachment? = null
+    ) : Resolvable<Unit> {
+
+        fun withAttachment(attachment: Attachment) = apply { this.attachment = attachment }
+
+        @Throws(ZenohException::class)
+        override fun res() {
+            jniPublisher?.put(value, attachment)
+        }
+    }
+
+    class Write internal constructor(
+        private var jniPublisher: JNIPublisher?,
+        val value: Value,
+        val sampleKind: SampleKind,
+        var attachment: Attachment? = null
+    ) : Resolvable<Unit> {
+
+        fun withAttachment(attachment: Attachment) = apply { this.attachment = attachment }
+
+        @Throws(ZenohException::class)
+        override fun res() {
+            jniPublisher?.write(sampleKind, value, attachment)
+        }
+    }
+
+    class Delete internal constructor(
+        private var jniPublisher: JNIPublisher?,
+        var attachment: Attachment? = null
+    ) : Resolvable<Unit> {
+
+        fun withAttachment(attachment: Attachment) = apply { this.attachment = attachment }
+
+        @Throws(ZenohException::class)
+        override fun res() {
+            jniPublisher?.delete(attachment)
+        }
     }
 
     /**

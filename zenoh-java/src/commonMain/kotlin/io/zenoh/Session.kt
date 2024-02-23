@@ -25,6 +25,7 @@ import io.zenoh.publication.Put
 import io.zenoh.query.*
 import io.zenoh.queryable.Query
 import io.zenoh.queryable.Queryable
+import io.zenoh.sample.Attachment
 import io.zenoh.sample.Sample
 import io.zenoh.selector.Selector
 import io.zenoh.subscriber.Reliability
@@ -387,12 +388,13 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         timeout: Duration,
         target: QueryTarget,
         consolidation: ConsolidationMode,
-        value: Value?
+        value: Value?,
+        attachment: Attachment?,
     ): R? {
         if (jniSession == null) {
             throw sessionClosedException
         }
-        return jniSession?.performGet(selector, callback, onClose, receiver, timeout, target, consolidation, value)
+        return jniSession?.performGet(selector, callback, onClose, receiver, timeout, target, consolidation, value, attachment)
     }
 
     @Throws(ZenohException::class)
