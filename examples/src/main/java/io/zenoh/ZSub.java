@@ -32,6 +32,7 @@ public class ZSub {
                 try (Subscriber<BlockingQueue<Optional<Sample>>> subscriber = session.declareSubscriber(keyExpr).res()) {
                     BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
                     assert receiver != null;
+                    System.out.println("Press CTRL-C to quit...");
                     while (true) {
                         Optional<Sample> wrapper = receiver.take();
                         if (wrapper.isEmpty()) {

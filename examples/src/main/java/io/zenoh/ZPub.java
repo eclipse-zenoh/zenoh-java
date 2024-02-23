@@ -26,7 +26,8 @@ public class ZPub {
                 System.out.println("Declaring publisher on '" + keyExpr + "'...");
                 try (Publisher publisher = session.declarePublisher(keyExpr).res()) {
                     String payload = "Pub from Java!";
-                    int idx = 0;
+                    System.out.println("Press CTRL-C to quit...");
+                    int idx = 1;
                     while (true) {
                         Thread.sleep(1000);
                         System.out.println("Putting Data ('" + keyExpr + "': '[" + String.format("%4s", idx) + "] " + payload + "')...");

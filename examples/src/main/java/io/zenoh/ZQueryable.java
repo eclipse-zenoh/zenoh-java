@@ -33,6 +33,7 @@ public class ZQueryable {
                 try (Queryable<BlockingQueue<Optional<Query>>> queryable = session.declareQueryable(keyExpr).res()) {
                     BlockingQueue<Optional<Query>> receiver = queryable.getReceiver();
                     assert receiver != null;
+                    System.out.println("Press CTRL-C to quit...");
                     handleRequests(receiver, keyExpr);
                 }
             }
