@@ -19,8 +19,6 @@ import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.subscriber.Subscriber;
 import kotlin.Unit;
 
-import java.util.Scanner;
-
 public class ZSubThr {
 
     private static final long NANOS_TO_SEC = 1_000_000_000L;
@@ -59,19 +57,18 @@ public class ZSubThr {
                 ": averaged " + avg + " msgs/sec");
     }
 
-    public static void main(String[] args) throws ZenohException {
+    public static void main(String[] args) throws ZenohException, InterruptedException {
         System.out.println("Opening Session");
         try (Session session = Session.open()) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom("test/thr")) {
                 try (Subscriber<Unit> subscriber = session.declareSubscriber(keyExpr).with(sample -> listener()).res()) {
-                    Scanner scanner = new Scanner(System.in);
-                    while (!scanner.nextLine().equals("q")) {
-                        // Do nothing
+                    System.out.println("Press CTRL-C to quit...");
+                    while (true) {
+                        Thread.sleep(1000);
                     }
-                    scanner.close();
                 }
             }
         }
-        report();
+        // report();
     }
 }

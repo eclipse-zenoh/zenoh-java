@@ -27,12 +27,14 @@ import java.util.concurrent.BlockingQueue;
 public class ZQueryable {
 
     public static void main(String[] args) throws ZenohException, InterruptedException {
+        String keyExprString = "demo/example/zenoh-java-queryable";
         try (Session session = Session.open()) {
-            try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example/zenoh-java-queryable")) {
-                System.out.println("Declaring Queryable");
+            try (KeyExpr keyExpr = KeyExpr.tryFrom(keyExprString)) {
+                System.out.println("Declaring Queryable on " + keyExprString + "...");
                 try (Queryable<BlockingQueue<Optional<Query>>> queryable = session.declareQueryable(keyExpr).res()) {
                     BlockingQueue<Optional<Query>> receiver = queryable.getReceiver();
                     assert receiver != null;
+                    System.out.println("Press CTRL-C to quit...");
                     handleRequests(receiver, keyExpr);
                 }
             }
