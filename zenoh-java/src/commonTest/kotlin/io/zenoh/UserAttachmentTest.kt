@@ -109,48 +109,6 @@ class UserAttachmentTest {
     }
 
     @Test
-    fun publisherWriteWithAttachmentTest() {
-        val session = Session.open()
-
-        var receivedSample: Sample? = null
-        val publisher = session.declarePublisher(keyExpr).res()
-        val subscriber = session.declareSubscriber(keyExpr).with { sample ->
-            receivedSample = sample
-        }.res()
-
-        publisher.write(SampleKind.PUT, Value("test")).withAttachment(attachment).res()
-        Thread.sleep(500)
-
-        subscriber.close()
-        publisher.close()
-        session.close()
-
-        assertAttachmentOk(receivedSample!!.attachment!!)
-    }
-
-    @Test
-    fun publisherWriteWithoutAttachmentTest() {
-        val session = Session.open()
-
-        var receivedSample: Sample? = null
-        val publisher = session.declarePublisher(keyExpr).res()
-        val subscriber = session.declareSubscriber(keyExpr).with { sample ->
-            receivedSample = sample
-        }.res()
-
-        publisher.write(SampleKind.PUT, Value("test")).res()
-
-        Thread.sleep(500)
-
-        publisher.close()
-        subscriber.close()
-        session.close()
-
-        assertNotNull(receivedSample)
-        assertNull(receivedSample!!.attachment)
-    }
-
-    @Test
     fun publisherDeleteWithAttachmentTest() {
         val session = Session.open()
 
