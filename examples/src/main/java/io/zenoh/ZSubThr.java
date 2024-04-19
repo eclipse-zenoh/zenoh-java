@@ -23,12 +23,17 @@ public class ZSubThr {
 
     private static final long NANOS_TO_SEC = 1_000_000_000L;
     private static final long n = 50000L;
+    private static int batchCount = 0;
     private static int count = 0;
     private static long startTimestampNs = 0;
+    private static long globalStartTimestampNs = 0;
 
     public static void listener() {
         if (count == 0) {
             startTimestampNs = System.nanoTime();
+            if (globalStartTimestampNs == 0L) {
+                globalStartTimestampNs = startTimestampNs;
+            }
             count++;
             return;
         }
@@ -39,7 +44,17 @@ public class ZSubThr {
         long stop = System.nanoTime();
         double msgs = (double) (n * NANOS_TO_SEC) / (stop - startTimestampNs);
         System.out.println(msgs + " msgs/sec");
+        batchCount++;
         count = 0;
+    }
+
+    public static void report() {
+        long end = System.nanoTime();
+        long total = batchCount * n + count;
+        double msgs = (double) (end - globalStartTimestampNs) / NANOS_TO_SEC;
+        double avg = (double) (total * NANOS_TO_SEC) / (end - globalStartTimestampNs);
+        System.out.println("Received " + total + " messages in " + msgs +
+                ": averaged " + avg + " msgs/sec");
     }
 
     public static void main(String[] args) throws ZenohException, InterruptedException {
@@ -54,5 +69,6 @@ public class ZSubThr {
                 }
             }
         }
+        // report();
     }
 }
