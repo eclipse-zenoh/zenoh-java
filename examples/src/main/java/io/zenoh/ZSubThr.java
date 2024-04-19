@@ -48,6 +48,7 @@ public class ZSubThr {
         count = 0;
     }
 
+    // TODO: perform report at end of measurement
     public static void report() {
         long end = System.nanoTime();
         long total = batchCount * n + count;
@@ -69,6 +70,5 @@ public class ZSubThr {
                 }
             }
         }
-        // report();
     }
 }
