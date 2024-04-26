@@ -15,6 +15,7 @@
 package io.zenoh
 
 import io.zenoh.handlers.Handler
+import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.prelude.KnownEncoding
 import io.zenoh.keyexpr.intoKeyExpr
 import io.zenoh.prelude.Encoding
@@ -24,15 +25,11 @@ import java.util.*
 import java.util.concurrent.BlockingQueue
 import kotlin.collections.ArrayDeque
 import kotlin.collections.ArrayList
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
-import kotlin.test.Test
+import kotlin.test.*
 
 class SubscriberTest {
 
     companion object {
-        val TEST_KEY_EXP = "example/testing/keyexpr".intoKeyExpr()
-
         val testValues = arrayListOf(
             Value("Test 1".encodeToByteArray(), Encoding(KnownEncoding.TEXT_PLAIN)),
             Value("Test 2".encodeToByteArray(), Encoding(KnownEncoding.TEXT_JSON)),
@@ -40,66 +37,69 @@ class SubscriberTest {
         )
     }
 
+    private lateinit var session: Session
+    private lateinit var testKeyExpr: KeyExpr
+
+    @BeforeTest
+    fun setUp() {
+        session = Session.open()
+        testKeyExpr = "example/testing/keyexpr".intoKeyExpr()
+    }
+
+    @AfterTest
+    fun tearDown() {
+        session.close()
+        testKeyExpr.close()
+    }
+
     @Test
     fun subscriber_runsWithCallback() {
-        val session = Session.open()
         val receivedSamples = ArrayList<Sample>()
-        val subscriber = session.declareSubscriber(TEST_KEY_EXP).with { sample -> receivedSamples.add(sample) }.res()
+        val subscriber =
+            session.declareSubscriber(testKeyExpr).with { sample -> receivedSamples.add(sample) }.res()
 
-        publishTestValues(session)
-
-        subscriber.undeclare()
-        session.close()
-
+        testValues.forEach { value -> session.put(testKeyExpr, value).res() }
         assertEquals(receivedSamples.size, testValues.size)
 
-        for ((index, sample) in receivedSamples.withIndex()) {
-            assertEquals(sample.value, testValues[index])
+        receivedSamples.zip(testValues).forEach { (sample, value) ->
+            assertEquals(sample.value, value)
         }
+
+        subscriber.close()
     }
 
     @Test
     fun subscriber_runsWithHandler() {
         val handler = QueueHandler<Sample>()
-        val session = Session.open()
-        val subscriber = session.declareSubscriber(TEST_KEY_EXP).with(handler).res()
-        publishTestValues(session)
-        subscriber.undeclare()
-        session.close()
+        val subscriber = session.declareSubscriber(testKeyExpr).with(handler).res()
 
-        val queue = subscriber.receiver!!
-        assertEquals(queue.size, testValues.size)
-        for ((index, sample) in queue.withIndex()) {
-            assertEquals(sample.value, testValues[index])
+        testValues.forEach { value -> session.put(testKeyExpr, value).res() }
+        assertEquals(handler.queue.size, testValues.size)
+
+        handler.queue.zip(testValues).forEach { (sample, value) ->
+            assertEquals(sample.value, value)
         }
+
+        subscriber.close()
     }
 
     @Test
     fun subscriberBuilder_queueHandlerIsTheDefaultHandler() {
-        val session = Session.open()
-        val subscriber = session.declareSubscriber(TEST_KEY_EXP).res()
+        val subscriber = session.declareSubscriber(testKeyExpr).res()
+        subscriber.close()
         assertTrue(subscriber.receiver is BlockingQueue<Optional<Sample>>)
     }
 
     @Test
     fun onCloseTest() {
-        val session = Session.open()
         var onCloseWasCalled = false
-        val subscriber = session.declareSubscriber(TEST_KEY_EXP).onClose { onCloseWasCalled = true }.res()
+        val subscriber = session.declareSubscriber(testKeyExpr).onClose { onCloseWasCalled = true }.res()
         subscriber.undeclare()
         assertTrue(onCloseWasCalled)
-        session.close()
-    }
-
-    private fun publishTestValues(session: Session): ArrayList<Value> {
-        val publisher = session.declarePublisher(TEST_KEY_EXP).res()
-        testValues.forEach { value -> publisher.put(value).res() }
-        publisher.undeclare()
-        return testValues
     }
 }
 
-private class QueueHandler<T: ZenohType> : Handler<T, ArrayDeque<T>> {
+private class QueueHandler<T : ZenohType> : Handler<T, ArrayDeque<T>> {
 
     val queue: ArrayDeque<T> = ArrayDeque()
     override fun handle(t: T) {
