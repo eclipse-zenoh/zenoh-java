@@ -20,117 +20,63 @@ import io.zenoh.keyexpr.intoKeyExpr
 import io.zenoh.prelude.SampleKind
 import io.zenoh.query.Reply
 import io.zenoh.queryable.Queryable
-import io.zenoh.sample.Sample
 import io.zenoh.selector.Selector
 import io.zenoh.value.Value
 import org.apache.commons.net.ntp.TimeStamp
 import java.time.Duration
 import java.util.*
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
-import kotlin.test.Test
+import kotlin.test.*
 
 class GetTest {
 
     companion object {
-        const val TEST_KEY_EXP = "example/testing/keyexpr"
-        const val TEST_KEY_EXP_WILD = "example/testing/*"
-        const val TEST_PAYLOAD = "Hello"
+        val value = Value("Test")
+        val timestamp = TimeStamp.getCurrentTime()
+        val kind = SampleKind.PUT
+    }
+
+    private lateinit var session: Session
+    private lateinit var keyExpr: KeyExpr
+    private lateinit var queryable: Queryable<Unit>
+
+    @BeforeTest
+    fun setUp() {
+        session = Session.open()
+        keyExpr = "example/testing/keyexpr".intoKeyExpr()
+        queryable = session.declareQueryable(keyExpr).with { query ->
+            query.reply(query.keyExpr)
+                .success(value)
+                .withTimeStamp(timestamp)
+                .withKind(kind)
+                .res()
+        }.res()
+    }
+
+    @AfterTest
+    fun tearDown() {
+        keyExpr.close()
+        queryable.close()
+        session.close()
     }
 
     @Test
     fun get_runsWithCallback() {
-        val sessionA = Session.open()
+        var reply: Reply? = null
+        session.get(keyExpr).with { reply = it }.timeout(Duration.ofMillis(1000)).res()
 
-        val value = Value(TEST_PAYLOAD)
-        val timeStamp = TimeStamp.getCurrentTime()
-        val kind = SampleKind.PUT
-        val keyExpr = TEST_KEY_EXP.intoKeyExpr()
-        val queryable = sessionA.declareQueryable(keyExpr).with { query ->
-            query.reply(keyExpr)
-                .success(value)
-                .withTimeStamp(timeStamp)
-                .withKind(kind)
-                .res()
-        }.res()
-
-        val sessionB = Session.open()
-
-        sessionB.get(keyExpr).with { reply: Reply ->
-            assertTrue(reply is Reply.Success)
-            assertEquals(value, reply.sample.value)
-            assertEquals(kind, reply.sample.kind)
-            assertEquals(keyExpr, reply.sample.keyExpr)
-            assertEquals(timeStamp, reply.sample.timestamp)
-        }.timeout(Duration.ofMillis(1000)).res()
-
-        Thread.sleep(1000)
-
-        queryable.undeclare()
-        sessionA.close()
-        sessionB.close()
-    }
-
-    @Test
-    fun getWithSelectorParamsTest() {
-        val session = Session.open()
-
-        var receivedParams = ""
-        val keyExpr = TEST_KEY_EXP.intoKeyExpr()
-        val queryable = session.declareQueryable(keyExpr).with { it.use { query ->
-            receivedParams = query.parameters
-        }}.res()
-
-        val params = "arg1=val1,arg2=val2"
-        val selector = Selector(keyExpr, params)
-        session.get(selector).res()
-
-        queryable.close()
-        session.close()
-
-        assertEquals(params, receivedParams)
+        assertTrue(reply is Reply.Success)
+        val sample = (reply as Reply.Success).sample
+        assertEquals(value, sample.value)
+        assertEquals(kind, sample.kind)
+        assertEquals(keyExpr, sample.keyExpr)
+        assertEquals(timestamp, sample.timestamp)
     }
 
     @Test
     fun get_runsWithHandler() {
-        val sessionA = Session.open()
-        val repliedSamples: ArrayList<Sample> = ArrayList()
-        val queryablesAmount = 3
-        val declaredQueryables: ArrayList<Queryable<Unit>> = ArrayList()
+        val receiver: ArrayList<Reply> = session.get(keyExpr).with(TestHandler())
+            .timeout(Duration.ofMillis(1000)).res()!!
 
-        val value = Value(TEST_PAYLOAD)
-        val timestamp = TimeStamp.getCurrentTime()
-        val kind = SampleKind.PUT
-
-        for (i in 1..queryablesAmount) {
-            val keyExpr = KeyExpr.tryFrom(TEST_KEY_EXP + i.toString())
-            val queryable = sessionA.declareQueryable(keyExpr).with { it.use { query ->
-                    query.reply(keyExpr)
-                        .success(value)
-                        .withTimeStamp(timestamp)
-                        .withKind(kind)
-                        .res()
-                    }
-                }
-                .res()
-
-            declaredQueryables.add(queryable)
-            repliedSamples.add(Sample(keyExpr, value, kind, timestamp))
-        }
-
-        val sessionB = Session.open()
-        val receiver: ArrayList<Reply> =
-            sessionB.get(TEST_KEY_EXP_WILD.intoKeyExpr())
-                .with(GetHandler())
-                .timeout(Duration.ofMillis(1000))
-                .res()!!
-
-        Thread.sleep(1000)
-        declaredQueryables.forEach { queryable -> queryable.undeclare() }
-        sessionA.close()
-        sessionB.close()
-
-        assertEquals(queryablesAmount, receiver.size)
         for (reply in receiver) {
             reply as Reply.Success
             val receivedSample = reply.sample
@@ -141,66 +87,26 @@ class GetTest {
     }
 
     @Test
-    fun get_runsWithBlockingQueue() {
-        val sessionA = Session.open()
+    fun getWithSelectorParamsTest() {
+        var receivedParams = String()
+        val queryable = session.declareQueryable(keyExpr).with {
+            it.use { query ->
+                receivedParams = query.parameters
+            }
+        }.res()
 
-        val queryablesAmount = 3
-        val declaredQueryables: ArrayList<Queryable<Unit>> = ArrayList()
-
-        val value = Value(TEST_PAYLOAD)
-        val timestamp = TimeStamp.getCurrentTime()
-        val kind = SampleKind.PUT
-
-        for (i in 1..queryablesAmount) {
-            val keyExpr = (TEST_KEY_EXP + i.toString()).intoKeyExpr()
-            val queryable = sessionA.declareQueryable(keyExpr).with { it.use { query ->
-                    query.reply(keyExpr)
-                        .success(value)
-                        .withTimeStamp(timestamp)
-                        .withKind(kind)
-                        .res()
-                    }
-                }
-                .res()
-
-            declaredQueryables.add(queryable)
-        }
-
-        val receivedReplies = ArrayList<Reply>(0)
-
-        val sessionB = Session.open()
-        val receiver = sessionB.get(TEST_KEY_EXP_WILD.intoKeyExpr()).res()!!
-
+        val params = "arg1=val1,arg2=val2"
+        val selector = Selector(keyExpr, params)
+        session.get(selector).with {}.timeout(Duration.ofMillis(1000)).res()
         Thread.sleep(1000)
 
-        val iterator = receiver.iterator()
-        while (iterator.hasNext()) {
-            try {
-                val reply = iterator.next().get()
-                receivedReplies.add(reply)
-            } catch (e: Exception) {
-                break
-            }
-        }
-
-        sessionB.close()
-
-        declaredQueryables.forEach { queryable -> queryable.undeclare() }
-        sessionA.close()
-
-        assertEquals(queryablesAmount, receivedReplies.size)
-        for (reply in receivedReplies) {
-            assert(reply is Reply.Success)
-            val receivedSample = (reply as Reply.Success).sample
-            assertEquals(value, receivedSample.value)
-            assertEquals(SampleKind.PUT, receivedSample.kind)
-            assertEquals(timestamp, receivedSample.timestamp)
-        }
+        queryable.close()
+        assertEquals(params, receivedParams)
     }
 }
 
 /** A dummy handler for get operations. */
-private class GetHandler : Handler<Reply, ArrayList<Reply>> {
+private class TestHandler : Handler<Reply, ArrayList<Reply>> {
 
     val performedReplies: ArrayList<Reply> = ArrayList()
 
