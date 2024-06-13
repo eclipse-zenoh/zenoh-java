@@ -19,11 +19,9 @@ import io.zenoh.ZenohType
 import io.zenoh.selector.Selector
 import io.zenoh.value.Value
 import io.zenoh.exceptions.SessionException
-import io.zenoh.exceptions.ZenohException
 import io.zenoh.jni.JNIQuery
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.query.Reply
-import io.zenoh.sample.Attachment
 
 /**
  * Represents a Zenoh Query in Kotlin.
@@ -33,7 +31,7 @@ import io.zenoh.sample.Attachment
  * @property keyExpr The key expression to which the query is associated.
  * @property selector The selector
  * @property value Optional value in case the received query was declared using "with query".
- * @property attachment Optional [Attachment].
+ * @property attachment Optional attachment.
  * @property jniQuery Delegate object in charge of communicating with the underlying native code.
  * @constructor Instances of Query objects are only meant to be created through the JNI upon receiving
  * a query request. Therefore, the constructor is private.
@@ -42,7 +40,7 @@ class Query internal constructor(
     val keyExpr: KeyExpr,
     val selector: Selector,
     val value: Value?,
-    val attachment: Attachment?,
+    val attachment: ByteArray?,
     private var jniQuery: JNIQuery?
 ) : AutoCloseable, ZenohType {
 
@@ -65,6 +63,7 @@ class Query internal constructor(
         }
     }
 
+    @Suppress("removal")
     protected fun finalize() {
         close()
     }
@@ -72,18 +71,29 @@ class Query internal constructor(
     /**
      * Perform a reply operation to the remote [Query].
      *
+     * A query can not be replied more than once. After the reply is performed, the query is considered
+     * to be no more valid and further attempts to reply to it will fail.
+     *
      * @param reply The [Reply] to the Query.
-     * @return A [Resolvable] that either performs the reply operation or throws an [Exception] if the query is invalid.
+     * @return A [Resolvable] that returns a [Result] with the status of the reply operation.
      */
-    @Throws(ZenohException::class)
     internal fun reply(reply: Reply): Resolvable<Unit> = Resolvable {
         jniQuery?.apply {
-            reply as Reply.Success // Since error replies are not yet supported, we assume a reply is a Success reply.
-            val result = replySuccess(reply.sample)
-            this.close()
+            val result = when (reply) {
+                is Reply.Success -> {
+                    replySuccess(reply.sample)
+                }
+                is Reply.Error -> {
+                    replyError(reply.error)
+                }
+                is Reply.Delete -> {
+                    replyDelete(reply.keyExpr, reply.timestamp, reply.attachment, reply.qos)
+                }
+            }
             jniQuery = null
             return@Resolvable result
         }
         throw(SessionException("Query is invalid"))
     }
 }
+

@@ -14,39 +14,35 @@
 
 package io.zenoh.jni
 
-import io.zenoh.*
 import io.zenoh.exceptions.ZenohException
-import io.zenoh.publication.CongestionControl
-import io.zenoh.publication.Priority
-import io.zenoh.sample.Attachment
 import io.zenoh.value.Value
 
 /**
- * Adapter class to handle the interactions with Zenoh through JNI for a [Publisher].
+ * Adapter class to handle the interactions with Zenoh through JNI for a [io.zenoh.publication.Publisher].
  *
  * @property ptr: raw pointer to the underlying native Publisher.
  */
 internal class JNIPublisher(private val ptr: Long) {
 
     /**
-     * Put value through the publisher.
+     * Put operation.
      *
      * @param value The [Value] to be put.
-     * @param attachment Optional [Attachment].
+     * @param attachment Optional attachment.
      */
     @Throws(ZenohException::class)
-    fun put(value: Value, attachment: Attachment?) {
-        putViaJNI(value.payload, value.encoding.knownEncoding.ordinal, attachment?.let { encodeAttachment(it) }, ptr)
+    fun put(value: Value, attachment: ByteArray?) {
+        putViaJNI(value.payload, value.encoding.id.ordinal, value.encoding.schema, attachment, ptr)
     }
 
     /**
      * Delete operation.
      *
-     * @param attachment Optional [Attachment].
+     * @param attachment Optional attachment.
      */
     @Throws(ZenohException::class)
-    fun delete(attachment: Attachment?) {
-        deleteViaJNI(attachment?.let { encodeAttachment(it) }, ptr)
+    fun delete(attachment: ByteArray?) {
+        deleteViaJNI(attachment, ptr)
     }
 
     /**
@@ -58,63 +54,14 @@ internal class JNIPublisher(private val ptr: Long) {
         freePtrViaJNI(ptr)
     }
 
-    /**
-     * Set the congestion control policy of the publisher.
-     *
-     * This function is not thread safe.
-     *
-     * @param congestionControl: The [CongestionControl] policy.
-     */
-    @Throws(ZenohException::class)
-    fun setCongestionControl(congestionControl: CongestionControl) {
-        setCongestionControlViaJNI(congestionControl.ordinal, ptr)
-    }
-
-    /**
-     * Set the priority policy of the publisher.
-     *
-     * This function is not thread safe.
-     *
-     * @param priority: The [Priority] policy.
-     */
-    @Throws(ZenohException::class)
-    fun setPriority(priority: Priority) {
-        setPriorityViaJNI(priority.value, ptr)
-    }
-
-    /**
-     * Set the congestion control policy of the publisher through JNI.
-     *
-     * This function is NOT thread safe.
-     *
-     * @param congestionControl The congestion control policy.
-     * @param ptr Pointer to the publisher.
-     */
-    @Throws(ZenohException::class)
-    private external fun setCongestionControlViaJNI(congestionControl: Int, ptr: Long)
-
-    /**
-     * Set the priority policy of the publisher through JNI.
-     *
-     * This function is NOT thread safe.
-     *
-     * @param priority The priority policy.
-     * @param ptr Pointer to the publisher.
-     */
-    @Throws(ZenohException::class)
-    private external fun setPriorityViaJNI(priority: Int, ptr: Long)
-
-
-    /** Puts through the native Publisher. */
     @Throws(ZenohException::class)
     private external fun putViaJNI(
-        valuePayload: ByteArray, valueEncoding: Int, encodedAttachment: ByteArray?, ptr: Long
+        valuePayload: ByteArray, encodingId: Int, encodingSchema: String?, attachment: ByteArray?, ptr: Long
     )
 
     @Throws(ZenohException::class)
-    private external fun deleteViaJNI(encodedAttachment: ByteArray?, ptr: Long)
+    private external fun deleteViaJNI(attachment: ByteArray?, ptr: Long)
 
-    /** Frees the underlying native Publisher. */
     private external fun freePtrViaJNI(ptr: Long)
 
 }

@@ -16,9 +16,10 @@ package io.zenoh
 
 import io.zenoh.handlers.Handler
 import io.zenoh.keyexpr.KeyExpr
-import io.zenoh.prelude.KnownEncoding
 import io.zenoh.keyexpr.intoKeyExpr
+import io.zenoh.prelude.CongestionControl
 import io.zenoh.prelude.Encoding
+import io.zenoh.prelude.Priority
 import io.zenoh.sample.Sample
 import io.zenoh.value.Value
 import java.util.*
@@ -30,10 +31,13 @@ import kotlin.test.*
 class SubscriberTest {
 
     companion object {
+        val TEST_PRIORITY = Priority.DATA_HIGH;
+        val TEST_CONGESTION_CONTROL = CongestionControl.BLOCK;
+
         val testValues = arrayListOf(
-            Value("Test 1".encodeToByteArray(), Encoding(KnownEncoding.TEXT_PLAIN)),
-            Value("Test 2".encodeToByteArray(), Encoding(KnownEncoding.TEXT_JSON)),
-            Value("Test 3".encodeToByteArray(), Encoding(KnownEncoding.TEXT_CSV))
+            Value("Test 1".encodeToByteArray(), Encoding(Encoding.ID.TEXT_PLAIN)),
+            Value("Test 2".encodeToByteArray(), Encoding(Encoding.ID.TEXT_JSON)),
+            Value("Test 3".encodeToByteArray(), Encoding(Encoding.ID.TEXT_CSV))
         )
     }
 
@@ -58,11 +62,18 @@ class SubscriberTest {
         val subscriber =
             session.declareSubscriber(testKeyExpr).with { sample -> receivedSamples.add(sample) }.res()
 
-        testValues.forEach { value -> session.put(testKeyExpr, value).res() }
+        testValues.forEach { value ->
+            session.put(testKeyExpr, value)
+                .priority(TEST_PRIORITY)
+                .congestionControl(TEST_CONGESTION_CONTROL)
+                .res()
+        }
         assertEquals(receivedSamples.size, testValues.size)
 
         receivedSamples.zip(testValues).forEach { (sample, value) ->
             assertEquals(sample.value, value)
+            assertEquals(sample.qos.priority(), TEST_PRIORITY)
+            assertEquals(sample.qos.congestionControl(), TEST_CONGESTION_CONTROL)
         }
 
         subscriber.close()
@@ -73,11 +84,18 @@ class SubscriberTest {
         val handler = QueueHandler<Sample>()
         val subscriber = session.declareSubscriber(testKeyExpr).with(handler).res()
 
-        testValues.forEach { value -> session.put(testKeyExpr, value).res() }
+        testValues.forEach { value ->
+            session.put(testKeyExpr, value)
+                .priority(TEST_PRIORITY)
+                .congestionControl(TEST_CONGESTION_CONTROL)
+                .res()
+        }
         assertEquals(handler.queue.size, testValues.size)
 
         handler.queue.zip(testValues).forEach { (sample, value) ->
             assertEquals(sample.value, value)
+            assertEquals(sample.qos.priority(), TEST_PRIORITY)
+            assertEquals(sample.qos.congestionControl(), TEST_CONGESTION_CONTROL)
         }
 
         subscriber.close()
@@ -88,6 +106,24 @@ class SubscriberTest {
         val subscriber = session.declareSubscriber(testKeyExpr).res()
         subscriber.close()
         assertTrue(subscriber.receiver is BlockingQueue<Optional<Sample>>)
+    }
+
+    @Test
+    fun subscriber_isDeclaredWithNonDeclaredKeyExpression() {
+        // Declaring a subscriber with an undeclared key expression and verifying it properly receives samples.
+        val keyExpr = KeyExpr("example/**")
+        val session = Session.open()
+
+        val receivedSamples = ArrayList<Sample>()
+        val subscriber = session.declareSubscriber(keyExpr).with { sample -> receivedSamples.add(sample) }.res()
+        testValues.forEach { value -> session.put(testKeyExpr, value).res() }
+        subscriber.close()
+
+        assertEquals(receivedSamples.size, testValues.size)
+
+        for ((index, sample) in receivedSamples.withIndex()) {
+            assertEquals(sample.value, testValues[index])
+        }
     }
 
     @Test

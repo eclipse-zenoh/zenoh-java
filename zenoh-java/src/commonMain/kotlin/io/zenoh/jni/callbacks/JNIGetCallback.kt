@@ -19,12 +19,16 @@ internal fun interface JNIGetCallback {
     fun run(
         replierId: String,
         success: Boolean,
-        keyExpr: Long,
+        keyExpr: String?,
         payload: ByteArray,
-        encoding: Int,
+        encodingId: Int,
+        encodingSchema: String?,
         kind: Int,
         timestampNTP64: Long,
         timestampIsValid: Boolean,
-        attachment: ByteArray,
+        attachment: ByteArray?,
+        express: Boolean,
+        priority: Int,
+        congestionControl: Int,
     )
 }
