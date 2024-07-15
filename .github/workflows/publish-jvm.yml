@@ -177,7 +177,7 @@ jobs:
           fi
 
       - name: Gradle Publish JVM Package
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/actions/setup-gradle@v3
         with:
           arguments: publishJvmPublicationToGithubPackagesRepository ${{ env.PUB_MODE }}
         env:
