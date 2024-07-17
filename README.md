@@ -37,7 +37,9 @@ Alternatively, you can build it locally as [explained below](#building-the-docum
 
 ## <img src="android-robot.png" alt="Android" height="50">  For Android applications
 
-For this first version we have published a Github package with the library which can be imported on your projects.
+For this first version we have published a [Github package](https://github.com/eclipse-zenoh/zenoh-java/packages/2019754) with the library which can be imported on your projects.
+
+Checkout the [Zenoh demo app](https://github.com/eclipse-zenoh/zenoh-demos/tree/main/zenoh-android/ZenohApp) for an example on how to use the library.
 
 First add the Github packages repository to your `settings.gradle.kts`:
 
@@ -65,14 +67,14 @@ This is required by Github in order to import the package, even if it's from a p
 After that add to the dependencies in the app's `build.gradle.kts`:
 
 ```kotlin
-implementation("io.zenoh:zenoh-java-android:0.10.1-rc")
+implementation("io.zenoh:zenoh-java-android:0.11.0")
 ```
 
 ### Platforms
 
 The library targets the following platforms:
 - x86
-- x86_64 / amd64
+- x86_64
 - arm
 - arm64
 
@@ -119,19 +121,18 @@ This is required by Github in order to import the package, even if it's from a p
 After that add to the dependencies in the app's `build.gradle.kts`:
 
 ```kotlin
-implementation("io.zenoh:zenoh-java-jvm:0.10.1-rc")
+implementation("io.zenoh:zenoh-java-jvm:0.11.0")
 ```
 
 ### Platforms
 
 For the moment, the library targets the following platforms:
-    
-    - x86_64-unknown-linux-gnu 
+
+    - x86_64-unknown-linux-gnu
     - aarch64-unknown-linux-gnu
     - x86_64-apple-darwin
     - aarch64-apple-darwin
     - x86_64-pc-windows-msvc
-
 
 
 ---
@@ -144,29 +145,61 @@ Basically:
 * Rust ([Installation guide](https://doc.rust-lang.org/cargo/getting-started/installation.html))
 * Kotlin ([Installation guide](https://kotlinlang.org/docs/getting-started.html#backend))
 * Gradle ([Installation guide](https://gradle.org/install/))
-* For Android applications: Android SDK ([Installation guide](https://developer.android.com/about/versions/11/setup-sdk))
 
-## <img src="android-robot.png" alt="Android" height="50"> For Android applications
+and in case of targetting Android you'll also need:
+* Android SDK ([Installation guide](https://developer.android.com/about/versions/11/setup-sdk))
+
+## <img src="jvm.png" alt="JVM" height="50"> JVM
+
+To publish a library for a JVM project into Maven local, run
+
+```bash
+gradle -Prelease=true publishJvmPublicationToMavenLocal
+```
+
+This will first, trigger the compilation of Zenoh-JNI in release (if you want debug, specify `-Prelease=false`), and second publish the library into maven local, containing the native library
+as a resource that will be loaded during runtime.
+
+:warning: The native library will be compiled against the default rustup target on your machine, so although it may work fine
+for you on your desktop, the generated publication may not be working on another computer with a different operating system and/or a different cpu architecture.
+
+Once we have published the package, we should be able to find it under `~/.m2/repository/io/zenoh/zenoh-java-jvm/0.11.0`.
+
+Finally, in the `build.gradle.kts` file of the project where you intend to use this library, add mavenLocal to the list of repositories and add zenoh-java as a dependency:
+
+```
+repositories {
+    mavenCentral()
+    mavenLocal()
+}
+
+dependencies {
+    testImplementation(kotlin("test"))
+    implementation("io.zenoh:zenoh-java-jvm:0.11.0")
+}
+```
+
+## <img src="android-robot.png" alt="Android" height="50"> Android
 
 In order to use these bindings in a native Android project, what we will do is to build them as an Android NDK Library,
 publishing it into Maven local for us to be able to easily import it in our project.
 
 It is required to have the [NDK (native development kit)](https://developer.android.com/ndk) installed, since we are going to compile Zenoh JNI for multiple
-android native targets. 
-It can be set up by using Android Studio (go to `Preferences > Appearance & Behavior > System settings > Android SDK > SDK Tools` and tick the NDK box),
+android native targets. The currently used NDK version is **26.0.10792818**.
+It can be set up by using Android Studio (go to `Preferences > Languages & Frameworks > Android SDK > SDK Tools`, tick `Show Package Details` and pick the right NDK version),
 or alternatively it can be found [here](https://developer.android.com/ndk/downloads).
 
 The native platforms we are going to target are the following ones:
 ```
 - x86
-- x86_64 / amd64
+- x86_64
 - arm
 - arm64
 ```
 
 Therefore, if they are not yet already added to the Rust toolchain, run:
 ```bash
-rustup target add armv7-linux-androideabi; \ 
+rustup target add armv7-linux-androideabi; \
 rustup target add i686-linux-android; \
 rustup target add aarch64-linux-android; \
 rustup target add x86_64-linux-android
@@ -177,19 +210,19 @@ to install them.
 
 So, in order to publish the library onto Maven Local, run:
 ```bash
-gradle publishAndroidReleasePublicationToMavenLocal
+gradle -Pandroid=true publishAndroidReleasePublicationToMavenLocal
 ```
 
 This will first trigger the compilation of the Zenoh-JNI for the previously mentioned targets, and secondly will
 publish the library, containing the native binaries.
 
-You should now be able to see the package under `~/.m2/repository/io/zenoh/zenoh-java-android/0.10.1-rc`
+You should now be able to see the package under `~/.m2/repository/io/zenoh/zenoh-java-android/0.11.0`
 with the following files:
 ```
-zenoh-java-android-0.10.1-rc-sources.jar
-zenoh-java-android-0.10.1-rc.aar              
-zenoh-java-android-0.10.1-rc.module           
-zenoh-java-android-0.10.1-rc.pom
+zenoh-java-android-0.11.0-sources.jar
+zenoh-java-android-0.11.0.aar
+zenoh-java-android-0.11.0.module
+zenoh-java-android-0.11.0.pom
 ```
 
 Now the library is published on maven local, let's now see how to import it into an Android project.
@@ -206,7 +239,7 @@ repositories {
 
 Then in your app's `build.gradle.kts` filen add the dependency:
 ```
-implementation("io.zenoh:zenoh-java-android:0.10.1-rc")
+implementation("io.zenoh:zenoh-java-android:0.11.0")
 ```
 
 And finally, do not forget to add the required internet permissions on your manifest!
@@ -217,42 +250,6 @@ And finally, do not forget to add the required internet permissions on your mani
 ```
 
 And that was it! You can now import the code from the `io.zenoh` package and use it at your will.
-
-## <img src="jvm.png" alt="JVM" height="50"> For JVM-based applications
-
-To publish a library for a JVM project into Maven local, we first need to build zenoh-jni in order for it to be loaded into the JAR that will be generated.
-
-Run:
-```bash
-cd zenoh-jni
-cargo build --release
-```
-
-and then publish:
-
-```bash
-gradle publishJvmPublicationToMavenLocal
-```
-
-:warning: The native library will be compiled against the default rustup target on your machine, so although it may work fine
-for you on your desktop, the generated publication may not be working on another computer with a different operating system and/or a different cpu architecture.
-This is different from Android in the fact that Android provides an in build mechanism to dynamically load native libraries depending on the CPU's architecture, while 
-for JVM it's not the case and that logic must be implemented. Building against multiple targets and loading them dynamically is one of our short term goals.  
-
-Once we have published the package, we should be able to find it under `~/.m2/repository/io/zenoh/zenoh-java-jvm/0.10.1-rc`.
-
-Finally, in the `build.gradle.kts` file of the project where you intend to use this library, add mavenLocal to the list of repositories and add zenoh-java as a dependency:
-
-```
-repositories {
-    mavenCentral()
-    mavenLocal()
-}
-
-dependencies {
-    implementation("io.zenoh:zenoh-java-jvm:0.10.1-rc")
-}
-```
 
 ## Building the documentation
 
@@ -275,11 +272,9 @@ This will compile the native library on debug mode (if not already available) an
 Running the tests against the Android target (by using `gradle testDebugUnitTest`) is equivalent to running them against the JVM one, since they are common
 tests executed locally as Unit tests.
 
----
+## Logging
 
-# Logging
-
-Rust logs are propagated when setting the property `zenoh.logger=debug` (using `RUST_LOG=debug` will result in nothing)
+Rust logs are propagated when setting the property `zenoh.logger=debug` (using RUST_LOG=debug will result in nothing)
 
 For instance running the ZPub test as follows:
 
@@ -287,9 +282,9 @@ For instance running the ZPub test as follows:
 gradle -Pzenoh.logger=debug ZPub
 ```
 
-causes the logs to appear in standard output. 
+causes the logs to appear in standard output.
 
-The log levels are the ones from Rust: `trace`, `info`, `debug`, `error` and `warn`. 
+The log levels are the ones from Rust: `trace`, `info`, `debug`, `error` and `warn`.
 
 ---
 
@@ -317,10 +312,17 @@ You can find more info about these examples on the [examples README file](/examp
 ### Packaging
 
 We intend to publish this code on Maven in the short term in order to ease the installation, but for the moment, until we
-add some extra functionalities and test this library a bit further, we will only publish packages into Github packages.
+add some extra functionalities and test this library a bit further, we will only publish packages to Github packages.
 
 ### Potential API changes
 
-When using this library, keep in mind changes may occur, especially since this is the first version of the library. We have, however,
-aimed to make the design as stable as possible from the very beginning, so changes on the code probably won't be substantial.
+When using this library, keep in mind the api is not fully stable. Changes are to be expected, especially for version 1.0.0. 
 
+
+### Performance
+
+The communication between the Kotlin code and the Rust code through the java native interface (JNI) has its toll on performance.
+
+Some preliminary performance evaluations done on an M2 Mac indicate around a 50% performance drop regarding the publication throughput
+(compared to Rust-Rust communication), and for subscription throughput the performance is similar to that of zenoh-python, with around 500K messages per second
+for an 8 bytes payload messages.
