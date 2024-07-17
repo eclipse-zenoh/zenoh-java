@@ -152,13 +152,6 @@ jobs:
           distribution: temurin
           java-version: 11
 
-      - uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r26
-          add-to-path: false
-          link-to-sdk: true
-
       - name: Gradle Wrapper
         run: |
           gradle wrapper
@@ -179,6 +172,6 @@ jobs:
       - name: Gradle Publish JVM Package
         uses: gradle/actions/setup-gradle@v3
         with:
-          arguments: publishJvmPublicationToGithubPackagesRepository ${{ env.PUB_MODE }}
+          arguments: publishJvmPublicationToGithubPackagesRepository -PgithubPublish=true ${{ env.PUB_MODE }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
