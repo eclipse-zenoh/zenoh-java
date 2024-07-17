@@ -73,6 +73,6 @@ jobs:
       - name: Gradle Publish Android Package
         uses: gradle/actions/setup-gradle@v3
         with:
-          arguments: publishAndroidReleasePublicationToGithubPackagesRepository ${{ env.PUB_MODE }}
+          arguments: publishAndroidReleasePublicationToGithubPackagesRepository -pandroid=true ${{ env.PUB_MODE }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
