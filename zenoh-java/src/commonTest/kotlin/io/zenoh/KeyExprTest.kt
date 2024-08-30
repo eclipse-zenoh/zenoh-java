@@ -49,11 +49,12 @@ class KeyExprTest {
         val keyExpr3 = KeyExpr.tryFrom("different/key/expr")
         assertNotEquals(keyExpr1, keyExpr3)
 
+        // Despite being undeclared, the equals operation should still work.
         keyExpr2.close()
-        assertNotEquals(keyExpr1, keyExpr2)
+        assertEquals(keyExpr1, keyExpr2)
 
         keyExpr1.close()
-        assertNotEquals(keyExpr1, keyExpr2)
+        assertEquals(keyExpr1, keyExpr2)
     }
 
     @Test
@@ -61,17 +62,6 @@ class KeyExprTest {
         val keyExpr1 = KeyExpr.autocanonize("example/**/test")
         val keyExpr2 = KeyExpr.autocanonize("example/**/**/test")
         assertEquals(keyExpr1, keyExpr2)
-    }
-
-    @Test
-    fun toStringTest() {
-        val keyExprStr = "example/test/a/b/c"
-        val keyExpr = KeyExpr.tryFrom(keyExprStr)
-
-        assertEquals(keyExprStr, keyExpr.toString())
-
-        keyExpr.close()
-        assertTrue(keyExpr.toString().isEmpty())
     }
 
     @Test

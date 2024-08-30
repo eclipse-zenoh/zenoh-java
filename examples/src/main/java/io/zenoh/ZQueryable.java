@@ -51,7 +51,7 @@ public class ZQueryable {
             String valueInfo = query.getValue() != null ? " with value '" + query.getValue() + "'" : "";
             System.out.println(">> [Queryable] Received Query '" + query.getSelector() + "'" + valueInfo);
             try {
-                query.reply(keyExpr).success("Queryable from Java!").withKind(SampleKind.PUT).withTimeStamp(TimeStamp.getCurrentTime()).res();
+                query.reply(keyExpr).success("Queryable from Java!").timestamp(TimeStamp.getCurrentTime()).res();
             } catch (Exception e) {
                 System.out.println(">> [Queryable] Error sending reply: " + e);
             }

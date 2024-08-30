@@ -16,6 +16,7 @@ package io.zenoh.sample
 
 import io.zenoh.ZenohType
 import io.zenoh.prelude.SampleKind
+import io.zenoh.prelude.QoS
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.value.Value
 import org.apache.commons.net.ntp.TimeStamp
@@ -30,14 +31,16 @@ import org.apache.commons.net.ntp.TimeStamp
  * @property value The [Value] of the sample.
  * @property kind The [SampleKind] of the sample.
  * @property timestamp Optional [TimeStamp].
- * @property attachment Optional [Attachment].
+ * @property qos The Quality of Service settings used to deliver the sample.
+ * @property attachment Optional attachment.
  */
 class Sample(
     val keyExpr: KeyExpr,
     val value: Value,
     val kind: SampleKind,
     val timestamp: TimeStamp?,
-    val attachment: Attachment? = null
+    val qos: QoS,
+    val attachment: ByteArray? = null
 ): ZenohType {
     override fun toString(): String {
         return if (kind == SampleKind.DELETE) "$kind($keyExpr)" else "$kind($keyExpr: $value)"

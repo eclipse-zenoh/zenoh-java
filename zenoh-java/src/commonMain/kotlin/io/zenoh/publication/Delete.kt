@@ -14,12 +14,14 @@
 
 package io.zenoh.publication
 
-import io.zenoh.prelude.SampleKind
+import io.zenoh.Resolvable
 import io.zenoh.Session
 import io.zenoh.exceptions.ZenohException
-import io.zenoh.value.Value
 import io.zenoh.keyexpr.KeyExpr
-import kotlin.jvm.Throws
+import io.zenoh.prelude.CongestionControl
+import io.zenoh.prelude.Priority
+import io.zenoh.prelude.QoS
+import kotlin.Throws
 
 /**
  * Delete operation to perform on Zenoh on a key expression.
@@ -41,12 +43,8 @@ import kotlin.jvm.Throws
  * specifying the sample kind to be `DELETE`.
  */
 class Delete private constructor(
-    keyExpr: KeyExpr,
-    value: Value,
-    congestionControl: CongestionControl,
-    priority: Priority,
-    kind: SampleKind
-) : Put(keyExpr, value, congestionControl, priority, kind, null) {
+    val keyExpr: KeyExpr, val qos: QoS, val attachment: ByteArray?
+) {
 
     companion object {
         /**
@@ -66,36 +64,40 @@ class Delete private constructor(
      *
      * @property session The [Session] from which the Delete will be performed
      * @property keyExpr The [KeyExpr] from which the Delete will be performed
-     * @property congestionControl The [CongestionControl] to be applied when routing the data,
-     *  defaults to [CongestionControl.DROP]
-     * @property priority The [Priority] of zenoh messages, defaults to [Priority.DATA].
      * @constructor Create a [Delete] builder.
      */
     class Builder internal constructor(
         val session: Session,
         val keyExpr: KeyExpr,
-        private var congestionControl: CongestionControl = CongestionControl.DROP,
-        private var priority: Priority = Priority.DATA,
-    ) {
+    ) : Resolvable<Unit> {
+
+        private var qosBuilder: QoS.Builder = QoS.Builder()
+        private var attachment: ByteArray? = null
 
         /** Change the [CongestionControl] to apply when routing the data. */
         fun congestionControl(congestionControl: CongestionControl) =
-            apply { this.congestionControl = congestionControl }
+            apply { this.qosBuilder.congestionControl(congestionControl) }
 
         /** Change the [Priority] of the written data. */
-        fun priority(priority: Priority) = apply { this.priority = priority }
+        fun priority(priority: Priority) = apply { this.qosBuilder.priority(priority) }
+
+        /**
+         * Sets the express flag. If true, the reply won't be batched in order to reduce the latency.
+         */
+        fun express(isExpress: Boolean) = apply { this.qosBuilder.express(isExpress) }
+
+        /** Set an attachment to the put operation. */
+        fun withAttachment(attachment: ByteArray) = apply { this.attachment = attachment }
 
         /**
          * Performs a DELETE operation on the specified [keyExpr].
          *
-         * A successful resolution only states the Delete request was properly sent through the network, it doesn't mean it
+         * A successful [Result] only states the Delete request was properly sent through the network, it doesn't mean it
          * was properly executed remotely.
          */
         @Throws(ZenohException::class)
-        fun res() {
-            val delete = Delete(
-                this.keyExpr, Value.empty(), this.congestionControl, this.priority, SampleKind.DELETE
-            )
+        override fun res() {
+            val delete = Delete(this.keyExpr, qosBuilder.build(), attachment)
             session.resolveDelete(keyExpr, delete)
         }
     }

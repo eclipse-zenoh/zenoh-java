@@ -15,7 +15,6 @@
 package io.zenoh
 
 import io.zenoh.keyexpr.KeyExpr
-import io.zenoh.prelude.KnownEncoding
 import io.zenoh.keyexpr.intoKeyExpr
 import io.zenoh.prelude.Encoding
 import io.zenoh.prelude.SampleKind
@@ -56,9 +55,9 @@ class PublisherTest {
     fun putTest() {
 
         val testValues = arrayListOf(
-            Value("Test 1".encodeToByteArray(), Encoding(KnownEncoding.TEXT_PLAIN)),
-            Value("Test 2".encodeToByteArray(), Encoding(KnownEncoding.TEXT_JSON)),
-            Value("Test 3".encodeToByteArray(), Encoding(KnownEncoding.TEXT_CSV))
+            Value("Test 1".encodeToByteArray(), Encoding(Encoding.ID.TEXT_PLAIN)),
+            Value("Test 2".encodeToByteArray(), Encoding(Encoding.ID.TEXT_JSON)),
+            Value("Test 3".encodeToByteArray(), Encoding(Encoding.ID.TEXT_CSV))
         )
 
         testValues.forEach() { value -> publisher.put(value).res() }

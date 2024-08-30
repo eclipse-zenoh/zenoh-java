@@ -17,8 +17,8 @@ package io.zenoh;
 import io.zenoh.exceptions.ZenohException;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.prelude.SampleKind;
-import io.zenoh.publication.CongestionControl;
-import io.zenoh.publication.Priority;
+import io.zenoh.prelude.CongestionControl;
+import io.zenoh.prelude.Priority;
 
 public class ZPut {
     public static void main(String[] args) throws ZenohException {
@@ -29,7 +29,6 @@ public class ZPut {
                 session.put(keyExpr, value)
                     .congestionControl(CongestionControl.BLOCK)
                     .priority(Priority.REALTIME)
-                    .kind(SampleKind.PUT)
                     .res();
                 System.out.println("Putting Data ('" + keyExpr + "': '" + value + "')...");
             }

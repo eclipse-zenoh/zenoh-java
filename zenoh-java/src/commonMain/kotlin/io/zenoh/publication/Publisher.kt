@@ -19,8 +19,9 @@ import io.zenoh.exceptions.SessionException
 import io.zenoh.exceptions.ZenohException
 import io.zenoh.jni.JNIPublisher
 import io.zenoh.keyexpr.KeyExpr
-import io.zenoh.prelude.SampleKind
-import io.zenoh.sample.Attachment
+import io.zenoh.prelude.CongestionControl
+import io.zenoh.prelude.Priority
+import io.zenoh.prelude.QoS
 import io.zenoh.value.Value
 import kotlin.Throws
 
@@ -55,16 +56,14 @@ import kotlin.Throws
  * The publisher configuration parameters can be later changed using the setter functions.
  *
  * @property keyExpr The key expression the publisher will be associated to.
+ * @property qos [QoS] configuration of the publisher.
  * @property jniPublisher Delegate class handling the communication with the native code.
- * @property congestionControl The congestion control policy.
- * @property priority The priority policy.
  * @constructor Create empty Publisher with the default configuration.
  */
 class Publisher internal constructor(
     val keyExpr: KeyExpr,
+    private var qos: QoS,
     private var jniPublisher: JNIPublisher?,
-    private var congestionControl: CongestionControl,
-    private var priority: Priority
 ) : SessionDeclaration, AutoCloseable {
 
     companion object {
@@ -84,41 +83,14 @@ class Publisher internal constructor(
      */
     fun delete() = Delete(jniPublisher)
 
-
     /** Get congestion control policy. */
     fun getCongestionControl(): CongestionControl {
-        return congestionControl
-    }
-
-    /**
-     * Set the congestion control policy of the publisher.
-     *
-     * This function is not thread safe.
-     *
-     * @param congestionControl: The [CongestionControl] policy.
-     */
-    @Throws(ZenohException::class)
-    fun setCongestionControl(congestionControl: CongestionControl) {
-         jniPublisher?.setCongestionControl(congestionControl)
-        this.congestionControl = congestionControl
+        return qos.congestionControl()
     }
 
     /** Get priority policy. */
     fun getPriority(): Priority {
-        return priority
-    }
-
-    /**
-     * Set the priority policy of the publisher.
-     *
-     * This function is not thread safe.
-     *
-     * @param priority: The [Priority] policy.
-     */
-    @Throws(ZenohException::class)
-    fun setPriority(priority: Priority) {
-         jniPublisher?.setPriority(priority)
-        this.priority = priority
+        return qos.priority()
     }
 
     override fun isValid(): Boolean {
@@ -134,6 +106,7 @@ class Publisher internal constructor(
         jniPublisher = null
     }
 
+    @Suppress("removal")
     protected fun finalize() {
         jniPublisher?.close()
     }
@@ -141,27 +114,26 @@ class Publisher internal constructor(
     class Put internal constructor(
         private var jniPublisher: JNIPublisher?,
         val value: Value,
-        var attachment: Attachment? = null
+        var attachment: ByteArray? = null
     ) : Resolvable<Unit> {
 
-        fun withAttachment(attachment: Attachment) = apply { this.attachment = attachment }
+        fun withAttachment(attachment: ByteArray) = apply { this.attachment = attachment }
 
-        @Throws(ZenohException::class)
         override fun res() {
-            jniPublisher?.put(value, attachment)
+            jniPublisher?.put(value, attachment) ?: throw(sessionException)
         }
     }
 
     class Delete internal constructor(
         private var jniPublisher: JNIPublisher?,
-        var attachment: Attachment? = null
+        var attachment: ByteArray? = null
     ) : Resolvable<Unit> {
 
-        fun withAttachment(attachment: Attachment) = apply { this.attachment = attachment }
+        fun withAttachment(attachment: ByteArray) = apply { this.attachment = attachment }
 
         @Throws(ZenohException::class)
         override fun res() {
-            jniPublisher?.delete(attachment)
+            jniPublisher?.delete(attachment) ?: throw(sessionException)
         }
     }
 
@@ -170,26 +142,28 @@ class Publisher internal constructor(
      *
      * @property session The [Session] from which the publisher is declared.
      * @property keyExpr The key expression the publisher will be associated to.
-     * @property congestionControl The congestion control policy, defaults to [CongestionControl.DROP].
-     * @property priority The priority policy, defaults to [Priority.DATA]
      * @constructor Create empty Builder.
      */
     class Builder internal constructor(
-        val session: Session,
-        val keyExpr: KeyExpr,
-        var congestionControl: CongestionControl = CongestionControl.DROP,
-        var priority: Priority = Priority.DATA,
+        internal val session: Session,
+        internal val keyExpr: KeyExpr,
     ) {
+        private var qosBuilder: QoS.Builder = QoS.Builder()
 
-        /** Change the `congestion_control` to apply when routing the data. */
+        /** Change the [CongestionControl] to apply when routing the data. */
         fun congestionControl(congestionControl: CongestionControl) =
-            apply { this.congestionControl = congestionControl }
+            apply { this.qosBuilder.congestionControl(congestionControl) }
 
-        /** Change the priority of the written data. */
-        fun priority(priority: Priority) = apply { this.priority = priority }
+        /** Change the [Priority] of the written data. */
+        fun priority(priority: Priority) = apply { this.qosBuilder.priority(priority) }
+
+        /**
+         * Sets the express flag. If true, the reply won't be batched in order to reduce the latency.
+         */
+        fun express(isExpress: Boolean) = apply { this.qosBuilder.express(isExpress) }
 
         fun res(): Publisher {
-            return session.run { resolvePublisher(this@Builder) }
+            return session.run { resolvePublisher(keyExpr, qosBuilder.build()) }
         }
     }
 }

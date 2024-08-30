@@ -16,9 +16,8 @@ package io.zenoh;
 
 import io.zenoh.exceptions.ZenohException;
 import io.zenoh.keyexpr.KeyExpr;
+import io.zenoh.prelude.CongestionControl;
 import io.zenoh.prelude.Encoding;
-import io.zenoh.prelude.KnownEncoding;
-import io.zenoh.publication.CongestionControl;
 import io.zenoh.publication.Publisher;
 import io.zenoh.value.Value;
 
@@ -30,7 +29,7 @@ public class ZPubThr {
         for (int i = 0; i < size; i++) {
             data[i] = (byte) (i % 10);
         }
-        Value value = new Value(data, new Encoding(KnownEncoding.EMPTY));
+        Value value = new Value(data, new Encoding(Encoding.ID.ZENOH_BYTES, null));
         try (Session session = Session.open()) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom("test/thr")) {
                 try (Publisher publisher = session.declarePublisher(keyExpr).congestionControl(CongestionControl.BLOCK).res()) {
