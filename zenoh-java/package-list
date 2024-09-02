@@ -202,6 +202,8 @@ $dokka.location:io.zenoh.publication/Put/qos/#/PointingToDeclaration/zenoh-java
 $dokka.location:io.zenoh.publication/Put/value/#/PointingToDeclaration/zenoh-java/io.zenoh.publication/-put/value.html
 $dokka.location:io.zenoh.query////PointingToDeclaration/zenoh-java/io.zenoh.query/index.html
 $dokka.location:io.zenoh.query/ConsolidationMode.AUTO///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}zenoh-java/io.zenoh.query/-consolidation-mode/-a-u-t-o/index.html
+$dokka.location:io.zenoh.query/ConsolidationMode.Companion///PointingToDeclaration/zenoh-java/io.zenoh.query/-consolidation-mode/-companion/index.html
+$dokka.location:io.zenoh.query/ConsolidationMode.Companion/default/#/PointingToDeclaration/zenoh-java/io.zenoh.query/-consolidation-mode/-companion/default.html
 $dokka.location:io.zenoh.query/ConsolidationMode.LATEST///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}zenoh-java/io.zenoh.query/-consolidation-mode/-l-a-t-e-s-t/index.html
 $dokka.location:io.zenoh.query/ConsolidationMode.MONOTONIC///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}zenoh-java/io.zenoh.query/-consolidation-mode/-m-o-n-o-t-o-n-i-c/index.html
 $dokka.location:io.zenoh.query/ConsolidationMode.NONE///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}zenoh-java/io.zenoh.query/-consolidation-mode/-n-o-n-e/index.html
