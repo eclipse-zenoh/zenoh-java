@@ -108,7 +108,7 @@ internal actual class Zenoh private actual constructor() {
         }
 
         private fun loadLibraryAsInputStream(target: Target): Result<InputStream> = runCatching {
-            val libUrl = ClassLoader.getSystemClassLoader().getResourceAsStream("$target/$target.zip")!!
+            val libUrl = javaClass.getResourceAsStream("/$target/$target.zip")!!
             val uncompressedLibFile = unzipLibrary(libUrl)
             return Result.success(FileInputStream(uncompressedLibFile.getOrThrow()))
         }
