@@ -16,6 +16,7 @@ package io.zenoh.publication
 
 import io.zenoh.Resolvable
 import io.zenoh.Session
+import io.zenoh.bytes.Encoding
 import io.zenoh.exceptions.ZenohException
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.prelude.*

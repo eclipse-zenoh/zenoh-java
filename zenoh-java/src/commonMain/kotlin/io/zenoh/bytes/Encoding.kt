@@ -12,7 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-package io.zenoh.prelude
+package io.zenoh.bytes
 
 /**
  * Default encoding values used by Zenoh.
@@ -115,5 +115,3 @@ class Encoding(val id: ID, val schema: String? = null) {
         }
     }
 }
-
-

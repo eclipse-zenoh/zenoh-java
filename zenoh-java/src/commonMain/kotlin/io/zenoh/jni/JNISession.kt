@@ -15,8 +15,8 @@
 package io.zenoh.jni
 
 import io.zenoh.*
-import io.zenoh.prelude.Encoding
-import io.zenoh.prelude.Encoding.ID
+import io.zenoh.bytes.Encoding
+import io.zenoh.bytes.Encoding.ID
 import io.zenoh.exceptions.SessionException
 import io.zenoh.exceptions.ZenohException
 import io.zenoh.handlers.Callback

@@ -14,7 +14,7 @@
 
 package io.zenoh.value
 
-import io.zenoh.prelude.Encoding
+import io.zenoh.bytes.Encoding
 
 /**
  * A Zenoh value.
