@@ -1,6 +1,6 @@
 package io.zenoh
 
-import io.zenoh.exceptions.KeyExprException
+import io.zenoh.exceptions.ZError
 import io.zenoh.selector.Selector
 import io.zenoh.selector.intoSelector
 import kotlin.test.Test
@@ -25,6 +25,6 @@ class SelectorTest {
             assertEquals("", selector.parameters)
         }
 
-        assertFailsWith<KeyExprException> { "".intoSelector() }
+        assertFailsWith<ZError> { "".intoSelector() }
     }
 }

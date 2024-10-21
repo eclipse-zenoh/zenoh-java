@@ -16,7 +16,7 @@ package io.zenoh.publication
 
 import io.zenoh.Resolvable
 import io.zenoh.Session
-import io.zenoh.exceptions.ZenohException
+import io.zenoh.exceptions.ZError
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.prelude.CongestionControl
 import io.zenoh.prelude.Priority
@@ -28,7 +28,7 @@ import kotlin.Throws
  *
  * Example:
  * ```java
- * public void deleteExample() throws ZenohException {
+ * public void deleteExample() throws ZError {
  *     System.out.println("Opening session...");
  *     try (Session session = Session.open()) {
  *         try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/java/example")) {
@@ -95,7 +95,7 @@ class Delete private constructor(
          * A successful [Result] only states the Delete request was properly sent through the network, it doesn't mean it
          * was properly executed remotely.
          */
-        @Throws(ZenohException::class)
+        @Throws(ZError::class)
         override fun res() {
             val delete = Delete(this.keyExpr, qosBuilder.build(), attachment)
             session.resolveDelete(keyExpr, delete)

@@ -15,7 +15,7 @@
 package io.zenoh.subscriber
 
 import io.zenoh.*
-import io.zenoh.exceptions.ZenohException
+import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Handler
@@ -170,7 +170,7 @@ class Subscriber<R> internal constructor(
          *
          * @return The newly created [Subscriber].
          */
-        @Throws(ZenohException::class)
+        @Throws(ZError::class)
         override fun res(): Subscriber<R> {
             require(callback != null || handler != null) { "Either a callback or a handler must be provided." }
             val resolvedCallback = callback ?: Callback { t: Sample -> handler?.handle(t) }

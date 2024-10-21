@@ -15,8 +15,8 @@
 package io.zenoh.publication
 
 import io.zenoh.*
-import io.zenoh.exceptions.SessionException
-import io.zenoh.exceptions.ZenohException
+import io.zenoh.exceptions.ZError
+import io.zenoh.exceptions.ZError
 import io.zenoh.jni.JNIPublisher
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.prelude.CongestionControl
@@ -48,7 +48,7 @@ import kotlin.Throws
  *             }
  *         }
  *     }
- * } catch (ZenohException | InterruptedException e) {
+ * } catch (ZError | InterruptedException e) {
  *     System.out.println("Error: " + e);
  * }
  * ```
@@ -67,7 +67,7 @@ class Publisher internal constructor(
 ) : SessionDeclaration, AutoCloseable {
 
     companion object {
-        private val sessionException = SessionException("Publisher is not valid.")
+        private val ZError = ZError("Publisher is not valid.")
     }
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [value]. */
@@ -120,7 +120,7 @@ class Publisher internal constructor(
         fun withAttachment(attachment: ByteArray) = apply { this.attachment = attachment }
 
         override fun res() {
-            jniPublisher?.put(value, attachment) ?: throw(sessionException)
+            jniPublisher?.put(value, attachment) ?: throw(ZError)
         }
     }
 
@@ -131,9 +131,9 @@ class Publisher internal constructor(
 
         fun withAttachment(attachment: ByteArray) = apply { this.attachment = attachment }
 
-        @Throws(ZenohException::class)
+        @Throws(ZError::class)
         override fun res() {
-            jniPublisher?.delete(attachment) ?: throw(sessionException)
+            jniPublisher?.delete(attachment) ?: throw(ZError)
         }
     }
 
@@ -167,4 +167,3 @@ class Publisher internal constructor(
         }
     }
 }
-

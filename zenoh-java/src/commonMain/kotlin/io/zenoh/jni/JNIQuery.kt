@@ -14,7 +14,7 @@
 
 package io.zenoh.jni
 
-import io.zenoh.exceptions.ZenohException
+import io.zenoh.exceptions.ZError
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.prelude.QoS
 import io.zenoh.sample.Sample
@@ -30,7 +30,7 @@ import org.apache.commons.net.ntp.TimeStamp
  */
 internal class JNIQuery(private val ptr: Long) {
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     fun replySuccess(sample: Sample) {
         val timestampEnabled = sample.timestamp != null
         replySuccessViaJNI(
@@ -49,12 +49,12 @@ internal class JNIQuery(private val ptr: Long) {
         )
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     fun replyError(errorValue: Value) {
         replyErrorViaJNI(ptr, errorValue.payload, errorValue.encoding.id.ordinal, errorValue.encoding.schema)
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     fun replyDelete(keyExpr: KeyExpr, timestamp: TimeStamp?, attachment: ByteArray?, qos: QoS) {
             val timestampEnabled = timestamp != null
             replyDeleteViaJNI(
@@ -74,7 +74,7 @@ internal class JNIQuery(private val ptr: Long) {
         freePtrViaJNI(ptr)
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     private external fun replySuccessViaJNI(
         queryPtr: Long,
         keyExprPtr: Long,
@@ -90,7 +90,7 @@ internal class JNIQuery(private val ptr: Long) {
         qosCongestionControl: Int,
     )
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     private external fun replyErrorViaJNI(
         queryPtr: Long,
         errorValuePayload: ByteArray,
@@ -98,7 +98,7 @@ internal class JNIQuery(private val ptr: Long) {
         encodingSchema: String?,
     )
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     private external fun replyDeleteViaJNI(
         queryPtr: Long,
         keyExprPtr: Long,

@@ -17,8 +17,8 @@ package io.zenoh.jni
 import io.zenoh.*
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.Encoding.ID
-import io.zenoh.exceptions.SessionException
-import io.zenoh.exceptions.ZenohException
+import io.zenoh.exceptions.ZError
+import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.Callback
 import io.zenoh.jni.callbacks.JNIOnCloseCallback
 import io.zenoh.jni.callbacks.JNIGetCallback
@@ -48,7 +48,7 @@ internal class JNISession {
     /* Pointer to the underlying Rust zenoh session. */
     private var sessionPtr: AtomicLong = AtomicLong(0)
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     fun open(config: Config) {
         config.jsonConfig?.let { jsonConfig ->
             sessionPtr.set(openSessionWithJsonConfigViaJNI(jsonConfig.toString()))
@@ -57,12 +57,12 @@ internal class JNISession {
         }
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     fun close() {
         closeSessionViaJNI(sessionPtr.get())
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     fun declarePublisher(keyExpr: KeyExpr, qos: QoS): Publisher {
         val publisherRawPtr = declarePublisherViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
@@ -79,7 +79,7 @@ internal class JNISession {
         )
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     fun <R> declareSubscriber(
         keyExpr: KeyExpr, callback: Callback<Sample>, onClose: () -> Unit, receiver: R?, reliability: Reliability
     ): Subscriber<R> {
@@ -102,7 +102,7 @@ internal class JNISession {
         return Subscriber(keyExpr, receiver, JNISubscriber(subscriberRawPtr))
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     fun <R> declareQueryable(
         keyExpr: KeyExpr, callback: Callback<Query>, onClose: () -> Unit, receiver: R?, complete: Boolean
     ): Queryable<R> {
@@ -122,7 +122,7 @@ internal class JNISession {
         return Queryable(keyExpr, receiver, JNIQueryable(queryableRawPtr))
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     fun <R> performGet(
         selector: Selector,
         callback: Callback<Reply>,
@@ -200,18 +200,18 @@ internal class JNISession {
         return receiver
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     fun declareKeyExpr(keyExpr: String): KeyExpr {
         val ptr = declareKeyExprViaJNI(sessionPtr.get(), keyExpr)
         return KeyExpr(keyExpr, JNIKeyExpr(ptr))
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     fun undeclareKeyExpr(keyExpr: KeyExpr) {
         keyExpr.jniKeyExpr?.run {
             undeclareKeyExprViaJNI(sessionPtr.get(), this.ptr)
             keyExpr.jniKeyExpr = null
-        } ?: throw SessionException("Attempting to undeclare a non declared key expression.")
+        } ?: throw ZError("Attempting to undeclare a non declared key expression.")
     }
 
     @Throws(Exception::class)

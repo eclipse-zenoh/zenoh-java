@@ -14,7 +14,7 @@
 
 package io.zenoh.jni
 
-import io.zenoh.exceptions.ZenohException
+import io.zenoh.exceptions.ZError
 import io.zenoh.value.Value
 
 /**
@@ -30,7 +30,7 @@ internal class JNIPublisher(private val ptr: Long) {
      * @param value The [Value] to be put.
      * @param attachment Optional attachment.
      */
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     fun put(value: Value, attachment: ByteArray?) {
         putViaJNI(value.payload, value.encoding.id.ordinal, value.encoding.schema, attachment, ptr)
     }
@@ -40,7 +40,7 @@ internal class JNIPublisher(private val ptr: Long) {
      *
      * @param attachment Optional attachment.
      */
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     fun delete(attachment: ByteArray?) {
         deleteViaJNI(attachment, ptr)
     }
@@ -54,12 +54,12 @@ internal class JNIPublisher(private val ptr: Long) {
         freePtrViaJNI(ptr)
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     private external fun putViaJNI(
         valuePayload: ByteArray, encodingId: Int, encodingSchema: String?, attachment: ByteArray?, ptr: Long
     )
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     private external fun deleteViaJNI(attachment: ByteArray?, ptr: Long)
 
     private external fun freePtrViaJNI(ptr: Long)

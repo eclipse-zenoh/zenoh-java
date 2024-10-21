@@ -14,17 +14,16 @@
 
 package io.zenoh.selector
 
-import io.zenoh.exceptions.KeyExprException
+import io.zenoh.exceptions.ZError
 import io.zenoh.keyexpr.KeyExpr
 
-@Throws(KeyExprException::class)
+@Throws(ZError::class)
 fun String.intoSelector(): Selector {
     if (this.isEmpty()) {
-        throw(KeyExprException("Attempting to create a KeyExpr from an empty string."))
+        throw(ZError("Attempting to create a KeyExpr from an empty string."))
     }
     val result = this.split('?', limit = 2)
     val keyExpr = KeyExpr.autocanonize(result[0])
     val params = if (result.size == 2) result[1] else ""
     return Selector(keyExpr, params)
 }
-

@@ -16,7 +16,7 @@ package io.zenoh.keyexpr
 
 import io.zenoh.Resolvable
 import io.zenoh.Session
-import io.zenoh.exceptions.KeyExprException
+import io.zenoh.exceptions.ZError
 import io.zenoh.jni.JNIKeyExpr
 
 /**
@@ -74,10 +74,10 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
          *
          * @param keyExpr The intended key expression as a string.
          * @return The [KeyExpr] in case of success.
-         * @throws KeyExprException in the case of failure.
+         * @throws ZError in the case of failure.
          */
         @JvmStatic
-        @Throws(KeyExprException::class)
+        @Throws(ZError::class)
         fun tryFrom(keyExpr: String): KeyExpr {
             return JNIKeyExpr.tryFrom(keyExpr)
         }
@@ -90,10 +90,10 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
          *
          * @param keyExpr The intended key expression as a string.
          * @return The canonized [KeyExpr].
-         * @throws KeyExprException in the case of failure.
+         * @throws ZError in the case of failure.
          */
         @JvmStatic
-        @Throws(KeyExprException::class)
+        @Throws(ZError::class)
         fun autocanonize(keyExpr: String): KeyExpr {
             return JNIKeyExpr.autocanonize(keyExpr)
         }

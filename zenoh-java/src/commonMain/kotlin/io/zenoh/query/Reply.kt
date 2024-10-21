@@ -16,7 +16,7 @@ package io.zenoh.query
 
 import io.zenoh.Resolvable
 import io.zenoh.ZenohType
-import io.zenoh.exceptions.ZenohException
+import io.zenoh.exceptions.ZError
 import io.zenoh.sample.Sample
 import io.zenoh.prelude.SampleKind
 import io.zenoh.value.Value
@@ -163,7 +163,7 @@ sealed class Reply private constructor(val replierId: ZenohID?) : ZenohType {
             /**
              * Constructs the reply sample with the provided parameters and triggers the reply to the query.
              */
-            @Throws(ZenohException::class)
+            @Throws(ZError::class)
             override fun res() {
                 val sample = Sample(keyExpr, value, kind, timeStamp, qosBuilder.build(), attachment)
                 return query.reply(Success(null, sample)).res()

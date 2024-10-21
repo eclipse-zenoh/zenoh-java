@@ -14,8 +14,8 @@
 
 package io.zenoh
 
-import io.zenoh.exceptions.SessionException
-import io.zenoh.exceptions.ZenohException
+import io.zenoh.exceptions.ZError
+import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.Callback
 import io.zenoh.jni.JNISession
 import io.zenoh.keyexpr.KeyExpr
@@ -56,16 +56,16 @@ class Session private constructor(private val config: Config) : AutoCloseable {
 
     companion object {
 
-        private val sessionClosedException = SessionException("Session is closed.")
+        private val sessionClosedException = ZError("Session is closed.")
 
         /**
          * Open a [Session] with the default [Config].
          *
          * @return The opened [Session].
-         * @throws [SessionException] in the case of a failure.
+         * @throws [ZError] in the case of a failure.
          */
         @JvmStatic
-        @Throws(SessionException::class)
+        @Throws(ZError::class)
         fun open(): Session {
             val session = Session(Config.default())
             return session.launch()
@@ -76,10 +76,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
          *
          * @param config The configuration for the session.
          * @return The opened [Session].
-         * @throws [SessionException] in the case of a failure.
+         * @throws [ZError] in the case of a failure.
          */
         @JvmStatic
-        @Throws(SessionException::class)
+        @Throws(ZError::class)
         fun open(config: Config): Session {
             val session = Session(config)
             return session.launch()
@@ -98,7 +98,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      *
      * However, any session declaration that was still alive and bound to the session previous to closing it, will still be alive.
      */
-    @Throws(SessionException::class)
+    @Throws(ZError::class)
     override fun close() {
         jniSession?.close()
         jniSession = null
@@ -355,14 +355,14 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         return jniSession != null
     }
 
-    @Throws(SessionException::class)
+    @Throws(ZError::class)
     internal fun resolvePublisher(keyExpr: KeyExpr, qos: QoS): Publisher {
         return jniSession?.run {
             declarePublisher(keyExpr, qos)
         } ?: throw(sessionClosedException)
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     internal fun <R> resolveSubscriber(
         keyExpr: KeyExpr, callback: Callback<Sample>, onClose: () -> Unit, receiver: R?, reliability: Reliability
     ): Subscriber<R> {
@@ -371,7 +371,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         } ?: throw (sessionClosedException)
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     internal fun <R> resolveQueryable(
         keyExpr: KeyExpr, callback: Callback<Query>, onClose: () -> Unit, receiver: R?, complete: Boolean
     ): Queryable<R> {
@@ -380,7 +380,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         } ?: throw (sessionClosedException)
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     internal fun <R> resolveGet(
         selector: Selector,
         callback: Callback<Reply>,
@@ -398,21 +398,20 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         return jniSession?.performGet(selector, callback, onClose, receiver, timeout, target, consolidation, value, attachment)
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     internal fun resolvePut(keyExpr: KeyExpr, put: Put) {
         jniSession?.run { performPut(keyExpr, put) }
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     internal fun resolveDelete(keyExpr: KeyExpr, delete: Delete) {
         jniSession?.run { performDelete(keyExpr, delete) }
     }
 
     /** Launches the session through the jni session, returning the [Session] on success. */
-    @Throws(SessionException::class)
+    @Throws(ZError::class)
     private fun launch(): Session {
         jniSession!!.open(config)
         return this
     }
 }
-

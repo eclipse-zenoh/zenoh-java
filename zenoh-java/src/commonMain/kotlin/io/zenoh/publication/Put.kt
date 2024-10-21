@@ -17,7 +17,7 @@ package io.zenoh.publication
 import io.zenoh.Resolvable
 import io.zenoh.Session
 import io.zenoh.bytes.Encoding
-import io.zenoh.exceptions.ZenohException
+import io.zenoh.exceptions.ZError
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.prelude.*
 import io.zenoh.value.Value
@@ -109,7 +109,7 @@ class Put private constructor(
         fun withAttachment(attachment: ByteArray) = apply { this.attachment = attachment }
 
         /** Resolves the put operation, returning a [Result]. */
-        @Throws(ZenohException::class)
+        @Throws(ZError::class)
         override fun res() {
             val put = Put(keyExpr, value, qosBuilder.build(), attachment)
             session.run { resolvePut(keyExpr, put) }

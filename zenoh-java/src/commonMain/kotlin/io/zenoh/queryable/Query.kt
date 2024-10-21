@@ -18,7 +18,7 @@ import io.zenoh.Resolvable
 import io.zenoh.ZenohType
 import io.zenoh.selector.Selector
 import io.zenoh.value.Value
-import io.zenoh.exceptions.SessionException
+import io.zenoh.exceptions.ZError
 import io.zenoh.jni.JNIQuery
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.query.Reply
@@ -93,7 +93,6 @@ class Query internal constructor(
             jniQuery = null
             return@Resolvable result
         }
-        throw(SessionException("Query is invalid"))
+        throw(ZError("Query is invalid"))
     }
 }
-

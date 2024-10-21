@@ -15,19 +15,19 @@
 package io.zenoh.jni
 
 import io.zenoh.Zenoh
-import io.zenoh.exceptions.ZenohException
+import io.zenoh.exceptions.ZError
 import io.zenoh.keyexpr.KeyExpr
 
 internal class JNIKeyExpr(internal val ptr: Long) {
 
     companion object {
-        @Throws(ZenohException::class)
+        @Throws(ZError::class)
         fun tryFrom(keyExpr: String): KeyExpr {
             Zenoh.load() // It may happen the zenoh library is not yet loaded when creating a key expression.
             return KeyExpr(tryFromViaJNI(keyExpr))
         }
 
-        @Throws(ZenohException::class)
+        @Throws(ZError::class)
         fun autocanonize(keyExpr: String): KeyExpr {
             Zenoh.load()
             return KeyExpr(autocanonizeViaJNI(keyExpr))

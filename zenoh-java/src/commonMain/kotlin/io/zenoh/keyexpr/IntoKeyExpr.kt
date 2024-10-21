@@ -14,13 +14,12 @@
 
 package io.zenoh.keyexpr
 
-import io.zenoh.exceptions.KeyExprException
+import io.zenoh.exceptions.ZError
 
-@Throws(KeyExprException::class)
+@Throws(ZError::class)
 fun String.intoKeyExpr(): KeyExpr {
     if (this.isEmpty()) {
-        throw(KeyExprException("Attempting to create a KeyExpr from an empty string."))
+        throw(ZError("Attempting to create a KeyExpr from an empty string."))
     }
     return KeyExpr.autocanonize(this)
 }
-

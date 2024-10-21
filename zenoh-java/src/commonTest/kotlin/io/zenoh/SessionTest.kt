@@ -14,7 +14,7 @@
 
 package io.zenoh
 
-import io.zenoh.exceptions.SessionException
+import io.zenoh.exceptions.ZError
 import io.zenoh.keyexpr.intoKeyExpr
 import io.zenoh.sample.Sample
 import kotlin.test.*
@@ -57,9 +57,9 @@ class SessionTest {
     fun sessionClose_newDeclarationsReturnNullAfterClosingSession() {
         val session = Session.open()
         session.close()
-        assertFailsWith<SessionException> { session.declarePublisher(TEST_KEY_EXP).res() }
-        assertFailsWith<SessionException> { session.declareSubscriber(TEST_KEY_EXP).with {}.res() }
-        assertFailsWith<SessionException> { session.declareQueryable(TEST_KEY_EXP).with {}.res() }
+        assertFailsWith<ZError> { session.declarePublisher(TEST_KEY_EXP).res() }
+        assertFailsWith<ZError> { session.declareSubscriber(TEST_KEY_EXP).with {}.res() }
+        assertFailsWith<ZError> { session.declareQueryable(TEST_KEY_EXP).with {}.res() }
     }
 
 }

@@ -14,7 +14,7 @@
 
 package io.zenoh.selector
 
-import io.zenoh.exceptions.KeyExprException
+import io.zenoh.exceptions.ZError
 import io.zenoh.keyexpr.KeyExpr
 
 /**
@@ -39,13 +39,13 @@ class Selector(val keyExpr: KeyExpr, val parameters: String = ""): AutoCloseable
          *
          * @param expression A string with the form "<keyExpr>?<parameters>".
          * @return A [Selector] in case of success.
-         * @throws KeyExprException in case of failure generating the key expression.
+         * @throws ZError in case of failure generating the key expression.
          */
         @JvmStatic
-        @Throws(KeyExprException::class)
+        @Throws(ZError::class)
         fun tryFrom(expression: String): Selector {
             if (expression.isEmpty()) {
-                throw(KeyExprException("Attempting to create a KeyExpr from an empty string."))
+                throw(ZError("Attempting to create a KeyExpr from an empty string."))
             }
             val result = expression.split('?', limit = 2)
             val keyExpr = KeyExpr.autocanonize(result[0])

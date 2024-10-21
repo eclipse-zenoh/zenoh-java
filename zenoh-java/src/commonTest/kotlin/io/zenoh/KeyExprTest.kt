@@ -14,7 +14,7 @@
 
 package io.zenoh
 
-import io.zenoh.exceptions.SessionException
+import io.zenoh.exceptions.ZError
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.keyexpr.intoKeyExpr
 import org.junit.Assert.assertThrows
@@ -107,7 +107,7 @@ class KeyExprTest {
 
         // Undeclaring a key expr that was not declared through a session.
         val keyExpr2 = "x/y/z".intoKeyExpr()
-        assertThrows(SessionException::class.java) {session.undeclare(keyExpr2).res()}
+        assertThrows(ZError::class.java) {session.undeclare(keyExpr2).res()}
 
         session.close()
         keyExpr.close()
