@@ -15,7 +15,8 @@
 package io.zenoh.jni
 
 import io.zenoh.exceptions.ZError
-import io.zenoh.value.Value
+import io.zenoh.bytes.Encoding
+import io.zenoh.bytes.IntoZBytes
 
 /**
  * Adapter class to handle the interactions with Zenoh through JNI for a [io.zenoh.publication.Publisher].
@@ -27,12 +28,14 @@ internal class JNIPublisher(private val ptr: Long) {
     /**
      * Put operation.
      *
-     * @param value The [Value] to be put.
+     * @param payload Payload of the put.
+     * @param encoding Encoding of the payload.
      * @param attachment Optional attachment.
      */
     @Throws(ZError::class)
-    fun put(value: Value, attachment: ByteArray?) {
-        putViaJNI(value.payload, value.encoding.id.ordinal, value.encoding.schema, attachment, ptr)
+    fun put(payload: IntoZBytes, encoding: Encoding?, attachment: IntoZBytes?) {
+        val resolvedEncoding = encoding ?: Encoding.default()
+        putViaJNI(payload.into().bytes, resolvedEncoding.id, resolvedEncoding.schema, attachment?.into()?.bytes, ptr)
     }
 
     /**
@@ -41,8 +44,8 @@ internal class JNIPublisher(private val ptr: Long) {
      * @param attachment Optional attachment.
      */
     @Throws(ZError::class)
-    fun delete(attachment: ByteArray?) {
-        deleteViaJNI(attachment, ptr)
+    fun delete(attachment: IntoZBytes?) {
+        deleteViaJNI(attachment?.into()?.bytes, ptr)
     }
 
     /**
