@@ -16,8 +16,6 @@ package io.zenoh.jni
 
 import io.zenoh.*
 import io.zenoh.bytes.Encoding
-import io.zenoh.bytes.Encoding.ID
-import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.Callback
 import io.zenoh.jni.callbacks.JNIOnCloseCallback
@@ -25,19 +23,25 @@ import io.zenoh.jni.callbacks.JNIGetCallback
 import io.zenoh.jni.callbacks.JNIQueryableCallback
 import io.zenoh.jni.callbacks.JNISubscriberCallback
 import io.zenoh.keyexpr.KeyExpr
-import io.zenoh.prelude.*
-import io.zenoh.protocol.ZenohID
-import io.zenoh.publication.Delete
-import io.zenoh.publication.Publisher
-import io.zenoh.publication.Put
+import io.zenoh.bytes.IntoZBytes
+import io.zenoh.config.ZenohId
+import io.zenoh.bytes.into
+import io.zenoh.Config
+import io.zenoh.pubsub.Delete
+import io.zenoh.pubsub.Publisher
+import io.zenoh.pubsub.Put
+import io.zenoh.qos.CongestionControl
+import io.zenoh.qos.Priority
+import io.zenoh.qos.QoS
 import io.zenoh.query.*
-import io.zenoh.queryable.Query
-import io.zenoh.queryable.Queryable
+import io.zenoh.query.Query
+import io.zenoh.query.Queryable
 import io.zenoh.sample.Sample
-import io.zenoh.selector.Selector
-import io.zenoh.subscriber.Reliability
-import io.zenoh.subscriber.Subscriber
-import io.zenoh.value.Value
+import io.zenoh.query.Parameters
+import io.zenoh.query.Selector
+import io.zenoh.qos.Reliability
+import io.zenoh.sample.SampleKind
+import io.zenoh.pubsub.Subscriber
 import org.apache.commons.net.ntp.TimeStamp
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicLong
@@ -45,16 +49,19 @@ import java.util.concurrent.atomic.AtomicLong
 /** Adapter class to handle the communication with the Zenoh JNI code for a [Session]. */
 internal class JNISession {
 
+    companion object {
+        init {
+            ZenohLoad
+        }
+    }
+
     /* Pointer to the underlying Rust zenoh session. */
     private var sessionPtr: AtomicLong = AtomicLong(0)
 
     @Throws(ZError::class)
     fun open(config: Config) {
-        config.jsonConfig?.let { jsonConfig ->
-            sessionPtr.set(openSessionWithJsonConfigViaJNI(jsonConfig.toString()))
-        } ?: run {
-            sessionPtr.set(openSessionViaJNI(config.path?.toString()))
-        }
+        val session = openSessionViaJNI(config.jniConfig.ptr)
+        sessionPtr.set(session)
     }
 
     @Throws(ZError::class)
@@ -63,57 +70,69 @@ internal class JNISession {
     }
 
     @Throws(ZError::class)
-    fun declarePublisher(keyExpr: KeyExpr, qos: QoS): Publisher {
+    fun declarePublisher(keyExpr: KeyExpr, qos: QoS, encoding: Encoding, reliability: Reliability): Publisher {
         val publisherRawPtr = declarePublisherViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
             sessionPtr.get(),
             qos.congestionControl.value,
             qos.priority.value,
-            qos.express
+            qos.express,
+            reliability.ordinal
         )
         return Publisher(
             keyExpr,
             qos,
+            encoding,
             JNIPublisher(publisherRawPtr),
         )
     }
 
     @Throws(ZError::class)
     fun <R> declareSubscriber(
-        keyExpr: KeyExpr, callback: Callback<Sample>, onClose: () -> Unit, receiver: R?, reliability: Reliability
+        keyExpr: KeyExpr, callback: Callback<Sample>, onClose: () -> Unit, receiver: R
     ): Subscriber<R> {
         val subCallback =
-            JNISubscriberCallback { keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
+            JNISubscriberCallback { keyExpr, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
                 val sample = Sample(
-                    KeyExpr(keyExpr2, null),
-                    Value(payload, Encoding(ID.fromId(encodingId)!!, encodingSchema)),
+                    KeyExpr(keyExpr, null),
+                    payload.into(),
+                    Encoding(encodingId, schema = encodingSchema),
                     SampleKind.fromInt(kind),
                     timestamp,
-                    QoS(express, congestionControl, priority),
-                    attachmentBytes
+                    QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
+                    attachmentBytes?.into()
                 )
                 callback.run(sample)
             }
         val subscriberRawPtr = declareSubscriberViaJNI(
-            keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr.get(), subCallback, onClose, reliability.ordinal
+            keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr.get(), subCallback, onClose
         )
         return Subscriber(keyExpr, receiver, JNISubscriber(subscriberRawPtr))
     }
 
     @Throws(ZError::class)
     fun <R> declareQueryable(
-        keyExpr: KeyExpr, callback: Callback<Query>, onClose: () -> Unit, receiver: R?, complete: Boolean
+        keyExpr: KeyExpr, callback: Callback<Query>, onClose: () -> Unit, receiver: R, complete: Boolean
     ): Queryable<R> {
         val queryCallback =
-            JNIQueryableCallback { keyExprStr: String, selectorParams: String, withValue: Boolean, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long ->
+            JNIQueryableCallback { keyExpr: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long ->
                 val jniQuery = JNIQuery(queryPtr)
-                val keyExpr2 = KeyExpr(keyExprStr, null)
-                val selector = Selector(keyExpr2, selectorParams)
-                val value: Value? =
-                    if (withValue) Value(payload!!, Encoding(ID.fromId(encodingId)!!, encodingSchema)) else null
-                val query = Query(keyExpr2, selector, value, attachmentBytes, jniQuery)
+                val keyExpr2 = KeyExpr(keyExpr, null)
+                val selector = if (selectorParams.isEmpty()) {
+                    Selector(keyExpr2)
+                } else {
+                    Selector(keyExpr2, Parameters.from(selectorParams).getOrThrow())
+                }
+                val query = Query(
+                    keyExpr2,
+                    selector,
+                    payload?.into(),
+                    payload?.let { Encoding(encodingId, schema = encodingSchema) },
+                    attachmentBytes?.into(),
+                    jniQuery
+                )
                 callback.run(query)
             }
         val queryableRawPtr = declareQueryableViaJNI(
@@ -127,15 +146,16 @@ internal class JNISession {
         selector: Selector,
         callback: Callback<Reply>,
         onClose: () -> Unit,
-        receiver: R?,
+        receiver: R,
         timeout: Duration,
         target: QueryTarget,
         consolidation: ConsolidationMode,
-        value: Value?,
-        attachment: ByteArray?
-    ): R? {
+        payload: IntoZBytes?,
+        encoding: Encoding?,
+        attachment: IntoZBytes?
+    ): R {
         val getCallback = JNIGetCallback {
-                replierId: String?,
+                replierId: ByteArray?,
                 success: Boolean,
                 keyExpr: String?,
                 payload: ByteArray,
@@ -152,31 +172,25 @@ internal class JNISession {
             val reply: Reply
             if (success) {
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
-                when (SampleKind.fromInt(kind)) {
-                    SampleKind.PUT -> {
-                        val sample = Sample(
-                            KeyExpr(keyExpr!!, null),
-                            Value(payload, Encoding(ID.fromId(encodingId)!!, encodingSchema)),
-                            SampleKind.fromInt(kind),
-                            timestamp,
-                            QoS(express, congestionControl, priority),
-                            attachmentBytes
-                        )
-                        reply = Reply.Success(replierId?.let { ZenohID(it) }, sample)
-                    }
-
-                    SampleKind.DELETE -> {
-                        reply = Reply.Delete(
-                            replierId?.let { ZenohID(it) },
-                            KeyExpr(keyExpr!!, null),
-                            timestamp,
-                            attachmentBytes,
-                            QoS(express, congestionControl, priority)
-                        )
-                    }
-                }
+                val sample = Sample(
+                    KeyExpr(keyExpr!!, null),
+                    payload.into(),
+                    Encoding(encodingId, schema = encodingSchema),
+                    SampleKind.fromInt(kind),
+                    timestamp,
+                    QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
+                    attachmentBytes?.into()
+                )
+                reply = Reply(replierId?.let { ZenohId(it) }, Result.success(sample))
             } else {
-                reply = Reply.Error(replierId?.let { ZenohID(it) }, Value(payload, Encoding(ID.fromId(encodingId)!!, encodingSchema)))
+                reply = Reply(
+                    replierId?.let { ZenohId(it) }, Result.failure(
+                        ReplyError(
+                            payload.into(),
+                            Encoding(encodingId, schema = encodingSchema)
+                        )
+                    )
+                )
             }
             callback.run(reply)
         }
@@ -184,18 +198,17 @@ internal class JNISession {
         getViaJNI(
             selector.keyExpr.jniKeyExpr?.ptr ?: 0,
             selector.keyExpr.keyExpr,
-            selector.parameters,
+            selector.parameters.toString(),
             sessionPtr.get(),
             getCallback,
             onClose,
             timeout.toMillis(),
             target.ordinal,
             consolidation.ordinal,
-            attachment,
-            value != null,
-            value?.payload,
-            value?.encoding?.id?.ordinal ?: 0,
-            value?.encoding?.schema
+            attachment?.into()?.bytes,
+            payload?.into()?.bytes,
+            encoding?.id ?: Encoding.default().id,
+            encoding?.schema
         )
         return receiver
     }
@@ -214,7 +227,7 @@ internal class JNISession {
         } ?: throw ZError("Attempting to undeclare a non declared key expression.")
     }
 
-    @Throws(Exception::class)
+    @Throws(ZError::class)
     fun performPut(
         keyExpr: KeyExpr,
         put: Put,
@@ -223,17 +236,18 @@ internal class JNISession {
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
             sessionPtr.get(),
-            put.value.payload,
-            put.value.encoding.id.ordinal,
-            put.value.encoding.schema,
+            put.payload.bytes,
+            put.encoding.id,
+            put.encoding.schema,
             put.qos.congestionControl.value,
             put.qos.priority.value,
             put.qos.express,
-            put.attachment
+            put.attachment?.bytes,
+            put.reliability.ordinal
         )
     }
 
-    @Throws(Exception::class)
+    @Throws(ZError::class)
     fun performDelete(
         keyExpr: KeyExpr,
         delete: Delete,
@@ -245,40 +259,62 @@ internal class JNISession {
             delete.qos.congestionControl.value,
             delete.qos.priority.value,
             delete.qos.express,
-            delete.attachment
+            delete.attachment?.bytes,
+            delete.reliability.ordinal
         )
     }
 
-    @Throws(Exception::class)
-    private external fun openSessionViaJNI(configFilePath: String?): Long
+    @Throws(ZError::class)
+    fun zid(): ZenohId {
+        return ZenohId(getZidViaJNI(sessionPtr.get()))
+    }
 
-    @Throws(Exception::class)
-    private external fun openSessionWithJsonConfigViaJNI(jsonConfig: String?): Long
+    @Throws(ZError::class)
+    fun peersZid(): List<ZenohId> {
+        return getPeersZidViaJNI(sessionPtr.get()).map { ZenohId(it) }
+    }
 
-    @Throws(Exception::class)
+    @Throws(ZError::class)
+    fun routersZid(): List<ZenohId> {
+        return getRoutersZidViaJNI(sessionPtr.get()).map { ZenohId(it) }
+    }
+
+    @Throws(ZError::class)
+    private external fun getZidViaJNI(ptr: Long): ByteArray
+
+    @Throws(ZError::class)
+    private external fun getPeersZidViaJNI(ptr: Long): List<ByteArray>
+
+    @Throws(ZError::class)
+    private external fun getRoutersZidViaJNI(ptr: Long): List<ByteArray>
+
+    @Throws(ZError::class)
+    private external fun openSessionViaJNI(configPtr: Long): Long
+
+    @Throws(ZError::class)
     private external fun closeSessionViaJNI(ptr: Long)
 
-    @Throws(Exception::class)
+    @Throws(ZError::class)
     private external fun declarePublisherViaJNI(
         keyExprPtr: Long,
         keyExprString: String,
         sessionPtr: Long,
         congestionControl: Int,
         priority: Int,
-        express: Boolean
+        express: Boolean,
+        reliability: Int
     ): Long
 
-    @Throws(Exception::class)
+    @Throws(ZError::class)
     private external fun declareSubscriberViaJNI(
         keyExprPtr: Long,
         keyExprString: String,
         sessionPtr: Long,
         callback: JNISubscriberCallback,
         onClose: JNIOnCloseCallback,
-        reliability: Int
     ): Long
 
-    @Throws(Exception::class)
+    @Throws(ZError::class)
     private external fun declareQueryableViaJNI(
         keyExprPtr: Long,
         keyExprString: String,
@@ -288,17 +324,17 @@ internal class JNISession {
         complete: Boolean
     ): Long
 
-    @Throws(Exception::class)
+    @Throws(ZError::class)
     private external fun declareKeyExprViaJNI(sessionPtr: Long, keyExpr: String): Long
 
-    @Throws(Exception::class)
+    @Throws(ZError::class)
     private external fun undeclareKeyExprViaJNI(sessionPtr: Long, keyExprPtr: Long)
 
-    @Throws(Exception::class)
+    @Throws(ZError::class)
     private external fun getViaJNI(
         keyExprPtr: Long,
         keyExprString: String,
-        selectorParams: String,
+        selectorParams: String?,
         sessionPtr: Long,
         callback: JNIGetCallback,
         onClose: JNIOnCloseCallback,
@@ -306,13 +342,12 @@ internal class JNISession {
         target: Int,
         consolidation: Int,
         attachmentBytes: ByteArray?,
-        withValue: Boolean,
         payload: ByteArray?,
         encodingId: Int,
         encodingSchema: String?,
     )
 
-    @Throws(Exception::class)
+    @Throws(ZError::class)
     private external fun putViaJNI(
         keyExprPtr: Long,
         keyExprString: String,
@@ -323,10 +358,11 @@ internal class JNISession {
         congestionControl: Int,
         priority: Int,
         express: Boolean,
-        attachmentBytes: ByteArray?
+        attachmentBytes: ByteArray?,
+        reliability: Int
     )
 
-    @Throws(Exception::class)
+    @Throws(ZError::class)
     private external fun deleteViaJNI(
         keyExprPtr: Long,
         keyExprString: String,
@@ -334,6 +370,7 @@ internal class JNISession {
         congestionControl: Int,
         priority: Int,
         express: Boolean,
-        attachmentBytes: ByteArray?
+        attachmentBytes: ByteArray?,
+        reliability: Int
     )
 }
