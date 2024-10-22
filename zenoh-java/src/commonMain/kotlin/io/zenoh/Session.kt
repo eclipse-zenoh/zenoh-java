@@ -23,10 +23,10 @@ import io.zenoh.pubsub.Delete
 import io.zenoh.pubsub.Publisher
 import io.zenoh.pubsub.Put
 import io.zenoh.query.*
-import io.zenoh.queryable.Query
-import io.zenoh.queryable.Queryable
+import io.zenoh.query.Query
+import io.zenoh.query.Queryable
 import io.zenoh.sample.Sample
-import io.zenoh.selector.Selector
+import io.zenoh.query.Selector
 import io.zenoh.qos.Reliability
 import io.zenoh.pubsub.Subscriber
 import io.zenoh.value.Value

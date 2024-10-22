@@ -16,9 +16,8 @@ package io.zenoh;
 
 import io.zenoh.exceptions.ZenohException;
 import io.zenoh.keyexpr.KeyExpr;
-import io.zenoh.prelude.SampleKind;
-import io.zenoh.queryable.Query;
-import io.zenoh.queryable.Queryable;
+import io.zenoh.query.Query;
+import io.zenoh.query.Queryable;
 import org.apache.commons.net.ntp.TimeStamp;
 
 import java.util.Optional;

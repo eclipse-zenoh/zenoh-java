@@ -19,7 +19,6 @@ import io.zenoh.Session
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Handler
-import io.zenoh.selector.Selector
 import io.zenoh.value.Value
 import java.time.Duration
 import java.util.*

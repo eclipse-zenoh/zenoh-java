@@ -16,7 +16,7 @@ package io.zenoh;
 
 import io.zenoh.exceptions.ZenohException;
 import io.zenoh.keyexpr.KeyExpr;
-import io.zenoh.prelude.CongestionControl;
+import io.zenoh.qos.CongestionControl;
 import io.zenoh.prelude.Encoding;
 import io.zenoh.pubsub.Publisher;
 import io.zenoh.value.Value;

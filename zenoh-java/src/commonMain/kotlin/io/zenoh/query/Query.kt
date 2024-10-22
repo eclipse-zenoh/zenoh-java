@@ -12,16 +12,14 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-package io.zenoh.queryable
+package io.zenoh.query
 
 import io.zenoh.Resolvable
 import io.zenoh.ZenohType
-import io.zenoh.selector.Selector
 import io.zenoh.value.Value
 import io.zenoh.exceptions.ZError
 import io.zenoh.jni.JNIQuery
 import io.zenoh.keyexpr.KeyExpr
-import io.zenoh.query.Reply
 
 /**
  * Represents a Zenoh Query in Kotlin.

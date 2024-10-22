@@ -1,8 +1,8 @@
 package io.zenoh
 
 import io.zenoh.exceptions.ZError
-import io.zenoh.selector.Selector
-import io.zenoh.selector.intoSelector
+import io.zenoh.query.Selector
+import io.zenoh.query.intoSelector
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith

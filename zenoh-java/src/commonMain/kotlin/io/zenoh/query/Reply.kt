@@ -25,7 +25,6 @@ import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
 import io.zenoh.protocol.ZenohID
-import io.zenoh.queryable.Query
 import org.apache.commons.net.ntp.TimeStamp
 
 /**

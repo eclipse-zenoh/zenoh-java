@@ -16,7 +16,7 @@ package io.zenoh;
 
 import io.zenoh.exceptions.ZenohException;
 import io.zenoh.query.Reply;
-import io.zenoh.selector.Selector;
+import io.zenoh.query.Selector;
 
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;

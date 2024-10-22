@@ -19,8 +19,8 @@ import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.keyexpr.intoKeyExpr
 import io.zenoh.sample.SampleKind
 import io.zenoh.query.Reply
-import io.zenoh.queryable.Queryable
-import io.zenoh.selector.Selector
+import io.zenoh.query.Queryable
+import io.zenoh.query.Selector
 import io.zenoh.value.Value
 import org.apache.commons.net.ntp.TimeStamp
 import java.time.Duration
