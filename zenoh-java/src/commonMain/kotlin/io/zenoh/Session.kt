@@ -15,21 +15,20 @@
 package io.zenoh
 
 import io.zenoh.exceptions.ZError
-import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.Callback
 import io.zenoh.jni.JNISession
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.prelude.QoS
-import io.zenoh.publication.Delete
-import io.zenoh.publication.Publisher
-import io.zenoh.publication.Put
+import io.zenoh.pubsub.Delete
+import io.zenoh.pubsub.Publisher
+import io.zenoh.pubsub.Put
 import io.zenoh.query.*
 import io.zenoh.queryable.Query
 import io.zenoh.queryable.Queryable
 import io.zenoh.sample.Sample
 import io.zenoh.selector.Selector
 import io.zenoh.subscriber.Reliability
-import io.zenoh.subscriber.Subscriber
+import io.zenoh.pubsub.Subscriber
 import io.zenoh.value.Value
 import java.time.Duration
 import java.util.*

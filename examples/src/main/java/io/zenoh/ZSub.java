@@ -17,7 +17,7 @@ package io.zenoh;
 import io.zenoh.exceptions.ZenohException;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.sample.Sample;
-import io.zenoh.subscriber.Subscriber;
+import io.zenoh.pubsub.Subscriber;
 
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;

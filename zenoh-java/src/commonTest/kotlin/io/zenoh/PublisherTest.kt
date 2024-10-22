@@ -18,9 +18,9 @@ import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.keyexpr.intoKeyExpr
 import io.zenoh.prelude.Encoding
 import io.zenoh.prelude.SampleKind
-import io.zenoh.publication.Publisher
+import io.zenoh.pubsub.Publisher
 import io.zenoh.sample.Sample
-import io.zenoh.subscriber.Subscriber
+import io.zenoh.pubsub.Subscriber
 import io.zenoh.value.Value
 import kotlin.test.*
 

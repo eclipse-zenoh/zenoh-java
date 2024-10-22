@@ -16,7 +16,7 @@ package io.zenoh;
 
 import io.zenoh.exceptions.ZenohException;
 import io.zenoh.keyexpr.KeyExpr;
-import io.zenoh.subscriber.Subscriber;
+import io.zenoh.pubsub.Subscriber;
 import kotlin.Unit;
 
 public class ZSubThr {

@@ -16,7 +16,7 @@ package io.zenoh;
 
 import io.zenoh.exceptions.ZenohException;
 import io.zenoh.keyexpr.KeyExpr;
-import io.zenoh.publication.Publisher;
+import io.zenoh.pubsub.Publisher;
 
 public class ZPub {
     public static void main(String[] args) throws ZenohException, InterruptedException {
