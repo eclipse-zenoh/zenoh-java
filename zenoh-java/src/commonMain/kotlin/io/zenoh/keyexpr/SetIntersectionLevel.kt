@@ -12,16 +12,20 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-package io.zenoh
+package io.zenoh.keyexpr
 
 /**
- * Session declaration.
+ * The possible relations between two sets.
  *
- * A session declaration is either a [io.zenoh.publication.Publisher],
- * a [io.zenoh.subscriber.Subscriber] or a [io.zenoh.queryable.Queryable] declared from a [Session].
+ * Note that [EQUALS] implies [INCLUDES], which itself implies [INTERSECTS].
  */
-interface SessionDeclaration {
+enum class SetIntersectionLevel(internal val value: Int) {
+    DISJOINT(0),
+    INTERSECTS(1),
+    INCLUDES(2),
+    EQUALS(3);
 
-    /** Undeclare a declaration. No further operations should be performed after calling this function. */
-    fun undeclare()
+    companion object {
+        internal fun fromInt(value: Int) = SetIntersectionLevel.entries.first { it.value == value }
+    }
 }
