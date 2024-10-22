@@ -18,7 +18,7 @@ import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.Callback
 import io.zenoh.jni.JNISession
 import io.zenoh.keyexpr.KeyExpr
-import io.zenoh.prelude.QoS
+import io.zenoh.qos.QoS
 import io.zenoh.pubsub.Delete
 import io.zenoh.pubsub.Publisher
 import io.zenoh.pubsub.Put
@@ -27,7 +27,7 @@ import io.zenoh.queryable.Query
 import io.zenoh.queryable.Queryable
 import io.zenoh.sample.Sample
 import io.zenoh.selector.Selector
-import io.zenoh.subscriber.Reliability
+import io.zenoh.qos.Reliability
 import io.zenoh.pubsub.Subscriber
 import io.zenoh.value.Value
 import java.time.Duration

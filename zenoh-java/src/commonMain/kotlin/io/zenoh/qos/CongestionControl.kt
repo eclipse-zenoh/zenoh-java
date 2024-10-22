@@ -12,7 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-package io.zenoh.prelude
+package io.zenoh.qos
 
 /** The congestion control to be applied when routing the data. */
 enum class CongestionControl (val value: Int) {

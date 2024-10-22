@@ -16,11 +16,12 @@ package io.zenoh.pubsub
 
 import io.zenoh.Resolvable
 import io.zenoh.Session
+import io.zenoh.bytes.IntoZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.keyexpr.KeyExpr
-import io.zenoh.prelude.CongestionControl
-import io.zenoh.prelude.Priority
-import io.zenoh.prelude.QoS
+import io.zenoh.qos.CongestionControl
+import io.zenoh.qos.Priority
+import io.zenoh.qos.QoS
 import kotlin.Throws
 
 /**
@@ -43,7 +44,7 @@ import kotlin.Throws
  * specifying the sample kind to be `DELETE`.
  */
 class Delete private constructor(
-    val keyExpr: KeyExpr, val qos: QoS, val attachment: ByteArray?
+    val keyExpr: KeyExpr, val qos: QoS, val attachment: IntoZBytes?
 ) {
 
     companion object {
@@ -71,23 +72,17 @@ class Delete private constructor(
         val keyExpr: KeyExpr,
     ) : Resolvable<Unit> {
 
-        private var qosBuilder: QoS.Builder = QoS.Builder()
-        private var attachment: ByteArray? = null
+        private var attachment: IntoZBytes? = null
 
-        /** Change the [CongestionControl] to apply when routing the data. */
-        fun congestionControl(congestionControl: CongestionControl) =
-            apply { this.qosBuilder.congestionControl(congestionControl) }
+        private var qos: QoS = QoS.default()
 
-        /** Change the [Priority] of the written data. */
-        fun priority(priority: Priority) = apply { this.qosBuilder.priority(priority) }
+        fun attachment(attachment: IntoZBytes) {
+            this.attachment = attachment
+        }
 
-        /**
-         * Sets the express flag. If true, the reply won't be batched in order to reduce the latency.
-         */
-        fun express(isExpress: Boolean) = apply { this.qosBuilder.express(isExpress) }
-
-        /** Set an attachment to the put operation. */
-        fun withAttachment(attachment: ByteArray) = apply { this.attachment = attachment }
+        fun qos(qos: QoS) {
+            this.qos = qos
+        }
 
         /**
          * Performs a DELETE operation on the specified [keyExpr].
@@ -97,7 +92,7 @@ class Delete private constructor(
          */
         @Throws(ZError::class)
         override fun res() {
-            val delete = Delete(this.keyExpr, qosBuilder.build(), attachment)
+            val delete = Delete(this.keyExpr, qos, attachment)
             session.resolveDelete(keyExpr, delete)
         }
     }

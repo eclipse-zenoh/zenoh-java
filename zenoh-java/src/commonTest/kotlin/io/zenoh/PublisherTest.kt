@@ -17,7 +17,7 @@ package io.zenoh
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.keyexpr.intoKeyExpr
 import io.zenoh.prelude.Encoding
-import io.zenoh.prelude.SampleKind
+import io.zenoh.sample.SampleKind
 import io.zenoh.pubsub.Publisher
 import io.zenoh.sample.Sample
 import io.zenoh.pubsub.Subscriber

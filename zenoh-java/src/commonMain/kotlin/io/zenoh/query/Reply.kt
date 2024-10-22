@@ -18,12 +18,12 @@ import io.zenoh.Resolvable
 import io.zenoh.ZenohType
 import io.zenoh.exceptions.ZError
 import io.zenoh.sample.Sample
-import io.zenoh.prelude.SampleKind
+import io.zenoh.sample.SampleKind
 import io.zenoh.value.Value
 import io.zenoh.keyexpr.KeyExpr
-import io.zenoh.prelude.CongestionControl
-import io.zenoh.prelude.Priority
-import io.zenoh.prelude.QoS
+import io.zenoh.qos.CongestionControl
+import io.zenoh.qos.Priority
+import io.zenoh.qos.QoS
 import io.zenoh.protocol.ZenohID
 import io.zenoh.queryable.Query
 import org.apache.commons.net.ntp.TimeStamp

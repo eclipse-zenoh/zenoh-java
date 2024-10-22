@@ -17,9 +17,9 @@ package io.zenoh
 import io.zenoh.handlers.Handler
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.keyexpr.intoKeyExpr
-import io.zenoh.prelude.CongestionControl
+import io.zenoh.qos.CongestionControl
 import io.zenoh.prelude.Encoding
-import io.zenoh.prelude.Priority
+import io.zenoh.qos.Priority
 import io.zenoh.sample.Sample
 import io.zenoh.value.Value
 import java.util.*

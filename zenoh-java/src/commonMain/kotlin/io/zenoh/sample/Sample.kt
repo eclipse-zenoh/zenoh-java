@@ -15,8 +15,7 @@
 package io.zenoh.sample
 
 import io.zenoh.ZenohType
-import io.zenoh.prelude.SampleKind
-import io.zenoh.prelude.QoS
+import io.zenoh.qos.QoS
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.value.Value
 import org.apache.commons.net.ntp.TimeStamp

@@ -22,7 +22,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
-class PutTest {
+class PutBuilderTest {
 
     companion object {
         const val TEST_KEY_EXP = "example/testing/keyexpr"
@@ -44,4 +44,3 @@ class PutTest {
         assertEquals(value, receivedSample!!.value)
     }
 }
-
