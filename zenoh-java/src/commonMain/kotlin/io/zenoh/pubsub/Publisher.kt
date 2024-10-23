@@ -23,6 +23,7 @@ import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
+import io.zenoh.qos.Reliability
 import kotlin.Throws
 
 /**
@@ -140,14 +141,24 @@ class Publisher internal constructor(
         internal val session: Session,
         internal val keyExpr: KeyExpr,
     ) {
+        private var reliability: Reliability = Reliability.RELIABLE
         private var qos = QoS.default()
+        private var encoding: Encoding = Encoding.default()
+
+        fun encoding(encoding: Encoding) {
+            this.encoding = encoding
+        }
+
+        fun reliability(reliability: Reliability) {
+            this.reliability = reliability
+        }
 
         fun qos(qos: QoS) {
             this.qos = qos
         }
 
         fun res(): Publisher {
-            return session.run { resolvePublisher(keyExpr, qos) }
+            return session.run { resolvePublisher(keyExpr, encoding, qos, reliability) }
         }
     }
 }
