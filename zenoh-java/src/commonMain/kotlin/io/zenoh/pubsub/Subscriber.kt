@@ -23,7 +23,6 @@ import io.zenoh.pubsub.Subscriber.Builder
 import io.zenoh.jni.JNISubscriber
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.sample.Sample
-import io.zenoh.qos.Reliability
 import java.util.*
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.LinkedBlockingDeque
@@ -67,7 +66,7 @@ class Subscriber<R> internal constructor(
     val keyExpr: KeyExpr, val receiver: R?, private var jniSubscriber: JNISubscriber?
 ) : AutoCloseable, SessionDeclaration {
 
-    override fun isValid(): Boolean {
+    fun isValid(): Boolean {
         return jniSubscriber != null
     }
 
@@ -118,7 +117,6 @@ class Subscriber<R> internal constructor(
         private var handler: Handler<Sample, R>? = null
     ): Resolvable<Subscriber<R>> {
 
-        private var reliability: Reliability = Reliability.BEST_EFFORT
         private var onClose: (() -> Unit)? = null
 
         private constructor(other: Builder<*>, handler: Handler<Sample, R>?): this(other.session, other.keyExpr) {
@@ -132,23 +130,7 @@ class Subscriber<R> internal constructor(
         }
 
         private fun copyParams(other: Builder<*>) {
-            this.reliability = other.reliability
             this.onClose = other.onClose
-        }
-
-        /** Sets the [Reliability]. */
-        fun reliability(reliability: Reliability): Builder<R> = apply {
-            this.reliability = reliability
-        }
-
-        /** Sets the reliability to [Reliability.RELIABLE]. */
-        fun reliable(): Builder<R> = apply {
-            this.reliability = Reliability.RELIABLE
-        }
-
-        /** Sets the reliability to [Reliability.BEST_EFFORT]. */
-        fun bestEffort(): Builder<R> = apply {
-            this.reliability = Reliability.BEST_EFFORT
         }
 
         /** Specify an action to be invoked when the [Subscriber] is undeclared. */
@@ -158,7 +140,7 @@ class Subscriber<R> internal constructor(
         }
 
         /** Specify a [Callback]. Overrides any previously specified callback or handler. */
-        fun with(callback: Callback<Sample>): Builder<Unit> = Builder(this, callback)
+        fun callback(callback: Callback<Sample>): Builder<Unit> = Builder(this, callback)
 
         /** Specify a [Handler]. Overrides any previously specified callback or handler. */
         fun <R2> with(handler: Handler<Sample, R2>): Builder<R2> = Builder(this, handler)
@@ -171,6 +153,7 @@ class Subscriber<R> internal constructor(
          *
          * @return The newly created [Subscriber].
          */
+        @Suppress("UNCHECKED_CAST")
         @Throws(ZError::class)
         override fun res(): Subscriber<R> {
             require(callback != null || handler != null) { "Either a callback or a handler must be provided." }
@@ -179,7 +162,7 @@ class Subscriber<R> internal constructor(
                 handler?.onClose()
                 onClose?.invoke()
             }
-            return session.run { resolveSubscriber(keyExpr, resolvedCallback, resolvedOnClose, handler?.receiver(), reliability) }
+            return session.run { resolveSubscriber(keyExpr, resolvedCallback, resolvedOnClose, handler?.receiver() ?: Unit as R) } //TODO: double check this cast
         }
     }
 }
