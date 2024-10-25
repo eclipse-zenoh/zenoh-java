@@ -14,6 +14,8 @@
 
 package io.zenoh
 
+import io.zenoh.bytes.Encoding
+import io.zenoh.bytes.IntoZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.Callback
 import io.zenoh.jni.JNISession
@@ -53,22 +55,11 @@ class Session private constructor(private val config: Config) : AutoCloseable {
 
     private var jniSession: JNISession? = JNISession()
 
+    private var declarations = mutableListOf<SessionDeclaration>()
+
     companion object {
 
         private val sessionClosedException = ZError("Session is closed.")
-
-        /**
-         * Open a [Session] with the default [Config].
-         *
-         * @return The opened [Session].
-         * @throws [ZError] in the case of a failure.
-         */
-        @JvmStatic
-        @Throws(ZError::class)
-        fun open(): Session {
-            val session = Session(Config.default())
-            return session.launch()
-        }
 
         /**
          * Open a [Session] with the provided [Config].
@@ -77,16 +68,11 @@ class Session private constructor(private val config: Config) : AutoCloseable {
          * @return The opened [Session].
          * @throws [ZError] in the case of a failure.
          */
-        @JvmStatic
         @Throws(ZError::class)
-        fun open(config: Config): Session {
+        internal fun open(config: Config): Session {
             val session = Session(config)
             return session.launch()
         }
-    }
-
-    init {
-        Zenoh.load()
     }
 
     /**
@@ -99,13 +85,18 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @Throws(ZError::class)
     override fun close() {
+        declarations.removeIf {
+            it.undeclare()
+            true
+        }
+
         jniSession?.close()
         jniSession = null
     }
 
     @Suppress("removal")
     protected fun finalize() {
-        jniSession?.close()
+        close()
     }
 
     /**
@@ -139,7 +130,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     /**
      * Declare a [Subscriber] on the session.
      *
-     * The default receiver is a [BlockingQueue], but can be changed with the [Subscriber.Builder.with] functions.
+     * The default receiver is a [BlockingQueue], but can be changed with the [Subscriber.Builder.callback] functions.
      *
      * Example:
      *
@@ -169,7 +160,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     /**
      * Declare a [Queryable] on the session.
      *
-     * The default receiver is a [BlockingQueue], but can be changed with the [Queryable.Builder.with] functions.
+     * The default receiver is a [BlockingQueue], but can be changed with the [Queryable.Builder.callback] functions.
      *
      * Example:
      * ```java
@@ -355,24 +346,24 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     @Throws(ZError::class)
-    internal fun resolvePublisher(keyExpr: KeyExpr, qos: QoS): Publisher {
+    internal fun resolvePublisher(keyExpr: KeyExpr, encoding: Encoding, qos: QoS, reliability: Reliability): Publisher {
         return jniSession?.run {
-            declarePublisher(keyExpr, qos)
+            declarePublisher(keyExpr, qos, encoding, reliability)
         } ?: throw(sessionClosedException)
     }
 
     @Throws(ZError::class)
     internal fun <R> resolveSubscriber(
-        keyExpr: KeyExpr, callback: Callback<Sample>, onClose: () -> Unit, receiver: R?, reliability: Reliability
+        keyExpr: KeyExpr, callback: Callback<Sample>, onClose: () -> Unit, receiver: R
     ): Subscriber<R> {
         return jniSession?.run {
-            declareSubscriber(keyExpr, callback, onClose, receiver, reliability)
+            declareSubscriber(keyExpr, callback, onClose, receiver)
         } ?: throw (sessionClosedException)
     }
 
     @Throws(ZError::class)
     internal fun <R> resolveQueryable(
-        keyExpr: KeyExpr, callback: Callback<Query>, onClose: () -> Unit, receiver: R?, complete: Boolean
+        keyExpr: KeyExpr, callback: Callback<Query>, onClose: () -> Unit, receiver: R, complete: Boolean
     ): Queryable<R> {
         return jniSession?.run {
             declareQueryable(keyExpr, callback, onClose, receiver, complete)
@@ -388,13 +379,14 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         timeout: Duration,
         target: QueryTarget,
         consolidation: ConsolidationMode,
-        value: Value?,
-        attachment: ByteArray?,
+        payload: IntoZBytes?,
+        encoding: Encoding?,
+        attachment: IntoZBytes?,
     ): R? {
         if (jniSession == null) {
             throw sessionClosedException
         }
-        return jniSession?.performGet(selector, callback, onClose, receiver, timeout, target, consolidation, value, attachment)
+        return jniSession?.performGet(selector, callback, onClose, receiver, timeout, target, consolidation, payload, encoding, attachment)
     }
 
     @Throws(ZError::class)

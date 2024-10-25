@@ -16,10 +16,12 @@ package io.zenoh.query
 
 import io.zenoh.handlers.Callback
 import io.zenoh.Session
+import io.zenoh.bytes.Encoding
+import io.zenoh.bytes.IntoZBytes
+import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Handler
-import io.zenoh.value.Value
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.BlockingQueue
@@ -80,9 +82,10 @@ class Get<R> private constructor() {
 
         private var timeout = Duration.ofMillis(10000)
         private var target: QueryTarget = QueryTarget.BEST_MATCHING
-        private var consolidation: ConsolidationMode = ConsolidationMode.default()
-        private var value: Value? = null
-        private var attachment: ByteArray? = null
+        private var consolidation: ConsolidationMode = ConsolidationMode.AUTO
+        private var payload: ZBytes? = null
+        private var encoding: Encoding? = null
+        private var attachment: ZBytes? = null
         private var onClose: (() -> Unit)? = null
 
         private constructor(other: Builder<*>, handler: Handler<Reply, R>?) : this(other.session, other.selector) {
@@ -99,7 +102,8 @@ class Get<R> private constructor() {
             this.timeout = other.timeout
             this.target = other.target
             this.consolidation = other.consolidation
-            this.value = other.value
+            this.payload = other.payload
+            this.encoding = other.encoding
             this.attachment = other.attachment
             this.onClose = other.onClose
         }
@@ -122,24 +126,14 @@ class Get<R> private constructor() {
             return this
         }
 
-        /**
-         * Specify a string value. A [Value] is generated with the provided message, therefore
-         * this method is equivalent to calling `withValue(Value(message))`.
-         */
-        fun withValue(message: String): Builder<R> {
-            this.value = Value(message)
-            return this
-        }
-
-        /** Specify a [Value]. */
-        fun withValue(value: Value): Builder<R> {
-            this.value = value
+        fun payload(payload: IntoZBytes): Builder<R> {
+            this.payload = payload.into()
             return this
         }
 
         /** Specify an attachment. */
-        fun withAttachment(attachment: ByteArray): Builder<R> {
-            this.attachment = attachment
+        fun withAttachment(attachment: IntoZBytes): Builder<R> {
+            this.attachment = attachment.into()
             return this
         }
 
@@ -184,7 +178,8 @@ class Get<R> private constructor() {
                     timeout,
                     target,
                     consolidation,
-                    value,
+                    payload,
+                    encoding,
                     attachment
                 )
             }

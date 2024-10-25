@@ -71,7 +71,7 @@ class Queryable<R> internal constructor(
     val keyExpr: KeyExpr, val receiver: R?, private var jniQueryable: JNIQueryable?
 ) : AutoCloseable, SessionDeclaration {
 
-    override fun isValid(): Boolean {
+    fun isValid(): Boolean {
         return jniQueryable != null
     }
 
@@ -148,7 +148,7 @@ class Queryable<R> internal constructor(
         }
 
         /** Specify a [Callback]. Overrides any previously specified callback or handler. */
-        fun with(callback: Callback<Query>): Builder<Unit> = Builder(this, callback)
+        fun callback(callback: Callback<Query>): Builder<Unit> = Builder(this, callback)
 
         /** Specify a [Handler]. Overrides any previously specified callback or handler. */
         fun <R2> with(handler: Handler<Query, R2>): Builder<R2> = Builder(this, handler)
@@ -169,7 +169,10 @@ class Queryable<R> internal constructor(
                 handler?.onClose()
                 onClose?.invoke()
             }
-            return session.run { resolveQueryable(keyExpr, resolvedCallback, resolvedOnClose, handler?.receiver(), complete) }
+            return session.run {
+                @Suppress("UNCHECKED_CAST")
+                resolveQueryable(keyExpr, resolvedCallback, resolvedOnClose, handler?.receiver() ?: Unit as R, complete) // TODO: double check cast
+            }
         }
     }
 }

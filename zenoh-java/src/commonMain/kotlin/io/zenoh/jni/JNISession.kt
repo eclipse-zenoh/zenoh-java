@@ -177,15 +177,12 @@ internal class JNISession {
                     QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
                     attachmentBytes?.into()
                 )
-                reply = Reply(replierId?.let { ZenohId(it) }, Result.success(sample))
+                reply = Reply.Success(replierId?.let { ZenohId(it) }, sample)
             } else {
-                reply = Reply(
-                    replierId?.let { ZenohId(it) }, Result.failure(
-                        ReplyError(
-                            payload.into(),
-                            Encoding(encodingId, schema = encodingSchema)
-                        )
-                    )
+                reply = Reply.Error(
+                    replierId?.let { ZenohId(it) },
+                    payload.into(),
+                    Encoding(encodingId, schema = encodingSchema)
                 )
             }
             callback.run(reply)

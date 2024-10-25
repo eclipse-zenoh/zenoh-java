@@ -31,7 +31,7 @@ import org.apache.commons.net.ntp.TimeStamp
  */
 internal class JNIQuery(private val ptr: Long) {
 
-    fun replySuccess(sample: Sample): Result<Unit> = runCatching {
+    fun replySuccess(sample: Sample) {
         val timestampEnabled = sample.timestamp != null
         replySuccessViaJNI(
             ptr,
@@ -49,12 +49,10 @@ internal class JNIQuery(private val ptr: Long) {
         )
     }
 
-    @Throws(ZError::class)
     fun replyError(error: IntoZBytes, encoding: Encoding) {
         replyErrorViaJNI(ptr, error.into().bytes, encoding.id, encoding.schema)
     }
 
-    @Throws(ZError::class)
     fun replyDelete(keyExpr: KeyExpr, timestamp: TimeStamp?, attachment: IntoZBytes?, qos: QoS) {
             val timestampEnabled = timestamp != null
             replyDeleteViaJNI(

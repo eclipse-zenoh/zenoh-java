@@ -32,4 +32,21 @@ data class QoS (
 
         fun default() = defaultQoS
     }
+
+    internal class Builder(
+        private var express: Boolean = false,
+        private var congestionControl: CongestionControl = CongestionControl.DROP,
+        private var priority: Priority = Priority.REALTIME,
+    ) {
+
+        fun express(value: Boolean) = apply { this.express = value }
+
+        fun priority(priority: Priority) = apply { this.priority = priority }
+
+        fun congestionControl(congestionControl: CongestionControl) =
+            apply { this.congestionControl = congestionControl }
+
+        fun build() = QoS(congestionControl, priority, express)
+    }
+
 }
