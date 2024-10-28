@@ -119,7 +119,7 @@ internal class JNISession {
                 val selector = if (selectorParams.isEmpty()) {
                     Selector(keyExpr2)
                 } else {
-                    Selector(keyExpr2, Parameters.from(selectorParams).getOrThrow())
+                    Selector(keyExpr2, Parameters.from(selectorParams))
                 }
                 val query = Query(
                     keyExpr2,
@@ -235,7 +235,7 @@ internal class JNISession {
             put.qos.congestionControl.value,
             put.qos.priority.value,
             put.qos.express,
-            put.attachment?.bytes,
+            put.attachment?.into()?.bytes,
             put.reliability.ordinal
         )
     }
@@ -252,24 +252,21 @@ internal class JNISession {
             delete.qos.congestionControl.value,
             delete.qos.priority.value,
             delete.qos.express,
-            delete.attachment?.bytes,
+            delete.attachment?.into()?.bytes,
             delete.reliability.ordinal
         )
     }
 
-    @Throws(ZError::class)
-    fun zid(): ZenohId {
-        return ZenohId(getZidViaJNI(sessionPtr.get()))
+    fun zid(): Result<ZenohId> = runCatching {
+        ZenohId(getZidViaJNI(sessionPtr.get()))
     }
 
-    @Throws(ZError::class)
-    fun peersZid(): List<ZenohId> {
-        return getPeersZidViaJNI(sessionPtr.get()).map { ZenohId(it) }
+    fun peersZid(): Result<List<ZenohId>> = runCatching {
+        getPeersZidViaJNI(sessionPtr.get()).map { ZenohId(it) }
     }
 
-    @Throws(ZError::class)
-    fun routersZid(): List<ZenohId> {
-        return getRoutersZidViaJNI(sessionPtr.get()).map { ZenohId(it) }
+    fun routersZid(): Result<List<ZenohId>> = runCatching {
+        getRoutersZidViaJNI(sessionPtr.get()).map { ZenohId(it) }
     }
 
     @Throws(ZError::class)

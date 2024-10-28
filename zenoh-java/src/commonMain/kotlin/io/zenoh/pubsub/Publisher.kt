@@ -24,6 +24,7 @@ import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
 import io.zenoh.qos.Reliability
+import io.zenoh.session.SessionDeclaration
 import kotlin.Throws
 
 /**

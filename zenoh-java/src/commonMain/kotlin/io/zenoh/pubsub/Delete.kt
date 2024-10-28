@@ -22,6 +22,7 @@ import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
+import io.zenoh.qos.Reliability
 import kotlin.Throws
 
 /**
@@ -44,7 +45,7 @@ import kotlin.Throws
  * specifying the sample kind to be `DELETE`.
  */
 class Delete private constructor(
-    val keyExpr: KeyExpr, val qos: QoS, val attachment: IntoZBytes?
+    val keyExpr: KeyExpr, val qos: QoS, val reliability: Reliability, val attachment: IntoZBytes?
 ) {
 
     companion object {
@@ -73,16 +74,35 @@ class Delete private constructor(
     ) : Resolvable<Unit> {
 
         private var attachment: IntoZBytes? = null
-
-        private var qos: QoS = QoS.default()
+        private var reliability: Reliability = Reliability.RELIABLE
+        private var qosBuilder = QoS.Builder()
 
         fun attachment(attachment: IntoZBytes) {
             this.attachment = attachment
         }
 
-        fun qos(qos: QoS) {
-            this.qos = qos
-        }
+        /**
+         * The [Reliability] wished to be obtained from the network.
+         */
+        fun reliability(reliability: Reliability) = apply { this.reliability = reliability }
+
+        /**
+         * Sets the express flag. If true, the reply won't be batched in order to reduce the latency.
+         */
+        fun express(express: Boolean) = apply { qosBuilder.express(express) }
+
+        /**
+         * Sets the [Priority] of the reply.
+         */
+        fun priority(priority: Priority) = apply { qosBuilder.priority(priority) }
+
+        /**
+         * Sets the [CongestionControl] of the reply.
+         *
+         * @param congestionControl
+         */
+        fun congestionControl(congestionControl: CongestionControl) =
+            apply { qosBuilder.congestionControl(congestionControl) }
 
         /**
          * Performs a DELETE operation on the specified [keyExpr].
@@ -92,7 +112,7 @@ class Delete private constructor(
          */
         @Throws(ZError::class)
         override fun res() {
-            val delete = Delete(this.keyExpr, qos, attachment)
+            val delete = Delete(this.keyExpr, qosBuilder.build(), reliability, attachment)
             session.resolveDelete(keyExpr, delete)
         }
     }

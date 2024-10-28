@@ -14,11 +14,12 @@
 
 package io.zenoh.keyexpr
 
-import io.zenoh.Resolvable
 import io.zenoh.Session
-import io.zenoh.SessionDeclaration
+import io.zenoh.session.SessionDeclaration
 import io.zenoh.exceptions.ZError
 import io.zenoh.jni.JNIKeyExpr
+import io.zenoh.query.IntoSelector
+import io.zenoh.query.Selector
 
 /**
  * # Address space
@@ -61,7 +62,7 @@ import io.zenoh.jni.JNIKeyExpr
  * @param jniKeyExpr An optional [JNIKeyExpr] instance, present when the key expression was declared through [Session.declareKeyExpr],
  *  it represents the native instance of the key expression.
  */
-class KeyExpr internal constructor(internal val keyExpr: String, internal var jniKeyExpr: JNIKeyExpr? = null): AutoCloseable,
+class KeyExpr internal constructor(internal val keyExpr: String, internal var jniKeyExpr: JNIKeyExpr? = null): AutoCloseable, IntoSelector,
     SessionDeclaration {
 
     companion object {
@@ -168,6 +169,8 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
         jniKeyExpr?.close()
         jniKeyExpr = null
     }
+
+    override fun into(): Selector = Selector(this)
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

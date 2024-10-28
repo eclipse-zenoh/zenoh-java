@@ -23,6 +23,7 @@ import io.zenoh.pubsub.Subscriber.Builder
 import io.zenoh.jni.JNISubscriber
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.sample.Sample
+import io.zenoh.session.SessionDeclaration
 import java.util.*
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.LinkedBlockingDeque

@@ -21,6 +21,7 @@ import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Handler
 import io.zenoh.jni.JNIQueryable
 import io.zenoh.keyexpr.KeyExpr
+import io.zenoh.session.SessionDeclaration
 import java.util.*
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.LinkedBlockingDeque

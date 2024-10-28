@@ -18,10 +18,13 @@ import io.zenoh.Resolvable
 import io.zenoh.Session
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
+import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.keyexpr.KeyExpr
+import io.zenoh.qos.CongestionControl
+import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
-import io.zenoh.value.Value
+import io.zenoh.qos.Reliability
 
 /**
  * Put operation.
@@ -52,9 +55,10 @@ import io.zenoh.value.Value
  */
 class Put private constructor(
     val keyExpr: KeyExpr,
-    val payload: IntoZBytes,
-    val encoding: Encoding?,
+    val payload: ZBytes,
+    val encoding: Encoding,
     val qos: QoS,
+    val reliability: Reliability,
     val attachment: IntoZBytes?
 ) {
 
@@ -65,7 +69,7 @@ class Put private constructor(
          *
          * @param session The [Session] from which the put will be performed.
          * @param keyExpr The [KeyExpr] upon which the put will be performed.
-         * @param value The [Value] to put.
+         * // todo
          * @return A [Put] operation [Builder].
          */
         internal fun newBuilder(session: Session, keyExpr: KeyExpr, payload: IntoZBytes): Builder {
@@ -87,18 +91,38 @@ class Put private constructor(
         private val payload: IntoZBytes,
     ): Resolvable<Unit> {
 
+        private var qosBuilder = QoS.Builder()
         private var attachment: IntoZBytes? = null
-        private var qos = QoS.default()
         private var encoding: Encoding? = null
+        private var reliability: Reliability = Reliability.RELIABLE
 
         /** Change the [Encoding] of the written data. */
         fun encoding(encoding: Encoding) = apply {
             this.encoding = encoding
         }
 
-        fun qos(qos: QoS) {
-            this.qos = qos
-        }
+        /**
+         * Sets the express flag. If true, the reply won't be batched in order to reduce the latency.
+         */
+        fun express(express: Boolean) = apply { qosBuilder.express(express) }
+
+        /**
+         * Sets the [Priority] of the reply.
+         */
+        fun priority(priority: Priority) = apply { qosBuilder.priority(priority) }
+
+        /**
+         * Sets the [CongestionControl] of the reply.
+         *
+         * @param congestionControl
+         */
+        fun congestionControl(congestionControl: CongestionControl) =
+            apply { qosBuilder.congestionControl(congestionControl) }
+
+        /**
+         * The [Reliability] wished to be obtained from the network.
+         */
+        fun reliability(reliability: Reliability) = apply { this.reliability = reliability }
 
         /** Set an attachment to the put operation. */
         fun attachment(attachment: IntoZBytes) = apply { this.attachment = attachment }
@@ -106,7 +130,7 @@ class Put private constructor(
         /** Resolves the put operation, returning a [Result]. */
         @Throws(ZError::class)
         override fun res() {
-            val put = Put(keyExpr, payload, encoding, qos, attachment)
+            val put = Put(keyExpr, payload.into(), encoding ?: Encoding.default(), qosBuilder.build(), reliability, attachment)
             session.run { resolvePut(keyExpr, put) }
         }
     }

@@ -16,6 +16,7 @@ package io.zenoh
 
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
+import io.zenoh.config.ZenohId
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.Callback
 import io.zenoh.jni.JNISession
@@ -31,7 +32,7 @@ import io.zenoh.sample.Sample
 import io.zenoh.query.Selector
 import io.zenoh.qos.Reliability
 import io.zenoh.pubsub.Subscriber
-import io.zenoh.value.Value
+import io.zenoh.session.SessionDeclaration
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.BlockingQueue
@@ -253,31 +254,12 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * @param selector The [KeyExpr] to be used for the get operation.
      * @return a resolvable [Get.Builder] with a [BlockingQueue] receiver.
      */
-    fun get(selector: Selector): Get.Builder<BlockingQueue<Optional<Reply>>> = Get.newBuilder(this, selector)
+    fun get(selector: IntoSelector): Get.Builder<BlockingQueue<Optional<Reply>>> = Get.newBuilder(this, selector.into())
 
-    /**
-     * Declare a [Get] with a [BlockingQueue] receiver as default.
-     *
-     * ```java
-     * try (Session session = Session.open()) {
-     *     try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/java/example")) {
-     *          session.get(keyExpr)
-     *              .consolidation(ConsolidationMode.NONE)
-     *              .withValue("Get value example")
-     *              .with(reply -> System.out.println("Received reply " + reply))
-     *              .res()
-     *     }
-     * }
-     * ```
-     *
-     * @param keyExpr The [KeyExpr] to be used for the get operation.
-     * @return a resolvable [Get.Builder] with a [BlockingQueue] receiver.
-     */
-    fun get(keyExpr: KeyExpr): Get.Builder<BlockingQueue<Optional<Reply>>> = Get.newBuilder(this, Selector(keyExpr))
 
     /**
      * Declare a [Put] with the provided value on the specified key expression.
-     *
+     * //TODO update
      * Example:
      * ```java
      * try (Session session = Session.open()) {
@@ -293,33 +275,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * ```
      *
      * @param keyExpr The [KeyExpr] to be used for the put operation.
-     * @param value The [Value] to be put.
      * @return A resolvable [Put.Builder].
      */
-    fun put(keyExpr: KeyExpr, value: Value): Put.Builder = Put.newBuilder(this, keyExpr, value)
-
-    /**
-     * Declare a [Put] with the provided value on the specified key expression.
-     *
-     * Example:
-     * ```java
-     * try (Session session = Session.open()) {
-     *     try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example/greeting")) {
-     *         session.put(keyExpr, "Hello!")
-     *             .congestionControl(CongestionControl.BLOCK)
-     *             .priority(Priority.REALTIME)
-     *             .kind(SampleKind.PUT)
-     *             .res();
-     *         System.out.println("Put 'Hello' on " + keyExpr + ".");
-     *     }
-     * }
-     * ```
-     *
-     * @param keyExpr The [KeyExpr] to be used for the put operation.
-     * @param message The message to be put.
-     * @return A resolvable [Put.Builder].
-     */
-    fun put(keyExpr: KeyExpr, message: String): Put.Builder = Put.newBuilder(this, keyExpr, Value(message))
+    fun put(keyExpr: KeyExpr, payload: IntoZBytes): Put.Builder = Put.newBuilder(this, keyExpr, payload)
 
     /**
      * Declare a [Delete].
@@ -397,6 +355,18 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     internal fun resolveDelete(keyExpr: KeyExpr, delete: Delete) {
         jniSession?.run { performDelete(keyExpr, delete) }
+    }
+
+    internal fun zid(): Result<ZenohId> {
+        return jniSession?.zid() ?: Result.failure(sessionClosedException)
+    }
+
+    internal fun getPeersId(): Result<List<ZenohId>> {
+        return jniSession?.peersZid() ?: Result.failure(sessionClosedException)
+    }
+
+    internal fun getRoutersId(): Result<List<ZenohId>> {
+        return jniSession?.routersZid() ?: Result.failure(sessionClosedException)
     }
 
     /** Launches the session through the jni session, returning the [Session] on success. */
