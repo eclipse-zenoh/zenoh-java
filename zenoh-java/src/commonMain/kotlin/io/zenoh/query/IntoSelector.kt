@@ -24,6 +24,6 @@ fun String.intoSelector(): Selector {
     }
     val result = this.split('?', limit = 2)
     val keyExpr = KeyExpr.autocanonize(result[0])
-    val params = if (result.size == 2) result[1] else ""
+    val params = if (result.size == 2) Parameters.from(result[1]) else null
     return Selector(keyExpr, params)
 }
