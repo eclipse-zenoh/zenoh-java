@@ -112,6 +112,7 @@ class Delete private constructor(
          */
         @Throws(ZError::class)
         override fun res() {
+            // TODO: replace res() with delete()
             val delete = Delete(this.keyExpr, qosBuilder.build(), reliability, attachment)
             session.resolveDelete(keyExpr, delete)
         }
