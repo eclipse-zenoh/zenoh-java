@@ -46,6 +46,7 @@ kotlin {
             val zenohPaths = "../zenoh-jni/target/$buildMode"
             jvmArgs("-Djava.library.path=$zenohPaths")
         }
+        withJava()
     }
     if (androidEnabled) {
         androidTarget {

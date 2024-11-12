@@ -130,6 +130,7 @@ class Put private constructor(
         /** Resolves the put operation, returning a [Result]. */
         @Throws(ZError::class)
         override fun res() {
+            // TODO: rename res() to put()
             val put = Put(keyExpr, payload.into(), encoding ?: Encoding.default(), qosBuilder.build(), reliability, attachment)
             session.run { resolvePut(keyExpr, put) }
         }

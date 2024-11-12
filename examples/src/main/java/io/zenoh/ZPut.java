@@ -14,18 +14,19 @@
 
 package io.zenoh;
 
-import io.zenoh.exceptions.ZenohException;
+import io.zenoh.bytes.ZBytes;
+import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.qos.CongestionControl;
 import io.zenoh.qos.Priority;
 
 public class ZPut {
-    public static void main(String[] args) throws ZenohException {
+    public static void main(String[] args) throws ZError {
         System.out.println("Opening session...");
-        try (Session session = Session.open()) {
+        try (Session session = Zenoh.open(Config.loadDefault())) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example/zenoh-java-put")) {
                 String value = "Put from Java!";
-                session.put(keyExpr, value)
+                session.put(keyExpr, ZBytes.from(value))
                     .congestionControl(CongestionControl.BLOCK)
                     .priority(Priority.REALTIME)
                     .res();

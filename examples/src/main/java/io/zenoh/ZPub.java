@@ -14,14 +14,15 @@
 
 package io.zenoh;
 
-import io.zenoh.exceptions.ZenohException;
+import io.zenoh.bytes.ZBytes;
+import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Publisher;
 
 public class ZPub {
-    public static void main(String[] args) throws ZenohException, InterruptedException {
+    public static void main(String[] args) throws ZError, InterruptedException {
         System.out.println("Opening session...");
-        try (Session session = Session.open()) {
+        try (Session session = Zenoh.open(Config.loadDefault())) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example/zenoh-java-pub")) {
                 System.out.println("Declaring publisher on '" + keyExpr + "'...");
                 try (Publisher publisher = session.declarePublisher(keyExpr).res()) {
@@ -31,7 +32,7 @@ public class ZPub {
                         Thread.sleep(1000);
                         String payload = String.format("[%4s] Pub from Java!", idx);
                         System.out.println("Putting Data ('" + keyExpr + "': '"+payload+"')...");
-                        publisher.put(payload).res();
+                        publisher.put(ZBytes.from(payload)).res();
                         idx++;
                     }
                 }

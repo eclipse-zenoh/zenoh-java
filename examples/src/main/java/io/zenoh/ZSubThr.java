@@ -14,7 +14,7 @@
 
 package io.zenoh;
 
-import io.zenoh.exceptions.ZenohException;
+import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Subscriber;
 import kotlin.Unit;
@@ -58,11 +58,11 @@ public class ZSubThr {
                 ": averaged " + avg + " msgs/sec");
     }
 
-    public static void main(String[] args) throws ZenohException, InterruptedException {
+    public static void main(String[] args) throws ZError, InterruptedException {
         System.out.println("Opening Session");
-        try (Session session = Session.open()) {
+        try (Session session = Zenoh.open(Config.loadDefault())) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom("test/thr")) {
-                try (Subscriber<Unit> subscriber = session.declareSubscriber(keyExpr).with(sample -> listener()).res()) {
+                try (Subscriber<Unit> subscriber = session.declareSubscriber(keyExpr).callback(sample -> listener()).res()) {
                     System.out.println("Press CTRL-C to quit...");
                     while (true) {
                         Thread.sleep(1000);

@@ -14,7 +14,7 @@
 
 package io.zenoh;
 
-import io.zenoh.exceptions.ZenohException;
+import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.sample.Sample;
 import io.zenoh.pubsub.Subscriber;
@@ -24,9 +24,9 @@ import java.util.concurrent.BlockingQueue;
 
 public class ZSub {
 
-    public static void main(String[] args) throws ZenohException, InterruptedException {
+    public static void main(String[] args) throws ZError, InterruptedException {
         System.out.println("Opening session...");
-        try (Session session = Session.open()) {
+        try (Session session = Zenoh.open(Config.loadDefault())) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example/**")) {
                 System.out.println("Declaring Subscriber on '" + keyExpr + "'...");
                 try (Subscriber<BlockingQueue<Optional<Sample>>> subscriber = session.declareSubscriber(keyExpr).res()) {
@@ -39,10 +39,16 @@ public class ZSub {
                             break;
                         }
                         Sample sample = wrapper.get();
-                        System.out.println(">> [Subscriber] Received " + sample.getKind() + " ('" + sample.getKeyExpr() + "': '" + sample.getValue() + "')");
+                        System.out.println(">> [Subscriber] Received " + sample.getKind() + " ('" + sample.getKeyExpr() + "': '" + sample.getPayload() + "')");
                     }
+                } catch (ZError e) {
+                    throw new RuntimeException(e);
                 }
             }
         }
+    }
+
+    public static void handleSample(Sample sample) {
+
     }
 }

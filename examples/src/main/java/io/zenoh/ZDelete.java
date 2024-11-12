@@ -14,13 +14,13 @@
 
 package io.zenoh;
 
-import io.zenoh.exceptions.ZenohException;
+import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 
 public class ZDelete {
-    public static void main(String[] args) throws ZenohException {
+    public static void main(String[] args) throws ZError {
         System.out.println("Opening session...");
-        try (Session session = Session.open()) {
+        try (Session session = Zenoh.open(Config.loadDefault())) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example/zenoh-java-put")) {
                 System.out.println("Deleting resources matching '" + keyExpr + "'...");
                 session.delete(keyExpr).res();

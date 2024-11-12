@@ -14,29 +14,26 @@
 
 package io.zenoh;
 
-import io.zenoh.exceptions.ZenohException;
+import io.zenoh.bytes.ZBytes;
+import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
-import io.zenoh.qos.CongestionControl;
-import io.zenoh.prelude.Encoding;
 import io.zenoh.pubsub.Publisher;
-import io.zenoh.value.Value;
 
 public class ZPubThr {
 
-    public static void main(String[] args) throws ZenohException {
+    public static void main(String[] args) throws ZError {
         int size = 8;
         byte[] data = new byte[size];
         for (int i = 0; i < size; i++) {
             data[i] = (byte) (i % 10);
         }
-        Value value = new Value(data, new Encoding(Encoding.ID.ZENOH_BYTES, null));
-        try (Session session = Session.open()) {
+        try (Session session = Zenoh.open(Config.loadDefault())) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom("test/thr")) {
-                try (Publisher publisher = session.declarePublisher(keyExpr).congestionControl(CongestionControl.BLOCK).res()) {
+                try (Publisher publisher = session.declarePublisher(keyExpr).res()) {
                     System.out.println("Publisher declared on test/thr.");
                     System.out.println("Press CTRL-C to quit...");
                     while (true) {
-                        publisher.put(value).res();
+                        publisher.put(ZBytes.from(data)).res();
                     }
                 }
             }

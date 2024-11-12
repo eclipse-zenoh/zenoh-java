@@ -14,7 +14,7 @@
 
 package io.zenoh;
 
-import io.zenoh.exceptions.ZenohException;
+import io.zenoh.exceptions.ZError;
 import io.zenoh.query.Reply;
 import io.zenoh.query.Selector;
 
@@ -23,9 +23,9 @@ import java.util.concurrent.BlockingQueue;
 
 public class ZGet {
 
-    public static void main(String[] args) throws ZenohException, InterruptedException {
+    public static void main(String[] args) throws ZError, InterruptedException {
         System.out.println("Opening session...");
-        try (Session session = Session.open()) {
+        try (Session session = Zenoh.open(Config.loadDefault())) {
             try (Selector selector = Selector.tryFrom("demo/example/**")) {
                 System.out.println("Performing Get on '" + selector + "'...");
                 BlockingQueue<Optional<Reply>> receiver = session.get(selector).res();
@@ -38,7 +38,7 @@ public class ZGet {
                     Reply reply = wrapper.get();
                     if (reply instanceof Reply.Success) {
                         Reply.Success successReply = (Reply.Success) reply;
-                        System.out.println("Received ('" + successReply.getSample().getKeyExpr() + "': '" + successReply.getSample().getValue() + "')");
+                        System.out.println("Received ('" + successReply.getSample().getKeyExpr() + "': '" + successReply.getSample().getPayload() + "')");
                     } else {
                         Reply.Error errorReply = (Reply.Error) reply;
                         System.out.println("Received (ERROR: '" + errorReply.getError() + "')");

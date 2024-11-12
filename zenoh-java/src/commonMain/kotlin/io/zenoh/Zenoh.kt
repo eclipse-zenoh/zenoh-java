@@ -32,6 +32,7 @@ object Zenoh {
      * @param config The configuration for the session.
      * @return The [Session] on success.
      */
+    @JvmStatic
     @Throws(ZError::class)
     fun open(config: Config): Session {
         return Session.open(config)
@@ -48,6 +49,7 @@ object Zenoh {
      * @param config Optional [Config] for the scout.
      * @return A result with the [Scout] object.
      */
+    @JvmStatic
     @Throws(ZError::class)
     fun scout(
         callback: Callback<Hello>,
@@ -69,6 +71,7 @@ object Zenoh {
      * @param config Optional [Config] for the scout.
      * @return A result with the [Scout] object.
      */
+    @JvmStatic
     @Throws(ZError::class)
     fun <R> scout(
         handler: Handler<Hello, R>,
@@ -84,7 +87,7 @@ object Zenoh {
         )
     }
 
-//    /**
+//    /** TODO
 //     * Scout for routers and/or peers.
 //     *
 //     * Scout spawns a task that periodically sends scout messages and waits for Hello replies.
@@ -119,6 +122,7 @@ object Zenoh {
      *
      * @see Logger
      */
+    @JvmStatic
     fun tryInitLogFromEnv() {
         val logEnv = System.getenv(LOG_ENV)
         if (logEnv != null) {
@@ -137,6 +141,7 @@ object Zenoh {
      * @param fallbackFilter: The fallback filter if the `RUST_LOG` environment variable is not set.
      * @see Logger
      */
+    @JvmStatic
     fun initLogFromEnvOr(fallbackFilter: String): Result<Unit> = runCatching {
         ZenohLoad
         val logLevelProp = System.getenv(LOG_ENV)

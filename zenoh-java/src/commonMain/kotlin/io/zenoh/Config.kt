@@ -132,7 +132,8 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         /**
          * Returns the default config.
          */
-        fun default(): Config {
+        @JvmStatic
+        fun loadDefault(): Config {
             return JNIConfig.loadDefaultConfig()
         }
 
@@ -143,6 +144,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          *   Note the format is determined after the file extension.
          * @return The [Config].
          */
+        @JvmStatic
         @Throws(ZError::class)
         fun fromFile(file: File): Config {
             return JNIConfig.loadConfigFile(file)
@@ -155,6 +157,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          *   Note the format is determined after the file extension.
          * @return The [Config].
          */
+        @JvmStatic
         @Throws(ZError::class)
         fun fromFile(path: Path): Config {
             return JNIConfig.loadConfigFile(path)
@@ -192,6 +195,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          * @param config Json formatted config.
          * @return The [Config].
          */
+        @JvmStatic
         @Throws(ZError::class)
         fun fromJson(config: String): Config {
             return JNIConfig.loadJsonConfig(config)
@@ -229,6 +233,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          * @param config Json5 formatted config
          * @return The [Config].
          */
+        @JvmStatic
         @Throws(ZError::class)
         fun fromJson5(config: String): Config {
             return JNIConfig.loadJson5Config(config)
@@ -262,26 +267,29 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          * @param config Yaml formatted config
          * @return The [Config].
          */
+        @JvmStatic
         @Throws(ZError::class)
         fun fromYaml(config: String): Config {
             return JNIConfig.loadYamlConfig(config)
         }
 
-        /**
-         * Loads the configuration from the [jsonElement] specified.
-         *
-         * @param jsonElement The zenoh config as a [JsonElement].
-         */
-        @Throws(ZError::class)
-        fun fromJsonElement(jsonElement: JsonElement): Config {
-            return JNIConfig.loadJsonConfig(jsonElement.toString())
-        }
+//        /** TODO
+//         * Loads the configuration from the [jsonElement] specified.
+//         *
+//         * @param jsonElement The zenoh config as a [JsonElement].
+//         */
+//        @JvmStatic
+//        @Throws(ZError::class)
+//        fun fromJsonElement(jsonElement: JsonElement): Config {
+//            return JNIConfig.loadJsonConfig(jsonElement.toString())
+//        }
 
         /**
          * Loads the configuration from the env variable [CONFIG_ENV].
          *
          * @return The config.
          */
+        @JvmStatic
         @Throws(ZError::class)
         fun fromEnv(): Config {
             val envValue = System.getenv(CONFIG_ENV)

@@ -14,7 +14,8 @@
 
 package io.zenoh;
 
-import io.zenoh.exceptions.ZenohException;
+import io.zenoh.bytes.ZBytes;
+import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.query.Query;
 import io.zenoh.query.Queryable;
@@ -25,9 +26,9 @@ import java.util.concurrent.BlockingQueue;
 
 public class ZQueryable {
 
-    public static void main(String[] args) throws ZenohException, InterruptedException {
+    public static void main(String[] args) throws ZError, InterruptedException {
         String keyExprString = "demo/example/zenoh-java-queryable";
-        try (Session session = Session.open()) {
+        try (Session session = Zenoh.open(Config.loadDefault())) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom(keyExprString)) {
                 System.out.println("Declaring Queryable on " + keyExprString + "...");
                 try (Queryable<BlockingQueue<Optional<Query>>> queryable = session.declareQueryable(keyExpr).res()) {
@@ -47,10 +48,10 @@ public class ZQueryable {
                 break;
             }
             Query query = wrapper.get();
-            String valueInfo = query.getValue() != null ? " with value '" + query.getValue() + "'" : "";
+            String valueInfo = query.getPayload() != null ? " with value '" + query.getPayload() + "'" : "";
             System.out.println(">> [Queryable] Received Query '" + query.getSelector() + "'" + valueInfo);
             try {
-                query.reply(keyExpr).success("Queryable from Java!").timestamp(TimeStamp.getCurrentTime()).res();
+                query.reply(keyExpr, ZBytes.from("Queryable from Java!")).timestamp(TimeStamp.getCurrentTime()).res();
             } catch (Exception e) {
                 System.out.println(">> [Queryable] Error sending reply: " + e);
             }

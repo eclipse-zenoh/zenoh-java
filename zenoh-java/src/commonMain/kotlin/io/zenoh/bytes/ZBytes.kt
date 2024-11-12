@@ -38,11 +38,13 @@ class ZBytes internal constructor(internal val bytes: ByteArray) : IntoZBytes {
         /**
          * Creates a [ZBytes] instance from a [String].
          */
+        @JvmStatic
         fun from(string: String) = ZBytes(string.encodeToByteArray())
 
         /**
          * Creates a [ZBytes] instance from a [ByteArray].
          */
+        @JvmStatic
         fun from(bytes: ByteArray) = ZBytes(bytes)
     }
 
