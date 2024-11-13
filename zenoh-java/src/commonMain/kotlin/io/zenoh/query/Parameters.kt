@@ -40,11 +40,13 @@ data class Parameters internal constructor(private val params: MutableMap<String
         /**
          * Creates an empty Parameters.
          */
+        @JvmStatic
         fun empty() = Parameters(mutableMapOf())
 
         /**
          * Creates a [Parameters] instance from the provided map.
          */
+        @JvmStatic
         fun from(params: Map<String, String>): Parameters = Parameters(params.toMutableMap())
 
         /**
@@ -58,6 +60,7 @@ data class Parameters internal constructor(private val params: MutableMap<String
          *  - defining a value for the same parameter name twice is considered undefined behavior and an
          *    error result is returned.
          */
+        @JvmStatic
         fun from(params: String): Parameters {
             if (params.isBlank()) {
                 return Parameters(mutableMapOf())
