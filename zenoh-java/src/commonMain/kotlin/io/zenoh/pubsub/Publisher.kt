@@ -80,7 +80,7 @@ class Publisher internal constructor(
     fun priority() = qos.priority
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
-    fun put(payload: IntoZBytes) = PutBuilder(jniPublisher, payload)
+    fun put(payload: IntoZBytes) = PutBuilder(jniPublisher, payload, encoding)
 
     /**
      * Performs a DELETE operation on the specified [keyExpr]
@@ -106,11 +106,13 @@ class Publisher internal constructor(
     class PutBuilder internal constructor(
         private var jniPublisher: JNIPublisher?,
         val payload: IntoZBytes,
-        val encoding: Encoding? = null,
+        var encoding: Encoding? = null,
         var attachment: IntoZBytes? = null
     ) {
 
         fun attachment(attachment: IntoZBytes) = apply { this.attachment = attachment }
+
+        fun encoding(encoding: Encoding) = apply { this.encoding = encoding }
 
         @Throws(ZError::class)
         fun res() {
@@ -146,16 +148,19 @@ class Publisher internal constructor(
         private var qos = QoS.default()
         private var encoding: Encoding = Encoding.defaultEncoding()
 
-        fun encoding(encoding: Encoding) {
+        fun encoding(encoding: Encoding): Builder {
             this.encoding = encoding
+            return this
         }
 
-        fun reliability(reliability: Reliability) {
+        fun reliability(reliability: Reliability): Builder {
             this.reliability = reliability
+            return this
         }
 
-        fun qos(qos: QoS) {
+        fun qos(qos: QoS): Builder {
             this.qos = qos
+            return this
         }
 
         fun res(): Publisher {
