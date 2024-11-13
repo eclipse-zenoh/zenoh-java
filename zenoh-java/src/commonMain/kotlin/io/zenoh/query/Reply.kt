@@ -98,7 +98,7 @@ sealed class Reply private constructor(val replierId: ZenohId?) : ZenohType {
 
 class ReplyBuilder internal constructor(val query: Query, val keyExpr: KeyExpr, val payload: ZBytes, val kind: SampleKind): Resolvable<Unit> {
 
-    private var encoding: Encoding = Encoding.default()
+    private var encoding: Encoding = Encoding.defaultEncoding()
     private var timeStamp: TimeStamp? = null
     private var attachment: ZBytes? = null
     private var qosBuilder = QoS.Builder()
@@ -146,7 +146,7 @@ class ReplyBuilder internal constructor(val query: Query, val keyExpr: KeyExpr, 
 
 class ReplyErrBuilder internal constructor(val query: Query, val payload: ZBytes): Resolvable<Unit> {
 
-    private var encoding: Encoding = Encoding.default()
+    private var encoding: Encoding = Encoding.defaultEncoding()
 
     fun encoding(encoding: Encoding) = apply { this.encoding = encoding }
 

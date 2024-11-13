@@ -34,7 +34,7 @@ internal class JNIPublisher(private val ptr: Long) {
      */
     @Throws(ZError::class)
     fun put(payload: IntoZBytes, encoding: Encoding?, attachment: IntoZBytes?) {
-        val resolvedEncoding = encoding ?: Encoding.default()
+        val resolvedEncoding = encoding ?: Encoding.defaultEncoding()
         putViaJNI(payload.into().bytes, resolvedEncoding.id, resolvedEncoding.schema, attachment?.into()?.bytes, ptr)
     }
 

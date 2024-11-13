@@ -131,7 +131,7 @@ class Put private constructor(
         @Throws(ZError::class)
         override fun res() {
             // TODO: rename res() to put()
-            val put = Put(keyExpr, payload.into(), encoding ?: Encoding.default(), qosBuilder.build(), reliability, attachment)
+            val put = Put(keyExpr, payload.into(), encoding ?: Encoding.defaultEncoding(), qosBuilder.build(), reliability, attachment)
             session.run { resolvePut(keyExpr, put) }
         }
     }

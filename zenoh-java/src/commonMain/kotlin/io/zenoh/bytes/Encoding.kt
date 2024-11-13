@@ -33,6 +33,7 @@ class Encoding private constructor(
     internal constructor(id: Int, schema: String? = null) : this(id, schema, null)
 
     companion object {
+
         /**
          * Just some bytes.
          *
@@ -40,6 +41,7 @@ class Encoding private constructor(
          *
          * Usually used for types: `ByteArray`, `List<Byte>`.
          */
+        @JvmField
         val ZENOH_BYTES = Encoding(0, description = "zenoh/bytes")
 
         /**
@@ -49,6 +51,7 @@ class Encoding private constructor(
          *
          * Usually used for type: `String`.
          */
+        @JvmField
         val ZENOH_STRING = Encoding(1, description = "zenoh/string")
 
         /**
@@ -56,6 +59,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"zenoh/serialized"`.
          */
+        @JvmField
         val ZENOH_SERIALIZED = Encoding(2, description = "zenoh/serialized")
 
         /**
@@ -63,6 +67,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/octet-stream"`.
          */
+        @JvmField
         val APPLICATION_OCTET_STREAM = Encoding(3, description = "application/octet-stream")
 
         /**
@@ -70,6 +75,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"text/plain"`.
          */
+        @JvmField
         val TEXT_PLAIN = Encoding(4, description = "text/plain")
 
         /**
@@ -77,6 +83,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/json"`.
          */
+        @JvmField
         val APPLICATION_JSON = Encoding(5, description = "application/json")
 
         /**
@@ -84,6 +91,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"text/json"`.
          */
+        @JvmField
         val TEXT_JSON = Encoding(6, description = "text/json")
 
         /**
@@ -91,6 +99,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/cdr"`.
          */
+        @JvmField
         val APPLICATION_CDR = Encoding(7, description = "application/cdr")
 
         /**
@@ -98,6 +107,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/cbor"`.
          */
+        @JvmField
         val APPLICATION_CBOR = Encoding(8, description = "application/cbor")
 
         /**
@@ -105,6 +115,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/yaml"`.
          */
+        @JvmField
         val APPLICATION_YAML = Encoding(9, description = "application/yaml")
 
         /**
@@ -112,6 +123,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"text/yaml"`.
          */
+        @JvmField
         val TEXT_YAML = Encoding(10, description = "text/yaml")
 
         /**
@@ -119,6 +131,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"text/json5"`.
          */
+        @JvmField
         val TEXT_JSON5 = Encoding(11, description = "text/json5")
 
         /**
@@ -126,6 +139,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/python-serialized-object"`.
          */
+        @JvmField
         val APPLICATION_PYTHON_SERIALIZED_OBJECT =
             Encoding(12, description = "application/python-serialized-object")
 
@@ -134,6 +148,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/protobuf"`.
          */
+        @JvmField
         val APPLICATION_PROTOBUF = Encoding(13, description = "application/protobuf")
 
         /**
@@ -141,6 +156,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/java-serialized-object"`.
          */
+        @JvmField
         val APPLICATION_JAVA_SERIALIZED_OBJECT =
             Encoding(14, description = "application/java-serialized-object")
 
@@ -149,6 +165,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/openmetrics-text"`.
          */
+        @JvmField
         val APPLICATION_OPENMETRICS_TEXT =
             Encoding(15, description = "application/openmetrics-text")
 
@@ -157,6 +174,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"image/png"`.
          */
+        @JvmField
         val IMAGE_PNG = Encoding(16, description = "image/png")
 
         /**
@@ -164,6 +182,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"image/jpeg"`.
          */
+        @JvmField
         val IMAGE_JPEG = Encoding(17, description = "image/jpeg")
 
         /**
@@ -171,6 +190,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"image/gif"`.
          */
+        @JvmField
         val IMAGE_GIF = Encoding(18, description = "image/gif")
 
         /**
@@ -178,6 +198,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"image/bmp"`.
          */
+        @JvmField
         val IMAGE_BMP = Encoding(19, description = "image/bmp")
 
         /**
@@ -185,6 +206,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"image/webp"`.
          */
+        @JvmField
         val IMAGE_WEBP = Encoding(20, description = "image/webp")
 
         /**
@@ -192,6 +214,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/xml"`.
          */
+        @JvmField
         val APPLICATION_XML = Encoding(21, description = "application/xml")
 
         /**
@@ -199,6 +222,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/x-www-form-urlencoded"`.
          */
+        @JvmField
         val APPLICATION_X_WWW_FORM_URLENCODED =
             Encoding(22, description = "application/x-www-form-urlencoded")
 
@@ -207,6 +231,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"text/html"`.
          */
+        @JvmField
         val TEXT_HTML = Encoding(23, description = "text/html")
 
         /**
@@ -214,6 +239,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"text/xml"`.
          */
+        @JvmField
         val TEXT_XML = Encoding(24, description = "text/xml")
 
         /**
@@ -221,6 +247,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"text/css"`.
          */
+        @JvmField
         val TEXT_CSS = Encoding(25, description = "text/css")
 
         /**
@@ -228,6 +255,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"text/javascript"`.
          */
+        @JvmField
         val TEXT_JAVASCRIPT = Encoding(26, description = "text/javascript")
 
         /**
@@ -235,6 +263,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"text/markdown"`.
          */
+        @JvmField
         val TEXT_MARKDOWN = Encoding(27, description = "text/markdown")
 
         /**
@@ -242,6 +271,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"text/csv"`.
          */
+        @JvmField
         val TEXT_CSV = Encoding(28, description = "text/csv")
 
         /**
@@ -249,6 +279,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/sql"`.
          */
+        @JvmField
         val APPLICATION_SQL = Encoding(29, description = "application/sql")
 
         /**
@@ -256,6 +287,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/coap-payload"`.
          */
+        @JvmField
         val APPLICATION_COAP_PAYLOAD = Encoding(30, description = "application/coap-payload")
 
         /**
@@ -263,6 +295,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/json-patch+json"`.
          */
+        @JvmField
         val APPLICATION_JSON_PATCH_JSON = Encoding(31, description = "application/json-patch+json")
 
         /**
@@ -270,6 +303,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/json-seq"`.
          */
+        @JvmField
         val APPLICATION_JSON_SEQ = Encoding(32, description = "application/json-seq")
 
         /**
@@ -277,6 +311,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/jsonpath"`.
          */
+        @JvmField
         val APPLICATION_JSONPATH = Encoding(33, description = "application/jsonpath")
 
         /**
@@ -284,6 +319,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/jwt"`.
          */
+        @JvmField
         val APPLICATION_JWT = Encoding(34, description = "application/jwt")
 
         /**
@@ -291,6 +327,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/mp4"`.
          */
+        @JvmField
         val APPLICATION_MP4 = Encoding(35, description = "application/mp4")
 
         /**
@@ -298,6 +335,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/soap+xml"`.
          */
+        @JvmField
         val APPLICATION_SOAP_XML = Encoding(36, description = "application/soap+xml")
 
         /**
@@ -305,6 +343,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"application/yang"`.
          */
+        @JvmField
         val APPLICATION_YANG = Encoding(37, description = "application/yang")
 
         /**
@@ -312,6 +351,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"audio/aac"`.
          */
+        @JvmField
         val AUDIO_AAC = Encoding(38, description = "audio/aac")
 
         /**
@@ -319,6 +359,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"audio/flac"`.
          */
+        @JvmField
         val AUDIO_FLAC = Encoding(39, description = "audio/flac")
 
         /**
@@ -326,6 +367,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"audio/mp4"`.
          */
+        @JvmField
         val AUDIO_MP4 = Encoding(40, description = "audio/mp4")
 
         /**
@@ -333,6 +375,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"audio/ogg"`.
          */
+        @JvmField
         val AUDIO_OGG = Encoding(41, description = "audio/ogg")
 
         /**
@@ -340,6 +383,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"audio/vorbis"`.
          */
+        @JvmField
         val AUDIO_VORBIS = Encoding(42, description = "audio/vorbis")
 
         /**
@@ -347,6 +391,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"video/h261"`.
          */
+        @JvmField
         val VIDEO_H261 = Encoding(43, description = "video/h261")
 
         /**
@@ -354,6 +399,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"video/h263"`.
          */
+        @JvmField
         val VIDEO_H263 = Encoding(44, description = "video/h263")
 
         /**
@@ -361,6 +407,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"video/h264"`.
          */
+        @JvmField
         val VIDEO_H264 = Encoding(45, description = "video/h264")
 
         /**
@@ -368,6 +415,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"video/h265"`.
          */
+        @JvmField
         val VIDEO_H265 = Encoding(46, description = "video/h265")
 
         /**
@@ -375,6 +423,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"video/h266"`.
          */
+        @JvmField
         val VIDEO_H266 = Encoding(47, description = "video/h266")
 
         /**
@@ -382,6 +431,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"video/mp4"`.
          */
+        @JvmField
         val VIDEO_MP4 = Encoding(48, description = "video/mp4")
 
         /**
@@ -389,6 +439,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"video/ogg"`.
          */
+        @JvmField
         val VIDEO_OGG = Encoding(49, description = "video/ogg")
 
         /**
@@ -396,6 +447,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"video/raw"`.
          */
+        @JvmField
         val VIDEO_RAW = Encoding(50, description = "video/raw")
 
         /**
@@ -403,6 +455,7 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"video/vp8"`.
          */
+        @JvmField
         val VIDEO_VP8 = Encoding(51, description = "video/vp8")
 
         /**
@@ -410,12 +463,14 @@ class Encoding private constructor(
          *
          * Constant alias for string: `"video/vp9"`.
          */
+        @JvmField
         val VIDEO_VP9 = Encoding(52, description = "video/vp9")
 
         /**
          * The default [Encoding] is [ZENOH_BYTES].
          */
-        fun default() = ZENOH_BYTES
+        @JvmStatic
+        fun defaultEncoding() = ZENOH_BYTES
     }
 
     /**

@@ -131,6 +131,11 @@ class Get<R> private constructor() {
             return this
         }
 
+        fun encoding(encoding: Encoding): Builder<R> {
+            this.encoding = encoding
+            return this
+        }
+
         /** Specify an attachment. */
         fun withAttachment(attachment: IntoZBytes): Builder<R> {
             this.attachment = attachment.into()
@@ -148,7 +153,7 @@ class Get<R> private constructor() {
         }
 
         /** Specify a [Callback]. Overrides any previously specified callback or handler. */
-        fun with(callback: Callback<Reply>): Builder<Unit> = Builder(this, callback)
+        fun callback(callback: Callback<Reply>): Builder<Unit> = Builder(this, callback)
 
         /** Specify a [Handler]. Overrides any previously specified callback or handler. */
         fun <R2> with(handler: Handler<Reply, R2>): Builder<R2> = Builder(this, handler)

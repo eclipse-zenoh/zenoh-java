@@ -200,7 +200,7 @@ internal class JNISession {
             consolidation.ordinal,
             attachment?.into()?.bytes,
             payload?.into()?.bytes,
-            encoding?.id ?: Encoding.default().id,
+            encoding?.id ?: Encoding.defaultEncoding().id,
             encoding?.schema
         )
         return receiver

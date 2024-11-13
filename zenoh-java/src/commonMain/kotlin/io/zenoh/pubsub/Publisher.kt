@@ -144,7 +144,7 @@ class Publisher internal constructor(
     ) {
         private var reliability: Reliability = Reliability.RELIABLE
         private var qos = QoS.default()
-        private var encoding: Encoding = Encoding.default()
+        private var encoding: Encoding = Encoding.defaultEncoding()
 
         fun encoding(encoding: Encoding) {
             this.encoding = encoding
