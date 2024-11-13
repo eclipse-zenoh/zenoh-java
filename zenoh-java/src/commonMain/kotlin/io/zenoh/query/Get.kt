@@ -137,7 +137,7 @@ class Get<R> private constructor() {
         }
 
         /** Specify an attachment. */
-        fun withAttachment(attachment: IntoZBytes): Builder<R> {
+        fun attachment(attachment: IntoZBytes): Builder<R> {
             this.attachment = attachment.into()
             return this
         }

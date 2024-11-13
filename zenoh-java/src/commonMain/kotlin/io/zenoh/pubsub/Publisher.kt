@@ -145,7 +145,7 @@ class Publisher internal constructor(
         internal val keyExpr: KeyExpr,
     ) {
         private var reliability: Reliability = Reliability.RELIABLE
-        private var qos = QoS.default()
+        private var qos = QoS.defaultQoS()
         private var encoding: Encoding = Encoding.defaultEncoding()
 
         fun encoding(encoding: Encoding): Builder {

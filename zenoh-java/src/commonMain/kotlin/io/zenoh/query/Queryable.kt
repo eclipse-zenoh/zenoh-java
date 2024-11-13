@@ -143,8 +143,8 @@ class Queryable<R> internal constructor(
         fun complete(complete: Boolean) = apply { this.complete = complete }
 
         /** Specify an action to be invoked when the [Queryable] is undeclared. */
-        fun onClose(action: () -> Unit): Builder<R> {
-            this.onClose = action
+        fun onClose(action: Runnable): Builder<R> {
+            this.onClose = { action.run() }
             return this
         }
 
