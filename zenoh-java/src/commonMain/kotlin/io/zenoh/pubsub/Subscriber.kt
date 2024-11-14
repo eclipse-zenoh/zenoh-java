@@ -84,7 +84,7 @@ class Subscriber<R> internal constructor(
         jniSubscriber?.close()
     }
 
-    companion object {
+    internal companion object {
 
         /**
          * Creates a new [Builder] associated to the specified [session] and [keyExpr].

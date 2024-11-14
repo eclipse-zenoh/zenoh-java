@@ -15,6 +15,7 @@
 package io.zenoh.jni
 
 import io.zenoh.Config
+import io.zenoh.ZenohLoad
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.Callback
 import io.zenoh.jni.callbacks.JNIScoutCallback
@@ -31,6 +32,11 @@ import io.zenoh.config.WhatAmI
 internal class JNIScout(private val ptr: Long) {
 
     companion object {
+
+        init {
+            ZenohLoad
+        }
+
         @Throws(ZError::class)
         fun <R> scout(
             whatAmI: Set<WhatAmI>,
