@@ -15,13 +15,8 @@
 package io.zenoh
 
 import io.zenoh.Logger.Companion.LOG_ENV
-import io.zenoh.handlers.Callback
-import io.zenoh.handlers.Handler
-import io.zenoh.jni.JNIScout
 import io.zenoh.scouting.Hello
 import io.zenoh.scouting.Scout
-import io.zenoh.config.WhatAmI
-import io.zenoh.config.WhatAmI.*
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.scouting.ScoutBuilder
@@ -52,85 +47,6 @@ object Zenoh {
     @JvmStatic
     fun scoutBuilder(): ScoutBuilder<BlockingQueue<Optional<Hello>>> {
         return ScoutBuilder(handler = BlockingQueueHandler(queue = LinkedBlockingDeque()))
-    }
-
-    /**
-     * Scout for routers and/or peers.
-     *
-     * Scout spawns a task that periodically sends scout messages and waits for Hello replies.
-     * Drop the returned Scout to stop the scouting task or explicitly call [Scout.stop] or [Scout.close].
-     *
-     * @param callback [Callback] to be run when receiving a [Hello] message.
-     * @param whatAmI [WhatAmI] configuration: it indicates the role of the zenoh node sending the HELLO message.
-     * @param config Optional [Config] for the scout.
-     * @return A result with the [Scout] object.
-     */
-    @JvmStatic
-    @Throws(ZError::class)
-    fun scout(
-        callback: Callback<Hello>,
-        whatAmI: Set<WhatAmI> = setOf(Peer, Router),
-        config: Config? = null
-    ): Scout<Unit> {
-        ZenohLoad
-        return JNIScout.scout(whatAmI = whatAmI, callback = callback, receiver = Unit, config = config)
-    }
-
-    /**
-     * Scout for routers and/or peers.
-     *
-     * Scout spawns a task that periodically sends scout messages and waits for Hello replies.
-     * Drop the returned Scout to stop the scouting task or explicitly call [Scout.stop] or [Scout.close].
-     *
-     * @param handler [Handler] to handle incoming [Hello] messages.
-     * @param whatAmI [WhatAmI] configuration: it indicates the role of the zenoh node sending the HELLO message.
-     * @param config Optional [Config] for the scout.
-     * @return A result with the [Scout] object.
-     */
-    @JvmStatic
-    @Throws(ZError::class)
-    fun <R> scout(
-        handler: Handler<Hello, R>,
-        whatAmI: Set<WhatAmI> = setOf(Peer, Router),
-        config: Config? = null
-    ): Scout<R> {
-        ZenohLoad
-        return JNIScout.scout(
-            whatAmI = whatAmI,
-            callback = { hello -> handler.handle(hello) },
-            receiver = handler.receiver(),
-            config = config
-        )
-    }
-
-    /**
-     * Scout for routers and/or peers.
-     *
-     * Scout spawns a task that periodically sends scout messages and waits for Hello replies.
-     * Drop the returned Scout to stop the scouting task or explicitly call [Scout.stop] or [Scout.close].
-     *
-     * @param blockingQueue [BlockingQueue] upon which the incoming [Hello] messages will be piped. The optional wrapper
-     *   for the [Hello] messages is used to notify the closing of the blocking queue, that is, if the hello message
-     *   is "empty", that means that the queue was closed.
-     * @param whatAmI [WhatAmI] configuration: it indicates the role of the zenoh node sending the HELLO message.
-     * @param config Optional [Config] for the scout.
-     * @return A result with the [Scout] object.
-     */
-    @JvmStatic
-    @Throws(ZError::class)
-    fun scout(
-        blockingQueue: BlockingQueue<Optional<Hello>>,
-        whatAmI: Set<WhatAmI> = setOf(Peer, Router),
-        config: Config? = null
-    ): Scout<BlockingQueue<Optional<Hello>>> {
-        ZenohLoad
-        val handler = BlockingQueueHandler(blockingQueue)
-        return JNIScout.scout(
-            whatAmI = whatAmI,
-            callback = { hello -> handler.handle(hello) },
-            receiver = handler.receiver(),
-            config = config
-        )
     }
 
     /**

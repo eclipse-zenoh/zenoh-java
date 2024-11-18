@@ -59,9 +59,9 @@ class ScoutBuilder<R> internal constructor(
     override fun res(): Scout<R> {
         require(callback != null || handler != null) { "Either a callback or a handler must be provided." }
         val resolvedCallback = callback ?: Callback { t: Hello -> handler?.handle(t) }
-        // TODO: add onClose()
-
         @Suppress("UNCHECKED_CAST")
-        return JNIScout.scout(whatAmI = whatAmI, callback = resolvedCallback, receiver = handler?.receiver() ?: Unit as R, config = config)
+        return JNIScout.scout(whatAmI = whatAmI, callback = resolvedCallback, onClose = fun() {
+            handler?.onClose()
+        }, receiver = handler?.receiver() ?: Unit as R, config = config)
     }
 }

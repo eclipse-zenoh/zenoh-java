@@ -60,7 +60,6 @@ internal class JNISession {
         sessionPtr.set(session)
     }
 
-    @Throws(ZError::class)
     fun close() {
         closeSessionViaJNI(sessionPtr.get())
     }
