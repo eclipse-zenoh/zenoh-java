@@ -89,6 +89,13 @@ class Publisher internal constructor(
      */
     fun delete() = DeleteBuilder(jniPublisher)
 
+    /**
+     * Returns `true` if the publisher is still running.
+     */
+    fun isValid(): Boolean {
+        return jniPublisher != null
+    }
+
     override fun close() {
         undeclare()
     }

@@ -217,7 +217,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     fun declareKeyExpr(keyExpr: String): Resolvable<KeyExpr> = Resolvable {
         return@Resolvable jniSession?.run {
-            declareKeyExpr(keyExpr)
+            val keyexpr = declareKeyExpr(keyExpr)
+            declarations.add(keyexpr)
+            keyexpr
         } ?: throw sessionClosedException
     }
 
@@ -313,7 +315,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     internal fun resolvePublisher(keyExpr: KeyExpr, encoding: Encoding, qos: QoS, reliability: Reliability): Publisher {
         return jniSession?.run {
-            declarePublisher(keyExpr, qos, encoding, reliability)
+            val publisher = declarePublisher(keyExpr, qos, encoding, reliability)
+            declarations.add(publisher)
+            publisher
         } ?: throw(sessionClosedException)
     }
 
@@ -322,7 +326,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         keyExpr: KeyExpr, callback: Callback<Sample>, onClose: () -> Unit, receiver: R
     ): Subscriber<R> {
         return jniSession?.run {
-            declareSubscriber(keyExpr, callback, onClose, receiver)
+            val subscriber = declareSubscriber(keyExpr, callback, onClose, receiver)
+            declarations.add(subscriber)
+            subscriber
         } ?: throw (sessionClosedException)
     }
 
@@ -331,7 +337,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         keyExpr: KeyExpr, callback: Callback<Query>, onClose: () -> Unit, receiver: R, complete: Boolean
     ): Queryable<R> {
         return jniSession?.run {
-            declareQueryable(keyExpr, callback, onClose, receiver, complete)
+            val queryable = declareQueryable(keyExpr, callback, onClose, receiver, complete)
+            declarations.add(queryable)
+            queryable
         } ?: throw (sessionClosedException)
     }
 
