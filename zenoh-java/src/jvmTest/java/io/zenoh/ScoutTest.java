@@ -22,6 +22,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -39,20 +40,18 @@ public class ScoutTest {
         Thread.sleep(1000);
 
         Scout<BlockingQueue<Optional<Hello>>> scout = Zenoh.scoutBuilder().res();
-        Hello[] hello = new Hello[1];
 
-        while (true) {
-            var hello1 = scout.getReceiver().take();
-            if (hello1.isEmpty()) {
-                break;
-            } else {
-                hello[0] = hello1.get();
-            }
-        }
+        Thread.sleep(1000);
         scout.close();
-        session.close();
 
-        assertNotNull(hello[0]);
+        ArrayList<Optional<Hello>> helloList = new ArrayList<>();
+        scout.getReceiver().drainTo(helloList);
+
+        assertTrue(helloList.size() > 1);
+        for (int i = 0; i < helloList.size() - 1; i++) {
+            assertTrue(helloList.get(i).isPresent());
+        }
+        assertTrue(helloList.get(helloList.size() - 1).isEmpty());
     }
 
     @Test
