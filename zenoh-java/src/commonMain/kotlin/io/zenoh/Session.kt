@@ -33,6 +33,7 @@ import io.zenoh.query.Selector
 import io.zenoh.qos.Reliability
 import io.zenoh.pubsub.Subscriber
 import io.zenoh.session.SessionDeclaration
+import io.zenoh.session.SessionInfo
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.BlockingQueue
@@ -298,8 +299,15 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     fun delete(keyExpr: KeyExpr): Delete.Builder = Delete.newBuilder(this, keyExpr)
 
     /** Returns if session is open or has been closed. */
-    fun isOpen(): Boolean {
-        return jniSession != null
+    fun isClosed(): Boolean {
+        return jniSession == null
+    }
+
+    /**
+     * Returns the [SessionInfo] of this session.
+     */
+    fun info(): SessionInfo {
+        return SessionInfo(this)
     }
 
     @Throws(ZError::class)
@@ -356,16 +364,19 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         jniSession?.run { performDelete(keyExpr, delete) }
     }
 
-    internal fun zid(): Result<ZenohId> {
-        return jniSession?.zid() ?: Result.failure(sessionClosedException)
+    @Throws(ZError::class)
+    internal fun zid(): ZenohId {
+        return jniSession?.zid() ?: throw sessionClosedException
     }
 
-    internal fun getPeersId(): Result<List<ZenohId>> {
-        return jniSession?.peersZid() ?: Result.failure(sessionClosedException)
+    @Throws(ZError::class)
+    internal fun getPeersId(): List<ZenohId> {
+        return jniSession?.peersZid() ?: throw sessionClosedException
     }
 
-    internal fun getRoutersId(): Result<List<ZenohId>> {
-        return jniSession?.routersZid() ?: Result.failure(sessionClosedException)
+    @Throws(ZError::class)
+    internal fun getRoutersId(): List<ZenohId> {
+        return jniSession?.routersZid() ?: throw sessionClosedException
     }
 
     /** Launches the session through the jni session, returning the [Session] on success. */

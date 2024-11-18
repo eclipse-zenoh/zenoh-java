@@ -16,6 +16,7 @@ package io.zenoh.session
 
 import io.zenoh.Session
 import io.zenoh.config.ZenohId
+import io.zenoh.exceptions.ZError
 
 /**
  * Class allowing to obtain the information of a [Session].
@@ -25,21 +26,24 @@ class SessionInfo(private val session: Session) {
     /**
      *  Return the [ZenohId] of the current Zenoh [Session]
      */
-    fun zid(): Result<ZenohId> {
+    @Throws(ZError::class)
+    fun zid(): ZenohId {
         return session.zid()
     }
 
     /**
      * Return the [ZenohId] of the zenoh peers the session is currently connected to.
      */
-    fun peersZid(): Result<List<ZenohId>> {
+    @Throws(ZError::class)
+    fun peersZid(): List<ZenohId> {
         return session.getPeersId()
     }
 
     /**
      * Return the [ZenohId] of the zenoh routers the session is currently connected to.
      */
-    fun routersZid(): Result<List<ZenohId>> {
+    @Throws(ZError::class)
+    fun routersZid(): List<ZenohId> {
         return session.getRoutersId()
     }
 }
