@@ -88,10 +88,10 @@ internal class JNISession {
         keyExpr: KeyExpr, callback: Callback<Sample>, onClose: () -> Unit, receiver: R
     ): Subscriber<R> {
         val subCallback =
-            JNISubscriberCallback { keyExpr, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
+            JNISubscriberCallback { keyExpr1, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
                 val sample = Sample(
-                    KeyExpr(keyExpr, null),
+                    KeyExpr(keyExpr1, null),
                     payload.into(),
                     Encoding(encodingId, schema = encodingSchema),
                     SampleKind.fromInt(kind),
@@ -112,9 +112,9 @@ internal class JNISession {
         keyExpr: KeyExpr, callback: Callback<Query>, onClose: () -> Unit, receiver: R, complete: Boolean
     ): Queryable<R> {
         val queryCallback =
-            JNIQueryableCallback { keyExpr: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long ->
+            JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long ->
                 val jniQuery = JNIQuery(queryPtr)
-                val keyExpr2 = KeyExpr(keyExpr, null)
+                val keyExpr2 = KeyExpr(keyExpr1, null)
                 val selector = if (selectorParams.isEmpty()) {
                     Selector(keyExpr2)
                 } else {
@@ -153,7 +153,7 @@ internal class JNISession {
                 replierId: ByteArray?,
                 success: Boolean,
                 keyExpr: String?,
-                payload: ByteArray,
+                payload1: ByteArray,
                 encodingId: Int,
                 encodingSchema: String?,
                 kind: Int,
@@ -169,7 +169,7 @@ internal class JNISession {
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
                 val sample = Sample(
                     KeyExpr(keyExpr!!, null),
-                    payload.into(),
+                    payload1.into(),
                     Encoding(encodingId, schema = encodingSchema),
                     SampleKind.fromInt(kind),
                     timestamp,
@@ -180,7 +180,7 @@ internal class JNISession {
             } else {
                 reply = Reply.Error(
                     replierId?.let { ZenohId(it) },
-                    payload.into(),
+                    payload1.into(),
                     Encoding(encodingId, schema = encodingSchema)
                 )
             }

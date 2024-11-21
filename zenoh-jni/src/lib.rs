@@ -23,8 +23,6 @@ mod scouting;
 mod session;
 mod subscriber;
 mod utils;
-#[cfg(feature = "zenoh-ext")]
-mod zbytes;
 mod zenoh_id;
 
 // Test should be runned with `cargo test --no-default-features`
