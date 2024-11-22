@@ -25,7 +25,7 @@ public class ZPub {
         try (Session session = Zenoh.open(Config.loadDefault())) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example/zenoh-java-pub")) {
                 System.out.println("Declaring publisher on '" + keyExpr + "'...");
-                try (Publisher publisher = session.declarePublisher(keyExpr).res()) {
+                try (Publisher publisher = session.declarePublisher(keyExpr)) {
                     System.out.println("Press CTRL-C to quit...");
                     int idx = 0;
                     while (true) {

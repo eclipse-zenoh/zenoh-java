@@ -21,17 +21,12 @@ import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.Callback
 import io.zenoh.jni.JNISession
 import io.zenoh.keyexpr.KeyExpr
-import io.zenoh.qos.QoS
-import io.zenoh.pubsub.Delete
-import io.zenoh.pubsub.Publisher
-import io.zenoh.pubsub.Put
+import io.zenoh.pubsub.*
 import io.zenoh.query.*
 import io.zenoh.query.Query
 import io.zenoh.query.Queryable
 import io.zenoh.sample.Sample
 import io.zenoh.query.Selector
-import io.zenoh.qos.Reliability
-import io.zenoh.pubsub.Subscriber
 import io.zenoh.session.SessionDeclaration
 import io.zenoh.session.SessionInfo
 import java.time.Duration
@@ -103,30 +98,18 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     /**
      * Declare a [Publisher] on the session.
      *
-     * Example:
-     * ```java
-     * try (Session session = Session.open()) {
-     *     try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example/greeting")) {
-     *         try (Publisher publisher = session.declarePublisher(keyExpr)
-     *             .priority(Priority.REALTIME)
-     *             .congestionControl(CongestionControl.DROP)
-     *             .res()) {
-     *                 int idx = 0;
-     *                 while (true) {
-     *                     String payload = "Hello for the " + idx + "th time!";
-     *                     publisher.put(payload).res();
-     *                     Thread.sleep(1000);
-     *                     idx++;
-     *             }
-     *         }
-     *     }
-     * }
-     * ```
-     *
-     * @param keyExpr The [KeyExpr] the publisher will be associated to.
-     * @return A resolvable [Publisher.Builder]
+     * TODO
      */
-    fun declarePublisher(keyExpr: KeyExpr): Publisher.Builder = Publisher.Builder(this, keyExpr)
+    fun declarePublisher(keyExpr: KeyExpr): Publisher = declarePublisher(keyExpr, PublisherConfig())
+
+    /**
+     * Declare a [Publisher] on the session.
+     *
+     * TODO
+     */
+    fun declarePublisher(keyExpr: KeyExpr, publisherConfig: PublisherConfig): Publisher {
+        return resolvePublisher(keyExpr, publisherConfig)
+    }
 
     /**
      * Declare a [Subscriber] on the session.
@@ -313,9 +296,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     @Throws(ZError::class)
-    internal fun resolvePublisher(keyExpr: KeyExpr, encoding: Encoding, qos: QoS, reliability: Reliability): Publisher {
+    internal fun resolvePublisher(keyExpr: KeyExpr, config: PublisherConfig): Publisher {
         return jniSession?.run {
-            val publisher = declarePublisher(keyExpr, qos, encoding, reliability)
+            val publisher = declarePublisher(keyExpr, config)
             declarations.add(publisher)
             publisher
         } ?: throw(sessionClosedException)

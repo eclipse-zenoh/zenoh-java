@@ -73,7 +73,7 @@ public class UserAttachmentTest {
     @Test
     public void publisherPutWithAttachmentTest() throws ZError {
         Sample[] receivedSample = new Sample[1];
-        var publisher = session.declarePublisher(keyExpr).res();
+        var publisher = session.declarePublisher(keyExpr);
         var subscriber = session.declareSubscriber(keyExpr).callback( sample ->
             receivedSample[0] = sample).res();
 
@@ -90,7 +90,7 @@ public class UserAttachmentTest {
     @Test
     public void publisherPutWithoutAttachmentTest() throws ZError {
         Sample[] receivedSample = new Sample[1];
-        var publisher = session.declarePublisher(keyExpr).res();
+        var publisher = session.declarePublisher(keyExpr);
         var subscriber = session.declareSubscriber(keyExpr).callback( sample ->
                 receivedSample[0] = sample).res();
 
@@ -106,7 +106,7 @@ public class UserAttachmentTest {
     @Test
     public void publisherDeleteWithAttachmentTest() throws ZError {
         Sample[] receivedSample = new Sample[1];
-        var publisher = session.declarePublisher(keyExpr).res();
+        var publisher = session.declarePublisher(keyExpr);
         var subscriber = session.declareSubscriber(keyExpr).callback( sample ->
                 receivedSample[0] = sample).res();
 
@@ -123,7 +123,7 @@ public class UserAttachmentTest {
     @Test
     public void publisherDeleteWithoutAttachmentTest() throws ZError {
         Sample[] receivedSample = new Sample[1];
-        var publisher = session.declarePublisher(keyExpr).res();
+        var publisher = session.declarePublisher(keyExpr);
         var subscriber = session.declareSubscriber(keyExpr).callback( sample ->
                 receivedSample[0] = sample).res();
 

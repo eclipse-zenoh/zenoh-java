@@ -29,7 +29,7 @@ public class ZPubThr {
         }
         try (Session session = Zenoh.open(Config.loadDefault())) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom("test/thr")) {
-                try (Publisher publisher = session.declarePublisher(keyExpr).res()) {
+                try (Publisher publisher = session.declarePublisher(keyExpr)) {
                     System.out.println("Publisher declared on test/thr.");
                     System.out.println("Press CTRL-C to quit...");
                     while (true) {

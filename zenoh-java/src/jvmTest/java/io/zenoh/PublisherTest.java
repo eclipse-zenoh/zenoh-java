@@ -4,12 +4,13 @@ import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.bytes.Encoding;
+import io.zenoh.pubsub.PublisherConfig;
+import io.zenoh.qos.QoS;
+import io.zenoh.qos.Reliability;
 import io.zenoh.sample.SampleKind;
 import io.zenoh.pubsub.Publisher;
 import io.zenoh.sample.Sample;
 import io.zenoh.pubsub.Subscriber;
-import io.zenoh.Config;
-import io.zenoh.Session;
 import kotlin.Pair;
 import kotlin.Unit;
 import org.junit.After;
@@ -36,7 +37,10 @@ public class PublisherTest {
     public void setUp() throws ZError {
         session = Zenoh.open(Config.loadDefault());
         keyExpr = KeyExpr.tryFrom("example/testing/keyexpr");
-        publisher = session.declarePublisher(keyExpr).encoding(Encoding.ZENOH_STRING).res();
+
+        var config = new PublisherConfig(Reliability.RELIABLE, QoS.defaultQoS(), Encoding.ZENOH_STRING);
+        publisher = session.declarePublisher(keyExpr, config);
+
         receivedSamples = new ArrayList<>();
         subscriber = session.declareSubscriber(keyExpr).callback( sample -> receivedSamples.add(sample)).res();
     }

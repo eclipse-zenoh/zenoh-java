@@ -27,17 +27,13 @@ import io.zenoh.bytes.IntoZBytes
 import io.zenoh.config.ZenohId
 import io.zenoh.bytes.into
 import io.zenoh.Config
-import io.zenoh.pubsub.Delete
-import io.zenoh.pubsub.Publisher
-import io.zenoh.pubsub.Put
+import io.zenoh.pubsub.*
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
 import io.zenoh.query.*
 import io.zenoh.sample.Sample
-import io.zenoh.qos.Reliability
 import io.zenoh.sample.SampleKind
-import io.zenoh.pubsub.Subscriber
 import org.apache.commons.net.ntp.TimeStamp
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicLong
@@ -65,20 +61,20 @@ internal class JNISession {
     }
 
     @Throws(ZError::class)
-    fun declarePublisher(keyExpr: KeyExpr, qos: QoS, encoding: Encoding, reliability: Reliability): Publisher {
+    fun declarePublisher(keyExpr: KeyExpr, publisherConfig: PublisherConfig): Publisher {
         val publisherRawPtr = declarePublisherViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
             sessionPtr.get(),
-            qos.congestionControl.value,
-            qos.priority.value,
-            qos.express,
-            reliability.ordinal
+            publisherConfig.qos.congestionControl.value,
+            publisherConfig.qos.priority.value,
+            publisherConfig.qos.express,
+            publisherConfig.reliability.ordinal
         )
         return Publisher(
             keyExpr,
-            qos,
-            encoding,
+            publisherConfig.qos,
+            publisherConfig.encoding,
             JNIPublisher(publisherRawPtr),
         )
     }

@@ -139,39 +139,8 @@ class Publisher internal constructor(
             jniPublisher?.delete(attachment) ?: throw(publisherNotValid)
         }
     }
-
-    /**
-     * Publisher Builder.
-     *
-     * @property session The [Session] from which the publisher is declared.
-     * @property keyExpr The key expression the publisher will be associated to.
-     * @constructor Create empty Builder.
-     */
-    class Builder internal constructor(
-        internal val session: Session,
-        internal val keyExpr: KeyExpr,
-    ) {
-        private var reliability: Reliability = Reliability.RELIABLE
-        private var qos = QoS.defaultQoS()
-        private var encoding: Encoding = Encoding.defaultEncoding()
-
-        fun encoding(encoding: Encoding): Builder {
-            this.encoding = encoding
-            return this
-        }
-
-        fun reliability(reliability: Reliability): Builder {
-            this.reliability = reliability
-            return this
-        }
-
-        fun qos(qos: QoS): Builder {
-            this.qos = qos
-            return this
-        }
-
-        fun res(): Publisher {
-            return session.run { resolvePublisher(keyExpr, encoding, qos, reliability) }
-        }
-    }
 }
+
+data class PublisherConfig(var reliability: Reliability = Reliability.RELIABLE,
+                           var qos: QoS = QoS.defaultQoS(),
+                           var encoding: Encoding = Encoding.defaultEncoding())

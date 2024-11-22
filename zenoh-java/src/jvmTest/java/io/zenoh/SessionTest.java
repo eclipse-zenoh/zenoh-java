@@ -51,7 +51,7 @@ public class SessionTest {
     public void sessionClose_declarationsAreUndeclaredAfterClosingSessionTest() throws ZError, InterruptedException {
         Session session = Zenoh.open(Config.loadDefault());
 
-        Publisher publisher = session.declarePublisher(testKeyExpr).res();
+        Publisher publisher = session.declarePublisher(testKeyExpr);
         Subscriber<Unit> subscriber = session.declareSubscriber(testKeyExpr).callback(sample -> {}).res();
         session.close();
 
@@ -67,7 +67,7 @@ public class SessionTest {
     public void sessionClose_newDeclarationsReturnNullAfterClosingSession() throws ZError {
         Session session = Zenoh.open(Config.loadDefault());
         session.close();
-        assertThrows(ZError.class, () -> session.declarePublisher(testKeyExpr).res());
+        assertThrows(ZError.class, () -> session.declarePublisher(testKeyExpr));
         assertThrows(ZError.class, () -> session.declareQueryable(testKeyExpr).res());
         assertThrows(ZError.class, () -> session.declareSubscriber(testKeyExpr).res());
     }
