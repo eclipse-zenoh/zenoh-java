@@ -18,8 +18,6 @@ import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Publisher;
-import io.zenoh.pubsub.Subscriber;
-import kotlin.Unit;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -52,7 +50,7 @@ public class SessionTest {
         Session session = Zenoh.open(Config.loadDefault());
 
         Publisher publisher = session.declarePublisher(testKeyExpr);
-        Subscriber<Unit> subscriber = session.declareSubscriber(testKeyExpr).callback(sample -> {}).res();
+        var subscriber = session.declareSubscriber(testKeyExpr);
         session.close();
 
         Thread.sleep(1000);
@@ -69,6 +67,6 @@ public class SessionTest {
         session.close();
         assertThrows(ZError.class, () -> session.declarePublisher(testKeyExpr));
         assertThrows(ZError.class, () -> session.declareQueryable(testKeyExpr).res());
-        assertThrows(ZError.class, () -> session.declareSubscriber(testKeyExpr).res());
+        assertThrows(ZError.class, () -> session.declareSubscriber(testKeyExpr));
     }
 }

@@ -139,7 +139,15 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * @param keyExpr The [KeyExpr] the subscriber will be associated to.
      * @return A [Subscriber.Builder] with a [BlockingQueue] receiver.
      */
-    fun declareSubscriber(keyExpr: KeyExpr): Subscriber.Builder<BlockingQueue<Optional<Sample>>> = Subscriber.newBuilder(this, keyExpr)
+    @Throws(ZError::class)
+    fun declareSubscriber(keyExpr: KeyExpr): Subscriber<BlockingQueue<Optional<Sample>>> {
+        return resolveSubscriber(keyExpr, SubscriberConfig())
+    }
+
+    @Throws(ZError::class)
+    fun <R> declareSubscriber(keyExpr: KeyExpr, config: SubscriberConfig<R>): Subscriber<R> {
+        return resolveSubscriber(keyExpr, config)
+    }
 
     /**
      * Declare a [Queryable] on the session.
@@ -306,10 +314,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
 
     @Throws(ZError::class)
     internal fun <R> resolveSubscriber(
-        keyExpr: KeyExpr, callback: Callback<Sample>, onClose: () -> Unit, receiver: R
+        keyExpr: KeyExpr, config: SubscriberConfig<R>
     ): Subscriber<R> {
         return jniSession?.run {
-            val subscriber = declareSubscriber(keyExpr, callback, onClose, receiver)
+            val subscriber = declareSubscriber(keyExpr, config)
             declarations.add(subscriber)
             subscriber
         } ?: throw (sessionClosedException)

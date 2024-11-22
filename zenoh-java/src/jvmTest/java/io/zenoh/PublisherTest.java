@@ -5,6 +5,7 @@ import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.bytes.Encoding;
 import io.zenoh.pubsub.PublisherConfig;
+import io.zenoh.pubsub.SubscriberConfig;
 import io.zenoh.qos.QoS;
 import io.zenoh.qos.Reliability;
 import io.zenoh.sample.SampleKind;
@@ -12,7 +13,6 @@ import io.zenoh.pubsub.Publisher;
 import io.zenoh.sample.Sample;
 import io.zenoh.pubsub.Subscriber;
 import kotlin.Pair;
-import kotlin.Unit;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -30,7 +30,7 @@ public class PublisherTest {
     private Session session;
     private ArrayList<Sample> receivedSamples;
     private Publisher publisher;
-    private Subscriber<Unit> subscriber;
+    private Subscriber<Void> subscriber;
     private KeyExpr keyExpr;
 
     @Before
@@ -42,7 +42,10 @@ public class PublisherTest {
         publisher = session.declarePublisher(keyExpr, config);
 
         receivedSamples = new ArrayList<>();
-        subscriber = session.declareSubscriber(keyExpr).callback( sample -> receivedSamples.add(sample)).res();
+
+        SubscriberConfig<Void> subscriberConfig = new SubscriberConfig<>();
+        subscriberConfig.setCallback(sample -> receivedSamples.add(sample));
+        subscriber = session.declareSubscriber(keyExpr, subscriberConfig);
     }
 
     @After

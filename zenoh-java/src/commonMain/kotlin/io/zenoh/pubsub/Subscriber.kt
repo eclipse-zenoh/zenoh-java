@@ -15,18 +15,14 @@
 package io.zenoh.pubsub
 
 import io.zenoh.*
-import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Handler
-import io.zenoh.pubsub.Subscriber.Builder
 import io.zenoh.jni.JNISubscriber
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.sample.Sample
 import io.zenoh.session.SessionDeclaration
 import java.util.*
-import java.util.concurrent.BlockingQueue
-import java.util.concurrent.LinkedBlockingDeque
 
 /**
  * A subscriber that allows listening to updates on a key expression and reacting to changes.
@@ -83,87 +79,10 @@ class Subscriber<R> internal constructor(
     protected fun finalize() {
         jniSubscriber?.close()
     }
-
-    internal companion object {
-
-        /**
-         * Creates a new [Builder] associated to the specified [session] and [keyExpr].
-         *
-         * @param session The [Session] from which the subscriber will be declared.
-         * @param keyExpr The [KeyExpr] associated to the subscriber.
-         * @return An empty [Builder] with a default [BlockingQueueHandler] to handle the incoming samples.
-         */
-        fun newBuilder(session: Session, keyExpr: KeyExpr): Builder<BlockingQueue<Optional<Sample>>> {
-            return Builder(session, keyExpr, handler = BlockingQueueHandler(queue = LinkedBlockingDeque()))
-        }
-    }
-
-    /**
-     * Builder to construct a [Subscriber].
-     *
-     * Either a [Handler] or a [Callback] must be specified. Note neither of them are stackable and are mutually exclusive,
-     * meaning that it is not possible to specify multiple callbacks and/or handlers, the builder only considers the
-     * last one specified.
-     *
-     * @param R Receiver type of the [Handler] implementation. If no handler is provided to the builder, R will be [Unit].
-     * @property session [Session] to which the [Subscriber] will be bound to.
-     * @property keyExpr The [KeyExpr] to which the subscriber is associated.
-     * @constructor Creates a Builder. This constructor is internal and should not be called directly. Instead, this
-     * builder should be obtained through the [Session] after calling [Session.declareSubscriber].
-     */
-    class Builder<R> internal constructor(
-        private val session: Session,
-        private val keyExpr: KeyExpr,
-        private var callback: Callback<Sample>? = null,
-        private var handler: Handler<Sample, R>? = null
-    ): Resolvable<Subscriber<R>> {
-
-        private var onClose: (() -> Unit)? = null
-
-        private constructor(other: Builder<*>, handler: Handler<Sample, R>?): this(other.session, other.keyExpr) {
-            this.handler = handler
-            copyParams(other)
-        }
-
-        private constructor(other: Builder<*>, callback: Callback<Sample>?) : this(other.session, other.keyExpr) {
-            this.callback = callback
-            copyParams(other)
-        }
-
-        private fun copyParams(other: Builder<*>) {
-            this.onClose = other.onClose
-        }
-
-        /** Specify an action to be invoked when the [Subscriber] is undeclared. */
-        fun onClose(action: () -> Unit): Builder<R> {
-            this.onClose = action
-            return this
-        }
-
-        /** Specify a [Callback]. Overrides any previously specified callback or handler. */
-        fun callback(callback: Callback<Sample>): Builder<Unit> = Builder(this, callback)
-
-        /** Specify a [Handler]. Overrides any previously specified callback or handler. */
-        fun <R2> with(handler: Handler<Sample, R2>): Builder<R2> = Builder(this, handler)
-
-        /** Specify a [BlockingQueue]. Overrides any previously specified callback or handler. */
-        fun with(blockingQueue: BlockingQueue<Optional<Sample>>): Builder<BlockingQueue<Optional<Sample>>> = Builder(this, BlockingQueueHandler(blockingQueue))
-
-        /**
-         * Resolve the builder, creating a [Subscriber] with the provided parameters.
-         *
-         * @return The newly created [Subscriber].
-         */
-        @Suppress("UNCHECKED_CAST")
-        @Throws(ZError::class)
-        override fun res(): Subscriber<R> {
-            require(callback != null || handler != null) { "Either a callback or a handler must be provided." }
-            val resolvedCallback = callback ?: Callback { t: Sample -> handler?.handle(t) }
-            val resolvedOnClose = fun() {
-                handler?.onClose()
-                onClose?.invoke()
-            }
-            return session.run { resolveSubscriber(keyExpr, resolvedCallback, resolvedOnClose, handler?.receiver() ?: Unit as R) } //TODO: double check this cast
-        }
-    }
 }
+
+data class SubscriberConfig<R>(
+    var callback: Callback<Sample>? = null,
+    var handler: Handler<Sample, R>? = null,
+    var onClose: (() -> Unit)? = null
+)

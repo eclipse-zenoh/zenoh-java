@@ -29,7 +29,7 @@ public class ZSub {
         try (Session session = Zenoh.open(Config.loadDefault())) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example/**")) {
                 System.out.println("Declaring Subscriber on '" + keyExpr + "'...");
-                try (Subscriber<BlockingQueue<Optional<Sample>>> subscriber = session.declareSubscriber(keyExpr).res()) {
+                try (Subscriber<BlockingQueue<Optional<Sample>>> subscriber = session.declareSubscriber(keyExpr)) {
                     BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
                     assert receiver != null;
                     System.out.println("Press CTRL-C to quit...");
@@ -41,14 +41,8 @@ public class ZSub {
                         Sample sample = wrapper.get();
                         System.out.println(">> [Subscriber] Received " + sample.getKind() + " ('" + sample.getKeyExpr() + "': '" + sample.getPayload() + "')");
                     }
-                } catch (ZError e) {
-                    throw new RuntimeException(e);
                 }
             }
         }
-    }
-
-    public static void handleSample(Sample sample) {
-
     }
 }

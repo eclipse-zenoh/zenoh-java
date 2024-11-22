@@ -81,8 +81,13 @@ internal class JNISession {
 
     @Throws(ZError::class)
     fun <R> declareSubscriber(
-        keyExpr: KeyExpr, callback: Callback<Sample>, onClose: () -> Unit, receiver: R
+        keyExpr: KeyExpr, config: SubscriberConfig<R>
     ): Subscriber<R> {
+        val resolvedCallback = config.callback ?: Callback { t: Sample -> config.handler?.handle(t) }
+        val resolvedOnClose = fun() {
+            config.handler?.onClose()
+            config.onClose?.invoke()
+        }
         val subCallback =
             JNISubscriberCallback { keyExpr1, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
@@ -95,12 +100,12 @@ internal class JNISession {
                     QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
                     attachmentBytes?.into()
                 )
-                callback.run(sample)
+                resolvedCallback.run(sample)
             }
         val subscriberRawPtr = declareSubscriberViaJNI(
-            keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr.get(), subCallback, onClose
+            keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr.get(), subCallback, resolvedOnClose
         )
-        return Subscriber(keyExpr, receiver, JNISubscriber(subscriberRawPtr))
+        return Subscriber(keyExpr, config.handler?.receiver(), JNISubscriber(subscriberRawPtr))
     }
 
     @Throws(ZError::class)

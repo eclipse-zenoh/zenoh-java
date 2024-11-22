@@ -19,6 +19,7 @@ import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.handlers.Handler;
 import io.zenoh.keyexpr.KeyExpr;
+import io.zenoh.pubsub.SubscriberConfig;
 import io.zenoh.qos.CongestionControl;
 import io.zenoh.qos.Priority;
 import io.zenoh.sample.Sample;
@@ -68,8 +69,12 @@ public class SubscriberTest {
     @Test
     public void subscriber_runsWithCallback() throws ZError {
         var receivedSamples = new ArrayList<Sample>();
+
+        var subscriberConfig = new SubscriberConfig<>();
+        subscriberConfig.setCallback(receivedSamples::add);
+
         var subscriber =
-                session.declareSubscriber(testKeyExpr).callback(receivedSamples::add).res();
+                session.declareSubscriber(testKeyExpr, subscriberConfig);
 
         TEST_VALUES.forEach(value -> {
                     try {
@@ -101,8 +106,12 @@ public class SubscriberTest {
     @Test
     public void subscriber_runsWithHandler() throws ZError {
         var handler = new QueueHandler<Sample>();
+
+        var subscriberConfig = new SubscriberConfig<ArrayDeque<Sample>>();
+        subscriberConfig.setHandler(handler);
+
         var subscriber =
-                session.declareSubscriber(testKeyExpr).with(handler).res();
+                session.declareSubscriber(testKeyExpr, subscriberConfig);
 
         TEST_VALUES.forEach(value -> {
                 try {

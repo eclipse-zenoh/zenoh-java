@@ -17,8 +17,8 @@ import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Subscriber;
+import io.zenoh.pubsub.SubscriberConfig;
 import io.zenoh.sample.Sample;
-import kotlin.Unit;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -34,73 +34,73 @@ public class ConfigTest {
 
     private static final String json5ClientConfigString =
             "{\n" +
-            "    mode: \"peer\",\n" +
-            "    listen: {\n" +
-            "        endpoints: [\"tcp/localhost:7450\"]\n" +
-            "    },\n" +
-            "    scouting: {\n" +
-            "        multicast: {\n" +
-            "            enabled: false\n" +
-            "        }\n" +
-            "    }\n" +
-            "}";
+                    "    mode: \"peer\",\n" +
+                    "    listen: {\n" +
+                    "        endpoints: [\"tcp/localhost:7450\"]\n" +
+                    "    },\n" +
+                    "    scouting: {\n" +
+                    "        multicast: {\n" +
+                    "            enabled: false\n" +
+                    "        }\n" +
+                    "    }\n" +
+                    "}";
 
     private static final String json5ServerConfigString =
             "{\n" +
-            "    mode: \"peer\",\n" +
-            "    listen: {\n" +
-            "        endpoints: [\"tcp/localhost:7450\"],\n" +
-            "    },\n" +
-            "    scouting: {\n" +
-            "        multicast: {\n" +
-            "            enabled: false,\n" +
-            "        }\n" +
-            "    }\n" +
-            "}";
+                    "    mode: \"peer\",\n" +
+                    "    listen: {\n" +
+                    "        endpoints: [\"tcp/localhost:7450\"],\n" +
+                    "    },\n" +
+                    "    scouting: {\n" +
+                    "        multicast: {\n" +
+                    "            enabled: false,\n" +
+                    "        }\n" +
+                    "    }\n" +
+                    "}";
 
     private static final String jsonClientConfigString =
             "{\n" +
-            "    \"mode\": \"peer\",\n" +
-            "    \"connect\": {\n" +
-            "        \"endpoints\": [\"tcp/localhost:7450\"]\n" +
-            "    },\n" +
-            "    \"scouting\": {\n" +
-            "        \"multicast\": {\n" +
-            "            \"enabled\": false\n" +
-            "        }\n" +
-            "    }\n" +
-            "}";
+                    "    \"mode\": \"peer\",\n" +
+                    "    \"connect\": {\n" +
+                    "        \"endpoints\": [\"tcp/localhost:7450\"]\n" +
+                    "    },\n" +
+                    "    \"scouting\": {\n" +
+                    "        \"multicast\": {\n" +
+                    "            \"enabled\": false\n" +
+                    "        }\n" +
+                    "    }\n" +
+                    "}";
 
     private static final String jsonServerConfigString =
             "{\n" +
-            "    \"mode\": \"peer\",\n" +
-            "    \"listen\": {\n" +
-            "        \"endpoints\": [\"tcp/localhost:7450\"]\n" +
-            "    },\n" +
-            "    \"scouting\": {\n" +
-            "        \"multicast\": {\n" +
-            "            \"enabled\": false\n" +
-            "        }\n" +
-            "    }\n" +
-            "}";
+                    "    \"mode\": \"peer\",\n" +
+                    "    \"listen\": {\n" +
+                    "        \"endpoints\": [\"tcp/localhost:7450\"]\n" +
+                    "    },\n" +
+                    "    \"scouting\": {\n" +
+                    "        \"multicast\": {\n" +
+                    "            \"enabled\": false\n" +
+                    "        }\n" +
+                    "    }\n" +
+                    "}";
 
     private static final String yamlClientConfigString =
             "mode: peer\n" +
-            "connect:\n" +
-            "  endpoints:\n" +
-            "    - tcp/localhost:7450\n" +
-            "scouting:\n" +
-            "  multicast:\n" +
-            "    enabled: false\n";
+                    "connect:\n" +
+                    "  endpoints:\n" +
+                    "    - tcp/localhost:7450\n" +
+                    "scouting:\n" +
+                    "  multicast:\n" +
+                    "    enabled: false\n";
 
     private static final String yamlServerConfigString =
             "mode: peer\n" +
-            "listen:\n" +
-            "  endpoints:\n" +
-            "    - tcp/localhost:7450\n" +
-            "scouting:\n" +
-            "  multicast:\n" +
-            "    enabled: false\n";
+                    "listen:\n" +
+                    "  endpoints:\n" +
+                    "    - tcp/localhost:7450\n" +
+                    "scouting:\n" +
+                    "  multicast:\n" +
+                    "    enabled: false\n";
 
     private static final KeyExpr TEST_KEY_EXP;
     private static final Config json5ClientConfig;
@@ -127,26 +127,26 @@ public class ConfigTest {
     }
 
     private void runSessionTest(Config clientConfig, Config serverConfig) throws ZError, InterruptedException {
-            Session sessionClient = Zenoh.open(clientConfig);
-            Session sessionServer = Zenoh.open(serverConfig);
+        Session sessionClient = Zenoh.open(clientConfig);
+        Session sessionServer = Zenoh.open(serverConfig);
 
         final Sample[] receivedSample = new Sample[1];
 
-            Subscriber<Unit> subscriber = sessionClient.declareSubscriber(TEST_KEY_EXP).callback(
-                sample -> receivedSample[0] = sample
-            ).res();
+        SubscriberConfig<Void> config = new SubscriberConfig<>();
+        config.setCallback(sample -> receivedSample[0] = sample);
+        Subscriber<Void> subscriber =
+                sessionClient.declareSubscriber(TEST_KEY_EXP, config);
+        ZBytes payload = ZBytes.from("example message");
+        sessionClient.put(TEST_KEY_EXP, payload).res();
 
-            ZBytes payload = ZBytes.from("example message");
-            sessionClient.put(TEST_KEY_EXP, payload).res();
+        Thread.sleep(1000);
 
-            Thread.sleep(1000);
+        subscriber.close();
+        sessionClient.close();
+        sessionServer.close();
 
-            subscriber.close();
-            sessionClient.close();
-            sessionServer.close();
-
-            assertNotNull(receivedSample[0]);
-            assertEquals(receivedSample[0].getPayload(), payload);
+        assertNotNull(receivedSample[0]);
+        assertEquals(receivedSample[0].getPayload(), payload);
     }
 
     @Test
@@ -174,13 +174,13 @@ public class ConfigTest {
 
     @Test
     public void configFailsWithIllFormatedJsonTest() throws ZError {
-         String illFormattedConfig =
-            "{\n" +
-            "    mode: \"peer\",\n" +
-            "    connect: {\n" +
-            "        endpoints: [\"tcp/localhost:7450\"],\n" +
-            // missing '}' character here
-            "}";
+        String illFormattedConfig =
+                "{\n" +
+                        "    mode: \"peer\",\n" +
+                        "    connect: {\n" +
+                        "        endpoints: [\"tcp/localhost:7450\"],\n" +
+                        // missing '}' character here
+                        "}";
 
         assertThrows(ZError.class, () -> Config.fromJson(illFormattedConfig));
     }
@@ -188,11 +188,11 @@ public class ConfigTest {
     @Test
     public void configFailsWithIllFormatedYAMLTest() {
         String illFormattedConfig =
-            "mode: peer\n" +
-            "connect:\n" +
-            "  endpoints:\n" +
-            "    - tcp/localhost:7450\n" +
-            "scouting\n";
+                "mode: peer\n" +
+                        "connect:\n" +
+                        "  endpoints:\n" +
+                        "    - tcp/localhost:7450\n" +
+                        "scouting\n";
 
         assertThrows(ZError.class, () -> Config.fromJson(illFormattedConfig));
     }
