@@ -66,7 +66,7 @@ public class SessionTest {
         Session session = Zenoh.open(Config.loadDefault());
         session.close();
         assertThrows(ZError.class, () -> session.declarePublisher(testKeyExpr));
-        assertThrows(ZError.class, () -> session.declareQueryable(testKeyExpr).res());
+        assertThrows(ZError.class, () -> session.declareQueryable(testKeyExpr));
         assertThrows(ZError.class, () -> session.declareSubscriber(testKeyExpr));
     }
 }

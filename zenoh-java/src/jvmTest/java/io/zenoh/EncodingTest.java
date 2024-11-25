@@ -20,11 +20,10 @@ import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Subscriber;
 import io.zenoh.pubsub.SubscriberConfig;
-import io.zenoh.query.Queryable;
+import io.zenoh.query.QueryableCallbackConfig;
 import io.zenoh.query.Reply;
 import io.zenoh.query.Selector;
 import io.zenoh.sample.Sample;
-import kotlin.Unit;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -75,7 +74,7 @@ public class EncodingTest {
         Selector test1 = Selector.tryFrom("example/testing/reply_success");
         Selector test2 = Selector.tryFrom("example/testing/reply_success_with_schema");
 
-        Queryable<Unit> queryable = session.declareQueryable(keyExpr).callback(query ->
+        var queryable = session.declareQueryable(keyExpr, new QueryableCallbackConfig(query ->
         {
             try {
                 KeyExpr queryKeyExpr = query.getKeyExpr();
@@ -88,7 +87,7 @@ public class EncodingTest {
                 throw new RuntimeException(e);
             }
         }
-        ).res();
+        ));
 
         // Testing with null schema on a reply success scenario.
         Sample[] receivedSample = new Sample[1];
@@ -124,7 +123,7 @@ public class EncodingTest {
         Selector test2 = Selector.tryFrom("example/testing/reply_error_with_schema");
 
         ZBytes replyPayload = ZBytes.from("test");
-        Queryable<Unit> queryable = session.declareQueryable(keyExpr).callback(query ->
+        var queryable = session.declareQueryable(keyExpr, new QueryableCallbackConfig(query ->
         {
             KeyExpr keyExpr1 = query.getKeyExpr();
             try {
@@ -136,7 +135,7 @@ public class EncodingTest {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        }).res();
+        }));
 
         // Testing with null schema on a reply error scenario.
         ZBytes[] errorMessage = new ZBytes[1];
@@ -182,11 +181,11 @@ public class EncodingTest {
         Selector selector = Selector.tryFrom("example/testing/keyexpr");
 
         Encoding[] receivedEncoding = new Encoding[1];
-        Queryable<Unit> queryable = session.declareQueryable(keyExpr).callback(query ->
+        var queryable = session.declareQueryable(keyExpr, new QueryableCallbackConfig(query ->
         {
             receivedEncoding[0] = query.getEncoding();
             query.close();
-        }).res();
+        }));
 
         // Testing with null schema
         session.get(selector).callback(reply -> {}).payload(payload).encoding(without_schema).res();

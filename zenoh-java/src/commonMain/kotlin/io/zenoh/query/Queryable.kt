@@ -88,92 +88,30 @@ class Queryable<R> internal constructor(
     protected fun finalize() {
         jniQueryable?.close()
     }
+}
 
-    companion object {
+/**
+ * TODO: add doc
+ */
+data class QueryableCallbackConfig(
+    var callback: Callback<Query>,
+) {
+    var complete: Boolean = false
+    var onClose: Runnable? = null
 
-        /**
-         * Creates a new [Builder] associated to the specified [session] and [keyExpr].
-         *
-         * @param session The [Session] from which the queryable will be declared.
-         * @param keyExpr The [KeyExpr] associated to the queryable.
-         * @return An empty [Builder] with a default [BlockingQueueHandler] to handle the incoming samples.
-         */
-        fun newBuilder(session: Session, keyExpr: KeyExpr): Builder<BlockingQueue<Optional<Query>>> {
-            return Builder(session, keyExpr, handler = BlockingQueueHandler(queue = LinkedBlockingDeque()))
-        }
-    }
+    fun complete(complete: Boolean) = apply { this.complete = complete }
+    fun onClose(onClose: Runnable) = apply { this.onClose = onClose }
+}
 
-    /**
-     * Builder to construct a [Queryable].
-     *
-     * Either a [Handler] or a [Callback] must be specified. Note neither of them are stackable and are mutually exclusive,
-     * meaning that it is not possible to specify multiple callbacks and/or handlers, the builder only considers the
-     * last one specified.
-     *
-     * @param R Receiver type of the [Handler] implementation. If no handler is provided to the builder, R will be [Unit].
-     * @property session [Session] to which the [Queryable] will be bound to.
-     * @property keyExpr The [KeyExpr] to which the queryable is associated.
-     * @property callback Optional callback that will be triggered upon receiving a [Query].
-     * @property handler Optional handler to receive the incoming queries.
-     * @constructor Creates a Builder. This constructor is internal and should not be called directly. Instead, this
-     * builder should be obtained through the [Session] after calling [Session.declareQueryable].
-     */
-    class Builder<R> internal constructor(
-        private val session: Session,
-        private val keyExpr: KeyExpr,
-        private var callback: Callback<Query>? = null,
-        private var handler: Handler<Query, R>? = null
-    ): Resolvable<Queryable<R>> {
-        private var complete: Boolean = false
-        private var onClose: (() -> Unit)? = null
+/**
+ * TODO: add doc
+ */
+data class QueryableHandlerConfig<R>(
+    var handler: Handler<Query, R>,
+) {
+    var complete: Boolean = false
+    var onClose: Runnable? = null
 
-        private constructor(other: Builder<*>, handler: Handler<Query, R>?) : this(other.session, other.keyExpr) {
-            this.handler = handler
-            this.complete = other.complete
-            this.onClose = other.onClose
-        }
-
-        private constructor(other: Builder<*>, callback: Callback<Query>?) : this(other.session, other.keyExpr) {
-            this.callback = callback
-            this.complete = other.complete
-            this.onClose = other.onClose
-        }
-
-        /** Change queryable completeness. */
-        fun complete(complete: Boolean) = apply { this.complete = complete }
-
-        /** Specify an action to be invoked when the [Queryable] is undeclared. */
-        fun onClose(action: Runnable): Builder<R> {
-            this.onClose = { action.run() }
-            return this
-        }
-
-        /** Specify a [Callback]. Overrides any previously specified callback or handler. */
-        fun callback(callback: Callback<Query>): Builder<Unit> = Builder(this, callback)
-
-        /** Specify a [Handler]. Overrides any previously specified callback or handler. */
-        fun <R2> with(handler: Handler<Query, R2>): Builder<R2> = Builder(this, handler)
-
-        /** Specify a [BlockingQueue]. Overrides any previously specified callback or handler. */
-        fun with(blockingQueue: BlockingQueue<Optional<Query>>): Builder<BlockingQueue<Optional<Query>>> = Builder(this, BlockingQueueHandler(blockingQueue))
-
-        /**
-         * Resolve the builder, creating a [Queryable] with the provided parameters.
-         *
-         * @return The newly created [Queryable].
-         */
-        @Throws(ZError::class)
-        override fun res(): Queryable<R> {
-            require(callback != null || handler != null) { "Either a callback or a handler must be provided." }
-            val resolvedCallback = callback ?: Callback { t: Query -> handler?.handle(t) }
-            val resolvedOnClose = fun() {
-                handler?.onClose()
-                onClose?.invoke()
-            }
-            return session.run {
-                @Suppress("UNCHECKED_CAST")
-                resolveQueryable(keyExpr, resolvedCallback, resolvedOnClose, handler?.receiver() ?: Unit as R, complete) // TODO: double check cast
-            }
-        }
-    }
+    fun complete(complete: Boolean) = apply { this.complete = complete }
+    fun onClose(onClose: Runnable) = apply { this.onClose = onClose }
 }

@@ -3,13 +3,9 @@ package io.zenoh;
 import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.handlers.Handler;
-import io.zenoh.query.Parameters;
-import io.zenoh.query.Queryable;
-import io.zenoh.query.Reply;
-import io.zenoh.query.Selector;
+import io.zenoh.query.*;
 import io.zenoh.sample.Sample;
 import io.zenoh.sample.SampleKind;
-import kotlin.Unit;
 import org.apache.commons.net.ntp.TimeStamp;
 import org.junit.After;
 import org.junit.Before;
@@ -32,13 +28,13 @@ public class GetTest {
 
     private Session session;
     private Selector selector;
-    private Queryable<Unit> queryable;
+    private Queryable<Void> queryable;
 
     @Before
     public void setUp() throws ZError {
         session = Zenoh.open(Config.loadDefault());
         selector = Selector.tryFrom("example/testing/keyexpr");
-        queryable = session.declareQueryable(selector.getKeyExpr()).callback( query ->
+        queryable = session.declareQueryable(selector.getKeyExpr(), new QueryableCallbackConfig(query ->
             {
                 try {
                     query.reply(query.getKeyExpr(), payload).timestamp(timestamp).res();
@@ -46,7 +42,7 @@ public class GetTest {
                     throw new RuntimeException(e);
                 }
             }
-        ).res();
+        ));
     }
 
     @After
@@ -86,9 +82,9 @@ public class GetTest {
     public void getWithSelectorParamsTest() throws ZError {
         Parameters[] receivedParams = new Parameters[1];
 
-        Queryable<Unit> queryable = session.declareQueryable(selector.getKeyExpr()).callback( query ->
+        Queryable<Void> queryable = session.declareQueryable(selector.getKeyExpr(), new QueryableCallbackConfig(query ->
             receivedParams[0] = query.getParameters()
-        ).res();
+        ));
 
         Parameters params = Parameters.from("arg1=val1&arg2=val2&arg3");
         Selector selectorWithParams = new Selector(selector.getKeyExpr(), params);

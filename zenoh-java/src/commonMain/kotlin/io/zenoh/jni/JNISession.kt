@@ -109,9 +109,9 @@ internal class JNISession {
     }
 
     @Throws(ZError::class)
-    fun <R> declareQueryable(
-        keyExpr: KeyExpr, callback: Callback<Query>, onClose: () -> Unit, receiver: R, complete: Boolean
-    ): Queryable<R> {
+    fun declareQueryableWithCallback(
+        keyExpr: KeyExpr, config: QueryableCallbackConfig
+    ): Queryable<Void> {
         val queryCallback =
             JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long ->
                 val jniQuery = JNIQuery(queryPtr)
@@ -129,12 +129,55 @@ internal class JNISession {
                     attachmentBytes?.into(),
                     jniQuery
                 )
-                callback.run(query)
+                config.callback.run(query)
             }
         val queryableRawPtr = declareQueryableViaJNI(
-            keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr.get(), queryCallback, onClose, complete
+            keyExpr.jniKeyExpr?.ptr ?: 0,
+            keyExpr.keyExpr,
+            sessionPtr.get(),
+            queryCallback,
+            fun() { config.onClose?.run() },
+            config.complete
         )
-        return Queryable(keyExpr, receiver, JNIQueryable(queryableRawPtr))
+        return Queryable(keyExpr, null, JNIQueryable(queryableRawPtr))
+    }
+
+    @Throws(ZError::class)
+    fun <R> declareQueryableWithHandler(
+        keyExpr: KeyExpr, config: QueryableHandlerConfig<R>
+    ): Queryable<R> {
+        val resolvedOnClose: (() -> Unit) = fun() {
+            config.handler.onClose()
+            config.onClose?.run()
+        }
+        val queryCallback =
+            JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long ->
+                val jniQuery = JNIQuery(queryPtr)
+                val keyExpr2 = KeyExpr(keyExpr1, null)
+                val selector = if (selectorParams.isEmpty()) {
+                    Selector(keyExpr2)
+                } else {
+                    Selector(keyExpr2, Parameters.from(selectorParams))
+                }
+                val query = Query(
+                    keyExpr2,
+                    selector,
+                    payload?.into(),
+                    payload?.let { Encoding(encodingId, schema = encodingSchema) },
+                    attachmentBytes?.into(),
+                    jniQuery
+                )
+                config.handler.handle(query)
+            }
+        val queryableRawPtr = declareQueryableViaJNI(
+            keyExpr.jniKeyExpr?.ptr ?: 0,
+            keyExpr.keyExpr,
+            sessionPtr.get(),
+            queryCallback,
+            resolvedOnClose,
+            config.complete
+        )
+        return Queryable(keyExpr, config.handler.receiver(), JNIQueryable(queryableRawPtr))
     }
 
     @Throws(ZError::class)

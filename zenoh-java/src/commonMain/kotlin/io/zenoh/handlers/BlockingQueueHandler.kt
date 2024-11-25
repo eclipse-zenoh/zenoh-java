@@ -31,7 +31,7 @@ import java.util.concurrent.BlockingQueue
  * @property queue
  * @constructor Create empty Queue handler
  */
-class BlockingQueueHandler<T: ZenohType>(private val queue: BlockingQueue<Optional<T>>) : Handler<T, BlockingQueue<Optional<T>>> {
+internal class BlockingQueueHandler<T: ZenohType>(private val queue: BlockingQueue<Optional<T>>) : Handler<T, BlockingQueue<Optional<T>>> {
 
     override fun handle(t: T) {
         queue.put(Optional.of(t))

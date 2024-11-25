@@ -31,7 +31,7 @@ public class ZQueryable {
         try (Session session = Zenoh.open(Config.loadDefault())) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom(keyExprString)) {
                 System.out.println("Declaring Queryable on " + keyExprString + "...");
-                try (Queryable<BlockingQueue<Optional<Query>>> queryable = session.declareQueryable(keyExpr).res()) {
+                try (Queryable<BlockingQueue<Optional<Query>>> queryable = session.declareQueryable(keyExpr)) {
                     BlockingQueue<Optional<Query>> receiver = queryable.getReceiver();
                     assert receiver != null;
                     System.out.println("Press CTRL-C to quit...");

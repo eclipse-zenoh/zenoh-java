@@ -18,6 +18,7 @@ import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.config.ZenohId
 import io.zenoh.exceptions.ZError
+import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.jni.JNISession
 import io.zenoh.keyexpr.KeyExpr
@@ -32,6 +33,7 @@ import io.zenoh.session.SessionInfo
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.BlockingQueue
+import java.util.concurrent.LinkedBlockingDeque
 
 /**
  * A Zenoh Session, the core interaction point with a Zenoh network.
@@ -114,36 +116,18 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     /**
      * Declare a [Subscriber] on the session.
      *
-     * The default receiver is a [BlockingQueue], but can be changed with the [Subscriber.Builder.callback] functions.
-     *
-     * Example:
-     *
-     * ```java
-     * try (Session session = Session.open()) {
-     *     try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example/sub")) {
-     *         try (Subscriber<BlockingQueue<Optional<Sample>>> subscriber = session.declareSubscriber(keyExpr).res()) {
-     *             BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
-     *             assert receiver != null;
-     *             while (true) {
-     *                 Optional<Sample> sample = receiver.take();
-     *                 if (sample.isEmpty()) {
-     *                     break;
-     *                 }
-     *                 System.out.println(sample.get());
-     *             }
-     *         }
-     *     }
-     * }
-     * ```
-     *
-     * @param keyExpr The [KeyExpr] the subscriber will be associated to.
-     * @return A [Subscriber.Builder] with a [BlockingQueue] receiver.
+     * TODO
      */
     @Throws(ZError::class)
     fun declareSubscriber(keyExpr: KeyExpr): Subscriber<BlockingQueue<Optional<Sample>>> {
         return resolveSubscriber(keyExpr, SubscriberConfig())
     }
 
+    /**
+     * Declare a [Subscriber] on the session.
+     *
+     * TODO
+     */
     @Throws(ZError::class)
     fun <R> declareSubscriber(keyExpr: KeyExpr, config: SubscriberConfig<R>): Subscriber<R> {
         return resolveSubscriber(keyExpr, config)
@@ -152,37 +136,29 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     /**
      * Declare a [Queryable] on the session.
      *
-     * The default receiver is a [BlockingQueue], but can be changed with the [Queryable.Builder.callback] functions.
-     *
-     * Example:
-     * ```java
-     * try (Session session = Session.open()) {
-     *     try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example/greeting")) {
-     *         System.out.println("Declaring Queryable");
-     *         try (Queryable<BlockingQueue<Optional<Query>>> queryable = session.declareQueryable(keyExpr).res()) {
-     *             BlockingQueue<Optional<Query>> receiver = queryable.getReceiver();
-     *             while (true) {
-     *                 Optional<Query> wrapper = receiver.take();
-     *                 if (wrapper.isEmpty()) {
-     *                     break;
-     *                 }
-     *                 Query query = wrapper.get();
-     *                 System.out.println("Received query at " + query.getSelector());
-     *                 query.reply(keyExpr)
-     *                     .success("Hello!")
-     *                     .withKind(SampleKind.PUT)
-     *                     .withTimeStamp(TimeStamp.getCurrentTime())
-     *                     .res();
-     *             }
-     *         }
-     *     }
-     * }
-     * ```
-     *
-     * @param keyExpr The [KeyExpr] the queryable will be associated to.
-     * @return A [Queryable.Builder] with a [BlockingQueue] receiver.
+     * TODO
      */
-    fun declareQueryable(keyExpr: KeyExpr): Queryable.Builder<BlockingQueue<Optional<Query>>> = Queryable.newBuilder(this, keyExpr)
+    fun declareQueryable(keyExpr: KeyExpr): Queryable<BlockingQueue<Optional<Query>>> {
+        return resolveQueryableWithHandler(keyExpr, QueryableHandlerConfig(BlockingQueueHandler(LinkedBlockingDeque())))
+    }
+
+    /**
+     * Declare a [Queryable] on the session.
+     *
+     * TODO
+     */
+    fun <R> declareQueryable(keyExpr: KeyExpr, config: QueryableHandlerConfig<R>): Queryable<R> {
+        return resolveQueryableWithHandler(keyExpr, config)
+    }
+
+    /**
+     * Declare a [Queryable] on the session.
+     *
+     * TODO
+     */
+    fun declareQueryable(keyExpr: KeyExpr, config: QueryableCallbackConfig): Queryable<Void> {
+        return resolveQueryableWithCallback(keyExpr, config)
+    }
 
     /**
      * Declare a [KeyExpr].
@@ -324,11 +300,22 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     @Throws(ZError::class)
-    internal fun <R> resolveQueryable(
-        keyExpr: KeyExpr, callback: Callback<Query>, onClose: () -> Unit, receiver: R, complete: Boolean
+    internal fun <R> resolveQueryableWithHandler(
+        keyExpr: KeyExpr, config: QueryableHandlerConfig<R>
     ): Queryable<R> {
         return jniSession?.run {
-            val queryable = declareQueryable(keyExpr, callback, onClose, receiver, complete)
+            val queryable = declareQueryableWithHandler(keyExpr, config)
+            declarations.add(queryable)
+            queryable
+        } ?: throw (sessionClosedException)
+    }
+
+    @Throws(ZError::class)
+    internal fun resolveQueryableWithCallback(
+        keyExpr: KeyExpr, config: QueryableCallbackConfig
+    ): Queryable<Void> {
+        return jniSession?.run {
+            val queryable = declareQueryableWithCallback(keyExpr, config)
             declarations.add(queryable)
             queryable
         } ?: throw (sessionClosedException)
