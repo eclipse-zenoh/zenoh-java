@@ -5,7 +5,7 @@ import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.bytes.Encoding;
 import io.zenoh.pubsub.PublisherConfig;
-import io.zenoh.pubsub.SubscriberConfig;
+import io.zenoh.pubsub.SubscriberCallbackConfig;
 import io.zenoh.qos.QoS;
 import io.zenoh.qos.Reliability;
 import io.zenoh.sample.SampleKind;
@@ -43,9 +43,7 @@ public class PublisherTest {
 
         receivedSamples = new ArrayList<>();
 
-        SubscriberConfig<Void> subscriberConfig = new SubscriberConfig<>();
-        subscriberConfig.setCallback(sample -> receivedSamples.add(sample));
-        subscriber = session.declareSubscriber(keyExpr, subscriberConfig);
+        subscriber = session.declareSubscriber(keyExpr, new SubscriberCallbackConfig(receivedSamples::add));
     }
 
     @After

@@ -19,7 +19,7 @@ import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Subscriber;
-import io.zenoh.pubsub.SubscriberConfig;
+import io.zenoh.pubsub.SubscriberCallbackConfig;
 import io.zenoh.query.QueryableCallbackConfig;
 import io.zenoh.query.Reply;
 import io.zenoh.query.Selector;
@@ -45,10 +45,8 @@ public class EncodingTest {
         // Testing non null schema
         Sample[] receivedSample = new Sample[1];
 
-        SubscriberConfig<Void> config = new SubscriberConfig<>();
-        config.setCallback(sample -> receivedSample[0] = sample);
         Subscriber<Void> subscriber =
-                session.declareSubscriber(keyExpr, config);
+                session.declareSubscriber(keyExpr, new SubscriberCallbackConfig(sample -> receivedSample[0] = sample));
 
         session.put(keyExpr, payload).encoding(with_schema).res();
         Thread.sleep(200);

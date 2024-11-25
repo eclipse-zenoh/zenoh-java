@@ -17,7 +17,7 @@ import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Subscriber;
-import io.zenoh.pubsub.SubscriberConfig;
+import io.zenoh.pubsub.SubscriberCallbackConfig;
 import io.zenoh.sample.Sample;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -132,10 +132,8 @@ public class ConfigTest {
 
         final Sample[] receivedSample = new Sample[1];
 
-        SubscriberConfig<Void> config = new SubscriberConfig<>();
-        config.setCallback(sample -> receivedSample[0] = sample);
         Subscriber<Void> subscriber =
-                sessionClient.declareSubscriber(TEST_KEY_EXP, config);
+                sessionClient.declareSubscriber(TEST_KEY_EXP, new SubscriberCallbackConfig(sample -> receivedSample[0] = sample));
         ZBytes payload = ZBytes.from("example message");
         sessionClient.put(TEST_KEY_EXP, payload).res();
 

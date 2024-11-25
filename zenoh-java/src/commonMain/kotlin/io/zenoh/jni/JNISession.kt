@@ -80,14 +80,9 @@ internal class JNISession {
     }
 
     @Throws(ZError::class)
-    fun <R> declareSubscriber(
-        keyExpr: KeyExpr, config: SubscriberConfig<R>
+    fun <R> declareSubscriberWithHandler(
+        keyExpr: KeyExpr, config: SubscriberHandlerConfig<R>
     ): Subscriber<R> {
-        val resolvedCallback = config.callback ?: Callback { t: Sample -> config.handler?.handle(t) }
-        val resolvedOnClose = fun() {
-            config.handler?.onClose()
-            config.onClose?.invoke()
-        }
         val subCallback =
             JNISubscriberCallback { keyExpr1, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
@@ -100,12 +95,39 @@ internal class JNISession {
                     QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
                     attachmentBytes?.into()
                 )
-                resolvedCallback.run(sample)
+                config.handler?.handle(sample)
             }
         val subscriberRawPtr = declareSubscriberViaJNI(
-            keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr.get(), subCallback, resolvedOnClose
+            keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr.get(), subCallback, fun() {
+                config.handler?.onClose()
+                config.onClose?.run()
+            }
         )
         return Subscriber(keyExpr, config.handler?.receiver(), JNISubscriber(subscriberRawPtr))
+    }
+
+    @Throws(ZError::class)
+    fun declareSubscriberWithCallback(
+        keyExpr: KeyExpr, config: SubscriberCallbackConfig
+    ): Subscriber<Void> {
+        val subCallback =
+            JNISubscriberCallback { keyExpr1, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
+                val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
+                val sample = Sample(
+                    KeyExpr(keyExpr1, null),
+                    payload.into(),
+                    Encoding(encodingId, schema = encodingSchema),
+                    SampleKind.fromInt(kind),
+                    timestamp,
+                    QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
+                    attachmentBytes?.into()
+                )
+                config.callback.run(sample)
+            }
+        val subscriberRawPtr = declareSubscriberViaJNI(
+            keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr.get(), subCallback, fun() { config.onClose?.run() }
+        )
+        return Subscriber(keyExpr, null, JNISubscriber(subscriberRawPtr))
     }
 
     @Throws(ZError::class)

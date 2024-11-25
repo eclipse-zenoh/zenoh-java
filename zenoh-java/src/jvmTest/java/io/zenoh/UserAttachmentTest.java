@@ -18,7 +18,7 @@ import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.bytes.ZBytes;
 import io.zenoh.pubsub.Subscriber;
-import io.zenoh.pubsub.SubscriberConfig;
+import io.zenoh.pubsub.SubscriberCallbackConfig;
 import io.zenoh.query.QueryableCallbackConfig;
 import io.zenoh.query.Reply;
 import io.zenoh.sample.Sample;
@@ -61,10 +61,8 @@ public class UserAttachmentTest {
     @Test
     public void putWithAttachmentTest() throws ZError {
         Sample[] receivedSample = new Sample[1];
-        SubscriberConfig<Void> config = new SubscriberConfig<>();
-        config.setCallback(sample -> receivedSample[0] = sample);
         Subscriber<Void> subscriber =
-            session.declareSubscriber(keyExpr, config);
+            session.declareSubscriber(keyExpr, new SubscriberCallbackConfig(sample -> receivedSample[0] = sample));
 
         session.put(keyExpr, payload).attachment(attachment).res();
 
@@ -79,10 +77,8 @@ public class UserAttachmentTest {
     public void publisherPutWithAttachmentTest() throws ZError {
         Sample[] receivedSample = new Sample[1];
         var publisher = session.declarePublisher(keyExpr);
-        SubscriberConfig<Void> config = new SubscriberConfig<>();
-        config.setCallback(sample -> receivedSample[0] = sample);
         Subscriber<Void> subscriber =
-                session.declareSubscriber(keyExpr, config);
+                session.declareSubscriber(keyExpr, new SubscriberCallbackConfig(sample -> receivedSample[0] = sample));
 
         publisher.put(payload).attachment(attachment).res();
 
@@ -98,10 +94,8 @@ public class UserAttachmentTest {
     public void publisherPutWithoutAttachmentTest() throws ZError {
         Sample[] receivedSample = new Sample[1];
         var publisher = session.declarePublisher(keyExpr);
-        SubscriberConfig<Void> config = new SubscriberConfig<>();
-        config.setCallback(sample -> receivedSample[0] = sample);
         Subscriber<Void> subscriber =
-                session.declareSubscriber(keyExpr, config);
+                session.declareSubscriber(keyExpr, new SubscriberCallbackConfig(sample -> receivedSample[0] = sample));
 
         publisher.put(payload).res();
 
@@ -116,10 +110,8 @@ public class UserAttachmentTest {
     public void publisherDeleteWithAttachmentTest() throws ZError {
         Sample[] receivedSample = new Sample[1];
         var publisher = session.declarePublisher(keyExpr);
-        SubscriberConfig<Void> config = new SubscriberConfig<>();
-        config.setCallback(sample -> receivedSample[0] = sample);
         Subscriber<Void> subscriber =
-                session.declareSubscriber(keyExpr, config);
+                session.declareSubscriber(keyExpr, new SubscriberCallbackConfig(sample -> receivedSample[0] = sample));
 
         publisher.delete().attachment(attachment).res();
 
@@ -135,10 +127,8 @@ public class UserAttachmentTest {
     public void publisherDeleteWithoutAttachmentTest() throws ZError {
         Sample[] receivedSample = new Sample[1];
         var publisher = session.declarePublisher(keyExpr);
-        SubscriberConfig<Void> config = new SubscriberConfig<>();
-        config.setCallback(sample -> receivedSample[0] = sample);
         Subscriber<Void> subscriber =
-                session.declareSubscriber(keyExpr, config);
+                session.declareSubscriber(keyExpr, new SubscriberCallbackConfig(sample -> receivedSample[0] = sample));
 
         publisher.delete().res();
 

@@ -31,33 +31,7 @@ import java.util.*
  *
  * Example using the default [BlockingQueueHandler] handler:
  *
- * ```java
- * System.out.println("Opening session...");
- * try (Session session = Session.open()) {
- *     try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example")) {
- *         System.out.println("Declaring Subscriber on '" + keyExpr + "'...");
- *         try (Subscriber<BlockingQueue<Optional<Sample>>> subscriber = session.declareSubscriber(keyExpr).res()) {
- *             BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
- *             assert receiver != null;
- *             while (true) {
- *                 Optional<Sample> wrapper = receiver.take();
- *                 if (wrapper.isEmpty()) {
- *                     break;
- *                 }
- *                 Sample sample = wrapper.get();
- *                 System.out.println(">> [Subscriber] Received " + sample.getKind() + " ('" + sample.getKeyExpr() + "': '" + sample.getValue() + "')");
- *             }
- *         }
- *     }
- * }
- * ```
- *
- * @param R Receiver type of the [Handler] implementation. If no handler is provided to the builder, R will be [Unit].
- * @property keyExpr The [KeyExpr] to which the subscriber is associated.
- * @property receiver Optional [R] that is provided when specifying a [Handler] for the subscriber.
- * @property jniSubscriber Delegate object in charge of communicating with the underlying native code.
- * @constructor Internal constructor. Instances of Subscriber must be created through the [Builder] obtained after
- * calling [Session.declareSubscriber] or alternatively through [newBuilder].
+ * TODO
  */
 class Subscriber<R> internal constructor(
     val keyExpr: KeyExpr, val receiver: R?, private var jniSubscriber: JNISubscriber?
@@ -81,8 +55,18 @@ class Subscriber<R> internal constructor(
     }
 }
 
-data class SubscriberConfig<R>(
-    var callback: Callback<Sample>? = null,
+data class SubscriberCallbackConfig(
+    var callback: Callback<Sample>
+) {
+    var onClose: Runnable? = null
+
+    fun onClose(onClose: Runnable) = apply { this.onClose = onClose }
+}
+
+data class SubscriberHandlerConfig<R>(
     var handler: Handler<Sample, R>? = null,
-    var onClose: (() -> Unit)? = null
-)
+) {
+    var onClose: Runnable? = null
+
+    fun onClose(onClose: Runnable) = apply { this.onClose = onClose }
+}

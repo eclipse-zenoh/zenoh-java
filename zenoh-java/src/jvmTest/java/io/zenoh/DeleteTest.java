@@ -17,7 +17,7 @@ package io.zenoh;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Subscriber;
-import io.zenoh.pubsub.SubscriberConfig;
+import io.zenoh.pubsub.SubscriberCallbackConfig;
 import io.zenoh.sample.SampleKind;
 import io.zenoh.sample.Sample;
 import org.junit.Test;
@@ -35,10 +35,8 @@ public class DeleteTest {
         Session session = Zenoh.open(Config.loadDefault());
         final Sample[] receivedSample = new Sample[1];
         KeyExpr keyExpr = KeyExpr.tryFrom("example/testing/keyexpr");
-        SubscriberConfig<Void> config = new SubscriberConfig<>();
-        config.setCallback(sample -> receivedSample[0] = sample);
         Subscriber<Void> subscriber =
-                session.declareSubscriber(keyExpr, config);
+                session.declareSubscriber(keyExpr, new SubscriberCallbackConfig(sample -> receivedSample[0] = sample));
         session.delete(keyExpr).res();
 
         Thread.sleep(1000);
