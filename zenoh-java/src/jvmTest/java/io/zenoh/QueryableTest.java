@@ -60,18 +60,17 @@ public class QueryableTest {
         );
 
         var queryable = session.declareQueryable(testKeyExpr, new QueryableCallbackConfig(query ->
-                {
-                    try {
-                        query.reply(testKeyExpr, testPayload)
-                            .timestamp(timestamp)
-                            .congestionControl(QoS.defaultQoS().getCongestionControl())
-                            .priority(QoS.defaultQoS().getPriority())
-                            .express(QoS.defaultQoS().getExpress())
-                            .res();
-                    } catch (ZError e) {
-                        throw new RuntimeException(e);
-                    }
-                }
+        {
+            try {
+                query.reply(testKeyExpr, testPayload, new ReplyConfig()
+                        .timestamp(timestamp)
+                        .congestionControl(QoS.defaultQoS().getCongestionControl())
+                        .priority(QoS.defaultQoS().getPriority())
+                        .express(QoS.defaultQoS().getExpress()));
+            } catch (ZError e) {
+                throw new RuntimeException(e);
+            }
+        }
         ));
 
         Reply[] reply = new Reply[1];
@@ -138,12 +137,11 @@ public class QueryableTest {
         var timestamp = TimeStamp.getCurrentTime();
         QueryableCallbackConfig config = new QueryableCallbackConfig(query -> {
             try {
-                query.reply(testKeyExpr, message)
+                query.reply(testKeyExpr, message, new ReplyConfig()
                         .timestamp(timestamp)
                         .priority(Priority.DATA_HIGH)
                         .express(true)
-                        .congestionControl(CongestionControl.DROP)
-                        .res();
+                        .congestionControl(CongestionControl.DROP));
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }
@@ -174,7 +172,7 @@ public class QueryableTest {
         var queryable = session.declareQueryable(testKeyExpr, new QueryableCallbackConfig(query ->
         {
             try {
-                query.replyErr(errorMessage).res();
+                query.replyErr(errorMessage);
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }
@@ -200,7 +198,9 @@ public class QueryableTest {
 
         var queryable = session.declareQueryable(testKeyExpr, new QueryableCallbackConfig(query -> {
             try {
-                query.replyDel(testKeyExpr).timestamp(timestamp).res();
+                var config = new ReplyDelConfig();
+                config.setTimeStamp(timestamp);
+                query.replyDel(testKeyExpr, config);
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }
@@ -273,6 +273,8 @@ class QueryHandler implements Handler<Query, QueryHandler> {
                 null
         );
         performedReplies.add(sample);
-        query.reply(query.getKeyExpr(), payload).timestamp(sample.getTimestamp()).res();
+        var config = new ReplyConfig();
+        config.setTimeStamp(sample.getTimestamp());
+        query.reply(query.getKeyExpr(), payload, config);
     }
 }

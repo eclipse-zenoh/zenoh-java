@@ -14,107 +14,29 @@
 
 package io.zenoh.pubsub
 
-import io.zenoh.Resolvable
-import io.zenoh.Session
 import io.zenoh.bytes.IntoZBytes
-import io.zenoh.exceptions.ZError
-import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
 import io.zenoh.qos.Reliability
-import kotlin.Throws
 
 /**
- * Delete operation to perform on Zenoh on a key expression.
- *
- * Example:
- * ```java
- * public void deleteExample() throws ZError {
- *     System.out.println("Opening session...");
- *     try (Session session = Session.open()) {
- *         try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/java/example")) {
- *             session.delete(keyExpr).res();
- *             System.out.println("Performed a delete on '" + keyExpr);
- *         }
- *     }
- * }
- * ```
- *
- * A delete operation is a special case of a Put operation, it is analogous to perform a Put with an empty value and
- * specifying the sample kind to be `DELETE`.
+ * TODO
  */
-class Delete private constructor(
-    val keyExpr: KeyExpr, val qos: QoS, val reliability: Reliability, val attachment: IntoZBytes?
+data class DeleteConfig(
+    var qos: QoS = QoS.defaultQoS(),
+    var reliability: Reliability = Reliability.RELIABLE,
+    var attachment: IntoZBytes? = null
 ) {
+    fun qos(qos: QoS) = apply { this.qos = qos }
 
-    companion object {
-        /**
-         * Creates a new [Builder] associated with the specified [session] and [keyExpr].
-         *
-         * @param session The [Session] from which the Delete will be performed.
-         * @param keyExpr The [KeyExpr] upon which the Delete will be performed.
-         * @return A [Delete] operation [Builder].
-         */
-        fun newBuilder(session: Session, keyExpr: KeyExpr): Builder {
-            return Builder(session, keyExpr)
-        }
-    }
+    fun reliability(reliability: Reliability) = apply { this.reliability = reliability }
 
-    /**
-     * Builder to construct a [Delete] operation.
-     *
-     * @property session The [Session] from which the Delete will be performed
-     * @property keyExpr The [KeyExpr] from which the Delete will be performed
-     * @constructor Create a [Delete] builder.
-     */
-    class Builder internal constructor(
-        val session: Session,
-        val keyExpr: KeyExpr,
-    ) : Resolvable<Unit> {
+    fun attachment(attachment: IntoZBytes?) = apply { this.attachment = attachment }
 
-        private var attachment: IntoZBytes? = null
-        private var reliability: Reliability = Reliability.RELIABLE
-        private var qosBuilder = QoS.Builder()
+    fun congestionControl(congestionControl: CongestionControl) = apply { this.qos.congestionControl = congestionControl }
 
-        fun attachment(attachment: IntoZBytes) {
-            this.attachment = attachment
-        }
+    fun express(express: Boolean) = apply { this.qos.express = express }
 
-        /**
-         * The [Reliability] wished to be obtained from the network.
-         */
-        fun reliability(reliability: Reliability) = apply { this.reliability = reliability }
-
-        /**
-         * Sets the express flag. If true, the reply won't be batched in order to reduce the latency.
-         */
-        fun express(express: Boolean) = apply { qosBuilder.express(express) }
-
-        /**
-         * Sets the [Priority] of the reply.
-         */
-        fun priority(priority: Priority) = apply { qosBuilder.priority(priority) }
-
-        /**
-         * Sets the [CongestionControl] of the reply.
-         *
-         * @param congestionControl
-         */
-        fun congestionControl(congestionControl: CongestionControl) =
-            apply { qosBuilder.congestionControl(congestionControl) }
-
-        /**
-         * Performs a DELETE operation on the specified [keyExpr].
-         *
-         * A successful [Result] only states the Delete request was properly sent through the network, it doesn't mean it
-         * was properly executed remotely.
-         */
-        @Throws(ZError::class)
-        override fun res() {
-            // TODO: replace res() with delete()
-            val delete = Delete(this.keyExpr, qosBuilder.build(), reliability, attachment)
-            session.resolveDelete(keyExpr, delete)
-        }
-    }
+    fun priority(priority: Priority) = apply { this.qos.priority = priority }
 }

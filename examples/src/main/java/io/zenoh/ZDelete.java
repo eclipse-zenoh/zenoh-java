@@ -23,7 +23,7 @@ public class ZDelete {
         try (Session session = Zenoh.open(Config.loadDefault())) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example/zenoh-java-put")) {
                 System.out.println("Deleting resources matching '" + keyExpr + "'...");
-                session.delete(keyExpr).res();
+                session.delete(keyExpr);
             }
         }
     }

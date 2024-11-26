@@ -19,6 +19,7 @@ import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.query.Query;
 import io.zenoh.query.Queryable;
+import io.zenoh.query.ReplyConfig;
 import org.apache.commons.net.ntp.TimeStamp;
 
 import java.util.Optional;
@@ -51,7 +52,7 @@ public class ZQueryable {
             String valueInfo = query.getPayload() != null ? " with value '" + query.getPayload() + "'" : "";
             System.out.println(">> [Queryable] Received Query '" + query.getSelector() + "'" + valueInfo);
             try {
-                query.reply(keyExpr, ZBytes.from("Queryable from Java!")).timestamp(TimeStamp.getCurrentTime()).res();
+                query.reply(keyExpr, ZBytes.from("Queryable from Java!"), new ReplyConfig().timestamp(TimeStamp.getCurrentTime()));
             } catch (Exception e) {
                 System.out.println(">> [Queryable] Error sending reply: " + e);
             }

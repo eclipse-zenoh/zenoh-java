@@ -288,37 +288,38 @@ internal class JNISession {
     @Throws(ZError::class)
     fun performPut(
         keyExpr: KeyExpr,
-        put: Put,
+        payload: IntoZBytes,
+        config: PutConfig,
     ) {
         putViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
             sessionPtr.get(),
-            put.payload.bytes,
-            put.encoding.id,
-            put.encoding.schema,
-            put.qos.congestionControl.value,
-            put.qos.priority.value,
-            put.qos.express,
-            put.attachment?.into()?.bytes,
-            put.reliability.ordinal
+            payload.into().bytes,
+            config.encoding.id,
+            config.encoding.schema,
+            config.qos.congestionControl.value,
+            config.qos.priority.value,
+            config.qos.express,
+            config.attachment?.into()?.bytes,
+            config.reliability.ordinal
         )
     }
 
     @Throws(ZError::class)
     fun performDelete(
         keyExpr: KeyExpr,
-        delete: Delete,
+        config: DeleteConfig,
     ) {
         deleteViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
             sessionPtr.get(),
-            delete.qos.congestionControl.value,
-            delete.qos.priority.value,
-            delete.qos.express,
-            delete.attachment?.into()?.bytes,
-            delete.reliability.ordinal
+            config.qos.congestionControl.value,
+            config.qos.priority.value,
+            config.qos.express,
+            config.attachment?.into()?.bytes,
+            config.reliability.ordinal
         )
     }
 

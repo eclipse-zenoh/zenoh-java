@@ -14,7 +14,6 @@
 
 package io.zenoh.query
 
-import io.zenoh.Resolvable
 import io.zenoh.ZenohType
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
@@ -22,6 +21,7 @@ import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.jni.JNIQuery
 import io.zenoh.keyexpr.KeyExpr
+import io.zenoh.sample.Sample
 import io.zenoh.sample.SampleKind
 
 /**
@@ -50,18 +50,70 @@ class Query internal constructor(
     /** Shortcut to the [selector]'s parameters. */
     val parameters = selector.parameters
 
+    @Throws(ZError::class)
+    fun reply(keyExpr: KeyExpr, payload: IntoZBytes) = reply(keyExpr, payload, ReplyConfig())
+
     /**
      * Reply to the specified key expression.
      *
      * @param keyExpr Key expression to reply to. This parameter must not be necessarily the same
      * as the key expression from the Query, however it must intersect with the query key.
-     * @return a [ReplySuccess.Builder]
      */
-    fun reply(keyExpr: KeyExpr, payload: IntoZBytes) = ReplyBuilder(this, keyExpr, payload.into(), SampleKind.PUT)
+    @Throws(ZError::class)
+    fun reply(keyExpr: KeyExpr, payload: IntoZBytes, config: ReplyConfig) {
+        val sample = Sample(
+            keyExpr,
+            payload.into(),
+            config.encoding,
+            SampleKind.PUT,
+            config.timeStamp,
+            config.qos,
+            config.attachment
+        )
+        jniQuery?.apply {
+            replySuccess(sample)
+            jniQuery = null
+        } ?: throw (ZError("Query is invalid"))
+    }
 
-    fun replyDel(keyExpr: KeyExpr) = ReplyBuilder(this, keyExpr, ZBytes(byteArrayOf()), SampleKind.DELETE) //TODO: refactor
+    /**
+     * TODO
+     */
+    @Throws(ZError::class)
+    fun replyDel(keyExpr: KeyExpr) = replyDel(keyExpr, ReplyDelConfig())
 
-    fun replyErr(payload: IntoZBytes) = ReplyErrBuilder(this, payload.into())
+    /**
+     * TODO
+     */
+    @Throws(ZError::class)
+    fun replyDel(keyExpr: KeyExpr, config: ReplyDelConfig) {
+        jniQuery?.apply {
+            replyDelete(
+                keyExpr,
+                config.timeStamp,
+                config.attachment,
+                config.qos
+            )
+            jniQuery = null
+        } ?: throw (ZError("Query is invalid"))
+    }
+
+    /**
+     * TODO
+     */
+    @Throws(ZError::class)
+    fun replyErr(payload: IntoZBytes) = replyErr(payload, ReplyErrConfig())
+
+    /**
+     * TODO
+     */
+    @Throws(ZError::class)
+    fun replyErr(payload: IntoZBytes, config: ReplyErrConfig) {
+        jniQuery?.apply {
+            replyError(payload.into(), config.encoding)
+            jniQuery = null
+        } ?: throw (ZError("Query is invalid"))
+    }
 
     override fun close() {
         jniQuery?.apply {
@@ -73,34 +125,5 @@ class Query internal constructor(
     @Suppress("removal")
     protected fun finalize() {
         close()
-    }
-
-    /**
-     * Perform a reply operation to the remote [Query].
-     *
-     * A query can not be replied more than once. After the reply is performed, the query is considered
-     * to be no more valid and further attempts to reply to it will fail.
-     *
-     * @param reply The [Reply] to the Query.
-     * @return A [Resolvable] that returns a [Result] with the status of the reply operation.
-     */
-    internal fun resolveReply(reply: Reply): Resolvable<Unit> = Resolvable {
-        jniQuery?.apply {
-            val result = when (reply) {
-                is Reply.Success -> {
-                    if (reply.sample.kind == SampleKind.PUT) {
-                        replySuccess(reply.sample)
-                    } else {
-                        replyDelete(reply.sample.keyExpr, reply.sample.timestamp, reply.sample.attachment, reply.sample.qos)
-                    }
-                }
-                is Reply.Error -> {
-                    replyError(reply.error, reply.encoding)
-                }
-            }
-            jniQuery = null
-            return@Resolvable result
-        }
-        throw(ZError("Query is invalid"))
     }
 }

@@ -19,6 +19,7 @@ import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.handlers.Handler;
 import io.zenoh.keyexpr.KeyExpr;
+import io.zenoh.pubsub.PutConfig;
 import io.zenoh.pubsub.SubscriberCallbackConfig;
 import io.zenoh.pubsub.SubscriberHandlerConfig;
 import io.zenoh.qos.CongestionControl;
@@ -76,11 +77,10 @@ public class SubscriberTest {
 
         TEST_VALUES.forEach(value -> {
                     try {
-                        session.put(testKeyExpr, value.getFirst())
+                        session.put(testKeyExpr, value.getFirst(), new PutConfig()
                                 .encoding(value.getSecond())
                                 .priority(TEST_PRIORITY)
-                                .congestionControl(TEST_CONGESTION_CONTROL)
-                                .res();
+                                .congestionControl(TEST_CONGESTION_CONTROL));
                     } catch (ZError e) {
                         throw new RuntimeException(e);
                     }
@@ -109,11 +109,10 @@ public class SubscriberTest {
 
         TEST_VALUES.forEach(value -> {
                 try {
-                    session.put(testKeyExpr, value.getFirst())
+                    session.put(testKeyExpr, value.getFirst(), new PutConfig()
                             .encoding(value.getSecond())
                             .priority(TEST_PRIORITY)
-                            .congestionControl(TEST_CONGESTION_CONTROL)
-                            .res();
+                            .congestionControl(TEST_CONGESTION_CONTROL));
                 } catch (ZError e) {
                     throw new RuntimeException(e);
                 }

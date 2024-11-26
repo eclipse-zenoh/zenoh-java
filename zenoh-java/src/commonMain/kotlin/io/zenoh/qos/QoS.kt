@@ -22,10 +22,16 @@ package io.zenoh.qos
  * @property express If true, the message is not batched in order to reduce the latency.
  */
 data class QoS (
-    val congestionControl: CongestionControl = CongestionControl.DROP,
-    val priority: Priority = Priority.DATA,
-    val express: Boolean = false
+    var congestionControl: CongestionControl = CongestionControl.DROP,
+    var priority: Priority = Priority.DATA,
+    var express: Boolean = false
 ) {
+
+    fun congestionControl(congestionControl: CongestionControl) = apply { this.congestionControl = congestionControl }
+
+    fun priority(priority: Priority) = apply { this.priority = priority }
+
+    fun express(express: Boolean) = apply { this.express = express }
 
     companion object {
         private val defaultQoS = QoS()
@@ -33,21 +39,4 @@ data class QoS (
         @JvmStatic
         fun defaultQoS() = defaultQoS
     }
-
-    internal class Builder(
-        private var express: Boolean = false,
-        private var congestionControl: CongestionControl = CongestionControl.DROP,
-        private var priority: Priority = Priority.REALTIME,
-    ) {
-
-        fun express(value: Boolean) = apply { this.express = value }
-
-        fun priority(priority: Priority) = apply { this.priority = priority }
-
-        fun congestionControl(congestionControl: CongestionControl) =
-            apply { this.congestionControl = congestionControl }
-
-        fun build() = QoS(congestionControl, priority, express)
-    }
-
 }

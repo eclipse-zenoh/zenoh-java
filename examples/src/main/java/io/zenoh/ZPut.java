@@ -17,6 +17,7 @@ package io.zenoh;
 import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
+import io.zenoh.pubsub.PutConfig;
 import io.zenoh.qos.CongestionControl;
 import io.zenoh.qos.Priority;
 
@@ -26,10 +27,7 @@ public class ZPut {
         try (Session session = Zenoh.open(Config.loadDefault())) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example/zenoh-java-put")) {
                 String value = "Put from Java!";
-                session.put(keyExpr, ZBytes.from(value))
-                    .congestionControl(CongestionControl.BLOCK)
-                    .priority(Priority.REALTIME)
-                    .res();
+                session.put(keyExpr, ZBytes.from(value), new PutConfig().congestionControl(CongestionControl.BLOCK).priority(Priority.REALTIME));
                 System.out.println("Putting Data ('" + keyExpr + "': '" + value + "')...");
             }
         }

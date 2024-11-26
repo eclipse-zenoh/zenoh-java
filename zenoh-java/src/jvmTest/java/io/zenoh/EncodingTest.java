@@ -18,11 +18,10 @@ import io.zenoh.bytes.Encoding;
 import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
+import io.zenoh.pubsub.PutConfig;
 import io.zenoh.pubsub.Subscriber;
 import io.zenoh.pubsub.SubscriberCallbackConfig;
-import io.zenoh.query.QueryableCallbackConfig;
-import io.zenoh.query.Reply;
-import io.zenoh.query.Selector;
+import io.zenoh.query.*;
 import io.zenoh.sample.Sample;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -48,7 +47,7 @@ public class EncodingTest {
         Subscriber<Void> subscriber =
                 session.declareSubscriber(keyExpr, new SubscriberCallbackConfig(sample -> receivedSample[0] = sample));
 
-        session.put(keyExpr, payload).encoding(with_schema).res();
+        session.put(keyExpr, payload, new PutConfig().encoding(with_schema));
         Thread.sleep(200);
 
         assertNotNull(receivedSample[0]);
@@ -56,7 +55,7 @@ public class EncodingTest {
 
         // Testing null schema
         receivedSample[0] = null;
-        session.put(keyExpr, payload).encoding(without_schema).res();
+        session.put(keyExpr, payload, new PutConfig().encoding(without_schema));
         Thread.sleep(200);
 
         assertEquals(receivedSample[0].getEncoding(), without_schema);
@@ -77,9 +76,9 @@ public class EncodingTest {
             try {
                 KeyExpr queryKeyExpr = query.getKeyExpr();
                 if (queryKeyExpr.equals(test1.getKeyExpr())) {
-                    query.reply(queryKeyExpr, payload).encoding(without_schema).res();
+                    query.reply(queryKeyExpr, payload, new ReplyConfig().encoding(without_schema));
                 } else if (queryKeyExpr.equals(test2.getKeyExpr())) {
-                    query.reply(queryKeyExpr, payload).encoding(with_schema).res();
+                    query.reply(queryKeyExpr, payload, new ReplyConfig().encoding(with_schema));
                 }
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -126,9 +125,9 @@ public class EncodingTest {
             KeyExpr keyExpr1 = query.getKeyExpr();
             try {
                 if (keyExpr1.equals(test1.getKeyExpr())) {
-                    query.replyErr(replyPayload).encoding(without_schema).res();
+                    query.replyErr(replyPayload, new ReplyErrConfig().encoding(without_schema));
                 } else if (keyExpr1.equals(test2.getKeyExpr())) {
-                    query.replyErr(replyPayload).encoding(with_schema).res();
+                    query.replyErr(replyPayload, new ReplyErrConfig().encoding(with_schema));
                 }
             } catch (Exception e) {
                 throw new RuntimeException(e);

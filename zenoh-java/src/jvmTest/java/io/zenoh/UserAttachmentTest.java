@@ -17,10 +17,12 @@ package io.zenoh;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.bytes.ZBytes;
+import io.zenoh.pubsub.PutConfig;
 import io.zenoh.pubsub.Subscriber;
 import io.zenoh.pubsub.SubscriberCallbackConfig;
 import io.zenoh.query.QueryableCallbackConfig;
 import io.zenoh.query.Reply;
+import io.zenoh.query.ReplyConfig;
 import io.zenoh.sample.Sample;
 import org.junit.After;
 import org.junit.Before;
@@ -64,7 +66,7 @@ public class UserAttachmentTest {
         Subscriber<Void> subscriber =
             session.declareSubscriber(keyExpr, new SubscriberCallbackConfig(sample -> receivedSample[0] = sample));
 
-        session.put(keyExpr, payload).attachment(attachment).res();
+        session.put(keyExpr, payload, new PutConfig().attachment(attachment));
 
         subscriber.close();
 
@@ -145,7 +147,7 @@ public class UserAttachmentTest {
         var queryable = session.declareQueryable(keyExpr, new QueryableCallbackConfig(query -> {
             receivedAttachment[0] = query.getAttachment();
             try {
-                query.reply(keyExpr, payload).res();
+                query.reply(keyExpr, payload);
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }
@@ -164,7 +166,7 @@ public class UserAttachmentTest {
         Reply[] reply = new Reply[1];
         var queryable = session.declareQueryable(keyExpr, new QueryableCallbackConfig(query -> {
             try {
-                query.reply(keyExpr, payload).attachment(attachment).res();
+                query.reply(keyExpr, payload, new ReplyConfig().attachment(attachment));
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }
@@ -185,7 +187,7 @@ public class UserAttachmentTest {
         Reply[] reply = new Reply[1];
         var queryable = session.declareQueryable(keyExpr, new QueryableCallbackConfig(query -> {
             try {
-                query.reply(keyExpr, payload).res();
+                query.reply(keyExpr, payload);
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }

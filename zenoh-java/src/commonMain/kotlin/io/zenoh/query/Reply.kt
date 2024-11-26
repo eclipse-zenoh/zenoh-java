@@ -14,16 +14,12 @@
 
 package io.zenoh.query
 
-import io.zenoh.Resolvable
 import io.zenoh.ZenohType
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.config.ZenohId
-import io.zenoh.exceptions.ZError
 import io.zenoh.sample.Sample
-import io.zenoh.sample.SampleKind
-import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
@@ -42,20 +38,10 @@ import org.apache.commons.net.ntp.TimeStamp
  * Generating a reply only makes sense within the context of a [Query], therefore builders below are meant to only
  * be accessible from [Query.reply].
  *
- * Example:
- * ```java
- * session.declareQueryable(keyExpr).with { query ->
- *     query.reply(keyExpr)
- *          .success(Value("Hello"))
- *          .timestamp(TimeStamp(Date.from(Instant.now())))
- *          .res()
- *     }.res()
- * ...
- * ```
+ * TODO: provide example
  *
  * @property replierId: unique ID identifying the replier.
  */
-
 sealed class Reply private constructor(val replierId: ZenohId?) : ZenohType {
 
     class Success internal constructor(replierId: ZenohId?, val sample: Sample) : Reply(replierId) {
@@ -96,14 +82,19 @@ sealed class Reply private constructor(val replierId: ZenohId?) : ZenohType {
     }
 }
 
-class ReplyBuilder internal constructor(val query: Query, val keyExpr: KeyExpr, val payload: ZBytes, val kind: SampleKind): Resolvable<Unit> {
+/**
+ * TODO
+ */
+data class ReplyConfig(
+    var encoding: Encoding = Encoding.defaultEncoding(),
+    var timeStamp: TimeStamp? = null,
+    var attachment: ZBytes? = null,
+    var qos: QoS = QoS.defaultQoS()
+) {
 
-    private var encoding: Encoding = Encoding.defaultEncoding()
-    private var timeStamp: TimeStamp? = null
-    private var attachment: ZBytes? = null
-    private var qosBuilder = QoS.Builder()
-
-
+    /**
+     * Sets the [Encoding] of the reply.
+     */
     fun encoding(encoding: Encoding) = apply { this.encoding = encoding }
 
     /**
@@ -119,12 +110,12 @@ class ReplyBuilder internal constructor(val query: Query, val keyExpr: KeyExpr, 
     /**
      * Sets the express flag. If true, the reply won't be batched in order to reduce the latency.
      */
-    fun express(express: Boolean) = apply { qosBuilder.express(express) }
+    fun express(express: Boolean) = apply { qos.express(express) }
 
     /**
      * Sets the [Priority] of the reply.
      */
-    fun priority(priority: Priority) = apply { qosBuilder.priority(priority) }
+    fun priority(priority: Priority) = apply { qos.priority(priority) }
 
     /**
      * Sets the [CongestionControl] of the reply.
@@ -132,29 +123,54 @@ class ReplyBuilder internal constructor(val query: Query, val keyExpr: KeyExpr, 
      * @param congestionControl
      */
     fun congestionControl(congestionControl: CongestionControl) =
-        apply { qosBuilder.congestionControl(congestionControl) }
-
-    /**
-     * Constructs the reply sample with the provided parameters and triggers the reply to the query.
-     */
-    @Throws(ZError::class)
-    override fun res() {
-        val sample = Sample(keyExpr, payload, encoding, kind, timeStamp, qosBuilder.build(), attachment)
-        return query.resolveReply(Reply.Success(null, sample)).res()
-    }
+        apply { qos.congestionControl(congestionControl) }
 }
 
-class ReplyErrBuilder internal constructor(val query: Query, val payload: ZBytes): Resolvable<Unit> {
-
-    private var encoding: Encoding = Encoding.defaultEncoding()
-
-    fun encoding(encoding: Encoding) = apply { this.encoding = encoding }
+/**
+ * TODO
+ */
+data class ReplyDelConfig(
+    var timeStamp: TimeStamp? = null,
+    var attachment: ZBytes? = null,
+    var qos: QoS = QoS.defaultQoS()
+) {
+    /**
+     * Sets the [TimeStamp] of the replied [Sample].
+     */
+    fun timestamp(timeStamp: TimeStamp) = apply { this.timeStamp = timeStamp }
 
     /**
-     * Constructs the reply sample with the provided parameters and triggers the reply to the query.
+     * Appends an attachment to the reply.
      */
-    @Throws(ZError::class)
-    override fun res() {
-        return query.resolveReply(Reply.Error(null, payload, encoding)).res()
-    }
+    fun attachment(attachment: IntoZBytes) = apply { this.attachment = attachment.into() }
+
+    /**
+     * Sets the express flag. If true, the reply won't be batched in order to reduce the latency.
+     */
+    fun express(express: Boolean) = apply { qos.express(express) }
+
+    /**
+     * Sets the [Priority] of the reply.
+     */
+    fun priority(priority: Priority) = apply { qos.priority(priority) }
+
+    /**
+     * Sets the [CongestionControl] of the reply.
+     *
+     * @param congestionControl
+     */
+    fun congestionControl(congestionControl: CongestionControl) =
+        apply { qos.congestionControl(congestionControl) }
+}
+
+/**
+ * TODO
+ */
+data class ReplyErrConfig internal constructor(var encoding: Encoding = Encoding.defaultEncoding()) {
+
+    /**
+     * Sets the [Encoding] of the reply.
+     */
+    fun encoding(encoding: Encoding) = apply { this.encoding = encoding }
+
 }

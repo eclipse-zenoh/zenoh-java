@@ -135,7 +135,7 @@ public class ConfigTest {
         Subscriber<Void> subscriber =
                 sessionClient.declareSubscriber(TEST_KEY_EXP, new SubscriberCallbackConfig(sample -> receivedSample[0] = sample));
         ZBytes payload = ZBytes.from("example message");
-        sessionClient.put(TEST_KEY_EXP, payload).res();
+        sessionClient.put(TEST_KEY_EXP, payload);
 
         Thread.sleep(1000);
 

@@ -18,6 +18,7 @@ import io.zenoh.bytes.ZBytes;
 import io.zenoh.bytes.Encoding;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
+import io.zenoh.pubsub.PutConfig;
 import io.zenoh.pubsub.Subscriber;
 import io.zenoh.pubsub.SubscriberCallbackConfig;
 import io.zenoh.sample.Sample;
@@ -43,7 +44,7 @@ public class PutTest {
         Subscriber<Void> subscriber =
                 session.declareSubscriber(keyExpr, new SubscriberCallbackConfig(sample -> receivedSample[0] = sample));
 
-        session.put(keyExpr, TEST_PAYLOAD).encoding(Encoding.TEXT_PLAIN).res();
+        session.put(keyExpr, TEST_PAYLOAD, new PutConfig().encoding(Encoding.TEXT_PLAIN));
         subscriber.close();
         session.close();
         assertNotNull(receivedSample[0]);

@@ -141,6 +141,16 @@ class Publisher internal constructor(
     }
 }
 
+/**
+ * TODO
+ */
 data class PublisherConfig(var reliability: Reliability = Reliability.RELIABLE,
                            var qos: QoS = QoS.defaultQoS(),
-                           var encoding: Encoding = Encoding.defaultEncoding())
+                           var encoding: Encoding = Encoding.defaultEncoding()) {
+
+    fun reliability(reliability: Reliability) = apply { this.reliability = reliability }
+
+    fun encoding(encoding: Encoding) = apply { this.encoding = encoding }
+
+    fun qos(qos: QoS) = apply { this.qos = qos }
+}

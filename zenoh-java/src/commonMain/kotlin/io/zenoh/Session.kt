@@ -219,15 +219,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * Declare a [Get] with a [BlockingQueue] receiver.
      *
      * ```java
-     * try (Session session = Session.open()) {
-     *     try (Selector selector = Selector.tryFrom("demo/java/example")) {
-     *          session.get(selector)
-     *              .consolidation(ConsolidationMode.NONE)
-     *              .withValue("Get value example")
-     *              .with(reply -> System.out.println("Received reply " + reply))
-     *              .res()
-     *     }
-     * }
+     * TODO: provide example
      * ```
      *
      * @param selector The [KeyExpr] to be used for the get operation.
@@ -239,43 +231,30 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     /**
      * Declare a [Put] with the provided value on the specified key expression.
      * //TODO update
-     * Example:
-     * ```java
-     * try (Session session = Session.open()) {
-     *     try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example/greeting")) {
-     *         session.put(keyExpr, Value("Hello!"))
-     *             .congestionControl(CongestionControl.BLOCK)
-     *             .priority(Priority.REALTIME)
-     *             .kind(SampleKind.PUT)
-     *             .res();
-     *         System.out.println("Put 'Hello' on " + keyExpr + ".");
-     *     }
-     * }
-     * ```
-     *
-     * @param keyExpr The [KeyExpr] to be used for the put operation.
-     * @return A resolvable [Put.Builder].
      */
-    fun put(keyExpr: KeyExpr, payload: IntoZBytes): Put.Builder = Put.newBuilder(this, keyExpr, payload)
+    @Throws(ZError::class)
+    fun put(keyExpr: KeyExpr, payload: IntoZBytes) {
+        resolvePut(keyExpr, payload, PutConfig())
+    }
+
+    @Throws(ZError::class)
+    fun put(keyExpr: KeyExpr, payload: IntoZBytes, config: PutConfig) {
+        resolvePut(keyExpr, payload, config)
+    }
 
     /**
-     * Declare a [Delete].
-     *
-     * Example:
-     *
-     * ```java
-     * try (Session session = Session.open()) {
-     *     try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example")) {
-     *         session.delete(keyExpr).res();
-     *         System.out.println("Performed delete on " + keyExpr + ".");
-     *     }
-     * }
-     * ```
-     *
-     * @param keyExpr The [KeyExpr] to be used for the delete operation.
-     * @return a resolvable [Delete.Builder].
+     * TODO
      */
-    fun delete(keyExpr: KeyExpr): Delete.Builder = Delete.newBuilder(this, keyExpr)
+    fun delete(keyExpr: KeyExpr) {
+        resolveDelete(keyExpr, DeleteConfig())
+    }
+
+    /**
+     * TODO
+     */
+    fun delete(keyExpr: KeyExpr, config: DeleteConfig) {
+        resolveDelete(keyExpr, config)
+    }
 
     /** Returns if session is open or has been closed. */
     fun isClosed(): Boolean {
@@ -362,13 +341,13 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     @Throws(ZError::class)
-    internal fun resolvePut(keyExpr: KeyExpr, put: Put) {
-        jniSession?.run { performPut(keyExpr, put) }
+    internal fun resolvePut(keyExpr: KeyExpr, payload: IntoZBytes, putConfig: PutConfig) {
+        jniSession?.run { performPut(keyExpr, payload, putConfig) }
     }
 
     @Throws(ZError::class)
-    internal fun resolveDelete(keyExpr: KeyExpr, delete: Delete) {
-        jniSession?.run { performDelete(keyExpr, delete) }
+    internal fun resolveDelete(keyExpr: KeyExpr, deleteConfig: DeleteConfig) {
+        jniSession?.run { performDelete(keyExpr, deleteConfig) }
     }
 
     @Throws(ZError::class)

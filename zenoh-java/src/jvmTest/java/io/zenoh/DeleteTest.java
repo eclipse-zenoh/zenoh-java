@@ -37,7 +37,7 @@ public class DeleteTest {
         KeyExpr keyExpr = KeyExpr.tryFrom("example/testing/keyexpr");
         Subscriber<Void> subscriber =
                 session.declareSubscriber(keyExpr, new SubscriberCallbackConfig(sample -> receivedSample[0] = sample));
-        session.delete(keyExpr).res();
+        session.delete(keyExpr);
 
         Thread.sleep(1000);
         subscriber.close();
