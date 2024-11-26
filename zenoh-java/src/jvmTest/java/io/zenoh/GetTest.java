@@ -35,13 +35,13 @@ public class GetTest {
         session = Zenoh.open(Config.loadDefault());
         selector = Selector.tryFrom("example/testing/keyexpr");
         queryable = session.declareQueryable(selector.getKeyExpr(), new QueryableCallbackConfig(query ->
-            {
-                try {
-                    query.reply(query.getKeyExpr(), payload, new ReplyConfig().timestamp(timestamp));
-                } catch (ZError e) {
-                    throw new RuntimeException(e);
-                }
+        {
+            try {
+                query.reply(query.getKeyExpr(), payload, new ReplyConfig().timestamp(timestamp));
+            } catch (ZError e) {
+                throw new RuntimeException(e);
             }
+        }
         ));
     }
 
@@ -53,12 +53,10 @@ public class GetTest {
     }
 
     @Test
-    public void get_runsWithCallbackTest() throws ZError {
+    public void get_runsWithCallbackTest() {
         Reply[] reply = new Reply[1];
 
-        session.get(selector).callback( reply1 -> {
-            reply[0] = reply1;
-        }).timeout(Duration.ofMillis(1000)).res();
+        session.get(selector, reply1 -> reply[0] = reply1, new GetConfig().timeout(Duration.ofMillis(1000)));
 
         assertNotNull(reply[0]);
         Sample sample = ((Reply.Success) reply[0]).getSample();
@@ -70,7 +68,7 @@ public class GetTest {
 
     @Test
     public void get_runsWithHandlerTest() throws ZError {
-        ArrayList<Reply> receiver = session.get(selector).with(new TestHandler()).timeout(Duration.ofMillis(1000)).res();
+        ArrayList<Reply> receiver = session.get(selector, new TestHandler(), new GetConfig().timeout(Duration.ofMillis(1000)));
         for (Reply reply : receiver) {
             Sample sample = ((Reply.Success) reply).getSample();
             assertEquals(payload, sample.getPayload());
@@ -88,7 +86,7 @@ public class GetTest {
 
         Parameters params = Parameters.from("arg1=val1&arg2=val2&arg3");
         Selector selectorWithParams = new Selector(selector.getKeyExpr(), params);
-        session.get(selectorWithParams).timeout(Duration.ofMillis(1000)).res();
+        session.get(selectorWithParams, new GetConfig().timeout(Duration.ofMillis(1000)));
 
         queryable.close();
 

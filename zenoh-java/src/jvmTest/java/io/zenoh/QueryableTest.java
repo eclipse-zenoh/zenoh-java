@@ -74,7 +74,7 @@ public class QueryableTest {
         ));
 
         Reply[] reply = new Reply[1];
-        session.get(testKeyExpr.into()).callback(reply1 -> reply[0] = reply1).timeout(Duration.ofMillis(1000)).res();
+        session.get(testKeyExpr.into(), reply1 -> reply[0] = reply1, new GetConfig().timeout(Duration.ofMillis(1000)));
 
         assertNotNull(reply[0]);
         Sample receivedSample = ((Reply.Success) reply[0]).getSample();
@@ -90,7 +90,7 @@ public class QueryableTest {
         Thread.sleep(500);
 
         Reply[] reply = new Reply[1];
-        session.get(testKeyExpr.into()).callback(reply1 -> reply[0] = reply1).res();
+        session.get(testKeyExpr.into(), reply1 -> reply[0] = reply1, new GetConfig());
 
         Thread.sleep(500);
 
@@ -104,7 +104,7 @@ public class QueryableTest {
         var config = new QueryableCallbackConfig(query -> receivedQuery[0] = query);
         var queryable = session.declareQueryable(testKeyExpr, config);
 
-        session.get(testKeyExpr).res();
+        session.get(testKeyExpr);
 
         Thread.sleep(100);
 
@@ -117,8 +117,7 @@ public class QueryableTest {
         receivedQuery[0] = null;
         var payload = ZBytes.from("Test value");
         var attachment = ZBytes.from("Attachment");
-        session.get(testKeyExpr).callback(reply -> {
-        }).payload(payload).encoding(Encoding.ZENOH_STRING).attachment(attachment).res();
+        session.get(testKeyExpr, new GetConfig().payload(payload).encoding(Encoding.ZENOH_STRING).attachment(attachment));
 
         Thread.sleep(100);
 
@@ -150,7 +149,7 @@ public class QueryableTest {
         Queryable<Void> queryable = session.declareQueryable(testKeyExpr, config);
 
         Reply[] receivedReply = new Reply[1];
-        session.get(testKeyExpr).callback(reply -> receivedReply[0] = reply).timeout(Duration.ofMillis(10)).res();
+        session.get(testKeyExpr, reply -> receivedReply[0] = reply, new GetConfig().timeout(Duration.ofMillis(10)));
 
         queryable.close();
 
@@ -180,7 +179,7 @@ public class QueryableTest {
         ));
 
         Reply[] receivedReply = new Reply[1];
-        session.get(testKeyExpr).callback(reply -> receivedReply[0] = reply).timeout(Duration.ofMillis(10)).res();
+        session.get(testKeyExpr, reply -> receivedReply[0] = reply, new GetConfig().timeout(Duration.ofMillis(10)));
 
         Thread.sleep(1000);
         queryable.close();
@@ -207,7 +206,7 @@ public class QueryableTest {
         }));
 
         Reply[] receivedReply = new Reply[1];
-        session.get(testKeyExpr).callback(reply -> receivedReply[0] = reply).timeout(Duration.ofMillis(10)).res();
+        session.get(testKeyExpr, reply -> receivedReply[0] = reply, new GetConfig().timeout(Duration.ofMillis(10)));
 
         Thread.sleep(1000);
         queryable.close();

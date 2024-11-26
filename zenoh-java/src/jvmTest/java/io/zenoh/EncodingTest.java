@@ -88,10 +88,10 @@ public class EncodingTest {
 
         // Testing with null schema on a reply success scenario.
         Sample[] receivedSample = new Sample[1];
-        session.get(test1).callback(reply -> {
+        session.get(test1, reply -> {
             assertTrue(reply instanceof Reply.Success);
             receivedSample[0] = ((Reply.Success) reply).getSample();
-        }).res();
+        });
         Thread.sleep(200);
 
         assertNotNull(receivedSample[0]);
@@ -99,10 +99,10 @@ public class EncodingTest {
 
         // Testing with non-null schema on a reply success scenario.
         receivedSample[0] = null;
-        session.get(test2).callback(reply -> {
+        session.get(test2, reply -> {
             assertTrue(reply instanceof Reply.Success);
             receivedSample[0] = ((Reply.Success) reply).getSample();
-        }).res();
+        });
         Thread.sleep(200);
 
         assertNotNull(receivedSample[0]);
@@ -137,14 +137,14 @@ public class EncodingTest {
         // Testing with null schema on a reply error scenario.
         ZBytes[] errorMessage = new ZBytes[1];
         Encoding[] errorEncoding = new Encoding[1];
-        session.get(test1).callback(reply ->
+        session.get(test1, reply ->
             {
                 assertTrue(reply instanceof Reply.Error);
                 Reply.Error reply1 = (Reply.Error) reply;
                 errorMessage[0] = reply1.getError();
                 errorEncoding[0] = reply1.getEncoding();
             }
-        ).res();
+        );
         Thread.sleep(200);
 
         assertNotNull(errorMessage[0]);
@@ -155,13 +155,13 @@ public class EncodingTest {
         // Testing with non-null schema on a reply error scenario.
         errorMessage[0] = null;
         errorEncoding[0] = null;
-        session.get(test2).callback(reply ->
+        session.get(test2, reply ->
         {
                 assertTrue(reply instanceof Reply.Error);
                 Reply.Error error = (Reply.Error) reply;
                 errorMessage[0] = error.getError();
                 errorEncoding[0] = error.getEncoding();
-        }).res();
+        });
         Thread.sleep(200);
 
         assertNotNull(errorMessage[0]);
@@ -185,7 +185,7 @@ public class EncodingTest {
         }));
 
         // Testing with null schema
-        session.get(selector).callback(reply -> {}).payload(payload).encoding(without_schema).res();
+        session.get(selector, new GetConfig().payload(payload).encoding(without_schema));
         Thread.sleep(200);
 
         assertEquals(receivedEncoding[0], without_schema);
@@ -194,7 +194,7 @@ public class EncodingTest {
 
         // Testing non-null schema
         receivedEncoding[0] = null;
-        session.get(selector).callback(reply -> {}).payload(payload).encoding(with_schema).res();
+        session.get(selector, new GetConfig().payload(payload).encoding(with_schema));
         Thread.sleep(200);
 
         assertEquals(receivedEncoding[0], with_schema);

@@ -14,12 +14,12 @@
 
 package io.zenoh
 
-import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.config.ZenohId
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
+import io.zenoh.handlers.Handler
 import io.zenoh.jni.JNISession
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.pubsub.*
@@ -27,10 +27,8 @@ import io.zenoh.query.*
 import io.zenoh.query.Query
 import io.zenoh.query.Queryable
 import io.zenoh.sample.Sample
-import io.zenoh.query.Selector
 import io.zenoh.session.SessionDeclaration
 import io.zenoh.session.SessionInfo
-import java.time.Duration
 import java.util.*
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.LinkedBlockingDeque
@@ -120,7 +118,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @Throws(ZError::class)
     fun declareSubscriber(keyExpr: KeyExpr): Subscriber<BlockingQueue<Optional<Sample>>> {
-        return resolveSubscriberWithHandler(keyExpr, SubscriberHandlerConfig(BlockingQueueHandler(LinkedBlockingDeque())))
+        return resolveSubscriberWithHandler(
+            keyExpr,
+            SubscriberHandlerConfig(BlockingQueueHandler(LinkedBlockingDeque()))
+        )
     }
 
     /**
@@ -221,12 +222,56 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * ```java
      * TODO: provide example
      * ```
-     *
-     * @param selector The [KeyExpr] to be used for the get operation.
-     * @return a resolvable [Get.Builder] with a [BlockingQueue] receiver.
      */
-    fun get(selector: IntoSelector): Get.Builder<BlockingQueue<Optional<Reply>>> = Get.newBuilder(this, selector.into())
+    fun get(selector: IntoSelector): BlockingQueue<Optional<Reply>> {
+        val handler = BlockingQueueHandler<Reply>(LinkedBlockingDeque())
+        val config = GetConfig()
+        return resolveGetWithHandler(
+            selector,
+            handler,
+            config
+        )
+    }
 
+    /**
+     * TODO
+     */
+    fun get(selector: IntoSelector, config: GetConfig): BlockingQueue<Optional<Reply>> {
+        val handler = BlockingQueueHandler<Reply>(LinkedBlockingDeque())
+        return resolveGetWithHandler(
+            selector,
+            handler,
+            config
+        )
+    }
+
+    /**
+     * TODO
+     */
+    fun <R> get(selector: IntoSelector, handler: Handler<Reply, R>): R {
+        return resolveGetWithHandler(selector, handler, GetConfig())
+    }
+
+    /**
+     * TODO
+     */
+    fun <R> get(selector: IntoSelector, handler: Handler<Reply, R>, config: GetConfig): R {
+        return resolveGetWithHandler(selector, handler, config)
+    }
+
+    /**
+     * TODO
+     */
+    fun get(selector: IntoSelector, callback: Callback<Reply>) {
+        return resolveGetWithCallback(selector, callback, GetConfig())
+    }
+
+    /**
+     * TODO
+     */
+    fun get(selector: IntoSelector, callback: Callback<Reply>, config: GetConfig) {
+        return resolveGetWithCallback(selector, callback, config)
+    }
 
     /**
      * Declare a [Put] with the provided value on the specified key expression.
@@ -274,7 +319,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
             val publisher = declarePublisher(keyExpr, config)
             declarations.add(publisher)
             publisher
-        } ?: throw(sessionClosedException)
+        } ?: throw (sessionClosedException)
     }
 
     @Throws(ZError::class)
@@ -322,22 +367,29 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     @Throws(ZError::class)
-    internal fun <R> resolveGet(
-        selector: Selector,
+    internal fun <R> resolveGetWithHandler(
+        selector: IntoSelector,
+        handler: Handler<Reply, R>,
+        config: GetConfig
+    ): R {
+        return jniSession?.performGetWithHandler(
+            selector,
+            handler,
+            config
+        ) ?: throw sessionClosedException
+    }
+
+    @Throws(ZError::class)
+    internal fun resolveGetWithCallback(
+        selector: IntoSelector,
         callback: Callback<Reply>,
-        onClose: () -> Unit,
-        receiver: R?,
-        timeout: Duration,
-        target: QueryTarget,
-        consolidation: ConsolidationMode,
-        payload: IntoZBytes?,
-        encoding: Encoding?,
-        attachment: IntoZBytes?,
-    ): R? {
-        if (jniSession == null) {
-            throw sessionClosedException
-        }
-        return jniSession?.performGet(selector, callback, onClose, receiver, timeout, target, consolidation, payload, encoding, attachment)
+        config: GetConfig
+    ) {
+        return jniSession?.performGetWithCallback(
+            selector,
+            callback,
+            config
+        ) ?: throw sessionClosedException
     }
 
     @Throws(ZError::class)

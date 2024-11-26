@@ -20,6 +20,7 @@ import io.zenoh.bytes.ZBytes;
 import io.zenoh.pubsub.PutConfig;
 import io.zenoh.pubsub.Subscriber;
 import io.zenoh.pubsub.SubscriberCallbackConfig;
+import io.zenoh.query.GetConfig;
 import io.zenoh.query.QueryableCallbackConfig;
 import io.zenoh.query.Reply;
 import io.zenoh.query.ReplyConfig;
@@ -153,7 +154,7 @@ public class UserAttachmentTest {
             }
         }));
 
-        session.get(keyExpr).callback(reply -> {}).attachment(attachment).timeout(Duration.ofMillis(1000)).res();
+        session.get(keyExpr, new GetConfig().attachment(attachment).timeout(Duration.ofMillis(1000)));
 
         queryable.close();
 
@@ -172,7 +173,7 @@ public class UserAttachmentTest {
             }
         }));
 
-        session.get(keyExpr).callback(reply1 -> reply[0] = reply1).attachment(attachment).timeout(Duration.ofMillis(1000)).res();
+        session.get(keyExpr, reply1 -> reply[0] = reply1, new GetConfig().attachment(attachment).timeout(Duration.ofMillis(1000)));
 
         queryable.close();
 
@@ -192,7 +193,7 @@ public class UserAttachmentTest {
                 throw new RuntimeException(e);
             }
         }));
-        session.get(keyExpr).callback(reply1 -> reply[0] = reply1).timeout(Duration.ofMillis(1000)).res();
+        session.get(keyExpr, reply1 -> reply[0] = reply1, new GetConfig().timeout(Duration.ofMillis(1000)));
 
         queryable.close();
 

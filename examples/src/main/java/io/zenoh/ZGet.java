@@ -28,8 +28,7 @@ public class ZGet {
         try (Session session = Zenoh.open(Config.loadDefault())) {
             try (Selector selector = Selector.tryFrom("demo/example/**")) {
                 System.out.println("Performing Get on '" + selector + "'...");
-                BlockingQueue<Optional<Reply>> receiver = session.get(selector).res();
-                assert receiver != null;
+                BlockingQueue<Optional<Reply>> receiver = session.get(selector);
                 while (true) {
                     Optional<Reply> wrapper = receiver.take();
                     if (wrapper.isEmpty()) {
