@@ -17,7 +17,6 @@ package io.zenoh;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Subscriber;
-import io.zenoh.pubsub.SubscriberCallbackConfig;
 
 public class ZSubThr {
 
@@ -62,7 +61,7 @@ public class ZSubThr {
         System.out.println("Opening Session");
         try (Session session = Zenoh.open(Config.loadDefault())) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom("test/thr")) {
-                try (Subscriber<Void> subscriber = session.declareSubscriber(keyExpr, new SubscriberCallbackConfig(sample -> listener()))) {
+                try (Subscriber<Void> subscriber = session.declareSubscriber(keyExpr, sample -> listener())) {
                     System.out.println("Press CTRL-C to quit...");
                     while (true) {
                         Thread.sleep(1000);

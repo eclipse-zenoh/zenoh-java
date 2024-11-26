@@ -20,7 +20,6 @@ import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.PutConfig;
 import io.zenoh.pubsub.Subscriber;
-import io.zenoh.pubsub.SubscriberCallbackConfig;
 import io.zenoh.query.*;
 import io.zenoh.sample.Sample;
 import org.junit.Test;
@@ -45,7 +44,7 @@ public class EncodingTest {
         Sample[] receivedSample = new Sample[1];
 
         Subscriber<Void> subscriber =
-                session.declareSubscriber(keyExpr, new SubscriberCallbackConfig(sample -> receivedSample[0] = sample));
+                session.declareSubscriber(keyExpr, sample -> receivedSample[0] = sample);
 
         session.put(keyExpr, payload, new PutConfig().encoding(with_schema));
         Thread.sleep(200);

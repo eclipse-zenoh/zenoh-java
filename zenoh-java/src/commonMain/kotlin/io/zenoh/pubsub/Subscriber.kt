@@ -14,15 +14,10 @@
 
 package io.zenoh.pubsub
 
-import io.zenoh.*
-import io.zenoh.handlers.Callback
 import io.zenoh.handlers.BlockingQueueHandler
-import io.zenoh.handlers.Handler
 import io.zenoh.jni.JNISubscriber
 import io.zenoh.keyexpr.KeyExpr
-import io.zenoh.sample.Sample
 import io.zenoh.session.SessionDeclaration
-import java.util.*
 
 /**
  * A subscriber that allows listening to updates on a key expression and reacting to changes.
@@ -55,18 +50,7 @@ class Subscriber<R> internal constructor(
     }
 }
 
-data class SubscriberCallbackConfig(
-    var callback: Callback<Sample>
-) {
-    var onClose: Runnable? = null
-
-    fun onClose(onClose: Runnable) = apply { this.onClose = onClose }
-}
-
-data class SubscriberHandlerConfig<R>(
-    var handler: Handler<Sample, R>? = null,
-) {
-    var onClose: Runnable? = null
+data class SubscriberConfig(var onClose: Runnable? = null) {
 
     fun onClose(onClose: Runnable) = apply { this.onClose = onClose }
 }

@@ -20,7 +20,6 @@ import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.PutConfig;
 import io.zenoh.pubsub.Subscriber;
-import io.zenoh.pubsub.SubscriberCallbackConfig;
 import io.zenoh.sample.Sample;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -42,7 +41,7 @@ public class PutTest {
         var keyExpr = KeyExpr.tryFrom(TEST_KEY_EXP);
 
         Subscriber<Void> subscriber =
-                session.declareSubscriber(keyExpr, new SubscriberCallbackConfig(sample -> receivedSample[0] = sample));
+                session.declareSubscriber(keyExpr, sample -> receivedSample[0] = sample);
 
         session.put(keyExpr, TEST_PAYLOAD, new PutConfig().encoding(Encoding.TEXT_PLAIN));
         subscriber.close();

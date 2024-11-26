@@ -81,7 +81,7 @@ internal class JNISession {
 
     @Throws(ZError::class)
     fun <R> declareSubscriberWithHandler(
-        keyExpr: KeyExpr, config: SubscriberHandlerConfig<R>
+        keyExpr: KeyExpr, handler: Handler<Sample, R>, config: SubscriberConfig
     ): Subscriber<R> {
         val subCallback =
             JNISubscriberCallback { keyExpr1, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
@@ -95,20 +95,20 @@ internal class JNISession {
                     QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
                     attachmentBytes?.into()
                 )
-                config.handler?.handle(sample)
+                handler.handle(sample)
             }
         val subscriberRawPtr = declareSubscriberViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr.get(), subCallback, fun() {
-                config.handler?.onClose()
+                handler.onClose()
                 config.onClose?.run()
             }
         )
-        return Subscriber(keyExpr, config.handler?.receiver(), JNISubscriber(subscriberRawPtr))
+        return Subscriber(keyExpr, handler.receiver(), JNISubscriber(subscriberRawPtr))
     }
 
     @Throws(ZError::class)
     fun declareSubscriberWithCallback(
-        keyExpr: KeyExpr, config: SubscriberCallbackConfig
+        keyExpr: KeyExpr, callback: Callback<Sample>, config: SubscriberConfig
     ): Subscriber<Void> {
         val subCallback =
             JNISubscriberCallback { keyExpr1, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
@@ -122,7 +122,7 @@ internal class JNISession {
                     QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
                     attachmentBytes?.into()
                 )
-                config.callback.run(sample)
+                callback.run(sample)
             }
         val subscriberRawPtr = declareSubscriberViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
