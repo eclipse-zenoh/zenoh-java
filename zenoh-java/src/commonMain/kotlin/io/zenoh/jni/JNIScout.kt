@@ -39,7 +39,7 @@ internal class JNIScout(private val ptr: Long) {
         }
 
         @Throws(ZError::class)
-        fun <R> scout(
+        fun <R> scoutWithHandler(
             whatAmI: Set<WhatAmI>,
             callback: Callback<Hello>,
             onClose: () -> Unit,
@@ -52,6 +52,20 @@ internal class JNIScout(private val ptr: Long) {
             val binaryWhatAmI: Int = whatAmI.map { it.value }.reduce { acc, it -> acc or it }
             val ptr = scoutViaJNI(binaryWhatAmI, scoutCallback, onClose,config?.jniConfig?.ptr ?: 0)
             return Scout(receiver, JNIScout(ptr))
+        }
+
+        @Throws(ZError::class)
+        fun scoutWithCallback(
+            whatAmI: Set<WhatAmI>,
+            callback: Callback<Hello>,
+            config: Config?,
+        ): Scout<Void> {
+            val scoutCallback = JNIScoutCallback { whatAmI2: Int, id: ByteArray, locators: List<String> ->
+                callback.run(Hello(WhatAmI.fromInt(whatAmI2), ZenohId(id), locators))
+            }
+            val binaryWhatAmI: Int = whatAmI.map { it.value }.reduce { acc, it -> acc or it }
+            val ptr = scoutViaJNI(binaryWhatAmI, scoutCallback, fun() {},config?.jniConfig?.ptr ?: 0)
+            return Scout(null, JNIScout(ptr))
         }
 
         @Throws(ZError::class)

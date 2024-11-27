@@ -19,7 +19,10 @@ import io.zenoh.scouting.Hello
 import io.zenoh.scouting.Scout
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.BlockingQueueHandler
-import io.zenoh.scouting.ScoutBuilder
+import io.zenoh.handlers.Callback
+import io.zenoh.handlers.Handler
+import io.zenoh.jni.JNIScout
+import io.zenoh.scouting.ScoutConfig
 import java.util.*
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.LinkedBlockingDeque
@@ -45,8 +48,54 @@ object Zenoh {
      * Drop the returned Scout to stop the scouting task or explicitly call [Scout.stop] or [Scout.close].
      */
     @JvmStatic
-    fun scoutBuilder(): ScoutBuilder<BlockingQueue<Optional<Hello>>> {
-        return ScoutBuilder(handler = BlockingQueueHandler(queue = LinkedBlockingDeque()))
+    fun scout(): Scout<BlockingQueue<Optional<Hello>>> {
+        val scoutConfig = ScoutConfig()
+        val handler = BlockingQueueHandler(LinkedBlockingDeque<Optional<Hello>>())
+        return JNIScout.scoutWithHandler(
+            scoutConfig.whatAmI, handler::handle, fun() { handler.onClose() },
+            receiver = handler.receiver(), config = scoutConfig.config
+        )
+    }
+
+    @JvmStatic
+    fun scout(scoutConfig: ScoutConfig): Scout<BlockingQueue<Optional<Hello>>> {
+        val handler = BlockingQueueHandler(LinkedBlockingDeque<Optional<Hello>>())
+        return JNIScout.scoutWithHandler(
+            scoutConfig.whatAmI, handler::handle, fun() { handler.onClose() },
+            receiver = handler.receiver(), config = scoutConfig.config
+        )
+    }
+
+    @JvmStatic
+    fun <R> scout(handler: Handler<Hello, R>): Scout<R> {
+        val scoutConfig = ScoutConfig()
+        return JNIScout.scoutWithHandler(
+            scoutConfig.whatAmI, handler::handle, fun() { handler.onClose() },
+            receiver = handler.receiver(), config = scoutConfig.config
+        )
+    }
+
+    @JvmStatic
+    fun <R> scout(handler: Handler<Hello, R>, scoutConfig: ScoutConfig): Scout<R> {
+        return JNIScout.scoutWithHandler(
+            scoutConfig.whatAmI, handler::handle, fun() { handler.onClose() },
+            receiver = handler.receiver(), config = scoutConfig.config
+        )
+    }
+
+    @JvmStatic
+    fun scout(callback: Callback<Hello>): Scout<Void> {
+        val scoutConfig = ScoutConfig()
+        return JNIScout.scoutWithCallback(
+            scoutConfig.whatAmI, callback, config = scoutConfig.config
+        )
+    }
+
+    @JvmStatic
+    fun scout(callback: Callback<Hello>, scoutConfig: ScoutConfig): Scout<Void> {
+        return JNIScout.scoutWithCallback(
+            scoutConfig.whatAmI, callback, config = scoutConfig.config
+        )
     }
 
     /**

@@ -18,6 +18,7 @@ import io.zenoh.config.WhatAmI;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.scouting.Hello;
 import io.zenoh.scouting.Scout;
+import io.zenoh.scouting.ScoutConfig;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -39,7 +40,7 @@ public class ScoutTest {
 
         Thread.sleep(1000);
 
-        Scout<BlockingQueue<Optional<Hello>>> scout = Zenoh.scoutBuilder().res();
+        Scout<BlockingQueue<Optional<Hello>>> scout = Zenoh.scout();
 
         Thread.sleep(1000);
         scout.close();
@@ -52,6 +53,7 @@ public class ScoutTest {
             assertTrue(helloList.get(i).isPresent());
         }
         assertTrue(helloList.get(helloList.size() - 1).isEmpty());
+        session.close();
     }
 
     @Test
@@ -59,7 +61,7 @@ public class ScoutTest {
         Session session = Zenoh.open(Config.loadDefault());
 
         Hello[] hello = new Hello[1];
-        Zenoh.scoutBuilder().callback(hello1 -> hello[0] = hello1).res();
+        Zenoh.scout(hello1 -> hello[0] = hello1);
 
         Thread.sleep(1000);
 
@@ -69,13 +71,13 @@ public class ScoutTest {
 
     @Test
     public void scouting_whatAmITest() {
-        var scout = Zenoh.scoutBuilder().whatAmI(Set.of(WhatAmI.Client, WhatAmI.Peer)).res();
+        var scout = Zenoh.scout(new ScoutConfig().whatAmI(Set.of(WhatAmI.Client, WhatAmI.Peer)));
         scout.close();
     }
 
     @Test
     public void scouting_onCloseTest() {
-        Scout<BlockingQueue<Optional<Hello>>> scout = Zenoh.scoutBuilder().res();
+        Scout<BlockingQueue<Optional<Hello>>> scout = Zenoh.scout();
         var receiver = scout.getReceiver();
 
         scout.close();

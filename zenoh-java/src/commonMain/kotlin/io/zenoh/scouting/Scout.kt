@@ -33,7 +33,7 @@ import io.zenoh.jni.JNIScout
  * @param receiver Receiver to handle incoming hello messages.
  */
 class Scout<R> internal constructor(
-    val receiver: R,
+    val receiver: R?,
     private var jniScout: JNIScout?
 ) : AutoCloseable {
 
