@@ -34,7 +34,7 @@ public class ConfigTest {
     private static final String json5ClientConfigString =
             "{\n" +
                     "    mode: \"peer\",\n" +
-                    "    listen: {\n" +
+                    "    connect: {\n" +
                     "        endpoints: [\"tcp/localhost:7450\"]\n" +
                     "    },\n" +
                     "    scouting: {\n" +
