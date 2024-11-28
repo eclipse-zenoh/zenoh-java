@@ -22,6 +22,7 @@ import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
 import io.zenoh.jni.JNISession
 import io.zenoh.keyexpr.KeyExpr
+import io.zenoh.liveliness.Liveliness
 import io.zenoh.pubsub.*
 import io.zenoh.query.*
 import io.zenoh.query.Query
@@ -50,13 +51,13 @@ import java.util.concurrent.LinkedBlockingDeque
  */
 class Session private constructor(private val config: Config) : AutoCloseable {
 
-    private var jniSession: JNISession? = JNISession()
+    internal var jniSession: JNISession? = JNISession()
 
     private var declarations = mutableListOf<SessionDeclaration>()
 
     companion object {
 
-        private val sessionClosedException = ZError("Session is closed.")
+        internal val sessionClosedException = ZError("Session is closed.")
 
         /**
          * Open a [Session] with the provided [Config].
@@ -332,6 +333,13 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     fun info(): SessionInfo {
         return SessionInfo(this)
+    }
+
+    /**
+     * Obtain a [Liveliness] instance tied to this Zenoh session.
+     */
+    fun liveliness(): Liveliness {
+        return Liveliness(this)
     }
 
     @Throws(ZError::class)
