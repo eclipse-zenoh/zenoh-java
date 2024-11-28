@@ -23,7 +23,8 @@ internal class Logger {
 
         internal const val LOG_ENV: String = "RUST_LOG"
 
-        fun start(filter: String) = runCatching {
+        @Throws(ZError::class)
+        fun start(filter: String) {
             startLogsViaJNI(filter)
         }
 

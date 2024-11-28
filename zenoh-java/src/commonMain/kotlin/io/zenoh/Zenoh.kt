@@ -127,7 +127,7 @@ object Zenoh {
      * @see Logger
      */
     @JvmStatic
-    fun initLogFromEnvOr(fallbackFilter: String): Result<Unit> = runCatching {
+    fun initLogFromEnvOr(fallbackFilter: String) {
         ZenohLoad
         val logLevelProp = System.getenv(LOG_ENV)
         logLevelProp?.let { Logger.start(it) } ?: Logger.start(fallbackFilter)
