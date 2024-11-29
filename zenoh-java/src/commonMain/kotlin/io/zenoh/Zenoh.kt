@@ -108,6 +108,7 @@ object Zenoh {
      * @see Logger
      */
     @JvmStatic
+    @Throws(ZError::class)
     fun tryInitLogFromEnv() {
         val logEnv = System.getenv(LOG_ENV)
         if (logEnv != null) {
@@ -127,6 +128,7 @@ object Zenoh {
      * @see Logger
      */
     @JvmStatic
+    @Throws(ZError::class)
     fun initLogFromEnvOr(fallbackFilter: String) {
         ZenohLoad
         val logLevelProp = System.getenv(LOG_ENV)
