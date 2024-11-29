@@ -58,7 +58,7 @@ public class SessionTest {
         assertFalse(subscriber.isValid());
         assertFalse(publisher.isValid());
 
-        assertThrows(ZError.class, () -> publisher.put(ZBytes.from("Test")).res());
+        assertThrows(ZError.class, () -> publisher.put(ZBytes.from("Test")));
     }
 
     @Test

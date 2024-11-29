@@ -5,6 +5,7 @@ import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.bytes.Encoding;
 import io.zenoh.pubsub.PublisherConfig;
+import io.zenoh.pubsub.PutConfig;
 import io.zenoh.qos.QoS;
 import io.zenoh.qos.Reliability;
 import io.zenoh.sample.SampleKind;
@@ -64,7 +65,7 @@ public class PublisherTest {
 
         testPayloads.forEach(value -> {
             try {
-                publisher.put(value.getFirst()).encoding(value.getSecond()).res();
+                publisher.put(value.getFirst(), new PutConfig().encoding(value.getSecond()));
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }
@@ -80,14 +81,14 @@ public class PublisherTest {
 
     @Test
     public void deleteTest() throws ZError {
-        publisher.delete().res();
+        publisher.delete();
         assertEquals(1, receivedSamples.size());
         assertEquals(SampleKind.DELETE, receivedSamples.get(0).getKind());
     }
 
     @Test
     public void shouldFallbackToPublisherEncodingWhenEncodingNotProvided() throws ZError {
-        publisher.put(ZBytes.from("Test")).res();
+        publisher.put(ZBytes.from("Test"));
         assertEquals(1, receivedSamples.size());
         assertEquals(Encoding.ZENOH_STRING, receivedSamples.get(0).getEncoding());
     }

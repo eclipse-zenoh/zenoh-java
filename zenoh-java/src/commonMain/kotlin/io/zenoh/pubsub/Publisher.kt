@@ -80,14 +80,22 @@ class Publisher internal constructor(
     fun priority() = qos.priority
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
-    fun put(payload: IntoZBytes) = PutBuilder(jniPublisher, payload, encoding)
+    @JvmOverloads
+    @Throws(ZError::class)
+    fun put(payload: IntoZBytes, config: PutConfig = PutConfig()) {
+        jniPublisher?.put(payload, config.encoding, config.attachment) ?: throw publisherNotValid
+    }
 
     /**
      * Performs a DELETE operation on the specified [keyExpr]
      *
      * @return A [Resolvable] operation.
      */
-    fun delete() = DeleteBuilder(jniPublisher)
+    @JvmOverloads
+    @Throws(ZError::class)
+    fun delete(config: DeleteConfig = DeleteConfig()) {
+        jniPublisher?.delete(config.attachment) ?: throw(publisherNotValid)
+    }
 
     /**
      * Returns `true` if the publisher is still running.
@@ -109,36 +117,6 @@ class Publisher internal constructor(
     protected fun finalize() {
         jniPublisher?.close()
     }
-
-    class PutBuilder internal constructor(
-        private var jniPublisher: JNIPublisher?,
-        val payload: IntoZBytes,
-        var encoding: Encoding? = null,
-        var attachment: IntoZBytes? = null
-    ) {
-
-        fun attachment(attachment: IntoZBytes) = apply { this.attachment = attachment }
-
-        fun encoding(encoding: Encoding) = apply { this.encoding = encoding }
-
-        @Throws(ZError::class)
-        fun res() {
-            jniPublisher?.put(payload, encoding, attachment) ?: throw(publisherNotValid)
-        }
-    }
-
-    class DeleteBuilder internal constructor(
-        private var jniPublisher: JNIPublisher?,
-        var attachment: IntoZBytes? = null
-    ) {
-
-        fun attachment(attachment: IntoZBytes) = apply { this.attachment = attachment }
-
-        @Throws(ZError::class)
-        fun res() {
-            jniPublisher?.delete(attachment) ?: throw(publisherNotValid)
-        }
-    }
 }
 
 /**
@@ -153,4 +131,10 @@ data class PublisherConfig(var reliability: Reliability = Reliability.RELIABLE,
     fun encoding(encoding: Encoding) = apply { this.encoding = encoding }
 
     fun qos(qos: QoS) = apply { this.qos = qos }
+
+    fun congestionControl(congestionControl: CongestionControl) = apply { this.qos.congestionControl = congestionControl }
+
+    fun express(express: Boolean) = apply { this.qos.express = express }
+
+    fun priority(priority: Priority) = apply { this.qos.priority = priority }
 }
