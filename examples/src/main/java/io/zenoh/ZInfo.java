@@ -30,6 +30,30 @@ import static io.zenoh.ConfigKt.loadConfig;
 )
 public class ZInfo implements Callable<Integer> {
 
+
+    @Override
+    public Integer call() throws Exception {
+        Zenoh.initLogFromEnvOr("error");
+
+        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
+
+        System.out.println("Opening session...");
+        try (Session session = Zenoh.open(config)) {
+            SessionInfo info = session.info();
+            System.out.println("zid: " + info.zid());
+            System.out.println("routers zid: " + info.routersZid());
+            System.out.println("peers zid: " + info.peersZid());
+        } catch (ZError e) {
+            System.err.println("Error during Zenoh operation: " + e.getMessage());
+            return 1;
+        }
+        return 0;
+    }
+
+    /**
+     * ----- Example CLI arguments and private fields -----
+     */
+
     private final Boolean emptyArgs;
 
     ZInfo(Boolean emptyArgs) {
@@ -69,25 +93,6 @@ public class ZInfo implements Callable<Integer> {
             defaultValue = "false"
     )
     private boolean noMulticastScouting;
-
-    @Override
-    public Integer call() throws Exception {
-        Zenoh.initLogFromEnvOr("error");
-
-        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
-
-        System.out.println("Opening session...");
-        try (Session session = Zenoh.open(config)) {
-            SessionInfo info = session.info();
-            System.out.println("zid: " + info.zid());
-            System.out.println("routers zid: " + info.routersZid());
-            System.out.println("peers zid: " + info.peersZid());
-        } catch (ZError e) {
-            System.err.println("Error during Zenoh operation: " + e.getMessage());
-            return 1;
-        }
-        return 0;
-    }
 
     public static void main(String[] args) {
         int exitCode = new CommandLine(new ZInfo(args.length == 0)).execute(args);

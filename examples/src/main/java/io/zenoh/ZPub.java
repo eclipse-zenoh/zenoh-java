@@ -14,11 +14,15 @@
 
 package io.zenoh;
 
+import io.zenoh.bytes.Encoding;
 import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Publisher;
+import io.zenoh.pubsub.PublisherConfig;
 import io.zenoh.pubsub.PutConfig;
+import io.zenoh.qos.CongestionControl;
+import io.zenoh.qos.Reliability;
 import picocli.CommandLine;
 
 import java.util.List;
@@ -32,6 +36,50 @@ import static io.zenoh.ConfigKt.loadConfig;
         description = "Zenoh Pub example"
 )
 public class ZPub implements Callable<Integer> {
+
+    @Override
+    public Integer call() throws ZError {
+        Zenoh.initLogFromEnvOr("error");
+        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
+
+        System.out.println("Opening session...");
+        try (Session session = Zenoh.open(config)) {
+            KeyExpr keyExpr = KeyExpr.tryFrom(key);
+            System.out.println("Declaring publisher on '" + keyExpr + "'...");
+
+            // A publisher config can optionally be provided.
+            PublisherConfig publisherConfig = new PublisherConfig()
+                    .encoding(Encoding.ZENOH_STRING)
+                    .congestionControl(CongestionControl.BLOCK)
+                    .reliability(Reliability.RELIABLE);
+
+            // Declare the publisher
+            Publisher publisher = session.declarePublisher(keyExpr, publisherConfig);
+
+            System.out.println("Press CTRL-C to quit...");
+            ZBytes attachmentBytes = attachment != null ? ZBytes.from(attachment) : null;
+            int idx = 0;
+            while (true) {
+                Thread.sleep(1000);
+                String payload = String.format("[%4d] %s", idx, value);
+                System.out.println("Putting Data ('" + keyExpr + "': '" + payload + "')...");
+                if (attachmentBytes != null) {
+                    publisher.put(ZBytes.from(payload), new PutConfig().attachment(attachmentBytes));
+                } else {
+                    publisher.put(ZBytes.from(payload));
+                }
+                idx++;
+            }
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+            return 1;
+        }
+    }
+
+
+    /**
+     * ----- Example CLI arguments and private fields -----
+     */
 
     private final Boolean emptyArgs;
 
@@ -92,37 +140,6 @@ public class ZPub implements Callable<Integer> {
             defaultValue = "false"
     )
     private boolean noMulticastScouting;
-
-    @Override
-    public Integer call() throws ZError {
-        Zenoh.initLogFromEnvOr("error");
-        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
-
-        System.out.println("Opening session...");
-        try (Session session = Zenoh.open(config)) {
-            KeyExpr keyExpr = KeyExpr.tryFrom(key);
-            System.out.println("Declaring publisher on '" + keyExpr + "'...");
-            try (Publisher publisher = session.declarePublisher(keyExpr)) {
-                System.out.println("Press CTRL-C to quit...");
-                ZBytes attachmentBytes = attachment != null ? ZBytes.from(attachment) : null;
-                int idx = 0;
-                while (true) {
-                    Thread.sleep(1000);
-                    String payload = String.format("[%4d] %s", idx, value);
-                    System.out.println("Putting Data ('" + keyExpr + "': '" + payload + "')...");
-                    if (attachmentBytes != null) {
-                        publisher.put(ZBytes.from(payload), new PutConfig().attachment(attachmentBytes));
-                    } else {
-                        publisher.put(ZBytes.from(payload));
-                    }
-                    idx++;
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("Error: " + e.getMessage());
-            return 1;
-        }
-    }
 
     public static void main(String[] args) {
         int exitCode = new CommandLine(new ZPub(args.length == 0)).execute(args);

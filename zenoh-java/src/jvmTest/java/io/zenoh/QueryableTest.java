@@ -59,7 +59,7 @@ public class QueryableTest {
                 null
         );
 
-        var queryable = session.declareQueryable(testKeyExpr, new QueryableCallbackConfig(query ->
+        var queryable = session.declareQueryable(testKeyExpr, query ->
         {
             try {
                 query.reply(testKeyExpr, testPayload, new ReplyConfig()
@@ -70,8 +70,7 @@ public class QueryableTest {
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }
-        }
-        ));
+        });
 
         Reply[] reply = new Reply[1];
         session.get(testKeyExpr.into(), reply1 -> reply[0] = reply1, new GetConfig().timeout(Duration.ofMillis(1000)));
@@ -84,8 +83,7 @@ public class QueryableTest {
 
     @Test
     public void queryableRunsWithHandler() throws ZError, InterruptedException {
-        var config = new QueryableHandlerConfig<>(new QueryHandler());
-        var queryable = session.declareQueryable(testKeyExpr, config);
+        var queryable = session.declareQueryable(testKeyExpr, new QueryHandler());
 
         Thread.sleep(500);
 
@@ -101,8 +99,7 @@ public class QueryableTest {
     @Test
     public void queryTest() throws ZError, InterruptedException {
         Query[] receivedQuery = new Query[1];
-        var config = new QueryableCallbackConfig(query -> receivedQuery[0] = query);
-        var queryable = session.declareQueryable(testKeyExpr, config);
+        var queryable = session.declareQueryable(testKeyExpr, query -> receivedQuery[0] = query);
 
         session.get(testKeyExpr);
 
@@ -134,7 +131,8 @@ public class QueryableTest {
     public void queryReplySuccessTest() throws ZError {
         var message = ZBytes.from("Test message");
         var timestamp = TimeStamp.getCurrentTime();
-        QueryableCallbackConfig config = new QueryableCallbackConfig(query -> {
+
+        Queryable<Void> queryable = session.declareQueryable(testKeyExpr, query -> {
             try {
                 query.reply(testKeyExpr, message, new ReplyConfig()
                         .timestamp(timestamp)
@@ -145,8 +143,6 @@ public class QueryableTest {
                 throw new RuntimeException(e);
             }
         });
-
-        Queryable<Void> queryable = session.declareQueryable(testKeyExpr, config);
 
         Reply[] receivedReply = new Reply[1];
         session.get(testKeyExpr, reply -> receivedReply[0] = reply, new GetConfig().timeout(Duration.ofMillis(10)));
@@ -168,7 +164,7 @@ public class QueryableTest {
     public void queryReplyErrorTest() throws ZError, InterruptedException {
         var errorMessage = ZBytes.from("Error message");
 
-        var queryable = session.declareQueryable(testKeyExpr, new QueryableCallbackConfig(query ->
+        var queryable = session.declareQueryable(testKeyExpr, query ->
         {
             try {
                 query.replyErr(errorMessage);
@@ -176,7 +172,7 @@ public class QueryableTest {
                 throw new RuntimeException(e);
             }
         }
-        ));
+        );
 
         Reply[] receivedReply = new Reply[1];
         session.get(testKeyExpr, reply -> receivedReply[0] = reply, new GetConfig().timeout(Duration.ofMillis(10)));
@@ -195,7 +191,7 @@ public class QueryableTest {
     public void queryReplyDeleteTest() throws ZError, InterruptedException {
         var timestamp = TimeStamp.getCurrentTime();
 
-        var queryable = session.declareQueryable(testKeyExpr, new QueryableCallbackConfig(query -> {
+        var queryable = session.declareQueryable(testKeyExpr, query -> {
             try {
                 var config = new ReplyDelConfig();
                 config.setTimeStamp(timestamp);
@@ -203,7 +199,7 @@ public class QueryableTest {
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }
-        }));
+        });
 
         Reply[] receivedReply = new Reply[1];
         session.get(testKeyExpr, reply -> receivedReply[0] = reply, new GetConfig().timeout(Duration.ofMillis(10)));
@@ -222,8 +218,7 @@ public class QueryableTest {
     @Test
     public void onCloseTest() throws InterruptedException, ZError {
         AtomicReference<Boolean> onCloseWasCalled = new AtomicReference<>(false);
-        var queryable = session.declareQueryable(testKeyExpr, new QueryableCallbackConfig(query -> {
-        }).onClose(() -> onCloseWasCalled.set(true)));
+        var queryable = session.declareQueryable(testKeyExpr, new QueryableConfig().onClose(() -> onCloseWasCalled.set(true)));
         queryable.undeclare();
 
         Thread.sleep(1000);

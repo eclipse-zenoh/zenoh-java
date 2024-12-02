@@ -21,7 +21,6 @@ import io.zenoh.pubsub.DeleteConfig;
 import io.zenoh.pubsub.PutConfig;
 import io.zenoh.pubsub.Subscriber;
 import io.zenoh.query.GetConfig;
-import io.zenoh.query.QueryableCallbackConfig;
 import io.zenoh.query.Reply;
 import io.zenoh.query.ReplyConfig;
 import io.zenoh.sample.Sample;
@@ -145,14 +144,14 @@ public class UserAttachmentTest {
     @Test
     public void queryWithAttachmentTest() throws ZError {
         ZBytes[] receivedAttachment = new ZBytes[1];
-        var queryable = session.declareQueryable(keyExpr, new QueryableCallbackConfig(query -> {
+        var queryable = session.declareQueryable(keyExpr, query -> {
             receivedAttachment[0] = query.getAttachment();
             try {
                 query.reply(keyExpr, payload);
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }
-        }));
+        });
 
         session.get(keyExpr, new GetConfig().attachment(attachment).timeout(Duration.ofMillis(1000)));
 
@@ -165,13 +164,13 @@ public class UserAttachmentTest {
     @Test
     public void queryReplyWithAttachmentTest() throws ZError {
         Reply[] reply = new Reply[1];
-        var queryable = session.declareQueryable(keyExpr, new QueryableCallbackConfig(query -> {
+        var queryable = session.declareQueryable(keyExpr, query -> {
             try {
                 query.reply(keyExpr, payload, new ReplyConfig().attachment(attachment));
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }
-        }));
+        });
 
         session.get(keyExpr, reply1 -> reply[0] = reply1, new GetConfig().attachment(attachment).timeout(Duration.ofMillis(1000)));
 
@@ -186,13 +185,13 @@ public class UserAttachmentTest {
     @Test
     public void queryReplyWithoutAttachmentTest() throws ZError {
         Reply[] reply = new Reply[1];
-        var queryable = session.declareQueryable(keyExpr, new QueryableCallbackConfig(query -> {
+        var queryable = session.declareQueryable(keyExpr, query -> {
             try {
                 query.reply(keyExpr, payload);
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }
-        }));
+        });
         session.get(keyExpr, reply1 -> reply[0] = reply1, new GetConfig().timeout(Duration.ofMillis(1000)));
 
         queryable.close();

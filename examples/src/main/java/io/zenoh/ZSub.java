@@ -15,13 +15,16 @@
 package io.zenoh;
 
 import io.zenoh.exceptions.ZError;
+import io.zenoh.handlers.Handler;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Subscriber;
+import io.zenoh.pubsub.SubscriberConfig;
 import io.zenoh.sample.Sample;
 import picocli.CommandLine;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 
@@ -33,6 +36,76 @@ import static io.zenoh.ConfigKt.loadConfig;
         description = "Zenoh Sub example"
 )
 public class ZSub implements Callable<Integer> {
+
+    @Override
+    public Integer call() throws Exception {
+        Zenoh.initLogFromEnvOr("error");
+
+        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
+        KeyExpr keyExpr = KeyExpr.tryFrom(this.key);
+
+        // Subscribers can be declared in different ways.
+        // Uncomment one of the lines below to try out different implementations:
+        subscribeWithBlockingQueue(config, keyExpr);
+        // subscribeWithCallback(config, keyExpr);
+        // subscribeWithHandler(config, keyExpr);
+
+        return 0;
+    }
+
+    /**
+     * Default implementation using a blocking queue to handle incoming samples.
+     */
+    private void subscribeWithBlockingQueue(Config config, KeyExpr keyExpr) throws ZError, InterruptedException {
+        try (Session session = Zenoh.open(config)) {
+            try (Subscriber<BlockingQueue<Optional<Sample>>> subscriber = session.declareSubscriber(keyExpr)) {
+                BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
+                assert receiver != null;
+                while (true) {
+                    Optional<Sample> wrapper = receiver.take();
+                    if (wrapper.isEmpty()) {
+                        break;
+                    }
+                    handleSample(wrapper.get());
+                }
+            }
+        }
+    }
+
+    /**
+     * Example using a callback to handle incoming samples asynchronously.
+     * @see io.zenoh.handlers.Callback
+     */
+    private void subscribeWithCallback(Config config, KeyExpr keyExpr) throws ZError {
+        try (Session session = Zenoh.open(config)) {
+            session.declareSubscriber(keyExpr, this::handleSample);
+        }
+    }
+
+    /**
+     * Example using a custom implementation of the Handler.
+     * @see QueueHandler
+     * @see Handler
+     */
+    private void subscribeWithHandler(Config config, KeyExpr keyExpr) throws ZError {
+        try (Session session = Zenoh.open(config)) {
+            QueueHandler<Sample> queueHandler = new QueueHandler<>();
+            session.declareSubscriber(keyExpr, queueHandler);
+        }
+    }
+
+    /**
+     * Handles a single Sample and prints relevant information.
+     */
+    private void handleSample(Sample sample) {
+        String attachment = sample.getAttachment() != null ? ", with attachment: " + sample.getAttachment() : "";
+        System.out.println(">> [Subscriber] Received " + sample.getKind() +
+                " ('" + sample.getKeyExpr() + "': '" + sample.getPayload() + "'" + attachment + ")");
+    }
+
+    /**
+     * ----- Example arguments and private fields -----
+     */
 
     private final Boolean emptyArgs;
 
@@ -80,40 +153,6 @@ public class ZSub implements Callable<Integer> {
             defaultValue = "false"
     )
     private boolean noMulticastScouting;
-
-    @Override
-    public Integer call() throws Exception {
-        Zenoh.initLogFromEnvOr("error");
-
-        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
-
-        System.out.println("Opening session...");
-        try (Session session = Zenoh.open(config)) {
-            KeyExpr keyExpr = KeyExpr.tryFrom(key);
-            System.out.println("Declaring Subscriber on '" + keyExpr + "'...");
-            try (Subscriber<BlockingQueue<Optional<Sample>>> subscriber = session.declareSubscriber(keyExpr)) {
-                BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
-                assert receiver != null;
-                System.out.println("Press CTRL-C to quit...");
-                while (true) {
-                    Optional<Sample> wrapper = receiver.take();
-                    if (wrapper.isEmpty()) {
-                        break;
-                    }
-                    Sample sample = wrapper.get();
-                    String attachment = sample.getAttachment() != null ? ", with attachment: " + sample.getAttachment() : "";
-                    System.out.println(">> [Subscriber] Received " + sample.getKind() +
-                            " ('" + sample.getKeyExpr() + "': '" + sample.getPayload() + "'" + attachment + ")");
-                }
-            }
-
-        } catch (ZError e) {
-            System.err.println("Error during Zenoh operation: " + e.getMessage());
-            return 1;
-        }
-
-        return 0;
-    }
 
     public static void main(String[] args) {
         int exitCode = new CommandLine(new ZSub(args.length == 0)).execute(args);

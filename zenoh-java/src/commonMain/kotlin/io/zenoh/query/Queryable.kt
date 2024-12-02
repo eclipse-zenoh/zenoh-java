@@ -93,25 +93,10 @@ class Queryable<R> internal constructor(
 /**
  * TODO: add doc
  */
-data class QueryableCallbackConfig(
-    var callback: Callback<Query>,
-) {
-    var complete: Boolean = false
+data class QueryableConfig(
+    var complete: Boolean = false,
     var onClose: Runnable? = null
-
-    fun complete(complete: Boolean) = apply { this.complete = complete }
-    fun onClose(onClose: Runnable) = apply { this.onClose = onClose }
-}
-
-/**
- * TODO: add doc
- */
-data class QueryableHandlerConfig<R>(
-    var handler: Handler<Query, R>,
 ) {
-    var complete: Boolean = false
-    var onClose: Runnable? = null
-
     fun complete(complete: Boolean) = apply { this.complete = complete }
     fun onClose(onClose: Runnable) = apply { this.onClose = onClose }
 }

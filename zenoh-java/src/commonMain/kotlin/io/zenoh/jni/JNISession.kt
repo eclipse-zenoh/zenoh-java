@@ -136,7 +136,7 @@ internal class JNISession {
 
     @Throws(ZError::class)
     fun declareQueryableWithCallback(
-        keyExpr: KeyExpr, config: QueryableCallbackConfig
+        keyExpr: KeyExpr, callback: Callback<Query>, config: QueryableConfig
     ): Queryable<Void> {
         val queryCallback =
             JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long ->
@@ -155,7 +155,7 @@ internal class JNISession {
                     attachmentBytes?.into(),
                     jniQuery
                 )
-                config.callback.run(query)
+                callback.run(query)
             }
         val queryableRawPtr = declareQueryableViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
@@ -170,10 +170,10 @@ internal class JNISession {
 
     @Throws(ZError::class)
     fun <R> declareQueryableWithHandler(
-        keyExpr: KeyExpr, config: QueryableHandlerConfig<R>
+        keyExpr: KeyExpr, handler: Handler<Query, R>, config: QueryableConfig
     ): Queryable<R> {
         val resolvedOnClose: (() -> Unit) = fun() {
-            config.handler.onClose()
+            handler.onClose()
             config.onClose?.run()
         }
         val queryCallback =
@@ -193,7 +193,7 @@ internal class JNISession {
                     attachmentBytes?.into(),
                     jniQuery
                 )
-                config.handler.handle(query)
+                handler.handle(query)
             }
         val queryableRawPtr = declareQueryableViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
@@ -203,7 +203,7 @@ internal class JNISession {
             resolvedOnClose,
             config.complete
         )
-        return Queryable(keyExpr, config.handler.receiver(), JNIQueryable(queryableRawPtr))
+        return Queryable(keyExpr, handler.receiver(), JNIQueryable(queryableRawPtr))
     }
 
     @Throws(ZError::class)

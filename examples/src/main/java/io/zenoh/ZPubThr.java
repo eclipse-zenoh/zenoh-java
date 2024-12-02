@@ -34,6 +34,53 @@ import static io.zenoh.ConfigKt.loadConfig;
 )
 public class ZPubThr implements Callable<Integer> {
 
+    @Override
+    public Integer call() throws Exception {
+        Zenoh.initLogFromEnvOr("error");
+
+        byte[] data = new byte[payloadSize];
+        for (int i = 0; i < payloadSize; i++) {
+            data[i] = (byte) (i % 10);
+        }
+        ZBytes payload = ZBytes.from(data);
+
+        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
+
+        try (Session session = Zenoh.open(config)) {
+            KeyExpr keyExpr = KeyExpr.tryFrom("test/thr");
+            var publisherConfig = new PublisherConfig()
+                    .congestionControl(CongestionControl.BLOCK)
+                    .priority(priorityInput != null ? Priority.getEntries().get(priorityInput) : Priority.DATA);
+            try (Publisher publisher = session.declarePublisher(keyExpr, publisherConfig)) {
+                System.out.println("Publisher declared on test/thr.");
+                long count = 0;
+                long start = System.currentTimeMillis();
+                System.out.println("Press CTRL-C to quit...");
+
+                while (true) {
+                    publisher.put(payload);
+
+                    if (statsPrint) {
+                        if (count < number) {
+                            count++;
+                        } else {
+                            long elapsedTime = System.currentTimeMillis() - start;
+                            long throughput = (count * 1000) / elapsedTime;
+                            System.out.println(throughput + " msgs/s");
+                            count = 0;
+                            start = System.currentTimeMillis();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+    /**
+     * ----- Example CLI arguments and private fields -----
+     */
+
     private final Boolean emptyArgs;
 
     ZPubThr(Boolean emptyArgs) {
@@ -100,48 +147,6 @@ public class ZPubThr implements Callable<Integer> {
             defaultValue = "false"
     )
     private boolean noMulticastScouting;
-
-    @Override
-    public Integer call() throws Exception {
-        Zenoh.initLogFromEnvOr("error");
-
-        byte[] data = new byte[payloadSize];
-        for (int i = 0; i < payloadSize; i++) {
-            data[i] = (byte) (i % 10);
-        }
-        ZBytes payload = ZBytes.from(data);
-
-        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
-
-        try (Session session = Zenoh.open(config)) {
-            KeyExpr keyExpr = KeyExpr.tryFrom("test/thr");
-            var publisherConfig = new PublisherConfig()
-                    .congestionControl(CongestionControl.BLOCK)
-                    .priority(priorityInput != null ? Priority.getEntries().get(priorityInput) : Priority.DATA);
-            try (Publisher publisher = session.declarePublisher(keyExpr, publisherConfig)) {
-                System.out.println("Publisher declared on test/thr.");
-                long count = 0;
-                long start = System.currentTimeMillis();
-                System.out.println("Press CTRL-C to quit...");
-
-                while (true) {
-                    publisher.put(payload);
-
-                    if (statsPrint) {
-                        if (count < number) {
-                            count++;
-                        } else {
-                            long elapsedTime = System.currentTimeMillis() - start;
-                            long throughput = (count * 1000) / elapsedTime;
-                            System.out.println(throughput + " msgs/s");
-                            count = 0;
-                            start = System.currentTimeMillis();
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     public static void main(String[] args) {
         int exitCode = new CommandLine(new ZPubThr(args.length == 0)).execute(args);

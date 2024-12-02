@@ -34,6 +34,43 @@ import static io.zenoh.ConfigKt.loadConfig;
 )
 public class ZPong implements Callable<Integer> {
 
+    @Override
+    public Integer call() throws Exception {
+        Zenoh.initLogFromEnvOr("error");
+
+        Config config = loadConfig(true, configFile, connect, listen, noMulticastScouting, mode);
+
+        System.out.println("Opening session...");
+        try (Session session = Zenoh.open(config)) {
+            KeyExpr keyExprPing = KeyExpr.tryFrom("test/ping");
+            KeyExpr keyExprPong = KeyExpr.tryFrom("test/pong");
+
+            Publisher publisher = session.declarePublisher(
+                    keyExprPong,
+                    new PublisherConfig().congestionControl(CongestionControl.BLOCK).express(!noExpress)
+            );
+
+            session.declareSubscriber(keyExprPing, sample -> {
+                try {
+                    publisher.put(sample.getPayload());
+                } catch (ZError e) {
+                    System.err.println("Error responding to ping: " + e.getMessage());
+                }
+            });
+
+            latch.await();
+        } catch (ZError e) {
+            System.err.println("Error: " + e.getMessage());
+            return 1;
+        }
+        return 0;
+    }
+
+
+    /**
+     * ----- Example CLI arguments and private fields -----
+     */
+
     @CommandLine.Option(
             names = "--no-express",
             description = "Express for sending data.",
@@ -76,38 +113,6 @@ public class ZPong implements Callable<Integer> {
     private boolean noMulticastScouting;
 
     private static final CountDownLatch latch = new CountDownLatch(1);
-
-    @Override
-    public Integer call() throws Exception {
-        Zenoh.initLogFromEnvOr("error");
-
-        Config config = loadConfig(true, configFile, connect, listen, noMulticastScouting, mode);
-
-        System.out.println("Opening session...");
-        try (Session session = Zenoh.open(config)) {
-            KeyExpr keyExprPing = KeyExpr.tryFrom("test/ping");
-            KeyExpr keyExprPong = KeyExpr.tryFrom("test/pong");
-
-            Publisher publisher = session.declarePublisher(
-                    keyExprPong,
-                    new PublisherConfig().congestionControl(CongestionControl.BLOCK).express(!noExpress)
-            );
-
-            session.declareSubscriber(keyExprPing, sample -> {
-                try {
-                    publisher.put(sample.getPayload());
-                } catch (ZError e) {
-                    System.err.println("Error responding to ping: " + e.getMessage());
-                }
-            });
-
-            latch.await();
-        } catch (ZError e) {
-            System.err.println("Error: " + e.getMessage());
-            return 1;
-        }
-        return 0;
-    }
 
     public static void main(String[] args) {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {

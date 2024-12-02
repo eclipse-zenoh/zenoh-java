@@ -31,68 +31,6 @@ import static io.zenoh.ConfigKt.loadConfig;
 )
 public class ZSubThr implements Callable<Integer> {
 
-    private final Boolean emptyArgs;
-
-    ZSubThr(Boolean emptyArgs) {
-        this.emptyArgs = emptyArgs;
-    }
-
-    private static final long NANOS_TO_SEC = 1_000_000_000L;
-    private long batchCount = 0;
-    private long count = 0;
-    private long startTimestampNs = 0;
-    private long globalStartTimestampNs = 0;
-
-    @CommandLine.Option(
-            names = {"-s", "--samples"},
-            description = "Number of throughput measurements [default: 10].",
-            defaultValue = "10"
-    )
-    private long samples;
-
-    @CommandLine.Option(
-            names = {"-n", "--number"},
-            description = "Number of messages in each throughput measurement [default: 100000].",
-            defaultValue = "100000"
-    )
-    private long number;
-
-    @CommandLine.Option(
-            names = {"-c", "--config"},
-            description = "A configuration file."
-    )
-    private String configFile;
-
-    @CommandLine.Option(
-            names = {"-e", "--connect"},
-            description = "Endpoints to connect to.",
-            split = ","
-    )
-    private List<String> connect;
-
-    @CommandLine.Option(
-            names = {"-l", "--listen"},
-            description = "Endpoints to listen on.",
-            split = ","
-    )
-    private List<String> listen;
-
-    @CommandLine.Option(
-            names = {"-m", "--mode"},
-            description = "The session mode. Default: peer. Possible values: [peer, client, router].",
-            defaultValue = "peer"
-    )
-    private String mode;
-
-    @CommandLine.Option(
-            names = {"--no-multicast-scouting"},
-            description = "Disable the multicast-based scouting mechanism.",
-            defaultValue = "false"
-    )
-    private boolean noMulticastScouting;
-
-    private Subscriber<Void> subscriber;
-
     @Override
     public Integer call() throws Exception {
         Zenoh.initLogFromEnvOr("error");
@@ -164,6 +102,73 @@ public class ZSubThr implements Callable<Integer> {
             }
         }
     }
+
+    
+    /**
+     * ----- Example arguments and private fields -----
+     */
+
+    private final Boolean emptyArgs;
+
+    ZSubThr(Boolean emptyArgs) {
+        this.emptyArgs = emptyArgs;
+    }
+
+    private static final long NANOS_TO_SEC = 1_000_000_000L;
+    private long batchCount = 0;
+    private long count = 0;
+    private long startTimestampNs = 0;
+    private long globalStartTimestampNs = 0;
+
+    @CommandLine.Option(
+            names = {"-s", "--samples"},
+            description = "Number of throughput measurements [default: 10].",
+            defaultValue = "10"
+    )
+    private long samples;
+
+    @CommandLine.Option(
+            names = {"-n", "--number"},
+            description = "Number of messages in each throughput measurement [default: 100000].",
+            defaultValue = "100000"
+    )
+    private long number;
+
+    @CommandLine.Option(
+            names = {"-c", "--config"},
+            description = "A configuration file."
+    )
+    private String configFile;
+
+    @CommandLine.Option(
+            names = {"-e", "--connect"},
+            description = "Endpoints to connect to.",
+            split = ","
+    )
+    private List<String> connect;
+
+    @CommandLine.Option(
+            names = {"-l", "--listen"},
+            description = "Endpoints to listen on.",
+            split = ","
+    )
+    private List<String> listen;
+
+    @CommandLine.Option(
+            names = {"-m", "--mode"},
+            description = "The session mode. Default: peer. Possible values: [peer, client, router].",
+            defaultValue = "peer"
+    )
+    private String mode;
+
+    @CommandLine.Option(
+            names = {"--no-multicast-scouting"},
+            description = "Disable the multicast-based scouting mechanism.",
+            defaultValue = "false"
+    )
+    private boolean noMulticastScouting;
+
+    private Subscriber<Void> subscriber;
 
     public static void main(String[] args) {
         int exitCode = new CommandLine(new ZSubThr(args.length == 0)).execute(args);

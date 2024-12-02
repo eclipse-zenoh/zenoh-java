@@ -3,8 +3,7 @@
 //
 // This program and the accompanying materials are made available under the
 // terms of the Eclipse Public License 2.0 which is available at
-// http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0
-// which is available at https://www.apache.org/licenses/LICENSE-2.0.
+// http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0.
 //
 // SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
 //
@@ -30,9 +29,77 @@ import static io.zenoh.ConfigKt.loadConfig;
 @CommandLine.Command(
         name = "ZGetLiveliness",
         mixinStandardHelpOptions = true,
-        description = "Zenoh Sub Liveliness example"
+        description = "Zenoh Get Liveliness example"
 )
 public class ZGetLiveliness implements Callable<Integer> {
+
+    @Override
+    public Integer call() throws Exception {
+        Zenoh.initLogFromEnvOr("error");
+
+        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
+        KeyExpr keyExpr = KeyExpr.tryFrom(this.key);
+
+        // Uncomment one of the lines below to try out different implementations:
+        getLivelinessWithBlockingQueue(config, keyExpr);
+        // getLivelinessWithCallback(config, keyExpr);
+        // getLivelinessWithHandler(config, keyExpr);
+
+        return 0;
+    }
+
+    /**
+     * Default implementation using a blocking queue to handle replies.
+     */
+    private void getLivelinessWithBlockingQueue(Config config, KeyExpr keyExpr) throws ZError, InterruptedException {
+        try (Session session = Zenoh.open(config)) {
+            BlockingQueue<Optional<Reply>> replyQueue = session.liveliness().get(keyExpr, Duration.ofMillis(timeout));
+
+            while (true) {
+                Optional<Reply> wrapper = replyQueue.take();
+                if (wrapper.isEmpty()) {
+                    break;
+                }
+                handleReply(wrapper.get());
+            }
+        }
+    }
+
+    /**
+     * Example using a callback to handle liveliness replies asynchronously.
+     * @see io.zenoh.handlers.Callback
+     */
+    private void getLivelinessWithCallback(Config config, KeyExpr keyExpr) throws ZError {
+        try (Session session = Zenoh.open(config)) {
+            session.liveliness().get(keyExpr, this::handleReply, Duration.ofMillis(timeout));
+        }
+    }
+
+    /**
+     * Example using a custom handler to process liveliness replies.
+     * @see QueueHandler
+     * @see io.zenoh.handlers.Handler
+     */
+    private void getLivelinessWithHandler(Config config, KeyExpr keyExpr) throws ZError {
+        try (Session session = Zenoh.open(config)) {
+            QueueHandler<Reply> queueHandler = new QueueHandler<>();
+            session.liveliness().get(keyExpr, queueHandler, Duration.ofMillis(timeout));
+        }
+    }
+
+    private void handleReply(Reply reply) {
+        if (reply instanceof Reply.Success) {
+            Reply.Success successReply = (Reply.Success) reply;
+            System.out.println(">> Alive token ('" + successReply.getSample().getKeyExpr() + "')");
+        } else if (reply instanceof Reply.Error) {
+            Reply.Error errorReply = (Reply.Error) reply;
+            System.out.println(">> Received (ERROR: '" + errorReply.getError() + "')");
+        }
+    }
+
+    /**
+     * ----- Example arguments and private fields -----
+     */
 
     private final Boolean emptyArgs;
 
@@ -87,37 +154,6 @@ public class ZGetLiveliness implements Callable<Integer> {
             defaultValue = "false"
     )
     private boolean noMulticastScouting;
-
-    @Override
-    public Integer call() throws Exception {
-        Zenoh.initLogFromEnvOr("error");
-
-        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
-
-        System.out.println("Opening session...");
-        try (Session session = Zenoh.open(config)) {
-            try (KeyExpr keyExpr = KeyExpr.tryFrom(key)) {
-                BlockingQueue<Optional<Reply>> replyQueue = session.liveliness().get(keyExpr, Duration.ofMillis(timeout));
-                System.out.println("Listening for liveliness tokens...");
-                while (true) {
-                    Optional<Reply> wrapper = replyQueue.take();
-                    if (wrapper.isEmpty()) {
-                        break;
-                    }
-                    Reply reply = wrapper.get();
-                    if (reply instanceof Reply.Success) {
-                        System.out.println(">> Alive token ('" + ((Reply.Success) reply).getSample().getKeyExpr() + "')");
-                    } else if (reply instanceof Reply.Error) {
-                        System.out.println(">> Received (ERROR: '" + ((Reply.Error) reply).getError() + "')");
-                    }
-                }
-            }
-        } catch (ZError e) {
-            System.err.println("Error during Zenoh operation: " + e.getMessage());
-            return 1;
-        }
-        return 0;
-    }
 
     public static void main(String[] args) {
         int exitCode = new CommandLine(new ZGetLiveliness(args.length == 0)).execute(args);

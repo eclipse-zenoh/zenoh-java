@@ -14,12 +14,16 @@
 
 package io.zenoh;
 
+import io.zenoh.bytes.Encoding;
+import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
+import io.zenoh.query.GetConfig;
 import io.zenoh.query.Selector;
 import io.zenoh.query.Reply;
 import io.zenoh.sample.SampleKind;
 import picocli.CommandLine;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
@@ -34,6 +38,108 @@ import static io.zenoh.ConfigKt.loadConfig;
 )
 public class ZGet implements Callable<Integer> {
 
+    @Override
+    public Integer call() throws ZError, InterruptedException {
+        Zenoh.initLogFromEnvOr("error");
+        System.out.println("Opening session...");
+
+        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
+        Selector selector = Selector.tryFrom(this.selectorOpt);
+
+        // A GET query can be performed in different ways, by default (using a blocking queue), using a callback
+        // or providing a handler. Uncomment one of the function calls below to try out different implementations:
+        // Implementation with a blocking queue
+        getExampleDefault(config, selector);
+        // getExampleWithCallback(config, selector);
+        // getExampleWithHandler(config, selector);
+        // getExampleProvidingConfig(config, selector);
+
+        return 0;
+    }
+
+    private void getExampleDefault(Config config, Selector selector) throws ZError, InterruptedException {
+        try (Session session = Zenoh.open(config)) {
+            System.out.println("Performing Get on '" + selector + "'...");
+            BlockingQueue<Optional<Reply>> receiver = session.get(selector);
+
+            while (true) {
+                Optional<Reply> wrapper = receiver.take();
+                if (wrapper.isEmpty()) {
+                    break;
+                }
+                Reply reply = wrapper.get();
+                handleReply(reply);
+            }
+        }
+    }
+
+    /**
+     * Example using a simple callback for handling the replies.
+     * @see io.zenoh.handlers.Callback
+     */
+    private void getExampleWithCallback(Config config, Selector selector) throws ZError {
+        try (Session session = Zenoh.open(config)) {
+            System.out.println("Performing Get on '" + selector + "'...");
+            session.get(selector, this::handleReply);
+        }
+    }
+
+    /**
+     * Example using a custom implementation of a Handler.
+     * @see QueueHandler
+     * @see io.zenoh.handlers.Handler
+     */
+    private void getExampleWithHandler(Config config, Selector selector) throws ZError {
+        try (Session session = Zenoh.open(config)) {
+            System.out.println("Performing Get on '" + selector + "'...");
+            QueueHandler<Reply> queueHandler = new QueueHandler<>();
+            session.get(selector, queueHandler);
+        }
+    }
+
+    /**
+     * The purpose of this example is to show how to provide configuration parameters
+     * to the get query. For this, you can optionally provide a GetConfig parameter.
+     * @see GetConfig
+     */
+    private void getExampleProvidingConfig(Config config, Selector selector) throws ZError {
+        try (Session session = Zenoh.open(config)) {
+            System.out.println("Performing Get on '" + selector + "'...");
+
+            // Build the config
+            GetConfig getConfig = new GetConfig();
+            getConfig.setTimeout(Duration.ofMillis(1000));
+            getConfig.setEncoding(Encoding.ZENOH_STRING);
+            getConfig.setPayload(ZBytes.from("Example payload"));
+
+            // Note the syntax below is valid as well
+            GetConfig getConfig2 = new GetConfig()
+                    .timeout(Duration.ofMillis(1000))
+                    .encoding(Encoding.ZENOH_STRING)
+                    .payload(ZBytes.from("Example payload"));
+
+            // Apply the config
+            session.get(selector, this::handleReply, getConfig);
+        }
+    }
+
+    private void handleReply(Reply reply) {
+        if (reply instanceof Reply.Success) {
+            Reply.Success successReply = (Reply.Success) reply;
+            if (successReply.getSample().getKind() == SampleKind.PUT) {
+                System.out.println("Received ('" + successReply.getSample().getKeyExpr() + "': '" + successReply.getSample().getPayload() + "')");
+            } else if (successReply.getSample().getKind() == SampleKind.DELETE) {
+                System.out.println("Received (DELETE '" + successReply.getSample().getKeyExpr() + "')");
+            }
+        } else {
+            Reply.Error errorReply = (Reply.Error) reply;
+            System.out.println("Received (ERROR: '" + errorReply.getError() + "')");
+        }
+    }
+
+    /**
+     * ----- Example CLI arguments and private fields -----
+     */
     private final Boolean emptyArgs;
 
     ZGet(Boolean emptyArgs) {
@@ -106,39 +212,6 @@ public class ZGet implements Callable<Integer> {
             defaultValue = "false"
     )
     private boolean noMulticastScouting;
-
-    @Override
-    public Integer call() throws ZError, InterruptedException {
-        Zenoh.initLogFromEnvOr("error");
-        System.out.println("Opening session...");
-
-        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
-        try (Session session = Zenoh.open(config)) {
-            Selector selector = Selector.tryFrom(this.selectorOpt);
-            System.out.println("Performing Get on '" + selector + "'...");
-            BlockingQueue<Optional<Reply>> receiver = session.get(selector);
-            while (true) {
-                Optional<Reply> wrapper = receiver.take();
-                if (wrapper.isEmpty()) {
-                    break;
-                }
-                Reply reply = wrapper.get();
-                if (reply instanceof Reply.Success) {
-                    Reply.Success successReply = (Reply.Success) reply;
-                    if (successReply.getSample().getKind() == SampleKind.PUT) {
-                        System.out.println("Received ('" + successReply.getSample().getKeyExpr() + "': '" + successReply.getSample().getPayload() + "')");
-                    } else if (successReply.getSample().getKind() == SampleKind.DELETE) {
-                        System.out.println("Received (DELETE '" + successReply.getSample().getKeyExpr() + "')");
-                    }
-                } else {
-                    Reply.Error errorReply = (Reply.Error) reply;
-                    System.out.println("Received (ERROR: '" + errorReply.getError() + "')");
-                }
-            }
-
-        }
-        return 0;
-    }
 
     public static void main(String[] args) {
         int exitCode = new CommandLine(new ZGet(args.length == 0)).execute(args);

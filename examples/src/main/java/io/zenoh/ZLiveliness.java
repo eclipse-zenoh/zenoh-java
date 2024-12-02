@@ -30,6 +30,34 @@ import static io.zenoh.ConfigKt.loadConfig;
 )
 public class ZLiveliness implements Callable<Integer> {
 
+
+    @Override
+    public Integer call() throws Exception {
+        Zenoh.initLogFromEnvOr("error");
+
+        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
+
+        System.out.println("Opening session...");
+        try (Session session = Zenoh.open(config)) {
+            KeyExpr keyExpr = KeyExpr.tryFrom(key);
+            session.liveliness().declareToken(keyExpr);
+            System.out.println("Liveliness token declared for key: " + key);
+
+            while (true) {
+                Thread.sleep(1000);
+            }
+
+        } catch (ZError e) {
+            System.err.println("Error during Zenoh operation: " + e.getMessage());
+            return 1;
+        }
+    }
+
+
+    /**
+     * ----- Example CLI arguments and private fields -----
+     */
+
     private final Boolean emptyArgs;
 
     ZLiveliness(Boolean emptyArgs) {
@@ -77,26 +105,6 @@ public class ZLiveliness implements Callable<Integer> {
     )
     private boolean noMulticastScouting;
 
-    @Override
-    public Integer call() throws Exception {
-        Zenoh.initLogFromEnvOr("error");
-
-        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
-
-        System.out.println("Opening session...");
-        try (Session session = Zenoh.open(config)) {
-            try (KeyExpr keyExpr = KeyExpr.tryFrom(key)) {
-                session.liveliness().declareToken(keyExpr);
-                System.out.println("Liveliness token declared for key: " + key);
-                while (true) {
-                    Thread.sleep(1000);
-                }
-            }
-        } catch (ZError e) {
-            System.err.println("Error during Zenoh operation: " + e.getMessage());
-            return 1;
-        }
-    }
 
     public static void main(String[] args) {
         int exitCode = new CommandLine(new ZLiveliness(args.length == 0)).execute(args);

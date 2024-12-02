@@ -19,6 +19,7 @@ import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.query.Query;
 import io.zenoh.query.Queryable;
+import io.zenoh.query.QueryableConfig;
 import io.zenoh.query.ReplyConfig;
 import org.apache.commons.net.ntp.TimeStamp;
 import picocli.CommandLine;
@@ -36,6 +37,80 @@ import static io.zenoh.ConfigKt.loadConfig;
         description = "Zenoh Queryable example"
 )
 public class ZQueryable implements Callable<Integer> {
+
+    @Override
+    public Integer call() throws Exception {
+        Zenoh.initLogFromEnvOr("error");
+
+        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
+        KeyExpr keyExpr = KeyExpr.tryFrom(this.key);
+
+        // A Queryable can be implemented in multiple ways. Uncomment one to try:
+        declareQueryableWithBlockingQueue(config, keyExpr);
+        // declareQueryableWithCallback(config, keyExpr);
+        // declareQueryableProvidingConfig(config, keyExpr);
+
+        return 0;
+    }
+
+    /**
+     * Default implementation using a blocking queue to handle incoming queries.
+     */
+    private void declareQueryableWithBlockingQueue(Config config, KeyExpr keyExpr) throws ZError, InterruptedException {
+        try (Session session = Zenoh.open(config)) {
+            Queryable<BlockingQueue<Optional<Query>>> queryable = session.declareQueryable(keyExpr);
+            BlockingQueue<Optional<Query>> receiver = queryable.getReceiver();
+            assert receiver != null;
+            while (true) {
+                Optional<Query> wrapper = receiver.take();
+                if (wrapper.isEmpty()) {
+                    break;
+                }
+                Query query = wrapper.get();
+                handleQuery(query);
+            }
+        }
+    }
+
+    /**
+     * Example using a callback to handle incoming queries asynchronously.
+     *
+     * @see io.zenoh.handlers.Callback
+     */
+    private void declareQueryableWithCallback(Config config, KeyExpr keyExpr) throws ZError {
+        try (Session session = Zenoh.open(config)) {
+            session.declareQueryable(keyExpr, this::handleQuery);
+        }
+    }
+
+    /**
+     * Example demonstrating the use of QueryableConfig to declare a Queryable.
+     *
+     * @see QueryableConfig
+     */
+    private void declareQueryableProvidingConfig(Config config, KeyExpr keyExpr) throws ZError {
+        try (Session session = Zenoh.open(config)) {
+            QueryableConfig queryableConfig = new QueryableConfig();
+            queryableConfig.setComplete(true);
+            queryableConfig.setOnClose(() -> System.out.println("Queryable closed..."));
+
+            session.declareQueryable(keyExpr, this::handleQuery, queryableConfig);
+        }
+    }
+
+    private void handleQuery(Query query) {
+        try {
+            String valueInfo = query.getPayload() != null ? " with value '" + query.getPayload() + "'" : "";
+            System.out.println(">> [Queryable] Received Query '" + query.getSelector() + "'" + valueInfo);
+            query.reply(query.getKeyExpr(), ZBytes.from(value), new ReplyConfig().timestamp(TimeStamp.getCurrentTime()));
+        } catch (Exception e) {
+            System.err.println(">> [Queryable] Error sending reply: " + e.getMessage());
+        }
+    }
+
+    /**
+     * ----- Example arguments and private fields -----
+     */
 
     private final Boolean emptyArgs;
 
@@ -90,47 +165,6 @@ public class ZQueryable implements Callable<Integer> {
             defaultValue = "false"
     )
     private boolean noMulticastScouting;
-
-    @Override
-    public Integer call() throws Exception {
-        Zenoh.initLogFromEnvOr("error");
-
-        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
-
-        System.out.println("Opening session...");
-        try (Session session = Zenoh.open(config)) {
-            KeyExpr keyExpr = KeyExpr.tryFrom(key);
-            System.out.println("Declaring Queryable on " + key + "...");
-            try (Queryable<BlockingQueue<Optional<Query>>> queryable = session.declareQueryable(keyExpr)) {
-                BlockingQueue<Optional<Query>> receiver = queryable.getReceiver();
-                assert receiver != null;
-                System.out.println("Press CTRL-C to quit...");
-                handleRequests(receiver, keyExpr);
-            }
-        } catch (ZError e) {
-            System.err.println("Error during Zenoh operation: " + e.getMessage());
-            return 1;
-        }
-
-        return 0;
-    }
-
-    private void handleRequests(BlockingQueue<Optional<Query>> receiver, KeyExpr keyExpr) throws InterruptedException {
-        while (true) {
-            Optional<Query> wrapper = receiver.take();
-            if (wrapper.isEmpty()) {
-                break;
-            }
-            Query query = wrapper.get();
-            String valueInfo = query.getPayload() != null ? " with value '" + query.getPayload() + "'" : "";
-            System.out.println(">> [Queryable] Received Query '" + query.getSelector() + "'" + valueInfo);
-            try {
-                query.reply(keyExpr, ZBytes.from(value), new ReplyConfig().timestamp(TimeStamp.getCurrentTime()));
-            } catch (Exception e) {
-                System.err.println(">> [Queryable] Error sending reply: " + e.getMessage());
-            }
-        }
-    }
 
     public static void main(String[] args) {
         int exitCode = new CommandLine(new ZQueryable(args.length == 0)).execute(args);

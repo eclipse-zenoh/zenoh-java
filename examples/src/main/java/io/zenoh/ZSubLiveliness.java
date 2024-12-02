@@ -36,6 +36,89 @@ import static io.zenoh.ConfigKt.loadConfig;
 )
 public class ZSubLiveliness implements Callable<Integer> {
 
+    @Override
+    public Integer call() throws Exception {
+        Zenoh.initLogFromEnvOr("error");
+
+        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
+        KeyExpr keyExpr = KeyExpr.tryFrom(this.key);
+
+        // Subscribing to liveliness tokens can be implemented in multiple ways.
+        // Uncomment the desired implementation:
+        subscribeToLivelinessWithBlockingQueue(config, keyExpr);
+        // subscribeToLivelinessWithCallback(config, keyExpr);
+        // subscribeToLivelinessWithHandler(config, keyExpr);
+
+        return 0;
+    }
+
+    /**
+     * Default implementation using a blocking queue to handle incoming liveliness tokens.
+     */
+    private void subscribeToLivelinessWithBlockingQueue(Config config, KeyExpr keyExpr) throws ZError, InterruptedException {
+        try (Session session = Zenoh.open(config)) {
+            Subscriber<BlockingQueue<Optional<Sample>>> subscriber =
+                    session.liveliness().declareSubscriber(keyExpr, new Liveliness.SubscriberConfig().history(history));
+
+            BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
+            System.out.println("Listening for liveliness tokens...");
+            while (true) {
+                Optional<Sample> wrapper = receiver.take();
+                if (wrapper.isEmpty()) {
+                    break;
+                }
+                handleLivelinessSample(wrapper.get());
+            }
+        }
+    }
+
+    /**
+     * Example using a callback to handle incoming liveliness tokens asynchronously.
+     *
+     * @see io.zenoh.handlers.Callback
+     */
+    private void subscribeToLivelinessWithCallback(Config config, KeyExpr keyExpr) throws ZError {
+        try (Session session = Zenoh.open(config)) {
+            session.liveliness().declareSubscriber(
+                    keyExpr,
+                    this::handleLivelinessSample,
+                    new Liveliness.SubscriberConfig().history(history)
+            );
+        }
+    }
+
+    /**
+     * Example using a handler to handle incoming liveliness tokens asynchronously.
+     *
+     * @see io.zenoh.handlers.Handler
+     * @see QueueHandler
+     */
+    private void subscribeToLivelinessWithHandler(Config config, KeyExpr keyExpr) throws ZError {
+        try (Session session = Zenoh.open(config)) {
+            QueueHandler<Sample> queueHandler = new QueueHandler<>();
+            session.liveliness().declareSubscriber(
+                    keyExpr,
+                    queueHandler,
+                    new Liveliness.SubscriberConfig().history(history)
+            );
+        }
+    }
+
+    /**
+     * Handles a single liveliness token sample.
+     */
+    private void handleLivelinessSample(Sample sample) {
+        if (sample.getKind() == SampleKind.PUT) {
+            System.out.println(">> [LivelinessSubscriber] New alive token ('" + sample.getKeyExpr() + "')");
+        } else if (sample.getKind() == SampleKind.DELETE) {
+            System.out.println(">> [LivelinessSubscriber] Dropped token ('" + sample.getKeyExpr() + "')");
+        }
+    }
+
+    /**
+     * ----- Example arguments and private fields -----
+     */
+
     private final Boolean emptyArgs;
 
     ZSubLiveliness(Boolean emptyArgs) {
@@ -89,41 +172,6 @@ public class ZSubLiveliness implements Callable<Integer> {
             defaultValue = "false"
     )
     private boolean noMulticastScouting;
-
-    @Override
-    public Integer call() throws Exception {
-        Zenoh.initLogFromEnvOr("error");
-
-        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
-
-        System.out.println("Opening session...");
-        try (Session session = Zenoh.open(config)) {
-            try (KeyExpr keyExpr = KeyExpr.tryFrom(key)) {
-                Subscriber<BlockingQueue<Optional<Sample>>> subscriber =
-                        session.liveliness().declareSubscriber(keyExpr, new Liveliness.SubscriberConfig().history(history));
-
-                BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
-                System.out.println("Listening for liveliness tokens...");
-                while (true) {
-                    Optional<Sample> wrapper = receiver.take();
-                    if (wrapper.isEmpty()) {
-                        break;
-                    }
-
-                    Sample sample = wrapper.get();
-                    if (sample.getKind() == SampleKind.PUT) {
-                        System.out.println(">> [LivelinessSubscriber] New alive token ('" + sample.getKeyExpr() + "')");
-                    } else if (sample.getKind() == SampleKind.DELETE) {
-                        System.out.println(">> [LivelinessSubscriber] Dropped token ('" + sample.getKeyExpr() + "')");
-                    }
-                }
-            }
-        } catch (ZError e) {
-            System.err.println("Error during Zenoh operation: " + e.getMessage());
-            return 1;
-        }
-        return 0;
-    }
 
     public static void main(String[] args) {
         int exitCode = new CommandLine(new ZSubLiveliness(args.length == 0)).execute(args);

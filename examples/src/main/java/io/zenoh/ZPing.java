@@ -38,6 +38,63 @@ import static io.zenoh.ConfigKt.loadConfig;
 )
 public class ZPing implements Callable<Integer> {
 
+    @Override
+    public Integer call() throws Exception {
+        Zenoh.initLogFromEnvOr("error");
+
+        // Load Zenoh configuration
+        Config config = loadConfig(true, configFile, connect, listen, noMulticastScouting, mode);
+
+        System.out.println("Opening session...");
+        try (Session session = Zenoh.open(config)) {
+            KeyExpr keyExprPing = KeyExpr.tryFrom("test/ping");
+            KeyExpr keyExprPong = KeyExpr.tryFrom("test/pong");
+
+            BlockingQueue<Optional<Sample>> receiverQueue =
+                    session.declareSubscriber(keyExprPong).getReceiver();
+            Publisher publisher =
+                    session.declarePublisher(keyExprPing, new PublisherConfig().congestionControl(CongestionControl.BLOCK).express(!noExpress));
+
+            byte[] data = new byte[payloadSize];
+            for (int i = 0; i < payloadSize; i++) {
+                data[i] = (byte) (i % 10);
+            }
+            ZBytes payload = ZBytes.from(data);
+
+            // Warm-up
+            System.out.println("Warming up for " + warmup + " seconds...");
+            long warmupEnd = System.currentTimeMillis() + (long) (warmup * 1000);
+            while (System.currentTimeMillis() < warmupEnd) {
+                publisher.put(payload);
+                receiverQueue.take();
+            }
+
+            List<Long> samples = new ArrayList<>();
+            for (int i = 0; i < n; i++) {
+                long startTime = System.nanoTime();
+                publisher.put(payload);
+                receiverQueue.take();
+                long elapsedTime = (System.nanoTime() - startTime) / 1000; // Convert to microseconds
+                samples.add(elapsedTime);
+            }
+
+            for (int i = 0; i < samples.size(); i++) {
+                long rtt = samples.get(i);
+                System.out.printf("%d bytes: seq=%d rtt=%dµs lat=%dµs%n", payloadSize, i, rtt, rtt / 2);
+            }
+        } catch (ZError e) {
+            System.err.println("Error: " + e.getMessage());
+            return 1;
+        }
+
+        return 0;
+    }
+
+
+    /**
+     * ----- Example CLI arguments and private fields -----
+     */
+
     @CommandLine.Parameters(
             paramLabel = "payload_size",
             description = "Sets the size of the payload to publish [default: 8].",
@@ -99,58 +156,6 @@ public class ZPing implements Callable<Integer> {
             defaultValue = "false"
     )
     private boolean noMulticastScouting;
-
-    @Override
-    public Integer call() throws Exception {
-        Zenoh.initLogFromEnvOr("error");
-
-        // Load Zenoh configuration
-        Config config = loadConfig(true, configFile, connect, listen, noMulticastScouting, mode);
-
-        System.out.println("Opening session...");
-        try (Session session = Zenoh.open(config)) {
-            KeyExpr keyExprPing = KeyExpr.tryFrom("test/ping");
-            KeyExpr keyExprPong = KeyExpr.tryFrom("test/pong");
-
-            BlockingQueue<Optional<Sample>> receiverQueue =
-                    session.declareSubscriber(keyExprPong).getReceiver();
-            Publisher publisher =
-                    session.declarePublisher(keyExprPing, new PublisherConfig().congestionControl(CongestionControl.BLOCK).express(!noExpress));
-
-            byte[] data = new byte[payloadSize];
-            for (int i = 0; i < payloadSize; i++) {
-                data[i] = (byte) (i % 10);
-            }
-            ZBytes payload = ZBytes.from(data);
-
-            // Warm-up
-            System.out.println("Warming up for " + warmup + " seconds...");
-            long warmupEnd = System.currentTimeMillis() + (long) (warmup * 1000);
-            while (System.currentTimeMillis() < warmupEnd) {
-                publisher.put(payload);
-                receiverQueue.take();
-            }
-
-            List<Long> samples = new ArrayList<>();
-            for (int i = 0; i < n; i++) {
-                long startTime = System.nanoTime();
-                publisher.put(payload);
-                receiverQueue.take();
-                long elapsedTime = (System.nanoTime() - startTime) / 1000; // Convert to microseconds
-                samples.add(elapsedTime);
-            }
-
-            for (int i = 0; i < samples.size(); i++) {
-                long rtt = samples.get(i);
-                System.out.printf("%d bytes: seq=%d rtt=%dµs lat=%dµs%n", payloadSize, i, rtt, rtt / 2);
-            }
-        } catch (ZError e) {
-            System.err.println("Error: " + e.getMessage());
-            return 1;
-        }
-
-        return 0;
-    }
 
     public static void main(String[] args) {
         int exitCode = new CommandLine(new ZPing()).execute(args);

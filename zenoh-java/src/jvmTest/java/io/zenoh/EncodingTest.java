@@ -70,7 +70,7 @@ public class EncodingTest {
         Selector test1 = Selector.tryFrom("example/testing/reply_success");
         Selector test2 = Selector.tryFrom("example/testing/reply_success_with_schema");
 
-        var queryable = session.declareQueryable(keyExpr, new QueryableCallbackConfig(query ->
+        var queryable = session.declareQueryable(keyExpr, query ->
         {
             try {
                 KeyExpr queryKeyExpr = query.getKeyExpr();
@@ -83,7 +83,7 @@ public class EncodingTest {
                 throw new RuntimeException(e);
             }
         }
-        ));
+        );
 
         // Testing with null schema on a reply success scenario.
         Sample[] receivedSample = new Sample[1];
@@ -119,7 +119,7 @@ public class EncodingTest {
         Selector test2 = Selector.tryFrom("example/testing/reply_error_with_schema");
 
         ZBytes replyPayload = ZBytes.from("test");
-        var queryable = session.declareQueryable(keyExpr, new QueryableCallbackConfig(query ->
+        var queryable = session.declareQueryable(keyExpr, query ->
         {
             KeyExpr keyExpr1 = query.getKeyExpr();
             try {
@@ -131,7 +131,7 @@ public class EncodingTest {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        }));
+        });
 
         // Testing with null schema on a reply error scenario.
         ZBytes[] errorMessage = new ZBytes[1];
@@ -177,11 +177,11 @@ public class EncodingTest {
         Selector selector = Selector.tryFrom("example/testing/keyexpr");
 
         Encoding[] receivedEncoding = new Encoding[1];
-        var queryable = session.declareQueryable(keyExpr, new QueryableCallbackConfig(query ->
+        var queryable = session.declareQueryable(keyExpr, query ->
         {
             receivedEncoding[0] = query.getEncoding();
             query.close();
-        }));
+        });
 
         // Testing with null schema
         session.get(selector, new GetConfig().payload(payload).encoding(without_schema));

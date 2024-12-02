@@ -171,8 +171,13 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      *
      * TODO
      */
-    fun declareQueryable(keyExpr: KeyExpr): Queryable<BlockingQueue<Optional<Query>>> {
-        return resolveQueryableWithHandler(keyExpr, QueryableHandlerConfig(BlockingQueueHandler(LinkedBlockingDeque())))
+    @Throws(ZError::class)
+    @JvmOverloads
+    fun declareQueryable(
+        keyExpr: KeyExpr,
+        config: QueryableConfig = QueryableConfig()
+    ): Queryable<BlockingQueue<Optional<Query>>> {
+        return resolveQueryableWithHandler(keyExpr, BlockingQueueHandler(LinkedBlockingDeque()), config)
     }
 
     /**
@@ -180,8 +185,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      *
      * TODO
      */
-    fun <R> declareQueryable(keyExpr: KeyExpr, config: QueryableHandlerConfig<R>): Queryable<R> {
-        return resolveQueryableWithHandler(keyExpr, config)
+    @Throws(ZError::class)
+    @JvmOverloads
+    fun <R> declareQueryable(keyExpr: KeyExpr, handler: Handler<Query, R>, config: QueryableConfig = QueryableConfig()): Queryable<R> {
+        return resolveQueryableWithHandler(keyExpr, handler, config)
     }
 
     /**
@@ -189,8 +196,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      *
      * TODO
      */
-    fun declareQueryable(keyExpr: KeyExpr, config: QueryableCallbackConfig): Queryable<Void> {
-        return resolveQueryableWithCallback(keyExpr, config)
+    @Throws(ZError::class)
+    @JvmOverloads
+    fun declareQueryable(keyExpr: KeyExpr, callback: Callback<Query>, config: QueryableConfig = QueryableConfig()): Queryable<Void> {
+        return resolveQueryableWithCallback(keyExpr, callback, config)
     }
 
     /**
@@ -375,10 +384,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
 
     @Throws(ZError::class)
     internal fun <R> resolveQueryableWithHandler(
-        keyExpr: KeyExpr, config: QueryableHandlerConfig<R>
+        keyExpr: KeyExpr, handler: Handler<Query, R>, config: QueryableConfig
     ): Queryable<R> {
         return jniSession?.run {
-            val queryable = declareQueryableWithHandler(keyExpr, config)
+            val queryable = declareQueryableWithHandler(keyExpr, handler, config)
             declarations.add(queryable)
             queryable
         } ?: throw (sessionClosedException)
@@ -386,10 +395,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
 
     @Throws(ZError::class)
     internal fun resolveQueryableWithCallback(
-        keyExpr: KeyExpr, config: QueryableCallbackConfig
+        keyExpr: KeyExpr, callback: Callback<Query>, config: QueryableConfig
     ): Queryable<Void> {
         return jniSession?.run {
-            val queryable = declareQueryableWithCallback(keyExpr, config)
+            val queryable = declareQueryableWithCallback(keyExpr, callback, config)
             declarations.add(queryable)
             queryable
         } ?: throw (sessionClosedException)

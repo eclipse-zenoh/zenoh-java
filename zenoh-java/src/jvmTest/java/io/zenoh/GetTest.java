@@ -34,15 +34,15 @@ public class GetTest {
     public void setUp() throws ZError {
         session = Zenoh.open(Config.loadDefault());
         selector = Selector.tryFrom("example/testing/keyexpr");
-        queryable = session.declareQueryable(selector.getKeyExpr(), new QueryableCallbackConfig(query ->
-        {
-            try {
-                query.reply(query.getKeyExpr(), payload, new ReplyConfig().timestamp(timestamp));
-            } catch (ZError e) {
-                throw new RuntimeException(e);
-            }
-        }
-        ));
+        queryable = session.declareQueryable(selector.getKeyExpr(), query ->
+                {
+                    try {
+                        query.reply(query.getKeyExpr(), payload, new ReplyConfig().timestamp(timestamp));
+                    } catch (ZError e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+        );
     }
 
     @After
@@ -80,9 +80,9 @@ public class GetTest {
     public void getWithSelectorParamsTest() throws ZError {
         Parameters[] receivedParams = new Parameters[1];
 
-        Queryable<Void> queryable = session.declareQueryable(selector.getKeyExpr(), new QueryableCallbackConfig(query ->
-            receivedParams[0] = query.getParameters()
-        ));
+        Queryable<Void> queryable = session.declareQueryable(selector.getKeyExpr(), query ->
+                receivedParams[0] = query.getParameters()
+        );
 
         Parameters params = Parameters.from("arg1=val1&arg2=val2&arg3");
         Selector selectorWithParams = new Selector(selector.getKeyExpr(), params);
@@ -94,7 +94,9 @@ public class GetTest {
     }
 }
 
-/** A dummy handler for get operations. */
+/**
+ * A dummy handler for get operations.
+ */
 class TestHandler implements Handler<Reply, ArrayList<Reply>> {
 
     static final ArrayList<Reply> performedReplies = new ArrayList<>();
@@ -110,5 +112,6 @@ class TestHandler implements Handler<Reply, ArrayList<Reply>> {
     }
 
     @Override
-    public void onClose() {}
+    public void onClose() {
+    }
 }
