@@ -352,13 +352,14 @@ internal class JNISession {
         payload: IntoZBytes,
         config: PutConfig,
     ) {
+        val encoding = config.encoding ?: Encoding.defaultEncoding()
         putViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
             sessionPtr.get(),
             payload.into().bytes,
-            config.encoding.id,
-            config.encoding.schema,
+            encoding.id,
+            encoding.schema,
             config.qos.congestionControl.value,
             config.qos.priority.value,
             config.qos.express,

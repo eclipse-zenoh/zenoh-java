@@ -137,9 +137,11 @@ public class ZGet implements Callable<Integer> {
         }
     }
 
+
     /**
      * ----- Example CLI arguments and private fields -----
      */
+
     private final Boolean emptyArgs;
 
     ZGet(Boolean emptyArgs) {

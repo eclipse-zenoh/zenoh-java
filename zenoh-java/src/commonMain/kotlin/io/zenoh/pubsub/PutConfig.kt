@@ -25,7 +25,7 @@ import io.zenoh.qos.Reliability
  * TODO
  */
 data class PutConfig(
-    var encoding: Encoding = Encoding.defaultEncoding(),
+    var encoding: Encoding? = null,
     var qos: QoS = QoS.defaultQoS(),
     var reliability: Reliability = Reliability.RELIABLE,
     var attachment: IntoZBytes? = null

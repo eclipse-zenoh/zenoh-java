@@ -30,6 +30,24 @@ import static io.zenoh.ConfigKt.loadConfig;
 )
 public class ZDelete implements Callable<Integer> {
 
+    @Override
+    public Integer call() throws ZError {
+        Zenoh.initLogFromEnvOr("error");
+        System.out.println("Opening session...");
+        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
+        try (Session session = Zenoh.open(config)) {
+            KeyExpr keyExpr = KeyExpr.tryFrom(key);
+            System.out.println("Deleting resources matching '" + keyExpr + "'...");
+            session.delete(keyExpr);
+        }
+        return 0;
+    }
+
+
+    /**
+     * ----- Example CLI arguments and private fields -----
+     */
+
     private final Boolean emptyArgs;
 
     ZDelete(Boolean emptyArgs) {
@@ -76,19 +94,6 @@ public class ZDelete implements Callable<Integer> {
             defaultValue = "false"
     )
     private boolean noMulticastScouting;
-
-    @Override
-    public Integer call() throws ZError {
-        Zenoh.initLogFromEnvOr("error");
-        System.out.println("Opening session...");
-        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
-        try (Session session = Zenoh.open(config)) {
-            KeyExpr keyExpr = KeyExpr.tryFrom(key);
-            System.out.println("Deleting resources matching '" + keyExpr + "'...");
-            session.delete(keyExpr);
-        }
-        return 0;
-    }
 
     public static void main(String[] args) {
         int exitCode = new CommandLine(new ZDelete(args.length == 0)).execute(args);

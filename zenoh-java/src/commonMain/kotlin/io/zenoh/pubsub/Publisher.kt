@@ -23,7 +23,6 @@ import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
-import io.zenoh.qos.Reliability
 import io.zenoh.session.SessionDeclaration
 import kotlin.Throws
 
@@ -80,10 +79,15 @@ class Publisher internal constructor(
     fun priority() = qos.priority
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
-    @JvmOverloads
     @Throws(ZError::class)
-    fun put(payload: IntoZBytes, config: PutConfig = PutConfig()) {
-        jniPublisher?.put(payload, config.encoding, config.attachment) ?: throw publisherNotValid
+    fun put(payload: IntoZBytes) {
+        jniPublisher?.put(payload, encoding, null) ?: throw publisherNotValid
+    }
+
+    /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
+    @Throws(ZError::class)
+    fun put(payload: IntoZBytes, config: PutConfig) {
+        jniPublisher?.put(payload, config.encoding ?: this.encoding, config.attachment) ?: throw publisherNotValid
     }
 
     /**
@@ -117,24 +121,4 @@ class Publisher internal constructor(
     protected fun finalize() {
         jniPublisher?.close()
     }
-}
-
-/**
- * TODO
- */
-data class PublisherConfig(var reliability: Reliability = Reliability.RELIABLE,
-                           var qos: QoS = QoS.defaultQoS(),
-                           var encoding: Encoding = Encoding.defaultEncoding()) {
-
-    fun reliability(reliability: Reliability) = apply { this.reliability = reliability }
-
-    fun encoding(encoding: Encoding) = apply { this.encoding = encoding }
-
-    fun qos(qos: QoS) = apply { this.qos = qos }
-
-    fun congestionControl(congestionControl: CongestionControl) = apply { this.qos.congestionControl = congestionControl }
-
-    fun express(express: Boolean) = apply { this.qos.express = express }
-
-    fun priority(priority: Priority) = apply { this.qos.priority = priority }
 }

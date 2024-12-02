@@ -49,8 +49,3 @@ class Subscriber<R> internal constructor(
         jniSubscriber?.close()
     }
 }
-
-data class SubscriberConfig(var onClose: Runnable? = null) {
-
-    fun onClose(onClose: Runnable) = apply { this.onClose = onClose }
-}
