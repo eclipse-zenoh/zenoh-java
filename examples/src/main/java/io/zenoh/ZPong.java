@@ -17,7 +17,7 @@ package io.zenoh;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Publisher;
-import io.zenoh.pubsub.PublisherConfig;
+import io.zenoh.pubsub.PublisherOptions;
 import io.zenoh.qos.CongestionControl;
 import picocli.CommandLine;
 
@@ -47,7 +47,7 @@ public class ZPong implements Callable<Integer> {
 
             Publisher publisher = session.declarePublisher(
                     keyExprPong,
-                    new PublisherConfig().congestionControl(CongestionControl.BLOCK).express(!noExpress)
+                    new PublisherOptions().congestionControl(CongestionControl.BLOCK).express(!noExpress)
             );
 
             session.declareSubscriber(keyExprPing, sample -> {

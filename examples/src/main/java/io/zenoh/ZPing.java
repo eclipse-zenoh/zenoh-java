@@ -18,7 +18,7 @@ import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Publisher;
-import io.zenoh.pubsub.PublisherConfig;
+import io.zenoh.pubsub.PublisherOptions;
 import io.zenoh.qos.CongestionControl;
 import io.zenoh.sample.Sample;
 import picocli.CommandLine;
@@ -53,7 +53,7 @@ public class ZPing implements Callable<Integer> {
             BlockingQueue<Optional<Sample>> receiverQueue =
                     session.declareSubscriber(keyExprPong).getReceiver();
             Publisher publisher =
-                    session.declarePublisher(keyExprPing, new PublisherConfig().congestionControl(CongestionControl.BLOCK).express(!noExpress));
+                    session.declarePublisher(keyExprPing, new PublisherOptions().congestionControl(CongestionControl.BLOCK).express(!noExpress));
 
             byte[] data = new byte[payloadSize];
             for (int i = 0; i < payloadSize; i++) {

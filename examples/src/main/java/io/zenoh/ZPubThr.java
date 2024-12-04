@@ -17,7 +17,7 @@ package io.zenoh;
 import io.zenoh.bytes.ZBytes;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Publisher;
-import io.zenoh.pubsub.PublisherConfig;
+import io.zenoh.pubsub.PublisherOptions;
 import io.zenoh.qos.CongestionControl;
 import io.zenoh.qos.Priority;
 import picocli.CommandLine;
@@ -48,7 +48,7 @@ public class ZPubThr implements Callable<Integer> {
 
         try (Session session = Zenoh.open(config)) {
             KeyExpr keyExpr = KeyExpr.tryFrom("test/thr");
-            var publisherConfig = new PublisherConfig()
+            var publisherConfig = new PublisherOptions()
                     .congestionControl(CongestionControl.BLOCK)
                     .priority(priorityInput != null ? Priority.getEntries().get(priorityInput) : Priority.DATA);
             try (Publisher publisher = session.declarePublisher(keyExpr, publisherConfig)) {

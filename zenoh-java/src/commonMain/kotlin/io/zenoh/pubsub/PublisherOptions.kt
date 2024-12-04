@@ -23,9 +23,9 @@ import io.zenoh.qos.Reliability
 /**
  * TODO
  */
-data class PublisherConfig(var reliability: Reliability = Reliability.RELIABLE,
-                           var qos: QoS = QoS.defaultQoS(),
-                           var encoding: Encoding = Encoding.defaultEncoding()) {
+data class PublisherOptions(var reliability: Reliability = Reliability.RELIABLE,
+                            var qos: QoS = QoS.defaultQoS(),
+                            var encoding: Encoding = Encoding.defaultEncoding()) {
 
     fun reliability(reliability: Reliability) = apply { this.reliability = reliability }
 

@@ -4,7 +4,7 @@ import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.bytes.Encoding;
-import io.zenoh.pubsub.PublisherConfig;
+import io.zenoh.pubsub.PublisherOptions;
 import io.zenoh.pubsub.PutConfig;
 import io.zenoh.qos.QoS;
 import io.zenoh.qos.Reliability;
@@ -38,7 +38,7 @@ public class PublisherTest {
         session = Zenoh.open(Config.loadDefault());
         keyExpr = KeyExpr.tryFrom("example/testing/keyexpr");
 
-        var config = new PublisherConfig(Reliability.RELIABLE, QoS.defaultQoS(), Encoding.ZENOH_STRING);
+        var config = new PublisherOptions(Reliability.RELIABLE, QoS.defaultQoS(), Encoding.ZENOH_STRING);
         publisher = session.declarePublisher(keyExpr, config);
 
         receivedSamples = new ArrayList<>();

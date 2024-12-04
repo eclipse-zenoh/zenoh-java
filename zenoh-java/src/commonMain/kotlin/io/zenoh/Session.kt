@@ -101,15 +101,15 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      *
      * TODO
      */
-    fun declarePublisher(keyExpr: KeyExpr): Publisher = declarePublisher(keyExpr, PublisherConfig())
+    fun declarePublisher(keyExpr: KeyExpr): Publisher = declarePublisher(keyExpr, PublisherOptions())
 
     /**
      * Declare a [Publisher] on the session.
      *
      * TODO
      */
-    fun declarePublisher(keyExpr: KeyExpr, publisherConfig: PublisherConfig): Publisher {
-        return resolvePublisher(keyExpr, publisherConfig)
+    fun declarePublisher(keyExpr: KeyExpr, publisherOptions: PublisherOptions): Publisher {
+        return resolvePublisher(keyExpr, publisherOptions)
     }
 
     /**
@@ -121,8 +121,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     fun declareSubscriber(keyExpr: KeyExpr): Subscriber<BlockingQueue<Optional<Sample>>> {
         return resolveSubscriberWithHandler(
             keyExpr,
-            BlockingQueueHandler(LinkedBlockingDeque()),
-            SubscriberConfig()
+            BlockingQueueHandler(LinkedBlockingDeque())
         )
     }
 
@@ -133,17 +132,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @Throws(ZError::class)
     fun <R> declareSubscriber(keyExpr: KeyExpr, handler: Handler<Sample, R>): Subscriber<R> {
-        return resolveSubscriberWithHandler(keyExpr, handler, SubscriberConfig())
-    }
-
-    /**
-     * Declare a [Subscriber] on the session.
-     *
-     * TODO
-     */
-    @Throws(ZError::class)
-    fun <R> declareSubscriber(keyExpr: KeyExpr, handler: Handler<Sample, R>, config: SubscriberConfig): Subscriber<R> {
-        return resolveSubscriberWithHandler(keyExpr, handler, config)
+        return resolveSubscriberWithHandler(keyExpr, handler)
     }
 
     /**
@@ -153,17 +142,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @Throws(ZError::class)
     fun declareSubscriber(keyExpr: KeyExpr, callback: Callback<Sample>): Subscriber<Void> {
-        return resolveSubscriberWithCallback(keyExpr, callback, SubscriberConfig())
-    }
-
-    /**
-     * Declare a [Subscriber] on the session.
-     *
-     * TODO
-     */
-    @Throws(ZError::class)
-    fun declareSubscriber(keyExpr: KeyExpr, callback: Callback<Sample>, config: SubscriberConfig): Subscriber<Void> {
-        return resolveSubscriberWithCallback(keyExpr, callback, config)
+        return resolveSubscriberWithCallback(keyExpr, callback)
     }
 
     /**
@@ -352,7 +331,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     @Throws(ZError::class)
-    internal fun resolvePublisher(keyExpr: KeyExpr, config: PublisherConfig): Publisher {
+    internal fun resolvePublisher(keyExpr: KeyExpr, config: PublisherOptions): Publisher {
         return jniSession?.run {
             val publisher = declarePublisher(keyExpr, config)
             declarations.add(publisher)
@@ -362,10 +341,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
 
     @Throws(ZError::class)
     internal fun <R> resolveSubscriberWithHandler(
-        keyExpr: KeyExpr, handler: Handler<Sample, R>, config: SubscriberConfig
+        keyExpr: KeyExpr, handler: Handler<Sample, R>
     ): Subscriber<R> {
         return jniSession?.run {
-            val subscriber = declareSubscriberWithHandler(keyExpr, handler, config)
+            val subscriber = declareSubscriberWithHandler(keyExpr, handler)
             declarations.add(subscriber)
             subscriber
         } ?: throw (sessionClosedException)
@@ -373,10 +352,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
 
     @Throws(ZError::class)
     internal fun resolveSubscriberWithCallback(
-        keyExpr: KeyExpr, callback: Callback<Sample>, config: SubscriberConfig
+        keyExpr: KeyExpr, callback: Callback<Sample>
     ): Subscriber<Void> {
         return jniSession?.run {
-            val subscriber = declareSubscriberWithCallback(keyExpr, callback, config)
+            val subscriber = declareSubscriberWithCallback(keyExpr, callback)
             declarations.add(subscriber)
             subscriber
         } ?: throw (sessionClosedException)

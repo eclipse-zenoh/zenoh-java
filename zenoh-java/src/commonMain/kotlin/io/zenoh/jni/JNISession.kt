@@ -61,20 +61,20 @@ internal class JNISession {
     }
 
     @Throws(ZError::class)
-    fun declarePublisher(keyExpr: KeyExpr, publisherConfig: PublisherConfig): Publisher {
+    fun declarePublisher(keyExpr: KeyExpr, publisherOptions: PublisherOptions): Publisher {
         val publisherRawPtr = declarePublisherViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
             sessionPtr.get(),
-            publisherConfig.qos.congestionControl.value,
-            publisherConfig.qos.priority.value,
-            publisherConfig.qos.express,
-            publisherConfig.reliability.ordinal
+            publisherOptions.qos.congestionControl.value,
+            publisherOptions.qos.priority.value,
+            publisherOptions.qos.express,
+            publisherOptions.reliability.ordinal
         )
         return Publisher(
             keyExpr,
-            publisherConfig.qos,
-            publisherConfig.encoding,
+            publisherOptions.qos,
+            publisherOptions.encoding,
             JNIPublisher(publisherRawPtr),
         )
     }

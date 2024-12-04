@@ -19,7 +19,7 @@ import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Publisher;
-import io.zenoh.pubsub.PublisherConfig;
+import io.zenoh.pubsub.PublisherOptions;
 import io.zenoh.pubsub.PutConfig;
 import io.zenoh.qos.CongestionControl;
 import io.zenoh.qos.Reliability;
@@ -48,13 +48,13 @@ public class ZPub implements Callable<Integer> {
             System.out.println("Declaring publisher on '" + keyExpr + "'...");
 
             // A publisher config can optionally be provided.
-            PublisherConfig publisherConfig = new PublisherConfig()
+            PublisherOptions publisherOptions = new PublisherOptions() // PublisherOpts
                     .encoding(Encoding.ZENOH_STRING)
                     .congestionControl(CongestionControl.BLOCK)
                     .reliability(Reliability.RELIABLE);
 
             // Declare the publisher
-            Publisher publisher = session.declarePublisher(keyExpr, publisherConfig);
+            Publisher publisher = session.declarePublisher(keyExpr, publisherOptions);
 
             System.out.println("Press CTRL-C to quit...");
             ZBytes attachmentBytes = attachment != null ? ZBytes.from(attachment) : null;
@@ -64,7 +64,9 @@ public class ZPub implements Callable<Integer> {
                 String payload = String.format("[%4d] %s", idx, value);
                 System.out.println("Putting Data ('" + keyExpr + "': '" + payload + "')...");
                 if (attachmentBytes != null) {
-                    publisher.put(ZBytes.from(payload), new PutConfig().attachment(attachmentBytes));
+                    PutConfig putConfig = new PutConfig();
+                    putConfig.setAttachment(attachmentBytes);
+                    publisher.put(ZBytes.from(payload), putConfig);
                 } else {
                     publisher.put(ZBytes.from(payload));
                 }
