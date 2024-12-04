@@ -17,7 +17,7 @@ package io.zenoh;
 import io.zenoh.bytes.Encoding;
 import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
-import io.zenoh.query.GetConfig;
+import io.zenoh.query.GetOptions;
 import io.zenoh.query.Selector;
 import io.zenoh.query.Reply;
 import io.zenoh.sample.SampleKind;
@@ -100,20 +100,20 @@ public class ZGet implements Callable<Integer> {
     /**
      * The purpose of this example is to show how to provide configuration parameters
      * to the get query. For this, you can optionally provide a GetConfig parameter.
-     * @see GetConfig
+     * @see GetOptions
      */
     private void getExampleProvidingConfig(Config config, Selector selector) throws ZError {
         try (Session session = Zenoh.open(config)) {
             System.out.println("Performing Get on '" + selector + "'...");
 
             // Build the config
-            GetConfig getConfig = new GetConfig();
-            getConfig.setTimeout(Duration.ofMillis(1000));
-            getConfig.setEncoding(Encoding.ZENOH_STRING);
-            getConfig.setPayload(ZBytes.from("Example payload"));
+            GetOptions getOptions = new GetOptions();
+            getOptions.setTimeout(Duration.ofMillis(1000));
+            getOptions.setEncoding(Encoding.ZENOH_STRING);
+            getOptions.setPayload(ZBytes.from("Example payload"));
 
             // Apply the config
-            session.get(selector, this::handleReply, getConfig);
+            session.get(selector, this::handleReply, getOptions);
         }
     }
 

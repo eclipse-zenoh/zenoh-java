@@ -184,7 +184,10 @@ public class EncodingTest {
         });
 
         // Testing with null schema
-        session.get(selector, new GetConfig().payload(payload).encoding(without_schema));
+        var getOptions = new GetOptions();
+        getOptions.setPayload(payload);
+        getOptions.setEncoding(without_schema);
+        session.get(selector, getOptions);
         Thread.sleep(200);
 
         assertEquals(receivedEncoding[0], without_schema);
@@ -193,7 +196,8 @@ public class EncodingTest {
 
         // Testing non-null schema
         receivedEncoding[0] = null;
-        session.get(selector, new GetConfig().payload(payload).encoding(with_schema));
+        getOptions.setEncoding(with_schema);
+        session.get(selector, getOptions);
         Thread.sleep(200);
 
         assertEquals(receivedEncoding[0], with_schema);

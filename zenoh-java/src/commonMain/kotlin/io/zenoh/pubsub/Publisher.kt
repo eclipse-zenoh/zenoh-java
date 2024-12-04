@@ -97,7 +97,7 @@ class Publisher internal constructor(
      */
     @JvmOverloads
     @Throws(ZError::class)
-    fun delete(config: DeleteConfig = DeleteConfig()) {
+    fun delete(config: DeleteOptions = DeleteOptions()) {
         jniPublisher?.delete(config.attachment) ?: throw(publisherNotValid)
     }
 

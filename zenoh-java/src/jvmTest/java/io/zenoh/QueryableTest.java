@@ -18,11 +18,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.*;
 
@@ -73,7 +71,7 @@ public class QueryableTest {
         });
 
         Reply[] reply = new Reply[1];
-        session.get(testKeyExpr.into(), reply1 -> reply[0] = reply1, new GetConfig().timeout(Duration.ofMillis(1000)));
+        session.get(testKeyExpr.into(), reply1 -> reply[0] = reply1);
 
         assertNotNull(reply[0]);
         Sample receivedSample = ((Reply.Success) reply[0]).getSample();
@@ -88,7 +86,7 @@ public class QueryableTest {
         Thread.sleep(500);
 
         Reply[] reply = new Reply[1];
-        session.get(testKeyExpr.into(), reply1 -> reply[0] = reply1, new GetConfig());
+        session.get(testKeyExpr.into(), reply1 -> reply[0] = reply1, new GetOptions());
 
         Thread.sleep(500);
 
@@ -114,7 +112,13 @@ public class QueryableTest {
         receivedQuery[0] = null;
         var payload = ZBytes.from("Test value");
         var attachment = ZBytes.from("Attachment");
-        session.get(testKeyExpr, new GetConfig().payload(payload).encoding(Encoding.ZENOH_STRING).attachment(attachment));
+
+        var getOptions = new GetOptions();
+        getOptions.setAttachment(attachment);
+        getOptions.setPayload(payload);
+        getOptions.setEncoding(Encoding.ZENOH_STRING);
+        getOptions.setAttachment(attachment);
+        session.get(testKeyExpr, getOptions);
 
         Thread.sleep(100);
 
@@ -145,7 +149,7 @@ public class QueryableTest {
         });
 
         Reply[] receivedReply = new Reply[1];
-        session.get(testKeyExpr, reply -> receivedReply[0] = reply, new GetConfig().timeout(Duration.ofMillis(10)));
+        session.get(testKeyExpr, reply -> receivedReply[0] = reply);
 
         queryable.close();
 
@@ -175,7 +179,7 @@ public class QueryableTest {
         );
 
         Reply[] receivedReply = new Reply[1];
-        session.get(testKeyExpr, reply -> receivedReply[0] = reply, new GetConfig().timeout(Duration.ofMillis(10)));
+        session.get(testKeyExpr, reply -> receivedReply[0] = reply);
 
         Thread.sleep(1000);
         queryable.close();
@@ -202,7 +206,7 @@ public class QueryableTest {
         });
 
         Reply[] receivedReply = new Reply[1];
-        session.get(testKeyExpr, reply -> receivedReply[0] = reply, new GetConfig().timeout(Duration.ofMillis(10)));
+        session.get(testKeyExpr, reply -> receivedReply[0] = reply);
 
         Thread.sleep(1000);
         queryable.close();
@@ -213,16 +217,6 @@ public class QueryableTest {
         var sample = ((Reply.Success) receivedReply[0]).getSample();
         assertEquals(SampleKind.DELETE, sample.getKind());
         assertEquals(timestamp, sample.getTimestamp());
-    }
-
-    @Test
-    public void onCloseTest() throws InterruptedException, ZError {
-        AtomicReference<Boolean> onCloseWasCalled = new AtomicReference<>(false);
-        var queryable = session.declareQueryable(testKeyExpr, new QueryableConfig().onClose(() -> onCloseWasCalled.set(true)));
-        queryable.undeclare();
-
-        Thread.sleep(1000);
-        assertTrue(onCloseWasCalled.get());
     }
 }
 

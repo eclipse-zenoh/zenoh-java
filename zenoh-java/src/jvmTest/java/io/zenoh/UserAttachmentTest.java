@@ -20,7 +20,7 @@ import io.zenoh.bytes.ZBytes;
 import io.zenoh.pubsub.DeleteOptions;
 import io.zenoh.pubsub.PutConfig;
 import io.zenoh.pubsub.Subscriber;
-import io.zenoh.query.GetConfig;
+import io.zenoh.query.GetOptions;
 import io.zenoh.query.Reply;
 import io.zenoh.query.ReplyConfig;
 import io.zenoh.sample.Sample;
@@ -155,7 +155,10 @@ public class UserAttachmentTest {
             }
         });
 
-        session.get(keyExpr, new GetConfig().attachment(attachment).timeout(Duration.ofMillis(1000)));
+        var getOptions = new GetOptions();
+        getOptions.setTimeout(Duration.ofMillis(1000));
+        getOptions.setAttachment(attachment);
+        session.get(keyExpr, getOptions);
 
         queryable.close();
 
@@ -174,7 +177,11 @@ public class UserAttachmentTest {
             }
         });
 
-        session.get(keyExpr, reply1 -> reply[0] = reply1, new GetConfig().attachment(attachment).timeout(Duration.ofMillis(1000)));
+
+        var getOptions = new GetOptions();
+        getOptions.setTimeout(Duration.ofMillis(1000));
+        getOptions.setAttachment(attachment);
+        session.get(keyExpr, reply1 -> reply[0] = reply1, getOptions);
 
         queryable.close();
 
@@ -194,7 +201,7 @@ public class UserAttachmentTest {
                 throw new RuntimeException(e);
             }
         });
-        session.get(keyExpr, reply1 -> reply[0] = reply1, new GetConfig().timeout(Duration.ofMillis(1000)));
+        session.get(keyExpr, reply1 -> reply[0] = reply1);
 
         queryable.close();
 

@@ -235,7 +235,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     fun get(selector: IntoSelector): BlockingQueue<Optional<Reply>> {
         val handler = BlockingQueueHandler<Reply>(LinkedBlockingDeque())
-        val config = GetConfig()
+        val config = GetOptions()
         return resolveGetWithHandler(
             selector,
             handler,
@@ -246,7 +246,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     /**
      * TODO
      */
-    fun get(selector: IntoSelector, config: GetConfig): BlockingQueue<Optional<Reply>> {
+    fun get(selector: IntoSelector, config: GetOptions): BlockingQueue<Optional<Reply>> {
         val handler = BlockingQueueHandler<Reply>(LinkedBlockingDeque())
         return resolveGetWithHandler(
             selector,
@@ -259,13 +259,13 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * TODO
      */
     fun <R> get(selector: IntoSelector, handler: Handler<Reply, R>): R {
-        return resolveGetWithHandler(selector, handler, GetConfig())
+        return resolveGetWithHandler(selector, handler, GetOptions())
     }
 
     /**
      * TODO
      */
-    fun <R> get(selector: IntoSelector, handler: Handler<Reply, R>, config: GetConfig): R {
+    fun <R> get(selector: IntoSelector, handler: Handler<Reply, R>, config: GetOptions): R {
         return resolveGetWithHandler(selector, handler, config)
     }
 
@@ -273,13 +273,13 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * TODO
      */
     fun get(selector: IntoSelector, callback: Callback<Reply>) {
-        return resolveGetWithCallback(selector, callback, GetConfig())
+        return resolveGetWithCallback(selector, callback, GetOptions())
     }
 
     /**
      * TODO
      */
-    fun get(selector: IntoSelector, callback: Callback<Reply>, config: GetConfig) {
+    fun get(selector: IntoSelector, callback: Callback<Reply>, config: GetOptions) {
         return resolveGetWithCallback(selector, callback, config)
     }
 
@@ -387,7 +387,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     internal fun <R> resolveGetWithHandler(
         selector: IntoSelector,
         handler: Handler<Reply, R>,
-        config: GetConfig
+        config: GetOptions
     ): R {
         return jniSession?.performGetWithHandler(
             selector,
@@ -400,7 +400,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     internal fun resolveGetWithCallback(
         selector: IntoSelector,
         callback: Callback<Reply>,
-        config: GetConfig
+        config: GetOptions
     ) {
         return jniSession?.performGetWithCallback(
             selector,

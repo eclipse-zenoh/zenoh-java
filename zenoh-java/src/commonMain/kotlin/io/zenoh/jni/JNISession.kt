@@ -203,7 +203,7 @@ internal class JNISession {
     fun performGetWithCallback(
         intoSelector: IntoSelector,
         callback: Callback<Reply>,
-        config: GetConfig
+        config: GetOptions
     ) {
         val getCallback = JNIGetCallback {
                 replierId: ByteArray?,
@@ -250,7 +250,7 @@ internal class JNISession {
             selector.parameters.toString(),
             sessionPtr.get(),
             getCallback,
-            fun() { config.onClose?.run() },
+            fun() {},
             config.timeout.toMillis(),
             config.target.ordinal,
             config.consolidation.ordinal,
@@ -265,7 +265,7 @@ internal class JNISession {
     fun <R> performGetWithHandler(
         intoSelector: IntoSelector,
         handler: Handler<Reply, R>,
-        config: GetConfig
+        config: GetOptions
     ): R {
         val getCallback = JNIGetCallback {
                 replierId: ByteArray?,
@@ -312,7 +312,7 @@ internal class JNISession {
             selector.parameters.toString(),
             sessionPtr.get(),
             getCallback,
-            fun() { config.onClose?.run() },
+            handler::onClose,
             config.timeout.toMillis(),
             config.target.ordinal,
             config.consolidation.ordinal,
