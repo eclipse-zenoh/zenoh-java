@@ -364,7 +364,7 @@ internal class JNISession {
     @Throws(ZError::class)
     fun performDelete(
         keyExpr: KeyExpr,
-        config: DeleteConfig,
+        config: DeleteOptions,
     ) {
         deleteViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,

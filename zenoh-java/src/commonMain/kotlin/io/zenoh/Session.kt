@@ -301,13 +301,13 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * TODO
      */
     fun delete(keyExpr: KeyExpr) {
-        resolveDelete(keyExpr, DeleteConfig())
+        resolveDelete(keyExpr, DeleteOptions())
     }
 
     /**
      * TODO
      */
-    fun delete(keyExpr: KeyExpr, config: DeleteConfig) {
+    fun delete(keyExpr: KeyExpr, config: DeleteOptions) {
         resolveDelete(keyExpr, config)
     }
 
@@ -415,8 +415,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     @Throws(ZError::class)
-    internal fun resolveDelete(keyExpr: KeyExpr, deleteConfig: DeleteConfig) {
-        jniSession?.run { performDelete(keyExpr, deleteConfig) }
+    internal fun resolveDelete(keyExpr: KeyExpr, deleteOptions: DeleteOptions) {
+        jniSession?.run { performDelete(keyExpr, deleteOptions) }
     }
 
     @Throws(ZError::class)

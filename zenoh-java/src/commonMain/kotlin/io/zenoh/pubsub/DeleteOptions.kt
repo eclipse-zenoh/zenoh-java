@@ -15,28 +15,14 @@
 package io.zenoh.pubsub
 
 import io.zenoh.bytes.IntoZBytes
-import io.zenoh.qos.CongestionControl
-import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
 import io.zenoh.qos.Reliability
 
 /**
  * TODO
  */
-data class DeleteConfig(
+data class DeleteOptions(
     var qos: QoS = QoS.defaultQoS(),
     var reliability: Reliability = Reliability.RELIABLE,
     var attachment: IntoZBytes? = null
-) {
-    fun qos(qos: QoS) = apply { this.qos = qos }
-
-    fun reliability(reliability: Reliability) = apply { this.reliability = reliability }
-
-    fun attachment(attachment: IntoZBytes?) = apply { this.attachment = attachment }
-
-    fun congestionControl(congestionControl: CongestionControl) = apply { this.qos.congestionControl = congestionControl }
-
-    fun express(express: Boolean) = apply { this.qos.express = express }
-
-    fun priority(priority: Priority) = apply { this.qos.priority = priority }
-}
+)

@@ -17,7 +17,7 @@ package io.zenoh;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.bytes.ZBytes;
-import io.zenoh.pubsub.DeleteConfig;
+import io.zenoh.pubsub.DeleteOptions;
 import io.zenoh.pubsub.PutConfig;
 import io.zenoh.pubsub.Subscriber;
 import io.zenoh.query.GetConfig;
@@ -115,7 +115,9 @@ public class UserAttachmentTest {
         Subscriber<Void> subscriber =
                 session.declareSubscriber(keyExpr, sample -> receivedSample[0] = sample);
 
-        publisher.delete(new DeleteConfig().attachment(attachment));
+        var deleteOptions = new DeleteOptions();
+        deleteOptions.setAttachment(attachment);
+        publisher.delete(deleteOptions);
 
         publisher.close();
         subscriber.close();
