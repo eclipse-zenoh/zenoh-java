@@ -5,7 +5,7 @@ import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.bytes.Encoding;
 import io.zenoh.pubsub.PublisherOptions;
-import io.zenoh.pubsub.PutConfig;
+import io.zenoh.pubsub.PutOptions;
 import io.zenoh.qos.QoS;
 import io.zenoh.qos.Reliability;
 import io.zenoh.sample.SampleKind;
@@ -65,7 +65,9 @@ public class PublisherTest {
 
         testPayloads.forEach(value -> {
             try {
-                publisher.put(value.getFirst(), new PutConfig().encoding(value.getSecond()));
+                var putOptions = new PutOptions();
+                putOptions.setEncoding(value.getSecond());
+                publisher.put(value.getFirst(), putOptions);
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }

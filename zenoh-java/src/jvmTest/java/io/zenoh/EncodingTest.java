@@ -18,7 +18,7 @@ import io.zenoh.bytes.Encoding;
 import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
-import io.zenoh.pubsub.PutConfig;
+import io.zenoh.pubsub.PutOptions;
 import io.zenoh.pubsub.Subscriber;
 import io.zenoh.query.*;
 import io.zenoh.sample.Sample;
@@ -46,7 +46,9 @@ public class EncodingTest {
         Subscriber<Void> subscriber =
                 session.declareSubscriber(keyExpr, sample -> receivedSample[0] = sample);
 
-        session.put(keyExpr, payload, new PutConfig().encoding(with_schema));
+        var putOptions = new PutOptions();
+        putOptions.setEncoding(with_schema);
+        session.put(keyExpr, payload, putOptions);
         Thread.sleep(200);
 
         assertNotNull(receivedSample[0]);
@@ -54,7 +56,8 @@ public class EncodingTest {
 
         // Testing null schema
         receivedSample[0] = null;
-        session.put(keyExpr, payload, new PutConfig().encoding(without_schema));
+        putOptions.setEncoding(without_schema);
+        session.put(keyExpr, payload, putOptions);
         Thread.sleep(200);
 
         assertEquals(receivedSample[0].getEncoding(), without_schema);

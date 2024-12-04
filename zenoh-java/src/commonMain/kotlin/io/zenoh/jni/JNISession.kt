@@ -343,7 +343,7 @@ internal class JNISession {
     fun performPut(
         keyExpr: KeyExpr,
         payload: IntoZBytes,
-        config: PutConfig,
+        config: PutOptions,
     ) {
         val encoding = config.encoding ?: Encoding.defaultEncoding()
         putViaJNI(

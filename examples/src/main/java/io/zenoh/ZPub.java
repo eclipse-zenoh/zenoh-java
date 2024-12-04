@@ -20,7 +20,7 @@ import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Publisher;
 import io.zenoh.pubsub.PublisherOptions;
-import io.zenoh.pubsub.PutConfig;
+import io.zenoh.pubsub.PutOptions;
 import io.zenoh.qos.CongestionControl;
 import io.zenoh.qos.Reliability;
 import picocli.CommandLine;
@@ -64,9 +64,9 @@ public class ZPub implements Callable<Integer> {
                 String payload = String.format("[%4d] %s", idx, value);
                 System.out.println("Putting Data ('" + keyExpr + "': '" + payload + "')...");
                 if (attachmentBytes != null) {
-                    PutConfig putConfig = new PutConfig();
-                    putConfig.setAttachment(attachmentBytes);
-                    publisher.put(ZBytes.from(payload), putConfig);
+                    PutOptions putOptions = new PutOptions();
+                    putOptions.setAttachment(attachmentBytes);
+                    publisher.put(ZBytes.from(payload), putOptions);
                 } else {
                     publisher.put(ZBytes.from(payload));
                 }

@@ -19,7 +19,7 @@ import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.handlers.Handler;
 import io.zenoh.keyexpr.KeyExpr;
-import io.zenoh.pubsub.PutConfig;
+import io.zenoh.pubsub.PutOptions;
 import io.zenoh.qos.CongestionControl;
 import io.zenoh.qos.Priority;
 import io.zenoh.sample.Sample;
@@ -75,10 +75,11 @@ public class SubscriberTest {
 
         TEST_VALUES.forEach(value -> {
                     try {
-                        session.put(testKeyExpr, value.getFirst(), new PutConfig()
-                                .encoding(value.getSecond())
-                                .priority(TEST_PRIORITY)
-                                .congestionControl(TEST_CONGESTION_CONTROL));
+                        var putOptions = new PutOptions();
+                        putOptions.setEncoding(value.getSecond());
+                        putOptions.setCongestionControl(TEST_CONGESTION_CONTROL);
+                        putOptions.setPriority(TEST_PRIORITY);
+                        session.put(testKeyExpr, value.getFirst(), putOptions);
                     } catch (ZError e) {
                         throw new RuntimeException(e);
                     }
@@ -107,10 +108,12 @@ public class SubscriberTest {
 
         TEST_VALUES.forEach(value -> {
                 try {
-                    session.put(testKeyExpr, value.getFirst(), new PutConfig()
-                            .encoding(value.getSecond())
-                            .priority(TEST_PRIORITY)
-                            .congestionControl(TEST_CONGESTION_CONTROL));
+                    var putOptions = new PutOptions();
+                    putOptions.setEncoding(value.getSecond());
+                    putOptions.setCongestionControl(TEST_CONGESTION_CONTROL);
+                    putOptions.setPriority(TEST_PRIORITY);
+
+                    session.put(testKeyExpr, value.getFirst(), putOptions);
                 } catch (ZError e) {
                     throw new RuntimeException(e);
                 }

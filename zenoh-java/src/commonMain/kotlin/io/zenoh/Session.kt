@@ -289,11 +289,11 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @Throws(ZError::class)
     fun put(keyExpr: KeyExpr, payload: IntoZBytes) {
-        resolvePut(keyExpr, payload, PutConfig())
+        resolvePut(keyExpr, payload, PutOptions())
     }
 
     @Throws(ZError::class)
-    fun put(keyExpr: KeyExpr, payload: IntoZBytes, config: PutConfig) {
+    fun put(keyExpr: KeyExpr, payload: IntoZBytes, config: PutOptions) {
         resolvePut(keyExpr, payload, config)
     }
 
@@ -410,8 +410,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     @Throws(ZError::class)
-    internal fun resolvePut(keyExpr: KeyExpr, payload: IntoZBytes, putConfig: PutConfig) {
-        jniSession?.run { performPut(keyExpr, payload, putConfig) }
+    internal fun resolvePut(keyExpr: KeyExpr, payload: IntoZBytes, putOptions: PutOptions) {
+        jniSession?.run { performPut(keyExpr, payload, putOptions) }
     }
 
     @Throws(ZError::class)

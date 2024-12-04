@@ -24,24 +24,33 @@ import io.zenoh.qos.Reliability
 /**
  * TODO
  */
-data class PutConfig(
+data class PutOptions(
     var encoding: Encoding? = null,
     var qos: QoS = QoS.defaultQoS(),
     var reliability: Reliability = Reliability.RELIABLE,
     var attachment: IntoZBytes? = null
 ) {
-    fun encoding(encoding: Encoding) = apply { this.encoding = encoding }
+    fun getCongestionControl(): CongestionControl {
+        return this.qos.congestionControl
+    }
 
-    fun qos(qos: QoS) = apply { this.qos = qos }
+    fun getExpress(): Boolean {
+        return this.qos.express
+    }
 
-    fun reliability(reliability: Reliability) = apply { this.reliability = reliability }
+    fun getPriority(): Priority {
+        return this.qos.priority
+    }
 
-    fun attachment(attachment: IntoZBytes?) = apply { this.attachment = attachment }
+    fun setCongestionControl(congestionControl: CongestionControl) {
+        this.qos.congestionControl = congestionControl
+    }
 
-    fun congestionControl(congestionControl: CongestionControl) = apply { this.qos.congestionControl = congestionControl }
+    fun setExpress(express: Boolean) {
+        this.qos.express = express
+    }
 
-    fun express(express: Boolean) = apply { this.qos.express = express }
-
-    fun priority(priority: Priority) = apply { this.qos.priority = priority }
-
+    fun setPriority(priority: Priority) {
+        this.qos.priority = priority
+    }
 }

@@ -86,7 +86,7 @@ class Publisher internal constructor(
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
     @Throws(ZError::class)
-    fun put(payload: IntoZBytes, config: PutConfig) {
+    fun put(payload: IntoZBytes, config: PutOptions) {
         jniPublisher?.put(payload, config.encoding ?: this.encoding, config.attachment) ?: throw publisherNotValid
     }
 

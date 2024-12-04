@@ -18,7 +18,7 @@ import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.bytes.ZBytes;
 import io.zenoh.pubsub.DeleteOptions;
-import io.zenoh.pubsub.PutConfig;
+import io.zenoh.pubsub.PutOptions;
 import io.zenoh.pubsub.Subscriber;
 import io.zenoh.query.GetOptions;
 import io.zenoh.query.Reply;
@@ -66,7 +66,9 @@ public class UserAttachmentTest {
         Subscriber<Void> subscriber =
             session.declareSubscriber(keyExpr, sample -> receivedSample[0] = sample);
 
-        session.put(keyExpr, payload, new PutConfig().attachment(attachment));
+        var putOptions = new PutOptions();
+        putOptions.setAttachment(attachment);
+        session.put(keyExpr, payload, putOptions);
 
         subscriber.close();
 
@@ -82,7 +84,9 @@ public class UserAttachmentTest {
         Subscriber<Void> subscriber =
                 session.declareSubscriber(keyExpr, sample -> receivedSample[0] = sample);
 
-        publisher.put(payload, new PutConfig().attachment(attachment));
+        var putOptions = new PutOptions();
+        putOptions.setAttachment(attachment);
+        publisher.put(payload, putOptions);
 
         publisher.close();
         subscriber.close();
