@@ -112,12 +112,6 @@ public class ZGet implements Callable<Integer> {
             getConfig.setEncoding(Encoding.ZENOH_STRING);
             getConfig.setPayload(ZBytes.from("Example payload"));
 
-            // Note the syntax below is valid as well
-            GetConfig getConfig2 = new GetConfig()
-                    .timeout(Duration.ofMillis(1000))
-                    .encoding(Encoding.ZENOH_STRING)
-                    .payload(ZBytes.from("Example payload"));
-
             // Apply the config
             session.get(selector, this::handleReply, getConfig);
         }

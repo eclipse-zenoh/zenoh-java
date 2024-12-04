@@ -18,13 +18,11 @@ import io.zenoh.exceptions.ZError;
 import io.zenoh.handlers.Handler;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Subscriber;
-import io.zenoh.pubsub.SubscriberConfig;
 import io.zenoh.sample.Sample;
 import picocli.CommandLine;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 
