@@ -17,7 +17,7 @@ package io.zenoh;
 import io.zenoh.config.WhatAmI;
 import io.zenoh.scouting.Hello;
 import io.zenoh.scouting.Scout;
-import io.zenoh.scouting.ScoutConfig;
+import io.zenoh.scouting.ScoutOptions;
 import picocli.CommandLine;
 
 import java.util.Optional;
@@ -38,7 +38,9 @@ public class ZScout implements Callable<Integer> {
 
         System.out.println("Scouting...");
 
-        Scout<BlockingQueue<Optional<Hello>>> scout = Zenoh.scout(new ScoutConfig().whatAmI(Set.of(WhatAmI.Peer, WhatAmI.Router)));
+        var scoutOptions = new ScoutOptions();
+        scoutOptions.setWhatAmI(Set.of(WhatAmI.Peer, WhatAmI.Router));
+        Scout<BlockingQueue<Optional<Hello>>> scout = Zenoh.scout(scoutOptions);
         BlockingQueue<Optional<Hello>> receiver = scout.getReceiver();
         assert receiver != null;
 

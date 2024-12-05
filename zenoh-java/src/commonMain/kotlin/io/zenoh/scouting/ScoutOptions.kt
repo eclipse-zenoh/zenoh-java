@@ -17,12 +17,7 @@ package io.zenoh.scouting
 import io.zenoh.Config
 import io.zenoh.config.WhatAmI
 
-data class ScoutConfig(
+data class ScoutOptions(
     var config: Config? = null,
     var whatAmI: Set<WhatAmI> = setOf(WhatAmI.Peer, WhatAmI.Router)
-) {
-
-    fun config(config: Config) = apply { this.config = config }
-
-    fun whatAmI(whatAmI: Set<WhatAmI>) = apply { this.whatAmI = whatAmI }
-}
+)

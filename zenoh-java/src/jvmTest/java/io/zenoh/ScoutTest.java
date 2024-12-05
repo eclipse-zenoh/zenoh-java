@@ -18,7 +18,7 @@ import io.zenoh.config.WhatAmI;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.scouting.Hello;
 import io.zenoh.scouting.Scout;
-import io.zenoh.scouting.ScoutConfig;
+import io.zenoh.scouting.ScoutOptions;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -71,7 +71,9 @@ public class ScoutTest {
 
     @Test
     public void scouting_whatAmITest() {
-        var scout = Zenoh.scout(new ScoutConfig().whatAmI(Set.of(WhatAmI.Client, WhatAmI.Peer)));
+        var scoutOptions = new ScoutOptions();
+        scoutOptions.setWhatAmI(Set.of(WhatAmI.Client, WhatAmI.Peer));
+        var scout = Zenoh.scout(scoutOptions);
         scout.close();
     }
 
