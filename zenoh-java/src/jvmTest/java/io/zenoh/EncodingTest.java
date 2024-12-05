@@ -128,11 +128,14 @@ public class EncodingTest {
         var queryable = session.declareQueryable(keyExpr, query ->
         {
             KeyExpr keyExpr1 = query.getKeyExpr();
+            var options = new ReplyErrOptions();
             try {
                 if (keyExpr1.equals(test1.getKeyExpr())) {
-                    query.replyErr(replyPayload, new ReplyErrConfig().encoding(without_schema));
+                    options.setEncoding(without_schema);
+                    query.replyErr(replyPayload, options);
                 } else if (keyExpr1.equals(test2.getKeyExpr())) {
-                    query.replyErr(replyPayload, new ReplyErrConfig().encoding(with_schema));
+                    options.setEncoding(with_schema);
+                    query.replyErr(replyPayload, options);
                 }
             } catch (Exception e) {
                 throw new RuntimeException(e);

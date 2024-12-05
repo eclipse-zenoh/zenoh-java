@@ -180,11 +180,4 @@ data class ReplyDelOptions(
 /**
  * TODO
  */
-data class ReplyErrConfig internal constructor(var encoding: Encoding = Encoding.defaultEncoding()) {
-
-    /**
-     * Sets the [Encoding] of the reply.
-     */
-    fun encoding(encoding: Encoding) = apply { this.encoding = encoding }
-
-}
+data class ReplyErrOptions(var encoding: Encoding = Encoding.defaultEncoding())

@@ -102,13 +102,13 @@ class Query internal constructor(
      * TODO
      */
     @Throws(ZError::class)
-    fun replyErr(payload: IntoZBytes) = replyErr(payload, ReplyErrConfig())
+    fun replyErr(payload: IntoZBytes) = replyErr(payload, ReplyErrOptions())
 
     /**
      * TODO
      */
     @Throws(ZError::class)
-    fun replyErr(payload: IntoZBytes, config: ReplyErrConfig) {
+    fun replyErr(payload: IntoZBytes, config: ReplyErrOptions) {
         jniQuery?.apply {
             replyError(payload.into(), config.encoding)
             jniQuery = null
