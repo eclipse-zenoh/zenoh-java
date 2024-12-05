@@ -196,7 +196,7 @@ public class QueryableTest {
 
         var queryable = session.declareQueryable(testKeyExpr, query -> {
             try {
-                var config = new ReplyDelConfig();
+                var config = new ReplyDelOptions();
                 config.setTimeStamp(timestamp);
                 query.replyDel(testKeyExpr, config);
             } catch (ZError e) {

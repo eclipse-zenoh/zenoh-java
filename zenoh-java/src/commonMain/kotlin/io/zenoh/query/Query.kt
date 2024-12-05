@@ -80,13 +80,13 @@ class Query internal constructor(
      * TODO
      */
     @Throws(ZError::class)
-    fun replyDel(keyExpr: KeyExpr) = replyDel(keyExpr, ReplyDelConfig())
+    fun replyDel(keyExpr: KeyExpr) = replyDel(keyExpr, ReplyDelOptions())
 
     /**
      * TODO
      */
     @Throws(ZError::class)
-    fun replyDel(keyExpr: KeyExpr, config: ReplyDelConfig) {
+    fun replyDel(keyExpr: KeyExpr, config: ReplyDelOptions) {
         jniQuery?.apply {
             replyDelete(
                 keyExpr,
