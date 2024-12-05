@@ -20,7 +20,7 @@ import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.query.Query;
 import io.zenoh.query.Queryable;
 import io.zenoh.query.QueryableConfig;
-import io.zenoh.query.ReplyConfig;
+import io.zenoh.query.ReplyOptions;
 import org.apache.commons.net.ntp.TimeStamp;
 import picocli.CommandLine;
 
@@ -102,7 +102,9 @@ public class ZQueryable implements Callable<Integer> {
         try {
             String valueInfo = query.getPayload() != null ? " with value '" + query.getPayload() + "'" : "";
             System.out.println(">> [Queryable] Received Query '" + query.getSelector() + "'" + valueInfo);
-            query.reply(query.getKeyExpr(), ZBytes.from(value), new ReplyConfig().timestamp(TimeStamp.getCurrentTime()));
+            var options = new ReplyOptions();
+            options.setTimeStamp(TimeStamp.getCurrentTime());
+            query.reply(query.getKeyExpr(), ZBytes.from(value), options);
         } catch (Exception e) {
             System.err.println(">> [Queryable] Error sending reply: " + e.getMessage());
         }

@@ -85,7 +85,7 @@ sealed class Reply private constructor(val replierId: ZenohId?) : ZenohType {
 /**
  * TODO
  */
-data class ReplyConfig(
+data class ReplyOptions(
     var encoding: Encoding = Encoding.defaultEncoding(),
     var timeStamp: TimeStamp? = null,
     var attachment: ZBytes? = null,
@@ -93,37 +93,42 @@ data class ReplyConfig(
 ) {
 
     /**
-     * Sets the [Encoding] of the reply.
+     * Get the QoS express value.
      */
-    fun encoding(encoding: Encoding) = apply { this.encoding = encoding }
+    fun getExpress(): Boolean {
+        return qos.express
+    }
 
     /**
-     * Sets the [TimeStamp] of the replied [Sample].
+     * Get the QoS Priority value.
      */
-    fun timestamp(timeStamp: TimeStamp) = apply { this.timeStamp = timeStamp }
+    fun getPriority(): Priority {
+        return qos.priority
+    }
 
     /**
-     * Appends an attachment to the reply.
+     * Get the congestion control value.
      */
-    fun attachment(attachment: IntoZBytes) = apply { this.attachment = attachment.into() }
+    fun getCongestionControl(): CongestionControl {
+        return qos.congestionControl
+    }
 
     /**
      * Sets the express flag. If true, the reply won't be batched in order to reduce the latency.
      */
-    fun express(express: Boolean) = apply { qos.express(express) }
+    fun setExpress(express: Boolean) { qos.express(express) }
 
     /**
      * Sets the [Priority] of the reply.
      */
-    fun priority(priority: Priority) = apply { qos.priority(priority) }
+    fun setPriority(priority: Priority) { qos.priority(priority) }
 
     /**
      * Sets the [CongestionControl] of the reply.
      *
      * @param congestionControl
      */
-    fun congestionControl(congestionControl: CongestionControl) =
-        apply { qos.congestionControl(congestionControl) }
+    fun setCongestionControl(congestionControl: CongestionControl) { qos.congestionControl(congestionControl) }
 }
 
 /**

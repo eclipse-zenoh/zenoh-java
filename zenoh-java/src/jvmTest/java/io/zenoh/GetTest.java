@@ -37,7 +37,9 @@ public class GetTest {
         queryable = session.declareQueryable(selector.getKeyExpr(), query ->
                 {
                     try {
-                        query.reply(query.getKeyExpr(), payload, new ReplyConfig().timestamp(timestamp));
+                        var options = new ReplyOptions();
+                        options.setTimeStamp(timestamp);
+                        query.reply(query.getKeyExpr(), payload, options);
                     } catch (ZError e) {
                         throw new RuntimeException(e);
                     }

@@ -77,10 +77,13 @@ public class EncodingTest {
         {
             try {
                 KeyExpr queryKeyExpr = query.getKeyExpr();
+                var options = new ReplyOptions();
                 if (queryKeyExpr.equals(test1.getKeyExpr())) {
-                    query.reply(queryKeyExpr, payload, new ReplyConfig().encoding(without_schema));
+                    options.setEncoding(without_schema);
+                    query.reply(queryKeyExpr, payload, options);
                 } else if (queryKeyExpr.equals(test2.getKeyExpr())) {
-                    query.reply(queryKeyExpr, payload, new ReplyConfig().encoding(with_schema));
+                    options.setEncoding(with_schema);
+                    query.reply(queryKeyExpr, payload, options);
                 }
             } catch (Exception e) {
                 throw new RuntimeException(e);

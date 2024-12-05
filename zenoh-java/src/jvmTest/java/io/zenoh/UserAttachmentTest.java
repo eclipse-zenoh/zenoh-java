@@ -22,7 +22,7 @@ import io.zenoh.pubsub.PutOptions;
 import io.zenoh.pubsub.Subscriber;
 import io.zenoh.query.GetOptions;
 import io.zenoh.query.Reply;
-import io.zenoh.query.ReplyConfig;
+import io.zenoh.query.ReplyOptions;
 import io.zenoh.sample.Sample;
 import org.junit.After;
 import org.junit.Before;
@@ -175,7 +175,9 @@ public class UserAttachmentTest {
         Reply[] reply = new Reply[1];
         var queryable = session.declareQueryable(keyExpr, query -> {
             try {
-                query.reply(keyExpr, payload, new ReplyConfig().attachment(attachment));
+                var options = new ReplyOptions();
+                options.setAttachment(attachment);
+                query.reply(keyExpr, payload, options);
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }

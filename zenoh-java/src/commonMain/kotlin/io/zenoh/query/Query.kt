@@ -51,7 +51,7 @@ class Query internal constructor(
     val parameters = selector.parameters
 
     @Throws(ZError::class)
-    fun reply(keyExpr: KeyExpr, payload: IntoZBytes) = reply(keyExpr, payload, ReplyConfig())
+    fun reply(keyExpr: KeyExpr, payload: IntoZBytes) = reply(keyExpr, payload, ReplyOptions())
 
     /**
      * Reply to the specified key expression.
@@ -60,7 +60,7 @@ class Query internal constructor(
      * as the key expression from the Query, however it must intersect with the query key.
      */
     @Throws(ZError::class)
-    fun reply(keyExpr: KeyExpr, payload: IntoZBytes, config: ReplyConfig) {
+    fun reply(keyExpr: KeyExpr, payload: IntoZBytes, config: ReplyOptions) {
         val sample = Sample(
             keyExpr,
             payload.into(),

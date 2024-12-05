@@ -60,11 +60,9 @@ public class QueryableTest {
         var queryable = session.declareQueryable(testKeyExpr, query ->
         {
             try {
-                query.reply(testKeyExpr, testPayload, new ReplyConfig()
-                        .timestamp(timestamp)
-                        .congestionControl(QoS.defaultQoS().getCongestionControl())
-                        .priority(QoS.defaultQoS().getPriority())
-                        .express(QoS.defaultQoS().getExpress()));
+                var options = new ReplyOptions();
+                options.setTimeStamp(timestamp);
+                query.reply(testKeyExpr, testPayload, options);
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }
@@ -137,12 +135,13 @@ public class QueryableTest {
         var timestamp = TimeStamp.getCurrentTime();
 
         Queryable<Void> queryable = session.declareQueryable(testKeyExpr, query -> {
+            var options = new ReplyOptions();
+            options.setTimeStamp(timestamp);
+            options.setPriority(Priority.DATA_HIGH);
+            options.setCongestionControl(CongestionControl.DROP);
+            options.setExpress(true);
             try {
-                query.reply(testKeyExpr, message, new ReplyConfig()
-                        .timestamp(timestamp)
-                        .priority(Priority.DATA_HIGH)
-                        .express(true)
-                        .congestionControl(CongestionControl.DROP));
+                query.reply(testKeyExpr, message, options);
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }
@@ -261,7 +260,7 @@ class QueryHandler implements Handler<Query, QueryHandler> {
                 null
         );
         performedReplies.add(sample);
-        var config = new ReplyConfig();
+        var config = new ReplyOptions();
         config.setTimeStamp(sample.getTimestamp());
         query.reply(query.getKeyExpr(), payload, config);
     }
