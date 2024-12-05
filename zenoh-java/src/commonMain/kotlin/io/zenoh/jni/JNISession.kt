@@ -133,7 +133,7 @@ internal class JNISession {
 
     @Throws(ZError::class)
     fun declareQueryableWithCallback(
-        keyExpr: KeyExpr, callback: Callback<Query>, config: QueryableConfig
+        keyExpr: KeyExpr, callback: Callback<Query>, config: QueryableOptions
     ): Queryable<Void> {
         val queryCallback =
             JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long ->
@@ -167,7 +167,7 @@ internal class JNISession {
 
     @Throws(ZError::class)
     fun <R> declareQueryableWithHandler(
-        keyExpr: KeyExpr, handler: Handler<Query, R>, config: QueryableConfig
+        keyExpr: KeyExpr, handler: Handler<Query, R>, config: QueryableOptions
     ): Queryable<R> {
         val queryCallback =
             JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long ->

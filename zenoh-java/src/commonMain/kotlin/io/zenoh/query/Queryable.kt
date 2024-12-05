@@ -15,16 +15,12 @@
 package io.zenoh.query
 
 import io.zenoh.*
-import io.zenoh.exceptions.ZError
-import io.zenoh.handlers.Callback
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Handler
 import io.zenoh.jni.JNIQueryable
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.session.SessionDeclaration
 import java.util.*
-import java.util.concurrent.BlockingQueue
-import java.util.concurrent.LinkedBlockingDeque
 
 /**
  * A queryable that allows to perform multiple queries on the specified [KeyExpr].
@@ -93,7 +89,7 @@ class Queryable<R> internal constructor(
 /**
  * TODO: add doc
  */
-data class QueryableConfig(
+data class QueryableOptions(
     var complete: Boolean = false,
     var onClose: Runnable? = null
 ) {

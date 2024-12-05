@@ -19,7 +19,7 @@ import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.query.Query;
 import io.zenoh.query.Queryable;
-import io.zenoh.query.QueryableConfig;
+import io.zenoh.query.QueryableOptions;
 import io.zenoh.query.ReplyOptions;
 import org.apache.commons.net.ntp.TimeStamp;
 import picocli.CommandLine;
@@ -86,15 +86,15 @@ public class ZQueryable implements Callable<Integer> {
     /**
      * Example demonstrating the use of QueryableConfig to declare a Queryable.
      *
-     * @see QueryableConfig
+     * @see QueryableOptions
      */
     private void declareQueryableProvidingConfig(Config config, KeyExpr keyExpr) throws ZError {
         try (Session session = Zenoh.open(config)) {
-            QueryableConfig queryableConfig = new QueryableConfig();
-            queryableConfig.setComplete(true);
-            queryableConfig.setOnClose(() -> System.out.println("Queryable closed..."));
+            QueryableOptions queryableOptions = new QueryableOptions();
+            queryableOptions.setComplete(true);
+//            queryableConfig.setOnClose(() -> System.out.println("Queryable closed..."));
 
-            session.declareQueryable(keyExpr, this::handleQuery, queryableConfig);
+            session.declareQueryable(keyExpr, this::handleQuery, queryableOptions);
         }
     }
 
