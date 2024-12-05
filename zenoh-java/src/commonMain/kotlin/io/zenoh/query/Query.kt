@@ -50,9 +50,6 @@ class Query internal constructor(
     /** Shortcut to the [selector]'s parameters. */
     val parameters = selector.parameters
 
-    @Throws(ZError::class)
-    fun reply(keyExpr: KeyExpr, payload: IntoZBytes) = reply(keyExpr, payload, ReplyOptions())
-
     /**
      * Reply to the specified key expression.
      *
@@ -60,15 +57,16 @@ class Query internal constructor(
      * as the key expression from the Query, however it must intersect with the query key.
      */
     @Throws(ZError::class)
-    fun reply(keyExpr: KeyExpr, payload: IntoZBytes, config: ReplyOptions) {
+    @JvmOverloads
+    fun reply(keyExpr: KeyExpr, payload: IntoZBytes, options: ReplyOptions = ReplyOptions()) {
         val sample = Sample(
             keyExpr,
             payload.into(),
-            config.encoding,
+            options.encoding,
             SampleKind.PUT,
-            config.timeStamp,
-            config.qos,
-            config.attachment
+            options.timeStamp,
+            options.qos,
+            options.attachment
         )
         jniQuery?.apply {
             replySuccess(sample)
@@ -79,20 +77,15 @@ class Query internal constructor(
     /**
      * TODO
      */
+    @JvmOverloads
     @Throws(ZError::class)
-    fun replyDel(keyExpr: KeyExpr) = replyDel(keyExpr, ReplyDelOptions())
-
-    /**
-     * TODO
-     */
-    @Throws(ZError::class)
-    fun replyDel(keyExpr: KeyExpr, config: ReplyDelOptions) {
+    fun replyDel(keyExpr: KeyExpr, options: ReplyDelOptions = ReplyDelOptions()) {
         jniQuery?.apply {
             replyDelete(
                 keyExpr,
-                config.timeStamp,
-                config.attachment,
-                config.qos
+                options.timeStamp,
+                options.attachment,
+                options.qos
             )
             jniQuery = null
         } ?: throw (ZError("Query is invalid"))
@@ -101,16 +94,11 @@ class Query internal constructor(
     /**
      * TODO
      */
+    @JvmOverloads
     @Throws(ZError::class)
-    fun replyErr(payload: IntoZBytes) = replyErr(payload, ReplyErrOptions())
-
-    /**
-     * TODO
-     */
-    @Throws(ZError::class)
-    fun replyErr(payload: IntoZBytes, config: ReplyErrOptions) {
+    fun replyErr(payload: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
         jniQuery?.apply {
-            replyError(payload.into(), config.encoding)
+            replyError(payload.into(), options.encoding)
             jniQuery = null
         } ?: throw (ZError("Query is invalid"))
     }

@@ -203,7 +203,7 @@ internal class JNISession {
     fun performGetWithCallback(
         intoSelector: IntoSelector,
         callback: Callback<Reply>,
-        config: GetOptions
+        options: GetOptions
     ) {
         val getCallback = JNIGetCallback {
                 replierId: ByteArray?,
@@ -251,13 +251,13 @@ internal class JNISession {
             sessionPtr.get(),
             getCallback,
             fun() {},
-            config.timeout.toMillis(),
-            config.target.ordinal,
-            config.consolidation.ordinal,
-            config.attachment?.into()?.bytes,
-            config.payload?.into()?.bytes,
-            config.encoding?.id ?: Encoding.defaultEncoding().id,
-            config.encoding?.schema
+            options.timeout.toMillis(),
+            options.target.ordinal,
+            options.consolidation.ordinal,
+            options.attachment?.into()?.bytes,
+            options.payload?.into()?.bytes,
+            options.encoding?.id ?: Encoding.defaultEncoding().id,
+            options.encoding?.schema
         )
     }
 
@@ -265,7 +265,7 @@ internal class JNISession {
     fun <R> performGetWithHandler(
         intoSelector: IntoSelector,
         handler: Handler<Reply, R>,
-        config: GetOptions
+        options: GetOptions
     ): R {
         val getCallback = JNIGetCallback {
                 replierId: ByteArray?,
@@ -313,13 +313,13 @@ internal class JNISession {
             sessionPtr.get(),
             getCallback,
             handler::onClose,
-            config.timeout.toMillis(),
-            config.target.ordinal,
-            config.consolidation.ordinal,
-            config.attachment?.into()?.bytes,
-            config.payload?.into()?.bytes,
-            config.encoding?.id ?: Encoding.defaultEncoding().id,
-            config.encoding?.schema
+            options.timeout.toMillis(),
+            options.target.ordinal,
+            options.consolidation.ordinal,
+            options.attachment?.into()?.bytes,
+            options.payload?.into()?.bytes,
+            options.encoding?.id ?: Encoding.defaultEncoding().id,
+            options.encoding?.schema
         )
         return handler.receiver()
     }
@@ -343,9 +343,9 @@ internal class JNISession {
     fun performPut(
         keyExpr: KeyExpr,
         payload: IntoZBytes,
-        config: PutOptions,
+        options: PutOptions,
     ) {
-        val encoding = config.encoding ?: Encoding.defaultEncoding()
+        val encoding = options.encoding ?: Encoding.defaultEncoding()
         putViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
@@ -353,28 +353,28 @@ internal class JNISession {
             payload.into().bytes,
             encoding.id,
             encoding.schema,
-            config.qos.congestionControl.value,
-            config.qos.priority.value,
-            config.qos.express,
-            config.attachment?.into()?.bytes,
-            config.reliability.ordinal
+            options.qos.congestionControl.value,
+            options.qos.priority.value,
+            options.qos.express,
+            options.attachment?.into()?.bytes,
+            options.reliability.ordinal
         )
     }
 
     @Throws(ZError::class)
     fun performDelete(
         keyExpr: KeyExpr,
-        config: DeleteOptions,
+        options: DeleteOptions,
     ) {
         deleteViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
             sessionPtr.get(),
-            config.qos.congestionControl.value,
-            config.qos.priority.value,
-            config.qos.express,
-            config.attachment?.into()?.bytes,
-            config.reliability.ordinal
+            options.qos.congestionControl.value,
+            options.qos.priority.value,
+            options.qos.express,
+            options.attachment?.into()?.bytes,
+            options.reliability.ordinal
         )
     }
 

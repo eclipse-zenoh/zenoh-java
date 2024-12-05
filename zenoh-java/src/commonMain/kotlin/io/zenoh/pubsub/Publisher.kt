@@ -86,8 +86,8 @@ class Publisher internal constructor(
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
     @Throws(ZError::class)
-    fun put(payload: IntoZBytes, config: PutOptions) {
-        jniPublisher?.put(payload, config.encoding ?: this.encoding, config.attachment) ?: throw publisherNotValid
+    fun put(payload: IntoZBytes, options: PutOptions) {
+        jniPublisher?.put(payload, options.encoding ?: this.encoding, options.attachment) ?: throw publisherNotValid
     }
 
     /**
@@ -97,8 +97,8 @@ class Publisher internal constructor(
      */
     @JvmOverloads
     @Throws(ZError::class)
-    fun delete(config: DeleteOptions = DeleteOptions()) {
-        jniPublisher?.delete(config.attachment) ?: throw(publisherNotValid)
+    fun delete(options: DeleteOptions = DeleteOptions()) {
+        jniPublisher?.delete(options.attachment) ?: throw(publisherNotValid)
     }
 
     /**

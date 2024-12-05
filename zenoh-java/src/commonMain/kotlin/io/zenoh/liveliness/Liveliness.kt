@@ -61,7 +61,8 @@ class Liveliness internal constructor(private val session: Session) {
     ): BlockingQueue<Optional<Reply>> {
         val jniSession = session.jniSession ?: throw Session.sessionClosedException
         val handler = BlockingQueueHandler<Reply>(LinkedBlockingDeque())
-        return JNILiveliness.get(jniSession,
+        return JNILiveliness.get(
+            jniSession,
             keyExpr,
             handler::handle,
             receiver = handler.receiver(),
@@ -119,7 +120,7 @@ class Liveliness internal constructor(private val session: Session) {
     fun declareSubscriber(
         keyExpr: KeyExpr,
         callback: Callback<Sample>,
-        config: SubscriberConfig = SubscriberConfig()
+        options: SubscriberOptions = SubscriberOptions()
     ): Subscriber<Void> {
         val jniSession = session.jniSession ?: throw Session.sessionClosedException
         return JNILiveliness.declareSubscriber(
@@ -127,8 +128,9 @@ class Liveliness internal constructor(private val session: Session) {
             keyExpr,
             callback,
             null,
-            config.history,
-            fun() { config.onClose?.run() })
+            options.history,
+            fun() {}
+        )
     }
 
     /**
@@ -142,7 +144,7 @@ class Liveliness internal constructor(private val session: Session) {
     fun <R> declareSubscriber(
         keyExpr: KeyExpr,
         handler: Handler<Sample, R>,
-        config: SubscriberConfig = SubscriberConfig()
+        options: SubscriberOptions = SubscriberOptions()
     ): Subscriber<R> {
         val jniSession = session.jniSession ?: throw Session.sessionClosedException
         return JNILiveliness.declareSubscriber(
@@ -150,17 +152,15 @@ class Liveliness internal constructor(private val session: Session) {
             keyExpr,
             handler::handle,
             handler.receiver(),
-            config.history,
-            fun() {
-                handler.onClose()
-                config.onClose?.run()
-            })
+            options.history,
+            handler::onClose
+        )
     }
 
     @JvmOverloads
     fun declareSubscriber(
         keyExpr: KeyExpr,
-        config: SubscriberConfig = SubscriberConfig()
+        options: SubscriberOptions = SubscriberOptions()
     ): Subscriber<BlockingQueue<Optional<Sample>>> {
         val handler = BlockingQueueHandler<Sample>(LinkedBlockingDeque())
         val jniSession = session.jniSession ?: throw Session.sessionClosedException
@@ -169,15 +169,10 @@ class Liveliness internal constructor(private val session: Session) {
             keyExpr,
             handler::handle,
             handler.receiver(),
-            config.history,
-            fun() {
-                handler.onClose()
-                config.onClose?.run()
-            })
+            options.history,
+            handler::onClose
+        )
     }
 
-    data class SubscriberConfig(var history: Boolean = false, var onClose: Runnable? = null) {
-        fun history(history: Boolean) = apply { this.history = history }
-        fun onClose(onClose: Runnable) = apply { this.onClose = onClose }
-    }
+    data class SubscriberOptions(var history: Boolean = false)
 }

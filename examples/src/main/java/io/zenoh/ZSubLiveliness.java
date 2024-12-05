@@ -57,8 +57,9 @@ public class ZSubLiveliness implements Callable<Integer> {
      */
     private void subscribeToLivelinessWithBlockingQueue(Config config, KeyExpr keyExpr) throws ZError, InterruptedException {
         try (Session session = Zenoh.open(config)) {
+            var options = new Liveliness.SubscriberOptions(history);
             Subscriber<BlockingQueue<Optional<Sample>>> subscriber =
-                    session.liveliness().declareSubscriber(keyExpr, new Liveliness.SubscriberConfig().history(history));
+                    session.liveliness().declareSubscriber(keyExpr, options);
 
             BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
             System.out.println("Listening for liveliness tokens...");
@@ -79,10 +80,11 @@ public class ZSubLiveliness implements Callable<Integer> {
      */
     private void subscribeToLivelinessWithCallback(Config config, KeyExpr keyExpr) throws ZError {
         try (Session session = Zenoh.open(config)) {
+            var options = new Liveliness.SubscriberOptions(history);
             session.liveliness().declareSubscriber(
                     keyExpr,
                     this::handleLivelinessSample,
-                    new Liveliness.SubscriberConfig().history(history)
+                    options
             );
         }
     }
@@ -96,10 +98,11 @@ public class ZSubLiveliness implements Callable<Integer> {
     private void subscribeToLivelinessWithHandler(Config config, KeyExpr keyExpr) throws ZError {
         try (Session session = Zenoh.open(config)) {
             QueueHandler<Sample> queueHandler = new QueueHandler<>();
+            var options = new Liveliness.SubscriberOptions(history);
             session.liveliness().declareSubscriber(
                     keyExpr,
                     queueHandler,
-                    new Liveliness.SubscriberConfig().history(history)
+                    options
             );
         }
     }

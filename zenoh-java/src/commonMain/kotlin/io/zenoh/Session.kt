@@ -101,14 +101,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      *
      * TODO
      */
-    fun declarePublisher(keyExpr: KeyExpr): Publisher = declarePublisher(keyExpr, PublisherOptions())
-
-    /**
-     * Declare a [Publisher] on the session.
-     *
-     * TODO
-     */
-    fun declarePublisher(keyExpr: KeyExpr, publisherOptions: PublisherOptions): Publisher {
+    @JvmOverloads
+    @Throws(ZError::class)
+    fun declarePublisher(keyExpr: KeyExpr, publisherOptions: PublisherOptions = PublisherOptions()): Publisher {
         return resolvePublisher(keyExpr, publisherOptions)
     }
 
@@ -203,7 +198,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * @param keyExpr The intended Key expression.
      * @return A resolvable returning an optimized representation of the passed `keyExpr`.
      */
-    fun declareKeyExpr(keyExpr: String): Resolvable<KeyExpr> = Resolvable {
+    fun declareKeyExpr(keyExpr: String): Resolvable<KeyExpr> = Resolvable { // TODO: remove resolvable
         return@Resolvable jniSession?.run {
             val keyexpr = declareKeyExpr(keyExpr)
             declarations.add(keyexpr)
@@ -233,82 +228,52 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * TODO: provide example
      * ```
      */
-    fun get(selector: IntoSelector): BlockingQueue<Optional<Reply>> {
+    @JvmOverloads
+    @Throws(ZError::class)
+    fun get(selector: IntoSelector, options: GetOptions = GetOptions()): BlockingQueue<Optional<Reply>> {
         val handler = BlockingQueueHandler<Reply>(LinkedBlockingDeque())
-        val config = GetOptions()
         return resolveGetWithHandler(
             selector,
             handler,
-            config
+            options
         )
     }
 
     /**
      * TODO
      */
-    fun get(selector: IntoSelector, config: GetOptions): BlockingQueue<Optional<Reply>> {
-        val handler = BlockingQueueHandler<Reply>(LinkedBlockingDeque())
-        return resolveGetWithHandler(
-            selector,
-            handler,
-            config
-        )
+    @JvmOverloads
+    @Throws(ZError::class)
+    fun <R> get(selector: IntoSelector, handler: Handler<Reply, R>, options: GetOptions = GetOptions()): R {
+        return resolveGetWithHandler(selector, handler, options)
     }
 
     /**
      * TODO
      */
-    fun <R> get(selector: IntoSelector, handler: Handler<Reply, R>): R {
-        return resolveGetWithHandler(selector, handler, GetOptions())
-    }
-
-    /**
-     * TODO
-     */
-    fun <R> get(selector: IntoSelector, handler: Handler<Reply, R>, config: GetOptions): R {
-        return resolveGetWithHandler(selector, handler, config)
-    }
-
-    /**
-     * TODO
-     */
-    fun get(selector: IntoSelector, callback: Callback<Reply>) {
-        return resolveGetWithCallback(selector, callback, GetOptions())
-    }
-
-    /**
-     * TODO
-     */
-    fun get(selector: IntoSelector, callback: Callback<Reply>, config: GetOptions) {
-        return resolveGetWithCallback(selector, callback, config)
+    @JvmOverloads
+    @Throws(ZError::class)
+    fun get(selector: IntoSelector, callback: Callback<Reply>, options: GetOptions = GetOptions()) {
+        return resolveGetWithCallback(selector, callback, options)
     }
 
     /**
      * Declare a [Put] with the provided value on the specified key expression.
      * //TODO update
      */
+    @JvmOverloads
     @Throws(ZError::class)
-    fun put(keyExpr: KeyExpr, payload: IntoZBytes) {
-        resolvePut(keyExpr, payload, PutOptions())
-    }
-
-    @Throws(ZError::class)
-    fun put(keyExpr: KeyExpr, payload: IntoZBytes, config: PutOptions) {
-        resolvePut(keyExpr, payload, config)
+    fun put(keyExpr: KeyExpr, payload: IntoZBytes, options: PutOptions = PutOptions()) {
+        resolvePut(keyExpr, payload, options)
     }
 
     /**
      * TODO
      */
-    fun delete(keyExpr: KeyExpr) {
-        resolveDelete(keyExpr, DeleteOptions())
-    }
-
-    /**
-     * TODO
-     */
-    fun delete(keyExpr: KeyExpr, config: DeleteOptions) {
-        resolveDelete(keyExpr, config)
+    @JvmOverloads
+    @Throws(ZError::class)
+    fun delete(keyExpr: KeyExpr, options: DeleteOptions = DeleteOptions()) {
+        resolveDelete(keyExpr, options)
     }
 
     /** Returns if session is open or has been closed. */
@@ -331,9 +296,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     @Throws(ZError::class)
-    internal fun resolvePublisher(keyExpr: KeyExpr, config: PublisherOptions): Publisher {
+    internal fun resolvePublisher(keyExpr: KeyExpr, options: PublisherOptions): Publisher {
         return jniSession?.run {
-            val publisher = declarePublisher(keyExpr, config)
+            val publisher = declarePublisher(keyExpr, options)
             declarations.add(publisher)
             publisher
         } ?: throw (sessionClosedException)
@@ -363,10 +328,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
 
     @Throws(ZError::class)
     internal fun <R> resolveQueryableWithHandler(
-        keyExpr: KeyExpr, handler: Handler<Query, R>, config: QueryableOptions
+        keyExpr: KeyExpr, handler: Handler<Query, R>, options: QueryableOptions
     ): Queryable<R> {
         return jniSession?.run {
-            val queryable = declareQueryableWithHandler(keyExpr, handler, config)
+            val queryable = declareQueryableWithHandler(keyExpr, handler, options)
             declarations.add(queryable)
             queryable
         } ?: throw (sessionClosedException)
@@ -374,10 +339,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
 
     @Throws(ZError::class)
     internal fun resolveQueryableWithCallback(
-        keyExpr: KeyExpr, callback: Callback<Query>, config: QueryableOptions
+        keyExpr: KeyExpr, callback: Callback<Query>, options: QueryableOptions
     ): Queryable<Void> {
         return jniSession?.run {
-            val queryable = declareQueryableWithCallback(keyExpr, callback, config)
+            val queryable = declareQueryableWithCallback(keyExpr, callback, options)
             declarations.add(queryable)
             queryable
         } ?: throw (sessionClosedException)
@@ -387,12 +352,12 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     internal fun <R> resolveGetWithHandler(
         selector: IntoSelector,
         handler: Handler<Reply, R>,
-        config: GetOptions
+        options: GetOptions
     ): R {
         return jniSession?.performGetWithHandler(
             selector,
             handler,
-            config
+            options
         ) ?: throw sessionClosedException
     }
 
@@ -400,12 +365,12 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     internal fun resolveGetWithCallback(
         selector: IntoSelector,
         callback: Callback<Reply>,
-        config: GetOptions
+        options: GetOptions
     ) {
         return jniSession?.performGetWithCallback(
             selector,
             callback,
-            config
+            options
         ) ?: throw sessionClosedException
     }
 

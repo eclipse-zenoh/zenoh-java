@@ -55,7 +55,7 @@ public class GetTest {
     }
 
     @Test
-    public void get_runsWithCallbackTest() {
+    public void get_runsWithCallbackTest() throws ZError {
         Reply[] reply = new Reply[1];
 
         var getOptions = new GetOptions();
@@ -71,7 +71,7 @@ public class GetTest {
     }
 
     @Test
-    public void get_runsWithHandlerTest() {
+    public void get_runsWithHandlerTest() throws ZError {
         var getOptions = new GetOptions();
         getOptions.setTimeout(Duration.ofMillis(1000));
         ArrayList<Reply> receiver = session.get(selector, new TestHandler(), getOptions);
