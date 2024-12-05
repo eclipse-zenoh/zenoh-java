@@ -92,8 +92,6 @@ public class ZQueryable implements Callable<Integer> {
         try (Session session = Zenoh.open(config)) {
             QueryableOptions queryableOptions = new QueryableOptions();
             queryableOptions.setComplete(true);
-//            queryableConfig.setOnClose(() -> System.out.println("Queryable closed..."));
-
             session.declareQueryable(keyExpr, this::handleQuery, queryableOptions);
         }
     }

@@ -89,10 +89,4 @@ class Queryable<R> internal constructor(
 /**
  * TODO: add doc
  */
-data class QueryableOptions(
-    var complete: Boolean = false,
-    var onClose: Runnable? = null
-) {
-    fun complete(complete: Boolean) = apply { this.complete = complete }
-    fun onClose(onClose: Runnable) = apply { this.onClose = onClose }
-}
+data class QueryableOptions(var complete: Boolean = false)
