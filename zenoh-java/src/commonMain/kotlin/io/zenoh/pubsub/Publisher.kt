@@ -92,8 +92,6 @@ class Publisher internal constructor(
 
     /**
      * Performs a DELETE operation on the specified [keyExpr]
-     *
-     * @return A [Resolvable] operation.
      */
     @JvmOverloads
     @Throws(ZError::class)

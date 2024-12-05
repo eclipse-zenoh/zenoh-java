@@ -198,8 +198,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * @param keyExpr The intended Key expression.
      * @return A resolvable returning an optimized representation of the passed `keyExpr`.
      */
-    fun declareKeyExpr(keyExpr: String): Resolvable<KeyExpr> = Resolvable { // TODO: remove resolvable
-        return@Resolvable jniSession?.run {
+    @Throws(ZError::class)
+    fun declareKeyExpr(keyExpr: String): KeyExpr {
+        return jniSession?.run {
             val keyexpr = declareKeyExpr(keyExpr)
             declarations.add(keyexpr)
             keyexpr
@@ -215,8 +216,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * @param keyExpr The key expression to undeclare.
      * @return A resolvable returning the status of the undeclare operation.
      */
-    fun undeclare(keyExpr: KeyExpr): Resolvable<Unit> = Resolvable {
-        return@Resolvable jniSession?.run {
+    @Throws(ZError::class)
+    fun undeclare(keyExpr: KeyExpr) {
+        return jniSession?.run {
             undeclareKeyExpr(keyExpr)
         } ?: throw (sessionClosedException)
     }
