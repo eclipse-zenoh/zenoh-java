@@ -28,7 +28,7 @@ public class GetTest {
 
     private Session session;
     private Selector selector;
-    private Queryable<Void> queryable;
+    private Queryable queryable;
 
     @Before
     public void setUp() throws ZError {
@@ -86,7 +86,7 @@ public class GetTest {
     public void getWithSelectorParamsTest() throws ZError {
         Parameters[] receivedParams = new Parameters[1];
 
-        Queryable<Void> queryable = session.declareQueryable(selector.getKeyExpr(), query ->
+        Queryable queryable = session.declareQueryable(selector.getKeyExpr(), query ->
                 receivedParams[0] = query.getParameters()
         );
 

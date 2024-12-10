@@ -48,10 +48,10 @@ public class ZPub implements Callable<Integer> {
             System.out.println("Declaring publisher on '" + keyExpr + "'...");
 
             // A publisher config can optionally be provided.
-            PublisherOptions publisherOptions = new PublisherOptions() // PublisherOpts
-                    .encoding(Encoding.ZENOH_STRING)
-                    .congestionControl(CongestionControl.BLOCK)
-                    .reliability(Reliability.RELIABLE);
+            PublisherOptions publisherOptions = new PublisherOptions();
+            publisherOptions.setEncoding(Encoding.ZENOH_STRING);
+            publisherOptions.setCongestionControl(CongestionControl.BLOCK);
+            publisherOptions.setReliability(Reliability.RELIABLE);
 
             // Declare the publisher
             Publisher publisher = session.declarePublisher(keyExpr, publisherOptions);

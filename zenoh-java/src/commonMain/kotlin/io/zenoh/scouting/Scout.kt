@@ -23,17 +23,45 @@ import io.zenoh.jni.JNIScout
  * Drop the returned Scout to stop the scouting task.
  *
  * To launch a scout, use [io.zenoh.Zenoh.scout]:
- * ```kotlin
- * Zenoh.scout(callback = { hello ->
- *     println(hello)
- * }).getOrThrow()
+ *
+ * Example using the default blocking queue handler:
+ * ```java
+ *
+ * var scoutOptions = new ScoutOptions();
+ * scoutOptions.setWhatAmI(Set.of(WhatAmI.Peer, WhatAmI.Router));
+ *
+ * var scout = Zenoh.scout(scoutOptions);
+ * BlockingQueue<Optional<Hello>> receiver = scout.getReceiver();
+ *
+ * try {
+ *     while (true) {
+ *         Optional<Hello> wrapper = receiver.take();
+ *         if (wrapper.isEmpty()) {
+ *             break;
+ *         }
+ *
+ *         Hello hello = wrapper.get();
+ *         System.out.println(hello);
+ *     }
+ * } finally {
+ *     scout.stop();
+ * }
  * ```
  *
- * @param R The receiver type.
- * @param receiver Receiver to handle incoming hello messages.
+ * Example using a callback:
+ * ```java
+ * var scoutOptions = new ScoutOptions();
+ * scoutOptions.setWhatAmI(Set.of(WhatAmI.Peer, WhatAmI.Router));
+ * Zenoh.scout(hello -> {
+ *     //...
+ *     System.out.println(hello);
+ * }, scoutOptions);
+ * ```
+ *
+ * @see CallbackScout
+ * @see HandlerScout
  */
-class Scout<R> internal constructor(
-    val receiver: R?,
+sealed class Scout (
     private var jniScout: JNIScout?
 ) : AutoCloseable {
 
@@ -56,3 +84,26 @@ class Scout<R> internal constructor(
         stop()
     }
 }
+
+/**
+ * Scout using a callback to handle incoming [Hello] messages.
+ *
+ * Example:
+ * ```java
+ * CallbackScout scout = Zenoh.scout(hello -> {...});
+ * ```
+ */
+class CallbackScout internal constructor(jniScout: JNIScout?) : Scout(jniScout)
+
+/**
+ * Scout using a handler to handle incoming [Hello] messages.
+ *
+ * Example
+ * ```java
+ * HandlerScout<BlockingQueue<Optional<Hello>>> scout = Zenoh.scout();
+ * ```
+ *
+ * @param R The type of the receiver.
+ * @param receiver The receiver of the scout's handler.
+ */
+class HandlerScout<R> internal constructor(jniScout: JNIScout?, val receiver: R) : Scout(jniScout)

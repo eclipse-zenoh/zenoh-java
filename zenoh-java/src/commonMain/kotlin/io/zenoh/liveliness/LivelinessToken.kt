@@ -18,7 +18,7 @@ import io.zenoh.jni.JNILivelinessToken
 import io.zenoh.session.SessionDeclaration
 
 /**
- * A token whose liveliness is tied to the Zenoh [Session].
+ * A token whose liveliness is tied to the Zenoh [io.zenoh.Session].
  *
  * A declared liveliness token will be seen as alive by any other Zenoh
  * application in the system that monitors it while the liveliness token
@@ -28,8 +28,6 @@ import io.zenoh.session.SessionDeclaration
  * that monitors it.
  *
  * Liveliness tokens are automatically undeclared when dropped.
- *
- * TODO: provide example
  */
 class LivelinessToken internal constructor(private var jniLivelinessToken: JNILivelinessToken?): SessionDeclaration, AutoCloseable {
 

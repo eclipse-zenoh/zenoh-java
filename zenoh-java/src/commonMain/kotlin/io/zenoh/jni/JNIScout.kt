@@ -21,9 +21,10 @@ import io.zenoh.handlers.Callback
 import io.zenoh.jni.callbacks.JNIScoutCallback
 import io.zenoh.config.ZenohId
 import io.zenoh.scouting.Hello
-import io.zenoh.scouting.Scout
 import io.zenoh.config.WhatAmI
 import io.zenoh.jni.callbacks.JNIOnCloseCallback
+import io.zenoh.scouting.CallbackScout
+import io.zenoh.scouting.HandlerScout
 
 /**
  * Adapter class to handle the interactions with Zenoh through JNI for a [io.zenoh.scouting.Scout]
@@ -45,13 +46,13 @@ internal class JNIScout(private val ptr: Long) {
             onClose: () -> Unit,
             config: Config?,
             receiver: R
-        ): Scout<R> {
+        ): HandlerScout<R> {
             val scoutCallback = JNIScoutCallback { whatAmI2: Int, id: ByteArray, locators: List<String> ->
                 callback.run(Hello(WhatAmI.fromInt(whatAmI2), ZenohId(id), locators))
             }
             val binaryWhatAmI: Int = whatAmI.map { it.value }.reduce { acc, it -> acc or it }
             val ptr = scoutViaJNI(binaryWhatAmI, scoutCallback, onClose,config?.jniConfig?.ptr ?: 0)
-            return Scout(receiver, JNIScout(ptr))
+            return HandlerScout(JNIScout(ptr), receiver)
         }
 
         @Throws(ZError::class)
@@ -59,13 +60,13 @@ internal class JNIScout(private val ptr: Long) {
             whatAmI: Set<WhatAmI>,
             callback: Callback<Hello>,
             config: Config?,
-        ): Scout<Void> {
+        ): CallbackScout {
             val scoutCallback = JNIScoutCallback { whatAmI2: Int, id: ByteArray, locators: List<String> ->
                 callback.run(Hello(WhatAmI.fromInt(whatAmI2), ZenohId(id), locators))
             }
             val binaryWhatAmI: Int = whatAmI.map { it.value }.reduce { acc, it -> acc or it }
             val ptr = scoutViaJNI(binaryWhatAmI, scoutCallback, fun() {},config?.jniConfig?.ptr ?: 0)
-            return Scout(null, JNIScout(ptr))
+            return CallbackScout(JNIScout(ptr))
         }
 
         @Throws(ZError::class)

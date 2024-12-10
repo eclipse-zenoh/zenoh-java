@@ -90,7 +90,7 @@ public class KeyExprTest {
     @Test
     public void sessionDeclarationTest() throws ZError {
         Session session = Zenoh.open(Config.loadDefault());
-        KeyExpr keyExpr = session.declareKeyExpr("a/b/c").res();
+        KeyExpr keyExpr = session.declareKeyExpr("a/b/c");
         assertEquals("a/b/c", keyExpr.toString());
         session.close();
         keyExpr.close();
@@ -99,17 +99,17 @@ public class KeyExprTest {
     @Test
     public void sessionUnDeclarationTest() throws ZError {
         Session session = Zenoh.open(Config.loadDefault());
-        KeyExpr keyExpr = session.declareKeyExpr("a/b/c").res();
+        KeyExpr keyExpr = session.declareKeyExpr("a/b/c");
         assertEquals("a/b/c", keyExpr.toString());
 
-        session.undeclare(keyExpr).res();
+        session.undeclare(keyExpr);
 
         // Undeclaring twice a key expression shall fail.
-        assertThrows(ZError.class, () -> session.undeclare(keyExpr).res());
+        assertThrows(ZError.class, () -> session.undeclare(keyExpr));
 
         // Undeclaring a key expr that was not declared through a session.
         KeyExpr keyExpr2 = KeyExpr.tryFrom("x/y/z");
-        assertThrows(ZError.class, () -> session.undeclare(keyExpr2).res());
+        assertThrows(ZError.class, () -> session.undeclare(keyExpr2));
 
         session.close();
     }

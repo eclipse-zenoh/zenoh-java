@@ -34,9 +34,6 @@ import io.zenoh.sample.SampleKind
  * @property payload Optional payload in case the received query was declared using "with query".
  * @property encoding Encoding of the [payload].
  * @property attachment Optional attachment.
- * @property jniQuery Delegate object in charge of communicating with the underlying native code.
- * @constructor Instances of Query objects are only meant to be created through the JNI upon receiving
- * a query request. Therefore, the constructor is private.
  */
 class Query internal constructor(
     val keyExpr: KeyExpr,
@@ -55,6 +52,7 @@ class Query internal constructor(
      *
      * @param keyExpr Key expression to reply to. This parameter must not be necessarily the same
      * as the key expression from the Query, however it must intersect with the query key.
+     * @param options Optional options for configuring the reply.
      */
     @Throws(ZError::class)
     @JvmOverloads
@@ -75,7 +73,11 @@ class Query internal constructor(
     }
 
     /**
-     * TODO
+     * Reply "delete" to the specified key expression.
+     *
+     * @param keyExpr Key expression to reply to. This parameter must not be necessarily the same
+     * as the key expression from the Query, however it must intersect with the query key.
+     * @param options Optional options for configuring the reply.
      */
     @JvmOverloads
     @Throws(ZError::class)
@@ -92,13 +94,16 @@ class Query internal constructor(
     }
 
     /**
-     * TODO
+     * Reply "error" to the specified key expression.
+     *
+     * @param message The error message.
+     * @param options Optional options for configuring the reply.
      */
     @JvmOverloads
     @Throws(ZError::class)
-    fun replyErr(payload: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
+    fun replyErr(message: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
         jniQuery?.apply {
-            replyError(payload.into(), options.encoding)
+            replyError(message.into(), options.encoding)
             jniQuery = null
         } ?: throw (ZError("Query is invalid"))
     }

@@ -14,13 +14,11 @@
 
 package io.zenoh.query
 
-import io.zenoh.*
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Handler
 import io.zenoh.jni.JNIQueryable
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.session.SessionDeclaration
-import java.util.*
 
 /**
  * A queryable that allows to perform multiple queries on the specified [KeyExpr].
@@ -29,54 +27,53 @@ import java.util.*
  *
  * Example using the default [BlockingQueueHandler] handler:
  * ```java
- * try (Session session = Session.open()) {
- *     try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example/zenoh-java-queryable")) {
- *         System.out.println("Declaring Queryable");
- *         try (Queryable<BlockingQueue<Optional<Query>>> queryable = session.declareQueryable(keyExpr).res()) {
- *             BlockingQueue<Optional<Query>> receiver = queryable.getReceiver();
- *             while (true) {
- *                 Optional<Query> wrapper = receiver.take();
- *                 if (wrapper.isEmpty()) {
- *                     break;
- *                 }
- *                 Query query = wrapper.get();
- *                 String valueInfo = query.getValue() != null ? " with value '" + query.getValue() + "'" : "";
- *                 System.out.println(">> [Queryable] Received Query '" + query.getSelector() + "'" + valueInfo);
- *                 try {
- *                     query.reply(keyExpr)
- *                         .success("Queryable from Java!")
- *                         .withKind(SampleKind.PUT)
- *                         .withTimeStamp(TimeStamp.getCurrentTime())
- *                         .res();
- *                 } catch (Exception e) {
- *                     System.out.println(">> [Queryable] Error sending reply: " + e);
- *                 }
- *             }
+ * try (Session session = Zenoh.open(config)) {
+ *     var queryable = session.declareQueryable(keyExpr);
+ *     BlockingQueue<Optional<Query>> receiver = queryable.getReceiver();
+ *     assert receiver != null;
+ *     while (true) {
+ *         Optional<Query> wrapper = receiver.take();
+ *         if (wrapper.isEmpty()) {
+ *             break;
  *         }
+ *         Query query = wrapper.get();
+ *         query.reply(query.getKeyExpr(), ZBytes.from("Example reply");
  *     }
  * }
  * ```
  *
- * @param R Receiver type of the [Handler] implementation. If no handler is provided to the builder, [R] will be [Unit].
+ * Example using a [io.zenoh.handlers.Callback]:
+ * ```java
+ * try (Session session = Zenoh.open(config)) {
+ *     var queryable = session.declareQueryable(keyExpr, query -> query.reply(query.getKeyExpr(), ZBytes.from("Example reply"));
+ * }
+ * ```
+ *
  * @property keyExpr The [KeyExpr] to which the subscriber is associated.
- * @property receiver Optional [R] that is provided when specifying a [Handler] for the subscriber.
  * @property jniQueryable Delegate object in charge of communicating with the underlying native code.
- * @constructor Internal constructor. Instances of Queryable must be created through the [Builder] obtained after
- * calling [Session.declareQueryable] or alternatively through [newBuilder].
+ * @see CallbackQueryable
+ * @see HandlerQueryable
  */
-class Queryable<R> internal constructor(
-    val keyExpr: KeyExpr, val receiver: R?, private var jniQueryable: JNIQueryable?
+sealed class Queryable(
+    val keyExpr: KeyExpr, private var jniQueryable: JNIQueryable?
 ) : AutoCloseable, SessionDeclaration {
 
     fun isValid(): Boolean {
         return jniQueryable != null
     }
 
+    /**
+     * Undeclares the queryable.
+     */
     override fun undeclare() {
         jniQueryable?.close()
         jniQueryable = null
     }
 
+    /**
+     * Closes the queryable, equivalent to [undeclare]. This function is automatically called
+     * when using try with resources.
+     */
     override fun close() {
         undeclare()
     }
@@ -87,6 +84,44 @@ class Queryable<R> internal constructor(
 }
 
 /**
- * TODO: add doc
+ * [Queryable] receiving replies through a callback.
+ *
+ * Example
+ * ```java
+ * try (Session session = Zenoh.open(config)) {
+ *     CallbackQueryable queryable = session.declareQueryable(keyExpr, query -> query.reply(query.getKeyExpr(), ZBytes.from("Example reply"));
+ * }
+ * ```
+ */
+class CallbackQueryable internal constructor(keyExpr: KeyExpr, jniQueryable: JNIQueryable?): Queryable(keyExpr, jniQueryable)
+
+/**
+ * [Queryable] receiving replies through a [Handler].
+ *
+ * Example using the default receiver:
+ * ```java
+ * try (Session session = Zenoh.open(config)) {
+ *     Queryable<BlockingQueue<Optional<Query>>> queryable = session.declareQueryable(keyExpr);
+ *     BlockingQueue<Optional<Query>> receiver = queryable.getReceiver();
+ *     while (true) {
+ *         Optional<Query> wrapper = receiver.take();
+ *         if (wrapper.isEmpty()) {
+ *             break;
+ *         }
+ *         Query query = wrapper.get();
+ *         query.reply(query.getKeyExpr(), ZBytes.from("Example reply");
+ *     }
+ * }
+ * ```
+ *
+ * @param R The type of the handler's receiver.
+ * @param receiver The receiver of the queryable's handler.
+ */
+class HandlerQueryable<R> internal constructor(keyExpr: KeyExpr, jniQueryable: JNIQueryable?, val receiver: R): Queryable(keyExpr, jniQueryable)
+
+/**
+ * Options for configuring a [Queryable].
+ *
+ * @param complete The completeness of the information the queryable provides.
  */
 data class QueryableOptions(var complete: Boolean = false)

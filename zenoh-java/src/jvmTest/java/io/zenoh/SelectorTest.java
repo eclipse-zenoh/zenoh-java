@@ -15,10 +15,13 @@
 package io.zenoh;
 
 import io.zenoh.exceptions.ZError;
+import io.zenoh.query.Parameters;
 import io.zenoh.query.Selector;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -37,5 +40,11 @@ public class SelectorTest {
         assertNull(selector2.getParameters());
 
         assertThrows(ZError.class, () -> Selector.tryFrom(""));
+    }
+
+    @Test
+    public void parametersTest() {
+        var parameters = Parameters.from("a=1;b=2;c=1|2|3");
+        assertEquals(List.of("1", "2", "3"), parameters.values("c"));
     }
 }

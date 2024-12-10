@@ -103,9 +103,9 @@ data class Parameters internal constructor(private val params: MutableMap<String
      * Returns the values of the [key] if present.
      *
      * Example:
-     * ```kotlin
-     * val parameters = Parameters.from("a=1;b=2;c=1|2|3").getOrThrow()
-     * assertEquals(listOf("1", "2", "3"), parameters.values("c"))
+     * ```java
+     * var parameters = Parameters.from("a=1;b=2;c=1|2|3");
+     * assertEquals(List.of("1", "2", "3"), parameters.values("c"))
      * ```
      */
     fun values(key: String): List<String>? = params[key]?.split(VALUE_SEPARATOR)

@@ -48,10 +48,10 @@ public class ZPubThr implements Callable<Integer> {
 
         try (Session session = Zenoh.open(config)) {
             KeyExpr keyExpr = KeyExpr.tryFrom("test/thr");
-            var publisherConfig = new PublisherOptions()
-                    .congestionControl(CongestionControl.BLOCK)
-                    .priority(priorityInput != null ? Priority.getEntries().get(priorityInput) : Priority.DATA);
-            try (Publisher publisher = session.declarePublisher(keyExpr, publisherConfig)) {
+            var publisherOptions = new PublisherOptions();
+            publisherOptions.setCongestionControl(CongestionControl.BLOCK);
+            publisherOptions.setPriority(priorityInput != null ? Priority.getEntries().get(priorityInput) : Priority.DATA);
+            try (Publisher publisher = session.declarePublisher(keyExpr, publisherOptions)) {
                 System.out.println("Publisher declared on test/thr.");
                 long count = 0;
                 long start = System.currentTimeMillis();

@@ -24,7 +24,8 @@ import io.zenoh.jni.callbacks.JNIOnCloseCallback
 import io.zenoh.jni.callbacks.JNISubscriberCallback
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.liveliness.LivelinessToken
-import io.zenoh.pubsub.Subscriber
+import io.zenoh.pubsub.CallbackSubscriber
+import io.zenoh.pubsub.HandlerSubscriber
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
@@ -98,14 +99,13 @@ internal object JNILiveliness {
         return LivelinessToken(JNILivelinessToken(ptr))
     }
 
-    fun <R> declareSubscriber(
+    fun declareSubscriber(
         jniSession: JNISession,
         keyExpr: KeyExpr,
         callback: Callback<Sample>,
-        receiver: R?,
         history: Boolean,
         onClose: () -> Unit
-    ): Subscriber<R> {
+    ): CallbackSubscriber {
         val subCallback =
             JNISubscriberCallback { keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
@@ -128,7 +128,40 @@ internal object JNILiveliness {
             history,
             onClose
         )
-        return Subscriber(keyExpr, receiver, JNISubscriber(ptr))
+        return CallbackSubscriber(keyExpr, JNISubscriber(ptr))
+    }
+
+    fun <R> declareSubscriber(
+        jniSession: JNISession,
+        keyExpr: KeyExpr,
+        callback: Callback<Sample>,
+        receiver: R,
+        history: Boolean,
+        onClose: () -> Unit
+    ): HandlerSubscriber<R> {
+        val subCallback =
+            JNISubscriberCallback { keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
+                val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
+                val sample = Sample(
+                    KeyExpr(keyExpr2, null),
+                    payload.into(),
+                    Encoding(encodingId, schema = encodingSchema),
+                    SampleKind.fromInt(kind),
+                    timestamp,
+                    QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
+                    attachmentBytes?.into()
+                )
+                callback.run(sample)
+            }
+        val ptr = declareSubscriberViaJNI(
+            jniSession.sessionPtr.get(),
+            keyExpr.jniKeyExpr?.ptr ?: 0,
+            keyExpr.keyExpr,
+            subCallback,
+            history,
+            onClose
+        )
+        return HandlerSubscriber(keyExpr, JNISubscriber(ptr), receiver)
     }
 
     private external fun getViaJNI(

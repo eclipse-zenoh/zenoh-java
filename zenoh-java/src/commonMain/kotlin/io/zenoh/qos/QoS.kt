@@ -27,12 +27,6 @@ data class QoS (
     var express: Boolean = false
 ) {
 
-    fun congestionControl(congestionControl: CongestionControl) = apply { this.congestionControl = congestionControl }
-
-    fun priority(priority: Priority) = apply { this.priority = priority }
-
-    fun express(express: Boolean) = apply { this.express = express }
-
     companion object {
         private val defaultQoS = QoS()
 

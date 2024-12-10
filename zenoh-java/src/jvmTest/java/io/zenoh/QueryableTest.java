@@ -134,7 +134,7 @@ public class QueryableTest {
         var message = ZBytes.from("Test message");
         var timestamp = TimeStamp.getCurrentTime();
 
-        Queryable<Void> queryable = session.declareQueryable(testKeyExpr, query -> {
+        Queryable queryable = session.declareQueryable(testKeyExpr, query -> {
             var options = new ReplyOptions();
             options.setTimeStamp(timestamp);
             options.setPriority(Priority.DATA_HIGH);

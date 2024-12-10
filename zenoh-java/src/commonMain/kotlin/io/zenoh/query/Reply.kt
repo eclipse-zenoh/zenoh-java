@@ -25,24 +25,17 @@ import io.zenoh.qos.QoS
 import org.apache.commons.net.ntp.TimeStamp
 
 /**
- * Class to represent a Zenoh Reply to a [Get] operation and to a remote [Query].
- *
- * A reply can be either successful ([Success]) or an error ([Error]), both having different information. For instance,
- * the successful reply will contain a [Sample] while the error reply will only contain a [Value] with the error information.
- *
- * Replies can either be automatically created when receiving a remote reply after performing a [Get] (in which case the
- * [replierId] shows the id of the replier) or created through the builders while answering to a remote [Query] (in that
- * case the replier ID is automatically added by Zenoh).
- *
- * Generating a reply only makes sense within the context of a [Query], therefore builders below are meant to only
- * be accessible from [Query.reply].
- *
- * TODO: provide example
+ * Class to represent a Zenoh Reply to a remote query.
  *
  * @property replierId: unique ID identifying the replier.
+ * @see Success
+ * @see Error
  */
 sealed class Reply private constructor(val replierId: ZenohId?) : ZenohType {
 
+    /**
+     * A Success reply.
+     */
     class Success internal constructor(replierId: ZenohId?, val sample: Sample) : Reply(replierId) {
 
         override fun toString(): String {
@@ -61,6 +54,9 @@ sealed class Reply private constructor(val replierId: ZenohId?) : ZenohType {
 
     }
 
+    /**
+     * An Error reply.
+     */
     class Error internal constructor(replierId: ZenohId?, val error: ZBytes, val encoding: Encoding) :
         Reply(replierId) {
 
@@ -82,7 +78,12 @@ sealed class Reply private constructor(val replierId: ZenohId?) : ZenohType {
 }
 
 /**
- * TODO
+ * Options for performing a [Reply] to a [Query].
+ *
+ * @param encoding [Encoding] of the payload of the reply.
+ * @param timeStamp Optional timestamp.
+ * @param attachment Optional attachment.
+ * @param qos The [QoS] for the reply.
  */
 data class ReplyOptions(
     var encoding: Encoding = Encoding.defaultEncoding(),
@@ -115,23 +116,27 @@ data class ReplyOptions(
     /**
      * Sets the express flag. If true, the reply won't be batched in order to reduce the latency.
      */
-    fun setExpress(express: Boolean) { qos.express(express) }
+    fun setExpress(express: Boolean) { qos.express = express }
 
     /**
      * Sets the [Priority] of the reply.
      */
-    fun setPriority(priority: Priority) { qos.priority(priority) }
+    fun setPriority(priority: Priority) { qos.priority = priority }
 
     /**
      * Sets the [CongestionControl] of the reply.
      *
      * @param congestionControl
      */
-    fun setCongestionControl(congestionControl: CongestionControl) { qos.congestionControl(congestionControl) }
+    fun setCongestionControl(congestionControl: CongestionControl) { qos.congestionControl = congestionControl }
 }
 
 /**
- * TODO
+ * Options for performing a Reply Delete to a [Query].
+ *
+ * @param timeStamp Optional timestamp.
+ * @param attachment Optional attachment.
+ * @param qos The [QoS] for the reply.
  */
 data class ReplyDelOptions(
     var timeStamp: TimeStamp? = null,
@@ -162,22 +167,25 @@ data class ReplyDelOptions(
     /**
      * Sets the express flag. If true, the reply won't be batched in order to reduce the latency.
      */
-    fun setExpress(express: Boolean) { qos.express(express) }
+    fun setExpress(express: Boolean) { qos.express = express }
 
     /**
      * Sets the [Priority] of the reply.
      */
-    fun setPriority(priority: Priority) { qos.priority(priority) }
+    fun setPriority(priority: Priority) { qos.priority = priority }
 
     /**
      * Sets the [CongestionControl] of the reply.
      *
      * @param congestionControl
      */
-    fun setCongestionControl(congestionControl: CongestionControl) { qos.congestionControl(congestionControl) }
+    fun setCongestionControl(congestionControl: CongestionControl) { qos.congestionControl = congestionControl }
 }
 
+
 /**
- * TODO
+ * Options for performing a Reply Err to a [Query].
+ *
+ * @param encoding The encoding of the error message.
  */
 data class ReplyErrOptions(var encoding: Encoding = Encoding.defaultEncoding())

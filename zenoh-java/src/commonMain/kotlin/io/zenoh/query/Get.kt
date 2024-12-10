@@ -21,7 +21,12 @@ import java.time.Duration
 /**
  * Get to query data from the matching queryables in the system.
  *
- * TODO
+ * @param timeout Timeout of the query.
+ * @param target The [QueryTarget] of the query.
+ * @param consolidation The [ConsolidationMode] of the query.
+ * @param payload Optional payload.
+ * @param encoding Encoding of the payload.
+ * @param attachment Optional attachment.
  */
 data class GetOptions(
     var timeout: Duration = Duration.ofMillis(10000),

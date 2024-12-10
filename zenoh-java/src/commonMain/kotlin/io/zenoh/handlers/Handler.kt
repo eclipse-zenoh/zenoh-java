@@ -21,6 +21,9 @@ import io.zenoh.ZenohType
  * incoming [T] elements.
  *
  * **Example**:
+ * In this example we implement a handler that stores the received elements into an ArrayDeque,
+ * which can then be retrieved:
+ *
  * ```java
  * public class QueueHandler<T extends ZenohType> implements Handler<T, ArrayDeque<T>> {
  *
@@ -46,12 +49,12 @@ import io.zenoh.ZenohType
  *
  * That `QueueHandler` could then be used as follows, for instance for a subscriber:
  * ```java
- * QueueHandler<Sample> handler = new QueueHandler<Sample>();
- * session.declareSubscriber(keyExpr).with(handler).res();
+ * var queue = session.declareSubscriber(keyExpr, new QueueHandler<Sample>());
  * ...
  * ```
+ * where the `queue` returned is the receiver from the handler.
  *
- * @param T A receiving [ZenohType], either a [io.zenoh.sample.Sample], a [io.zenoh.query.Reply] or a [io.zenoh.queryable.Query].
+ * @param T A receiving [ZenohType].
  * @param R An arbitrary receiver.
  */
 interface Handler<T: ZenohType, R> {

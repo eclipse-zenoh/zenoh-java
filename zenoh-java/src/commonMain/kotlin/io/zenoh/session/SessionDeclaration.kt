@@ -17,8 +17,8 @@ package io.zenoh.session
 /**
  * Session declaration.
  *
- * A session declaration is either a [io.zenoh.publication.Publisher],
- * a [io.zenoh.subscriber.Subscriber] or a [io.zenoh.queryable.Queryable] declared from a [Session].
+ * A session declaration is either a [io.zenoh.pubsub.Publisher],
+ * a [io.zenoh.pubsub.Subscriber] or a [io.zenoh.query.Queryable] declared from a [io.zenoh.Session].
  */
 interface SessionDeclaration {
 

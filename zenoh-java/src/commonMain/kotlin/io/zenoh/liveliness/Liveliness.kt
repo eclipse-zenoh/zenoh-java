@@ -15,11 +15,14 @@
 package io.zenoh.liveliness
 
 import io.zenoh.Session
+import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
 import io.zenoh.jni.JNILiveliness
 import io.zenoh.keyexpr.KeyExpr
+import io.zenoh.pubsub.CallbackSubscriber
+import io.zenoh.pubsub.HandlerSubscriber
 import io.zenoh.pubsub.Subscriber
 import io.zenoh.query.Reply
 import io.zenoh.sample.Sample
@@ -43,6 +46,7 @@ class Liveliness internal constructor(private val session: Session) {
     /**
      * Create a LivelinessToken for the given key expression.
      */
+    @Throws(ZError::class)
     fun declareToken(keyExpr: KeyExpr): LivelinessToken {
         val jniSession = session.jniSession ?: throw Session.sessionClosedException
         return JNILiveliness.declareToken(jniSession, keyExpr)
@@ -55,6 +59,7 @@ class Liveliness internal constructor(private val session: Session) {
      * @param timeout Optional timeout of the query, defaults to 10 secs.
      */
     @JvmOverloads
+    @Throws(ZError::class)
     fun get(
         keyExpr: KeyExpr,
         timeout: Duration = Duration.ofMillis(10000),
@@ -79,6 +84,7 @@ class Liveliness internal constructor(private val session: Session) {
      * @param timeout Optional timeout of the query, defaults to 10 secs.
      */
     @JvmOverloads
+    @Throws(ZError::class)
     fun get(
         keyExpr: KeyExpr, callback: Callback<Reply>, timeout: Duration = Duration.ofMillis(10000)
     ) {
@@ -95,6 +101,7 @@ class Liveliness internal constructor(private val session: Session) {
      * @param timeout Optional timeout of the query, defaults to 10 secs.
      */
     @JvmOverloads
+    @Throws(ZError::class)
     fun <R> get(
         keyExpr: KeyExpr, handler: Handler<Reply, R>, timeout: Duration = Duration.ofMillis(10000)
     ): R {
@@ -114,54 +121,14 @@ class Liveliness internal constructor(private val session: Session) {
      * Create a [Subscriber] for liveliness changes matching the given key expression.
      *
      * @param keyExpr The [KeyExpr] the subscriber will be listening to.
-     * @param callback The [Callback] to be run when a liveliness change is received.
+     * @param options Optional [LivelinessSubscriberOptions] parameter for subscriber configuration.
      */
     @JvmOverloads
+    @Throws(ZError::class)
     fun declareSubscriber(
         keyExpr: KeyExpr,
-        callback: Callback<Sample>,
-        options: SubscriberOptions = SubscriberOptions()
-    ): Subscriber<Void> {
-        val jniSession = session.jniSession ?: throw Session.sessionClosedException
-        return JNILiveliness.declareSubscriber(
-            jniSession,
-            keyExpr,
-            callback,
-            null,
-            options.history,
-            fun() {}
-        )
-    }
-
-    /**
-     * Create a [Subscriber] for liveliness changes matching the given key expression.
-     *
-     * @param R The [Handler.receiver] type.
-     * @param keyExpr The [KeyExpr] the subscriber will be listening to.
-     * @param handler [Handler] to handle liveliness changes events.
-     */
-    @JvmOverloads
-    fun <R> declareSubscriber(
-        keyExpr: KeyExpr,
-        handler: Handler<Sample, R>,
-        options: SubscriberOptions = SubscriberOptions()
-    ): Subscriber<R> {
-        val jniSession = session.jniSession ?: throw Session.sessionClosedException
-        return JNILiveliness.declareSubscriber(
-            jniSession,
-            keyExpr,
-            handler::handle,
-            handler.receiver(),
-            options.history,
-            handler::onClose
-        )
-    }
-
-    @JvmOverloads
-    fun declareSubscriber(
-        keyExpr: KeyExpr,
-        options: SubscriberOptions = SubscriberOptions()
-    ): Subscriber<BlockingQueue<Optional<Sample>>> {
+        options: LivelinessSubscriberOptions = LivelinessSubscriberOptions()
+    ): HandlerSubscriber<BlockingQueue<Optional<Sample>>> {
         val handler = BlockingQueueHandler<Sample>(LinkedBlockingDeque())
         val jniSession = session.jniSession ?: throw Session.sessionClosedException
         return JNILiveliness.declareSubscriber(
@@ -174,5 +141,58 @@ class Liveliness internal constructor(private val session: Session) {
         )
     }
 
-    data class SubscriberOptions(var history: Boolean = false)
+    /**
+     * Create a [Subscriber] for liveliness changes matching the given key expression.
+     *
+     * @param keyExpr The [KeyExpr] the subscriber will be listening to.
+     * @param callback The [Callback] to be run when a liveliness change is received.
+     * @param options Optional [LivelinessSubscriberOptions] parameter for subscriber configuration.
+     */
+    @JvmOverloads
+    @Throws(ZError::class)
+    fun declareSubscriber(
+        keyExpr: KeyExpr,
+        callback: Callback<Sample>,
+        options: LivelinessSubscriberOptions = LivelinessSubscriberOptions()
+    ): CallbackSubscriber {
+        val jniSession = session.jniSession ?: throw Session.sessionClosedException
+        return JNILiveliness.declareSubscriber(
+            jniSession,
+            keyExpr,
+            callback,
+            options.history,
+            fun() {}
+        )
+    }
+
+    /**
+     * Create a [Subscriber] for liveliness changes matching the given key expression.
+     *
+     * @param R The [Handler.receiver] type.
+     * @param keyExpr The [KeyExpr] the subscriber will be listening to.
+     * @param handler [Handler] to handle liveliness changes events.
+     * @param options Optional [LivelinessSubscriberOptions] parameter for subscriber configuration.
+     */
+    @JvmOverloads
+    @Throws(ZError::class)
+    fun <R> declareSubscriber(
+        keyExpr: KeyExpr,
+        handler: Handler<Sample, R>,
+        options: LivelinessSubscriberOptions = LivelinessSubscriberOptions()
+    ): HandlerSubscriber<R> {
+        val jniSession = session.jniSession ?: throw Session.sessionClosedException
+        return JNILiveliness.declareSubscriber(
+            jniSession,
+            keyExpr,
+            handler::handle,
+            handler.receiver(),
+            options.history,
+            handler::onClose
+        )
+    }
 }
+
+/**
+ * Options for the [Liveliness] subscriber.
+ */
+data class LivelinessSubscriberOptions(var history: Boolean = false)

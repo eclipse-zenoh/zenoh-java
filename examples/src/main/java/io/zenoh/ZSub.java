@@ -17,7 +17,7 @@ package io.zenoh;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.handlers.Handler;
 import io.zenoh.keyexpr.KeyExpr;
-import io.zenoh.pubsub.Subscriber;
+import io.zenoh.pubsub.HandlerSubscriber;
 import io.zenoh.sample.Sample;
 import picocli.CommandLine;
 
@@ -56,7 +56,7 @@ public class ZSub implements Callable<Integer> {
      */
     private void subscribeWithBlockingQueue(Config config, KeyExpr keyExpr) throws ZError, InterruptedException {
         try (Session session = Zenoh.open(config)) {
-            try (Subscriber<BlockingQueue<Optional<Sample>>> subscriber = session.declareSubscriber(keyExpr)) {
+            try (HandlerSubscriber<BlockingQueue<Optional<Sample>>> subscriber = session.declareSubscriber(keyExpr)) {
                 BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
                 assert receiver != null;
                 while (true) {
@@ -88,7 +88,10 @@ public class ZSub implements Callable<Integer> {
     private void subscribeWithHandler(Config config, KeyExpr keyExpr) throws ZError {
         try (Session session = Zenoh.open(config)) {
             QueueHandler<Sample> queueHandler = new QueueHandler<>();
-            session.declareSubscriber(keyExpr, queueHandler);
+            var subscriber = session.declareSubscriber(keyExpr, queueHandler);
+            for (Sample sample : subscriber.getReceiver()) {
+                System.out.println(sample);
+            }
         }
     }
 

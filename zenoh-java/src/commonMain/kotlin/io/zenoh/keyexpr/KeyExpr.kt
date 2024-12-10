@@ -58,9 +58,6 @@ import io.zenoh.query.Selector
  * As an alternative, employing a try-with-resources pattern using Kotlin's `use` block is recommended. This approach
  * ensures that [close] is automatically called, safely managing the lifecycle of the [KeyExpr] instance.
  *
- * @param keyExpr The string representation of the key expression.
- * @param jniKeyExpr An optional [JNIKeyExpr] instance, present when the key expression was declared through [Session.declareKeyExpr],
- *  it represents the native instance of the key expression.
  */
 class KeyExpr internal constructor(internal val keyExpr: String, internal var jniKeyExpr: JNIKeyExpr? = null): AutoCloseable, IntoSelector,
     SessionDeclaration {
@@ -107,6 +104,7 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      * defined by `this` and `other`.
      * Will return false as well if the key expression is not valid anymore.
      */
+    @Throws(ZError::class)
     fun intersects(other: KeyExpr): Boolean {
         return JNIKeyExpr.intersects(this, other)
     }
@@ -116,15 +114,17 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      * defined by `this`.
      * Will return false as well if the key expression is not valid anymore.
      */
+    @Throws(ZError::class)
     fun includes(other: KeyExpr): Boolean {
         return JNIKeyExpr.includes(this, other)
     }
 
     /**
-     * Returns the relation between 'this' and other from 'this''s point of view (SetIntersectionLevel::Includes
+     * Returns the relation between 'this' and other from 'this''s point of view ([SetIntersectionLevel.INCLUDES]
      * signifies that self includes other). Note that this is slower than [intersects] and [includes],
      * so you should favor these methods for most applications.
      */
+    @Throws(ZError::class)
     fun relationTo(other: KeyExpr): SetIntersectionLevel {
         return JNIKeyExpr.relationTo(this, other)
     }

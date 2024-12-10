@@ -40,7 +40,7 @@ public class ScoutTest {
 
         Thread.sleep(1000);
 
-        Scout<BlockingQueue<Optional<Hello>>> scout = Zenoh.scout();
+        var scout = Zenoh.scout();
 
         Thread.sleep(1000);
         scout.close();
@@ -70,7 +70,7 @@ public class ScoutTest {
     }
 
     @Test
-    public void scouting_whatAmITest() {
+    public void scouting_whatAmITest() throws ZError {
         var scoutOptions = new ScoutOptions();
         scoutOptions.setWhatAmI(Set.of(WhatAmI.Client, WhatAmI.Peer));
         var scout = Zenoh.scout(scoutOptions);
@@ -78,8 +78,8 @@ public class ScoutTest {
     }
 
     @Test
-    public void scouting_onCloseTest() {
-        Scout<BlockingQueue<Optional<Hello>>> scout = Zenoh.scout();
+    public void scouting_onCloseTest() throws ZError {
+        var scout = Zenoh.scout();
         var receiver = scout.getReceiver();
 
         scout.close();

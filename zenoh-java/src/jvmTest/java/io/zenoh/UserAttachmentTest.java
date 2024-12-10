@@ -63,7 +63,7 @@ public class UserAttachmentTest {
     @Test
     public void putWithAttachmentTest() throws ZError {
         Sample[] receivedSample = new Sample[1];
-        Subscriber<Void> subscriber =
+        Subscriber subscriber =
             session.declareSubscriber(keyExpr, sample -> receivedSample[0] = sample);
 
         var putOptions = new PutOptions();
@@ -81,7 +81,7 @@ public class UserAttachmentTest {
     public void publisherPutWithAttachmentTest() throws ZError {
         Sample[] receivedSample = new Sample[1];
         var publisher = session.declarePublisher(keyExpr);
-        Subscriber<Void> subscriber =
+        Subscriber subscriber =
                 session.declareSubscriber(keyExpr, sample -> receivedSample[0] = sample);
 
         var putOptions = new PutOptions();
@@ -100,7 +100,7 @@ public class UserAttachmentTest {
     public void publisherPutWithoutAttachmentTest() throws ZError {
         Sample[] receivedSample = new Sample[1];
         var publisher = session.declarePublisher(keyExpr);
-        Subscriber<Void> subscriber =
+        Subscriber subscriber =
                 session.declareSubscriber(keyExpr, sample -> receivedSample[0] = sample);
 
         publisher.put(payload);
@@ -116,7 +116,7 @@ public class UserAttachmentTest {
     public void publisherDeleteWithAttachmentTest() throws ZError {
         Sample[] receivedSample = new Sample[1];
         var publisher = session.declarePublisher(keyExpr);
-        Subscriber<Void> subscriber =
+        Subscriber subscriber =
                 session.declareSubscriber(keyExpr, sample -> receivedSample[0] = sample);
 
         var deleteOptions = new DeleteOptions();
@@ -135,7 +135,7 @@ public class UserAttachmentTest {
     public void publisherDeleteWithoutAttachmentTest() throws ZError {
         Sample[] receivedSample = new Sample[1];
         var publisher = session.declarePublisher(keyExpr);
-        Subscriber<Void> subscriber =
+        Subscriber subscriber =
                 session.declareSubscriber(keyExpr, sample -> receivedSample[0] = sample);
 
         publisher.delete();

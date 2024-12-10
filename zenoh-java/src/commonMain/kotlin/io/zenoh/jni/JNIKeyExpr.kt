@@ -26,14 +26,17 @@ internal class JNIKeyExpr(internal val ptr: Long) {
             ZenohLoad
         }
 
+        @Throws(ZError::class)
         fun tryFrom(keyExpr: String): KeyExpr {
             return KeyExpr(tryFromViaJNI(keyExpr))
         }
 
+        @Throws(ZError::class)
         fun autocanonize(keyExpr: String): KeyExpr {
             return KeyExpr(autocanonizeViaJNI(keyExpr))
         }
 
+        @Throws(ZError::class)
         fun intersects(keyExprA: KeyExpr, keyExprB: KeyExpr): Boolean = intersectsViaJNI(
             keyExprA.jniKeyExpr?.ptr ?: 0,
             keyExprA.keyExpr,
@@ -41,6 +44,7 @@ internal class JNIKeyExpr(internal val ptr: Long) {
             keyExprB.keyExpr
         )
 
+        @Throws(ZError::class)
         fun includes(keyExprA: KeyExpr, keyExprB: KeyExpr): Boolean = includesViaJNI(
             keyExprA.jniKeyExpr?.ptr ?: 0,
             keyExprA.keyExpr,
@@ -48,6 +52,7 @@ internal class JNIKeyExpr(internal val ptr: Long) {
             keyExprB.keyExpr
         )
 
+        @Throws(ZError::class)
         fun relationTo(keyExpr: KeyExpr, other: KeyExpr): SetIntersectionLevel {
             val intersection = relationToViaJNI(
                 keyExpr.jniKeyExpr?.ptr ?: 0,
@@ -58,10 +63,12 @@ internal class JNIKeyExpr(internal val ptr: Long) {
             return SetIntersectionLevel.fromInt(intersection)
         }
 
+        @Throws(ZError::class)
         fun joinViaJNI(keyExpr: KeyExpr, other: String): KeyExpr {
             return KeyExpr(joinViaJNI(keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, other))
         }
 
+        @Throws(ZError::class)
         fun concatViaJNI(keyExpr: KeyExpr, other: String): KeyExpr {
             return KeyExpr(concatViaJNI(keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, other))
         }

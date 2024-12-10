@@ -52,8 +52,11 @@ public class ZPing implements Callable<Integer> {
 
             BlockingQueue<Optional<Sample>> receiverQueue =
                     session.declareSubscriber(keyExprPong).getReceiver();
-            Publisher publisher =
-                    session.declarePublisher(keyExprPing, new PublisherOptions().congestionControl(CongestionControl.BLOCK).express(!noExpress));
+
+            var publisherOptions = new PublisherOptions();
+            publisherOptions.setCongestionControl(CongestionControl.BLOCK);
+            publisherOptions.setExpress(!noExpress);
+            Publisher publisher = session.declarePublisher(keyExprPing, publisherOptions);
 
             byte[] data = new byte[payloadSize];
             for (int i = 0; i < payloadSize; i++) {

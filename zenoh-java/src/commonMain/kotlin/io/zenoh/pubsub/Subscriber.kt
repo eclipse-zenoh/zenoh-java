@@ -26,10 +26,44 @@ import io.zenoh.session.SessionDeclaration
  *
  * Example using the default [BlockingQueueHandler] handler:
  *
- * TODO
+ * ```java
+ * var queue = session.declareSubscriber("a/b/c");
+ * try (Session session = Zenoh.open(config)) {
+ *     try (var subscriber = session.declareSubscriber(keyExpr)) {
+ *         var receiver = subscriber.getReceiver();
+ *         assert receiver != null;
+ *         while (true) {
+ *             Optional<Sample> wrapper = receiver.take();
+ *             if (wrapper.isEmpty()) {
+ *                 break;
+ *             }
+ *             System.out.println(wrapper.get());
+ *         }
+ *     }
+ * }
+ * ```
+ *
+ * Example using a callback:
+ * ```java
+ * try (Session session = Zenoh.open(config)) {
+ *     session.declareSubscriber(keyExpr, System.out::println);
+ * }
+ * ```
+ *
+ * Example using a handler:
+ * ```java
+ * class MyHandler implements Handler<Sample, ArrayList<Sample>> {...}
+ *
+ * //...
+ * try (Session session = Zenoh.open(config)) {
+ *     var handler = new MyHandler();
+ *     var arraylist = session.declareSubscriber(keyExpr, handler);
+ *     // ...
+ * }
+ * ```
  */
-class Subscriber<R> internal constructor(
-    val keyExpr: KeyExpr, val receiver: R?, private var jniSubscriber: JNISubscriber?
+sealed class Subscriber(
+    val keyExpr: KeyExpr, private var jniSubscriber: JNISubscriber?
 ) : AutoCloseable, SessionDeclaration {
 
     fun isValid(): Boolean {
@@ -49,3 +83,40 @@ class Subscriber<R> internal constructor(
         jniSubscriber?.close()
     }
 }
+
+/**
+ * Subscriber using a callback to handle incoming samples.
+ *
+ * Example:
+ * ```java
+ * try (Session session = Zenoh.open(config)) {
+ *     session.declareSubscriber(keyExpr, System.out::println);
+ * }
+ * ```
+ */
+class CallbackSubscriber internal constructor(keyExpr: KeyExpr, jniSubscriber: JNISubscriber?): Subscriber(keyExpr, jniSubscriber)
+
+/**
+ * Subscriber using a [io.zenoh.handlers.Handler] for handling incoming samples.
+ *
+ * Example using the default handler:
+ * ```java
+ * try (Session session = Zenoh.open(config)) {
+ *     try (HandlerSubscriber<BlockingQueue<Optional<Sample>>> subscriber = session.declareSubscriber(keyExpr)) {
+ *         BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
+ *         assert receiver != null;
+ *         while (true) {
+ *             Optional<Sample> wrapper = receiver.take();
+ *             if (wrapper.isEmpty()) {
+ *                 break;
+ *             }
+ *             System.out.println(wrapper.get());
+ *         }
+ *     }
+ * }
+ * ```
+ *
+ * @param R The type of the receiver.
+ * @param receiver The receiver of the subscriber's handler.
+ */
+class HandlerSubscriber<R> internal constructor(keyExpr: KeyExpr, jniSubscriber: JNISubscriber?, val receiver: R): Subscriber(keyExpr, jniSubscriber)

@@ -19,7 +19,11 @@ import io.zenoh.qos.QoS
 import io.zenoh.qos.Reliability
 
 /**
- * TODO
+ * Options for delete operations.
+ *
+ * @param qos The [QoS] (Quality of Service) desired.
+ * @param reliability The [Reliability] desired.
+ * @param attachment Optional attachment for the delete operation.
  */
 data class DeleteOptions(
     var qos: QoS = QoS.defaultQoS(),

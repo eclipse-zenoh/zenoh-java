@@ -131,7 +131,7 @@ public class ConfigTest {
 
         final Sample[] receivedSample = new Sample[1];
 
-        Subscriber<Void> subscriber =
+        Subscriber subscriber =
                 sessionClient.declareSubscriber(TEST_KEY_EXP, sample -> receivedSample[0] = sample);
         ZBytes payload = ZBytes.from("example message");
         sessionClient.put(TEST_KEY_EXP, payload);

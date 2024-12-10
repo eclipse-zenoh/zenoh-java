@@ -168,7 +168,7 @@ public class ZSubThr implements Callable<Integer> {
     )
     private boolean noMulticastScouting;
 
-    private Subscriber<Void> subscriber;
+    private Subscriber subscriber;
 
     public static void main(String[] args) {
         int exitCode = new CommandLine(new ZSubThr(args.length == 0)).execute(args);

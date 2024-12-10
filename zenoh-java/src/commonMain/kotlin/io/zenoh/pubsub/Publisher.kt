@@ -20,8 +20,6 @@ import io.zenoh.bytes.IntoZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.jni.JNIPublisher
 import io.zenoh.keyexpr.KeyExpr
-import io.zenoh.qos.CongestionControl
-import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
 import io.zenoh.session.SessionDeclaration
 import kotlin.Throws
@@ -32,18 +30,18 @@ import kotlin.Throws
  * A publisher is automatically dropped when using it with the 'try-with-resources' statement (i.e. 'use' in Kotlin).
  * The session from which it was declared will also keep a reference to it and undeclare it once the session is closed.
  *
- * In order to declare a publisher, [Session.declarePublisher] must be called, which returns a [Publisher.Builder] from
- * which we can specify the [Priority], and the [CongestionControl].
+ * In order to declare a publisher, [Session.declarePublisher] must be called.
  *
  * Example:
  * ```java
  * try (Session session = Session.open()) {
  *     try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/java/greeting")) {
  *         System.out.println("Declaring publisher on '" + keyExpr + "'...");
- *         try (Publisher publisher = session.declarePublisher(keyExpr).res()) {
+ *         try (Publisher publisher = session.declarePublisher(keyExpr)) {
  *             int i = 0;
  *             while (true) {
- *                 publisher.put("Hello for the " + i + "th time!").res();
+ *                 var payload = ZBytes.from("Hello for the " + i + "th time!");
+ *                 publisher.put(payload);
  *                 Thread.sleep(1000);
  *                 i++;
  *             }
@@ -57,9 +55,7 @@ import kotlin.Throws
  * The publisher configuration parameters can be later changed using the setter functions.
  *
  * @property keyExpr The key expression the publisher will be associated to.
- * @property qos [QoS] configuration of the publisher.
- * @property jniPublisher Delegate class handling the communication with the native code.
- * @constructor Create empty Publisher with the default configuration.
+ * @property encoding The encoding user by the publisher.
  */
 class Publisher internal constructor(
     val keyExpr: KeyExpr,

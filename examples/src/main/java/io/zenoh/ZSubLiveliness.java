@@ -16,8 +16,7 @@ package io.zenoh;
 
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
-import io.zenoh.liveliness.Liveliness;
-import io.zenoh.pubsub.Subscriber;
+import io.zenoh.liveliness.LivelinessSubscriberOptions;
 import io.zenoh.sample.Sample;
 import io.zenoh.sample.SampleKind;
 import picocli.CommandLine;
@@ -57,9 +56,8 @@ public class ZSubLiveliness implements Callable<Integer> {
      */
     private void subscribeToLivelinessWithBlockingQueue(Config config, KeyExpr keyExpr) throws ZError, InterruptedException {
         try (Session session = Zenoh.open(config)) {
-            var options = new Liveliness.SubscriberOptions(history);
-            Subscriber<BlockingQueue<Optional<Sample>>> subscriber =
-                    session.liveliness().declareSubscriber(keyExpr, options);
+            var options = new LivelinessSubscriberOptions(history);
+            var subscriber = session.liveliness().declareSubscriber(keyExpr, options);
 
             BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
             System.out.println("Listening for liveliness tokens...");
@@ -80,7 +78,7 @@ public class ZSubLiveliness implements Callable<Integer> {
      */
     private void subscribeToLivelinessWithCallback(Config config, KeyExpr keyExpr) throws ZError {
         try (Session session = Zenoh.open(config)) {
-            var options = new Liveliness.SubscriberOptions(history);
+            var options = new LivelinessSubscriberOptions(history);
             session.liveliness().declareSubscriber(
                     keyExpr,
                     this::handleLivelinessSample,
@@ -98,7 +96,7 @@ public class ZSubLiveliness implements Callable<Integer> {
     private void subscribeToLivelinessWithHandler(Config config, KeyExpr keyExpr) throws ZError {
         try (Session session = Zenoh.open(config)) {
             QueueHandler<Sample> queueHandler = new QueueHandler<>();
-            var options = new Liveliness.SubscriberOptions(history);
+            var options = new LivelinessSubscriberOptions(history);
             session.liveliness().declareSubscriber(
                     keyExpr,
                     queueHandler,

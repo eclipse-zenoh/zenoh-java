@@ -29,7 +29,6 @@ package io.zenoh.bytes
  * encouraged to use any data format of their choice like JSON, protobuf,
  * flatbuffers, etc.
  *
- * See also: [ZBytes examples](https://github.com/eclipse-zenoh/zenoh-kotlin/blob/main/examples/src/main/kotlin/io.zenoh/ZBytes.kt)
  */
 class ZBytes internal constructor(internal val bytes: ByteArray) : IntoZBytes {
 

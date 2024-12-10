@@ -30,7 +30,7 @@ public class PublisherTest {
     private Session session;
     private ArrayList<Sample> receivedSamples;
     private Publisher publisher;
-    private Subscriber<Void> subscriber;
+    private Subscriber subscriber;
     private KeyExpr keyExpr;
 
     @Before
@@ -38,7 +38,9 @@ public class PublisherTest {
         session = Zenoh.open(Config.loadDefault());
         keyExpr = KeyExpr.tryFrom("example/testing/keyexpr");
 
-        var config = new PublisherOptions(Reliability.RELIABLE, QoS.defaultQoS(), Encoding.ZENOH_STRING);
+        var config = new PublisherOptions();
+        config.setReliability(Reliability.RELIABLE);
+        config.setEncoding(Encoding.ZENOH_STRING);
         publisher = session.declarePublisher(keyExpr, config);
 
         receivedSamples = new ArrayList<>();

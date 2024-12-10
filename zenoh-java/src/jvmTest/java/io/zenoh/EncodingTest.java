@@ -43,7 +43,7 @@ public class EncodingTest {
         // Testing non null schema
         Sample[] receivedSample = new Sample[1];
 
-        Subscriber<Void> subscriber =
+        Subscriber subscriber =
                 session.declareSubscriber(keyExpr, sample -> receivedSample[0] = sample);
 
         var putOptions = new PutOptions();

@@ -21,9 +21,7 @@ import java.util.concurrent.BlockingQueue
 /**
  * Blocking queue handler
  *
- * Implementation of a [Handler] with a [BlockingQueue] receiver. This handler is intended to be used
- * as the default handler by the [io.zenoh.queryable.Queryable], [io.zenoh.subscriber.Subscriber] and [io.zenoh.query.Get],
- * allowing us to send the incoming elements through a [BlockingQueue].
+ * Implementation of a [Handler] with a [BlockingQueue] receiver.
  *
  * The way to tell no more elements of type [T] will be received is when an empty element is put (see [onClose]).
  *

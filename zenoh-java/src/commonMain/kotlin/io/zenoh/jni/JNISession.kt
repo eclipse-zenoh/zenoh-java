@@ -82,7 +82,7 @@ internal class JNISession {
     @Throws(ZError::class)
     fun <R> declareSubscriberWithHandler(
         keyExpr: KeyExpr, handler: Handler<Sample, R>
-    ): Subscriber<R> {
+    ): HandlerSubscriber<R> {
         val subCallback =
             JNISubscriberCallback { keyExpr1, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
@@ -100,13 +100,13 @@ internal class JNISession {
         val subscriberRawPtr = declareSubscriberViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr.get(), subCallback, handler::onClose
         )
-        return Subscriber(keyExpr, handler.receiver(), JNISubscriber(subscriberRawPtr))
+        return HandlerSubscriber(keyExpr, JNISubscriber(subscriberRawPtr), handler.receiver())
     }
 
     @Throws(ZError::class)
     fun declareSubscriberWithCallback(
         keyExpr: KeyExpr, callback: Callback<Sample>
-    ): Subscriber<Void> {
+    ): CallbackSubscriber {
         val subCallback =
             JNISubscriberCallback { keyExpr1, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
@@ -128,13 +128,13 @@ internal class JNISession {
             subCallback,
             fun() {}
         )
-        return Subscriber(keyExpr, null, JNISubscriber(subscriberRawPtr))
+        return CallbackSubscriber(keyExpr,  JNISubscriber(subscriberRawPtr))
     }
 
     @Throws(ZError::class)
     fun declareQueryableWithCallback(
         keyExpr: KeyExpr, callback: Callback<Query>, config: QueryableOptions
-    ): Queryable<Void> {
+    ): CallbackQueryable {
         val queryCallback =
             JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long ->
                 val jniQuery = JNIQuery(queryPtr)
@@ -162,13 +162,13 @@ internal class JNISession {
             fun() {},
             config.complete
         )
-        return Queryable(keyExpr, null, JNIQueryable(queryableRawPtr))
+        return CallbackQueryable(keyExpr, JNIQueryable(queryableRawPtr))
     }
 
     @Throws(ZError::class)
     fun <R> declareQueryableWithHandler(
         keyExpr: KeyExpr, handler: Handler<Query, R>, config: QueryableOptions
-    ): Queryable<R> {
+    ): HandlerQueryable<R> {
         val queryCallback =
             JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long ->
                 val jniQuery = JNIQuery(queryPtr)
@@ -196,7 +196,7 @@ internal class JNISession {
             handler::onClose,
             config.complete
         )
-        return Queryable(keyExpr, handler.receiver(), JNIQueryable(queryableRawPtr))
+        return HandlerQueryable(keyExpr, JNIQueryable(queryableRawPtr), handler.receiver())
     }
 
     @Throws(ZError::class)

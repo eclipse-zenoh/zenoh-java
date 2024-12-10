@@ -31,94 +31,7 @@ import kotlinx.serialization.json.JsonElement
  *
  * Either way, the supported formats are `yaml`, `json` and `json5`.
  *
- * A default configuration can be loaded using [Config.default].
- *
- * ## Examples:
- *
- * ### Loading default config:
- *
- * ```kotlin
- * val config = Config.default()
- * Zenoh.open(config).onSuccess {
- *   // ...
- * }
- * ```
- * ### Loading from file
- *
- * Using [Path]:
- * ```kotlin
- * val config = Config.fromFile(Path("example/path/config.json5")).getOrThrow()
- * Zenoh.open(config).onSuccess {
- *   // ...
- * }
- * ```
- *
- * or alternatively, using [File]
- * ```kotlin
- * val config = Config.fromFile(File("example/path/config.json5")).getOrThrow()
- * Zenoh.open(config).onSuccess {
- *   // ...
- * }
- * ```
- * ### Embedded string configuration
- * - Json5
- * ```kotlin
- * val json5config = """
- *     {
- *         mode: "peer",
- *         connect: {
- *             endpoints: ["tcp/localhost:7450"],
- *         },
- *         scouting: {
- *             multicast: {
- *                 enabled: false,
- *             }
- *         }
- *     }
- *     """.trimIndent()
- * val config = Config.fromJson5(json5config).getOrThrow()
- * Zenoh.open(config).onSuccess {
- *     // ...
- * }
- * ```
- *
- * - Json
- * ```kotlin
- * val jsonConfig = """
- *     {
- *         mode: "peer",
- *         listen: {
- *             endpoints: ["tcp/localhost:7450"],
- *         },
- *         scouting: {
- *             multicast: {
- *                 enabled: false,
- *             }
- *         }
- *     }
- *     """.trimIndent()
- * val config = Config.fromJson(jsonConfig).getOrThrow()
- * Zenoh.open(config).onSuccess {
- *     // ...
- * }
- * ```
- *
- * - Yaml
- * ```kotlin
- * val yamlConfig = """
- *     mode: peer
- *     connect:
- *       endpoints:
- *         - tcp/localhost:7450
- *     scouting:
- *       multicast:
- *         enabled: false
- *     """.trimIndent()
- * val config = Config.fromYaml(yamlConfig).getOrThrow()
- * Zenoh.open(config).onSuccess {
- *     // ...
- * }
- * ```
+ * A default configuration can be loaded using [Config.loadDefault].
  *
  * Visit the [default configuration](https://github.com/eclipse-zenoh/zenoh/blob/main/DEFAULT_CONFIG.json5) for more
  * information on the Zenoh config parameters.
@@ -166,29 +79,6 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         /**
          * Loads the configuration from json-formatted string.
          *
-         * Example:
-         * ```kotlin
-         * val config = Config.fromJson(
-         *     config = """
-         *     {
-         *         "mode": "peer",
-         *         "connect": {
-         *             "endpoints": ["tcp/localhost:7450"]
-         *         },
-         *         "scouting": {
-         *             "multicast": {
-         *                 "enabled": false
-         *             }
-         *         }
-         *     }
-         *     """.trimIndent()
-         * ).getOrThrow()
-         *
-         * Zenoh.open(config).onSuccess {
-         *  // ...
-         * }
-         * ```
-         *
          * Visit the [default configuration](https://github.com/eclipse-zenoh/zenoh/blob/main/DEFAULT_CONFIG.json5) for more
          * information on the Zenoh config parameters.
          *
@@ -203,29 +93,6 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
 
         /**
          * Loads the configuration from json5-formatted string.
-         *
-         * Example:
-         * ```kotlin
-         * val config = Config.fromJson5(
-         *     config = """
-         *     {
-         *         mode: "peer",
-         *         connect: {
-         *             endpoints: ["tcp/localhost:7450"],
-         *         },
-         *         scouting: {
-         *             multicast: {
-         *                 enabled: false,
-         *             }
-         *         }
-         *     }
-         *     """.trimIndent()
-         * ).getOrThrow()
-         *
-         * Zenoh.open(config).onSuccess {
-         *  // ...
-         * }
-         * ```
          *
          * Visit the [default configuration](https://github.com/eclipse-zenoh/zenoh/blob/main/DEFAULT_CONFIG.json5) for more
          * information on the Zenoh config parameters.
@@ -242,25 +109,6 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         /**
          * Loads the configuration from yaml-formatted string.
          *
-         * Example:
-         * ```kotlin
-         * val config = Config.fromYaml(
-         *     config = """
-         *     mode: peer
-         *     connect:
-         *       endpoints:
-         *         - tcp/localhost:7450
-         *     scouting:
-         *       multicast:
-         *         enabled: false
-         *     """.trimIndent()
-         * ).getOrThrow()
-         *
-         * Zenoh.open(config).onSuccess {
-         *  // ...
-         * }
-         * ```
-         *
          * Visit the [default configuration](https://github.com/eclipse-zenoh/zenoh/blob/main/DEFAULT_CONFIG.json5) for more
          * information on the Zenoh config parameters.
          *
@@ -272,17 +120,6 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         fun fromYaml(config: String): Config {
             return JNIConfig.loadYamlConfig(config)
         }
-
-//        /** TODO
-//         * Loads the configuration from the [jsonElement] specified.
-//         *
-//         * @param jsonElement The zenoh config as a [JsonElement].
-//         */
-//        @JvmStatic
-//        @Throws(ZError::class)
-//        fun fromJsonElement(jsonElement: JsonElement): Config {
-//            return JNIConfig.loadJsonConfig(jsonElement.toString())
-//        }
 
         /**
          * Loads the configuration from the env variable [CONFIG_ENV].

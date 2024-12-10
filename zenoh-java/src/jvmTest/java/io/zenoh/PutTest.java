@@ -40,7 +40,7 @@ public class PutTest {
         Sample[] receivedSample = new Sample[1];
         var keyExpr = KeyExpr.tryFrom(TEST_KEY_EXP);
 
-        Subscriber<Void> subscriber =
+        Subscriber subscriber =
                 session.declareSubscriber(keyExpr, sample -> receivedSample[0] = sample);
 
         var putOptions = new PutOptions();

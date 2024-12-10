@@ -69,7 +69,8 @@ data class Selector(val keyExpr: KeyExpr, val parameters: Parameters? = null) : 
          *       with the encouraged behaviour being to reject operations when a duplicate parameter is detected.
          *
          * @param selector The selector expression as a String.
-         * @return a Result with the constructed Selector.
+         * @return An instance [Selector].
+         * @throws ZError in case of failure processing the selector.
          */
         @Throws(ZError::class)
         @JvmStatic
@@ -100,6 +101,3 @@ data class Selector(val keyExpr: KeyExpr, val parameters: Parameters? = null) : 
 interface IntoSelector {
     fun into(): Selector
 }
-
-@Throws(ZError::class)
-fun String.intoSelector(): Selector = Selector.tryFrom(this)

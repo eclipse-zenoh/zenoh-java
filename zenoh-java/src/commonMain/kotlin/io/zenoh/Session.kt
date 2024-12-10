@@ -40,7 +40,6 @@ import java.util.concurrent.LinkedBlockingDeque
  * A session is typically associated with declarations such as [Publisher]s, [Subscriber]s, or [Queryable]s, which are
  * declared using [declarePublisher], [declareSubscriber], and [declareQueryable], respectively.
  * Other operations such as simple Put, Get or Delete can be performed from a session using [put], [get] and [delete].
- * Finally, it's possible to declare key expressions ([KeyExpr]) as well.
  *
  * Sessions are open upon creation and can be closed manually by calling [close]. Alternatively, the session will be
  * automatically closed when used with Java's try-with-resources statement or its Kotlin counterpart, [use].
@@ -91,7 +90,6 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         jniSession = null
     }
 
-    @Suppress("removal")
     protected fun finalize() {
         close()
     }
@@ -99,7 +97,32 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     /**
      * Declare a [Publisher] on the session.
      *
-     * TODO
+     * Example:
+     * ```java
+     * try (Session session = Zenoh.open(config)) {
+     *     // A publisher config can optionally be provided.
+     *     PublisherOptions publisherOptions = new PublisherOptions();
+     *     publisherOptions.setEncoding(Encoding.ZENOH_STRING);
+     *     publisherOptions.setCongestionControl(CongestionControl.BLOCK);
+     *     publisherOptions.setReliability(Reliability.RELIABLE);
+     *
+     *     // Declare the publisher
+     *     Publisher publisher = session.declarePublisher(keyExpr, publisherOptions);
+     *
+     *     int idx = 0;
+     *     while (true) {
+     *         Thread.sleep(1000);
+     *         String payload = String.format("[%4d] %s", idx, value);
+     *         System.out.println("Putting Data ('" + keyExpr + "': '" + payload + "')...");
+     *         publisher.put(ZBytes.from(payload));
+     *         idx++;
+     *     }
+     * }
+     * ```
+     *
+     * @param keyExpr The [KeyExpr] the publisher will be associated to.
+     * @param publisherOptions Optional [PublisherOptions] to configure the publisher.
+     * @return The declared [Publisher].
      */
     @JvmOverloads
     @Throws(ZError::class)
@@ -110,10 +133,29 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     /**
      * Declare a [Subscriber] on the session.
      *
-     * TODO
+     * Example with blocking queue (default receiver):
+     * ```java
+     * try (Session session = Zenoh.open(config)) {
+     *     try (HandlerSubscriber<BlockingQueue<Optional<Sample>>> subscriber = session.declareSubscriber(keyExpr)) {
+     *         BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
+     *         assert receiver != null;
+     *         while (true) {
+     *             Optional<Sample> wrapper = receiver.take();
+     *             if (wrapper.isEmpty()) {
+     *                 break;
+     *             }
+     *             System.out.println(wrapper.get());
+     *             handleSample(wrapper.get());
+     *         }
+     *     }
+     * }
+     * ```
+     *
+     * @param keyExpr The [KeyExpr] the subscriber will be associated to.
+     * @return [HandlerSubscriber] with a [BlockingQueue] as a receiver.
      */
     @Throws(ZError::class)
-    fun declareSubscriber(keyExpr: KeyExpr): Subscriber<BlockingQueue<Optional<Sample>>> {
+    fun declareSubscriber(keyExpr: KeyExpr): HandlerSubscriber<BlockingQueue<Optional<Sample>>> {
         return resolveSubscriberWithHandler(
             keyExpr,
             BlockingQueueHandler(LinkedBlockingDeque())
@@ -121,58 +163,161 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     /**
-     * Declare a [Subscriber] on the session.
+     * Declare a [Subscriber] on the session using a handler.
      *
-     * TODO
+     * Example with a custom handler:
+     * ```java
+     * // Example handler that stores the received samples into a queue.
+     * class QueueHandler implements Handler<Sample, ArrayDeque<Sample>> {
+     *
+     *     final ArrayDeque<Sample> queue = new ArrayDeque<>();
+     *
+     *     @Override
+     *     public void handle(Sample t) {
+     *         queue.add(t);
+     *     }
+     *
+     *     @Override
+     *     public ArrayDeque<Sample> receiver() {
+     *         return queue;
+     *     }
+     *
+     *     @Override
+     *     public void onClose() {}
+     * }
+     *
+     * // ...
+     *
+     * try (Session session = Zenoh.open(config)) {
+     *     QueueHandler queueHandler = new QueueHandler();
+     *     var subscriber = session.declareSubscriber(keyExpr, queueHandler);
+     *     // ...
+     * }
+     * ```
+     *
+     * @param R the [handler]'s receiver type.
+     * @param keyExpr The [KeyExpr] the subscriber will be associated to.
+     * @param handler The [Handler] to process the incoming [Sample]s received by the subscriber.
+     * @return A [HandlerSubscriber] with the [handler]'s receiver.
      */
     @Throws(ZError::class)
-    fun <R> declareSubscriber(keyExpr: KeyExpr, handler: Handler<Sample, R>): Subscriber<R> {
+    fun <R> declareSubscriber(keyExpr: KeyExpr, handler: Handler<Sample, R>): HandlerSubscriber<R> {
         return resolveSubscriberWithHandler(keyExpr, handler)
     }
 
     /**
-     * Declare a [Subscriber] on the session.
+     * Declare a [Subscriber] on the session using a callback.
      *
-     * TODO
+     * Example with a callback:
+     * ```java
+     * try (Session session = Zenoh.open(config)) {
+     *     var subscriber = session.declareSubscriber(keyExpr, sample -> System.out.println(sample));
+     *     // ...
+     * }
+     * ```
+     *
+     * @param keyExpr The [KeyExpr] the subscriber will be associated to.
+     * @param callback [Callback] for handling the incoming samples.
+     * @return A [CallbackSubscriber].
      */
     @Throws(ZError::class)
-    fun declareSubscriber(keyExpr: KeyExpr, callback: Callback<Sample>): Subscriber<Void> {
+    fun declareSubscriber(keyExpr: KeyExpr, callback: Callback<Sample>): CallbackSubscriber {
         return resolveSubscriberWithCallback(keyExpr, callback)
     }
 
     /**
      * Declare a [Queryable] on the session.
      *
-     * TODO
+     * Example using a blocking queue (default receiver):
+     * ```java
+     * try (Session session = Zenoh.open(config)) {
+     *     var queryable = session.declareQueryable(keyExpr);
+     *     var receiver = queryable.getReceiver();
+     *     while (true) {
+     *         Optional<Query> wrapper = receiver.take();
+     *         if (wrapper.isEmpty()) {
+     *             break;
+     *         }
+     *         Query query = wrapper.get();
+     *         query.reply(query.getKeyExpr(), ZBytes.from("Example reply));
+     *     }
+     * }
+     * ```
+     *
+     * @param keyExpr The [KeyExpr] the queryable will be associated to.
+     * @param options Optional [QueryableOptions] for configuring the queryable.
+     * @return A [HandlerQueryable] with a [BlockingQueue] receiver.
      */
     @Throws(ZError::class)
     @JvmOverloads
     fun declareQueryable(
         keyExpr: KeyExpr,
         options: QueryableOptions = QueryableOptions()
-    ): Queryable<BlockingQueue<Optional<Query>>> {
+    ): HandlerQueryable<BlockingQueue<Optional<Query>>> {
         return resolveQueryableWithHandler(keyExpr, BlockingQueueHandler(LinkedBlockingDeque()), options)
     }
 
     /**
      * Declare a [Queryable] on the session.
      *
-     * TODO
+     * Example using a custom [Handler]:
+     * ```java
+     * // Example handler that replies with the amount of queries received.
+     * class QueryHandler implements Handler<Query, Void> {
+     *
+     *     private Int counter = 0;
+     *
+     *     @Override
+     *     public void handle(Query query) {
+     *          var keyExpr = query.getKeyExpr();
+     *          query.reply(keyExpr, ZBytes.from("Reply #" + counter + "!"));
+     *          counter++;
+     *     }
+     *
+     *     @Override
+     *     public Void receiver() {}
+     *
+     *     @Override
+     *     public void onClose() {}
+     * }
+     *
+     * // ...
+     * try (Session session = Zenoh.open(config)) {
+     *     var queryable = session.declareQueryable(keyExpr, new QueryHandler());
+     *     //...
+     * }
+     * ```
+     *
+     * @param R The type of the [handler]'s receiver.
+     * @param keyExpr The [KeyExpr] the queryable will be associated to.
+     * @param handler The [Handler] to handle the incoming queries.
+     * @param options Optional [QueryableOptions] for configuring the queryable.
+     * @return A [HandlerQueryable] with the handler's receiver.
      */
     @Throws(ZError::class)
     @JvmOverloads
-    fun <R> declareQueryable(keyExpr: KeyExpr, handler: Handler<Query, R>, options: QueryableOptions = QueryableOptions()): Queryable<R> {
+    fun <R> declareQueryable(keyExpr: KeyExpr, handler: Handler<Query, R>, options: QueryableOptions = QueryableOptions()): HandlerQueryable<R> {
         return resolveQueryableWithHandler(keyExpr, handler, options)
     }
 
     /**
      * Declare a [Queryable] on the session.
      *
-     * TODO
+     * ```java
+     * try (Session session = Zenoh.open(config)) {
+     *     var queryable = session.declareQueryable(keyExpr, query -> query.reply(keyExpr, ZBytes.from("Example reply")));
+     *     //...
+     * }
+     * ```
+     *
+     * @param keyExpr The [KeyExpr] the queryable will be associated to.
+     * @param callback The [Callback] to handle the incoming queries.
+     * @param options Optional [QueryableOptions] for configuring the queryable.
+     * @return A [CallbackQueryable].
      */
     @Throws(ZError::class)
     @JvmOverloads
-    fun declareQueryable(keyExpr: KeyExpr, callback: Callback<Query>, options: QueryableOptions = QueryableOptions()): Queryable<Void> {
+    fun declareQueryable(keyExpr: KeyExpr, callback: Callback<Query>, options: QueryableOptions = QueryableOptions()): CallbackQueryable {
         return resolveQueryableWithCallback(keyExpr, callback, options)
     }
 
@@ -185,18 +330,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * a queryable, or a publisher will also inform Zenoh of your intent to use their
      * key expressions repeatedly.
      *
-     * Example:
-     * ```java
-     * try (Session session = session.open()) {
-     *     try (KeyExpr keyExpr = session.declareKeyExpr("demo/java/example").res()) {
-     *          Publisher publisher = session.declarePublisher(keyExpr).res();
-     *          // ...
-     *     }
-     * }
-     * ```
-     *
      * @param keyExpr The intended Key expression.
-     * @return A resolvable returning an optimized representation of the passed `keyExpr`.
+     * @return The declared [KeyExpr].
      */
     @Throws(ZError::class)
     fun declareKeyExpr(keyExpr: String): KeyExpr {
@@ -224,11 +359,28 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     /**
-     * Declare a [Get] with a [BlockingQueue] receiver.
+     * Perform a get query handling the replies through a [BlockingQueue].
      *
+     * Example using the default blocking queue receiver:
      * ```java
-     * TODO: provide example
+     * try (Session session = Zenoh.open(config)) {
+     *     System.out.println("Performing Get on '" + selector + "'...");
+     *     BlockingQueue<Optional<Reply>> receiver = session.get(Selector.from("a/b/c"));
+     *
+     *     while (true) {
+     *         Optional<Reply> wrapper = receiver.take();
+     *         if (wrapper.isEmpty()) {
+     *             break;
+     *         }
+     *         Reply reply = wrapper.get();
+     *         System.out.println(reply);
+     *     }
+     * }
      * ```
+     *
+     * @param selector The [Selector] for the get query.
+     * @param options Optional [GetOptions] to configure the get query.
+     * @return A [BlockingQueue] with the received replies.
      */
     @JvmOverloads
     @Throws(ZError::class)
@@ -242,7 +394,41 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     /**
-     * TODO
+     * Perform a get query handling the replies through a [Handler].
+     *
+     * Example using a custom handler:
+     * ```java
+     * // Example handler that prints the replies along with a counter:
+     * class GetHandler implements Handler<Reply, Void> {
+     *
+     *     private Int counter = 0;
+     *
+     *     @Override
+     *     public void handle(Reply reply) {
+     *         System.out.println("Reply #" + counter + ": " + reply);
+     *         counter++;
+     *     }
+     *
+     *     @Override
+     *     public Void receiver() {}
+     *
+     *     @Override
+     *     public void onClose() {}
+     * }
+     *
+     * //...
+     * try (Session session = Zenoh.open(config)) {
+     *     System.out.println("Performing Get on '" + selector + "'...");
+     *     session.get(Selector.from("a/b/c"), new GetHandler());
+     *     //...
+     * }
+     * ```
+     *
+     * @param R The type of the [handler]'s receiver.
+     * @param selector The [Selector] for the get query.
+     * @param handler The [Handler] to handle the incoming replies.
+     * @param options Optional [GetOptions] to configure the query.
+     * @return The handler's receiver.
      */
     @JvmOverloads
     @Throws(ZError::class)
@@ -251,7 +437,19 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     /**
-     * TODO
+     * Perform a get query, handling the replies with a [Callback].
+     *
+     * Example:
+     * ```java
+     * try (Session session = Zenoh.open(config)) {
+     *     session.get(Selector.from("a/b/c"), reply -> System.out.println(reply));
+     *     //...
+     * }
+     * ```
+     *
+     * @param selector The [Selector] for the get query.
+     * @param callback The [Callback] to handle the incoming replies.
+     * @param options Optional [GetOptions] to configure the query.
      */
     @JvmOverloads
     @Throws(ZError::class)
@@ -260,8 +458,17 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     /**
-     * Declare a [Put] with the provided value on the specified key expression.
-     * //TODO update
+     * Perform a put with the provided [payload] to the specified [keyExpr].
+     *
+     * Example:
+     * ```java
+     * session.put(KeyExpr.from("a/b/c"), ZBytes.from("Example payload"));
+     * //...
+     * ```
+     *
+     * @param keyExpr The [KeyExpr] for performing the put.
+     * @param payload The payload to put.
+     * @param options Optional [PutOptions] to configure the put.
      */
     @JvmOverloads
     @Throws(ZError::class)
@@ -270,7 +477,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     /**
-     * TODO
+     * Perform a delete operation to the specified [keyExpr].
+     *
+     * @param keyExpr The [KeyExpr] for performing the delete operation.
+     * @param options Optional [DeleteOptions] to configure the delete operation.
      */
     @JvmOverloads
     @Throws(ZError::class)
@@ -309,7 +519,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     internal fun <R> resolveSubscriberWithHandler(
         keyExpr: KeyExpr, handler: Handler<Sample, R>
-    ): Subscriber<R> {
+    ): HandlerSubscriber<R> {
         return jniSession?.run {
             val subscriber = declareSubscriberWithHandler(keyExpr, handler)
             declarations.add(subscriber)
@@ -320,7 +530,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     internal fun resolveSubscriberWithCallback(
         keyExpr: KeyExpr, callback: Callback<Sample>
-    ): Subscriber<Void> {
+    ): CallbackSubscriber {
         return jniSession?.run {
             val subscriber = declareSubscriberWithCallback(keyExpr, callback)
             declarations.add(subscriber)
@@ -331,7 +541,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     internal fun <R> resolveQueryableWithHandler(
         keyExpr: KeyExpr, handler: Handler<Query, R>, options: QueryableOptions
-    ): Queryable<R> {
+    ): HandlerQueryable<R> {
         return jniSession?.run {
             val queryable = declareQueryableWithHandler(keyExpr, handler, options)
             declarations.add(queryable)
@@ -342,7 +552,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     internal fun resolveQueryableWithCallback(
         keyExpr: KeyExpr, callback: Callback<Query>, options: QueryableOptions
-    ): Queryable<Void> {
+    ): CallbackQueryable {
         return jniSession?.run {
             val queryable = declareQueryableWithCallback(keyExpr, callback, options)
             declarations.add(queryable)

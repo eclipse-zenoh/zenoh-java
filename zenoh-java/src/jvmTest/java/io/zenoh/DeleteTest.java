@@ -34,7 +34,7 @@ public class DeleteTest {
         Session session = Zenoh.open(Config.loadDefault());
         final Sample[] receivedSample = new Sample[1];
         KeyExpr keyExpr = KeyExpr.tryFrom("example/testing/keyexpr");
-        Subscriber<Void> subscriber =
+        Subscriber subscriber =
                 session.declareSubscriber(keyExpr, sample -> receivedSample[0] = sample);
         session.delete(keyExpr);
 

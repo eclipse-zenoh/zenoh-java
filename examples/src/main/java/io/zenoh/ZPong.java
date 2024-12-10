@@ -45,10 +45,11 @@ public class ZPong implements Callable<Integer> {
             KeyExpr keyExprPing = KeyExpr.tryFrom("test/ping");
             KeyExpr keyExprPong = KeyExpr.tryFrom("test/pong");
 
-            Publisher publisher = session.declarePublisher(
-                    keyExprPong,
-                    new PublisherOptions().congestionControl(CongestionControl.BLOCK).express(!noExpress)
-            );
+            var publisherOptions = new PublisherOptions();
+            publisherOptions.setCongestionControl(CongestionControl.BLOCK);
+            publisherOptions.setExpress(!noExpress);
+
+            Publisher publisher = session.declarePublisher(keyExprPong, publisherOptions);
 
             session.declareSubscriber(keyExprPing, sample -> {
                 try {

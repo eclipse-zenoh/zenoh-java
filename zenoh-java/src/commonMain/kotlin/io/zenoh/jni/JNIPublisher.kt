@@ -19,7 +19,7 @@ import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 
 /**
- * Adapter class to handle the interactions with Zenoh through JNI for a [io.zenoh.publication.Publisher].
+ * Adapter class to handle the interactions with Zenoh through JNI for a [io.zenoh.pubsub.Publisher].
  *
  * @property ptr: raw pointer to the underlying native Publisher.
  */

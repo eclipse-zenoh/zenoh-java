@@ -17,6 +17,12 @@ package io.zenoh.scouting
 import io.zenoh.Config
 import io.zenoh.config.WhatAmI
 
+/**
+ * Options for scouting.
+ *
+ * @param config A [Config] for scouting.
+ * @param whatAmI [WhatAmI] parameters.
+ */
 data class ScoutOptions(
     var config: Config? = null,
     var whatAmI: Set<WhatAmI> = setOf(WhatAmI.Peer, WhatAmI.Router)

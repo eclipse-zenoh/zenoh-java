@@ -16,13 +16,15 @@ package io.zenoh.pubsub
 
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
-import io.zenoh.qos.CongestionControl
-import io.zenoh.qos.Priority
-import io.zenoh.qos.QoS
-import io.zenoh.qos.Reliability
+import io.zenoh.qos.*
 
 /**
- * TODO
+ * Options for the PUT operations.
+ *
+ * @param encoding The encoding of the payload.
+ * @param reliability The desired reliability.
+ * @param attachment Optional attachment.
+ * @param qos The quality of service desired.
  */
 data class PutOptions(
     var encoding: Encoding? = null,
@@ -30,26 +32,44 @@ data class PutOptions(
     var reliability: Reliability = Reliability.RELIABLE,
     var attachment: IntoZBytes? = null
 ) {
+    /**
+     * Get the congestion control.
+     */
     fun getCongestionControl(): CongestionControl {
         return this.qos.congestionControl
     }
 
+    /**
+     * Get the express value of the QoS.
+     */
     fun getExpress(): Boolean {
         return this.qos.express
     }
 
+    /**
+     * Get the priority.
+     */
     fun getPriority(): Priority {
         return this.qos.priority
     }
 
+    /**
+     * Set the QoS congestion control.
+     */
     fun setCongestionControl(congestionControl: CongestionControl) {
         this.qos.congestionControl = congestionControl
     }
 
+    /**
+     * Set the QoS express value.
+     */
     fun setExpress(express: Boolean) {
         this.qos.express = express
     }
 
+    /**
+     * Set the priority desired.
+     */
     fun setPriority(priority: Priority) {
         this.qos.priority = priority
     }

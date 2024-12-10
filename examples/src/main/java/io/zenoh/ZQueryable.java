@@ -18,7 +18,6 @@ import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.query.Query;
-import io.zenoh.query.Queryable;
 import io.zenoh.query.QueryableOptions;
 import io.zenoh.query.ReplyOptions;
 import org.apache.commons.net.ntp.TimeStamp;
@@ -58,9 +57,8 @@ public class ZQueryable implements Callable<Integer> {
      */
     private void declareQueryableWithBlockingQueue(Config config, KeyExpr keyExpr) throws ZError, InterruptedException {
         try (Session session = Zenoh.open(config)) {
-            Queryable<BlockingQueue<Optional<Query>>> queryable = session.declareQueryable(keyExpr);
+            var queryable = session.declareQueryable(keyExpr);
             BlockingQueue<Optional<Query>> receiver = queryable.getReceiver();
-            assert receiver != null;
             while (true) {
                 Optional<Query> wrapper = receiver.take();
                 if (wrapper.isEmpty()) {
