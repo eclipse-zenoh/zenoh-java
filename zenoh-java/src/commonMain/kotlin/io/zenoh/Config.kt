@@ -18,7 +18,6 @@ import io.zenoh.exceptions.ZError
 import io.zenoh.jni.JNIConfig
 import java.io.File
 import java.nio.file.Path
-import kotlinx.serialization.json.JsonElement
 
 /**
  * # Config
@@ -148,21 +147,6 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
 
     /**
      * Inserts a json5 value associated to the [key] into the Config.
-     *
-     * Example:
-     * ```kotlin
-     * val config = Config.default()
-     *
-     * // ...
-     * val scouting = """
-     *     {
-     *         multicast: {
-     *             enabled: true,
-     *         }
-     *     }
-     * """.trimIndent()
-     * config.insertJson5("scouting", scouting).getOrThrow()
-     * ```
      */
     @Throws(ZError::class)
     fun insertJson5(key: String, value: String) {
