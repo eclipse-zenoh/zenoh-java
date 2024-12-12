@@ -12,24 +12,12 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-mod config;
-mod errors;
-mod key_expr;
-mod liveliness;
-mod logger;
-mod publisher;
-mod query;
-mod queryable;
-mod scouting;
-mod session;
-mod subscriber;
-mod utils;
-mod zbytes;
-mod zenoh_id;
+package io.zenoh.ext
 
-// Test should be runned with `cargo test --no-default-features`
-#[test]
-#[cfg(not(feature = "default"))]
-fn test_no_default_features() {
-    assert_eq!(zenoh::FEATURES, concat!(" zenoh/unstable"));
+import com.google.common.reflect.TypeToken
+import io.zenoh.bytes.ZBytes
+import io.zenoh.jni.JNIZBytes
+
+fun <T> zSerialize(t: T, type: TypeToken<T>): ZBytes {
+    return JNIZBytes.serializeViaJNI(t as Any, type.type)
 }

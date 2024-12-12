@@ -26,10 +26,12 @@ dependencies {
     implementation("commons-net:commons-net:3.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
     implementation("info.picocli:picocli:4.7.4")
+    implementation("com.google.guava:guava:33.3.1-jre")
 }
 
 tasks {
     val examples = listOf(
+        "ZBytes",
         "ZDelete",
         "ZGet",
         "ZGetLiveliness",
