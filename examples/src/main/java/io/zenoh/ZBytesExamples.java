@@ -137,22 +137,19 @@ public class ZBytesExamples {
         // Map example
         Map<String, Integer> input15 = Map.of("one", 1, "two", 2, "three", 3);
         var zbytes15 = zSerialize(input15, new TypeToken<>() {});
-        Map<String, Integer> output15 = zDeserialize(zbytes15, new TypeToken<>() {
-        });
+        Map<String, Integer> output15 = zDeserialize(zbytes15, new TypeToken<>() {});
         assert input15.equals(output15);
 
         // Nested List example
         List<List<Integer>> input18 = List.of(List.of(1, 2, 3));
         var zbytes18 = zSerialize(input18, new TypeToken<>() {});
-        List<List<Integer>> output18 = zDeserialize(zbytes18, new TypeToken<>() {
-        });
+        List<List<Integer>> output18 = zDeserialize(zbytes18, new TypeToken<>() {});
         assert input18.equals(output18);
 
         // Combined types example
         List<Map<String, Integer>> input19 = List.of(Map.of("a", 1, "b", 2));
         var zbytes19 = zSerialize(input19, new TypeToken<>() {});
-        List<Map<String, Integer>> output19 = zDeserialize(zbytes19, new TypeToken<>() {
-        });
+        List<Map<String, Integer>> output19 = zDeserialize(zbytes19, new TypeToken<>() {});
         assert input19.equals(output19);
     }
 }

@@ -151,7 +151,7 @@ fn decode_token_type(env: &mut JNIEnv, type_obj: JObject) -> ZResult<JavaType> {
                 return Ok(JavaType::List(Box::new(decode_token_type(env, arg1)?)));
             }
 
-            return Err(zerror!("Unsupported type: {}", qualified_name));
+            Err(zerror!("Unsupported type: {}", qualified_name))
         }
     }
 }
