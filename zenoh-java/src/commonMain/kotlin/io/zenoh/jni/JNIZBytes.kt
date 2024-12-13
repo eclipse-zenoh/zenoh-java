@@ -14,7 +14,6 @@
 
 package io.zenoh.jni
 
-import com.google.common.reflect.TypeToken
 import io.zenoh.ZenohLoad
 import io.zenoh.bytes.ZBytes
 import java.lang.reflect.Type
@@ -30,5 +29,5 @@ internal object JNIZBytes {
     external fun serializeViaJNI(any: Any, type: Type): ZBytes
 
     @JvmStatic
-    external fun deserializeViaJNI(zBytes: ZBytes, type: TypeToken<*>): Any
+    external fun deserializeViaJNI(zBytes: ZBytes, type: Type): Any
 }

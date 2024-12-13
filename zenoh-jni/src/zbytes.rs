@@ -56,7 +56,7 @@ fn decode_token_type(env: &mut JNIEnv, type_obj: JObject) -> ZResult<JavaType> {
     match qualified_name.as_str() {
         "java.lang.Boolean" => Ok(JavaType::Boolean),
         "java.lang.String" => Ok(JavaType::String),
-        "[B" => Ok(JavaType::ByteArray),
+        "byte[]" => Ok(JavaType::ByteArray),
         "java.lang.Byte" => Ok(JavaType::Byte),
         "java.lang.Short" => Ok(JavaType::Short),
         "java.lang.Integer" => Ok(JavaType::Int),
@@ -66,7 +66,7 @@ fn decode_token_type(env: &mut JNIEnv, type_obj: JObject) -> ZResult<JavaType> {
         _ => {
             let type_token_class = env
                 .find_class("com/google/common/reflect/TypeToken")
-                .unwrap();
+                .map_err(|err| zerror!(err))?;
             let token_type = env
                 .call_static_method(
                     type_token_class,
@@ -74,9 +74,9 @@ fn decode_token_type(env: &mut JNIEnv, type_obj: JObject) -> ZResult<JavaType> {
                     "(Ljava/lang/reflect/Type;)Lcom/google/common/reflect/TypeToken;",
                     &[JValue::Object(&type_obj)],
                 )
-                .unwrap()
+                .map_err(|err| zerror!(err))?
                 .l()
-                .unwrap();
+                .map_err(|err| zerror!(err))?;
             let map_class: JObject = env
                 .find_class("java/util/Map")
                 .map_err(|err| zerror!(err))?
@@ -104,8 +104,12 @@ fn decode_token_type(env: &mut JNIEnv, type_obj: JObject) -> ZResult<JavaType> {
                     .l()
                     .map_err(|err| zerror!(err))?;
                 let jobject_array = JObjectArray::from(args);
-                let arg1 = env.get_object_array_element(&jobject_array, 0).unwrap();
-                let arg2 = env.get_object_array_element(&jobject_array, 1).unwrap();
+                let arg1 = env
+                    .get_object_array_element(&jobject_array, 0)
+                    .map_err(|err| zerror!(err))?;
+                let arg2 = env
+                    .get_object_array_element(&jobject_array, 1)
+                    .map_err(|err| zerror!(err))?;
 
                 return Ok(JavaType::Map(
                     Box::new(decode_token_type(env, arg1)?),
@@ -140,7 +144,9 @@ fn decode_token_type(env: &mut JNIEnv, type_obj: JObject) -> ZResult<JavaType> {
                     .l()
                     .map_err(|err| zerror!(err))?;
                 let jobject_array = JObjectArray::from(args);
-                let arg1 = env.get_object_array_element(&jobject_array, 0).unwrap();
+                let arg1 = env
+                    .get_object_array_element(&jobject_array, 0)
+                    .map_err(|err| zerror!(err))?;
 
                 return Ok(JavaType::List(Box::new(decode_token_type(env, arg1)?)));
             }
@@ -258,7 +264,7 @@ fn serialize(
             let jlist: JList<'_, '_, '_> =
                 JList::from_env(env, &any).map_err(|err| zerror!(err))?;
             let mut iterator = jlist.iter(env).map_err(|err| zerror!(err))?;
-            let list_size = jlist.size(env).unwrap();
+            let list_size = jlist.size(env).map_err(|err| zerror!(err))?;
             serializer.serialize(zenoh_ext::VarInt(list_size as usize));
             while let Some(value) = iterator.next(env).map_err(|err| zerror!(err))? {
                 serialize(env, serializer, value, kotlin_type)?;
@@ -297,8 +303,10 @@ pub extern "C" fn Java_io_zenoh_jni_JNIZBytes_deserializeViaJNI(
         let payload = env
             .get_field(zbytes, "bytes", "[B")
             .map_err(|err| zerror!(err))?;
-        let decoded_bytes: Vec<u8> =
-            decode_byte_array(&env, JByteArray::from(payload.l().unwrap()))?;
+        let decoded_bytes: Vec<u8> = decode_byte_array(
+            &env,
+            JByteArray::from(payload.l().map_err(|err| zerror!(err))?),
+        )?;
         let zbytes = ZBytes::from(decoded_bytes);
         let mut deserializer = ZDeserializer::new(&zbytes);
         let jtype = decode_token_type(&mut env, jtype)?;

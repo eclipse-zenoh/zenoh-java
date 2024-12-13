@@ -16,10 +16,9 @@ package io.zenoh.ext
 
 import com.google.common.reflect.TypeToken
 import io.zenoh.bytes.ZBytes
+import io.zenoh.jni.JNIZBytes
 
-//import io.zenoh.jni.JNIZBytes;
-
-fun <T> zDeserialize(zbytes: ZBytes, type: TypeToken<T>): Any? {
-    println(type.type)
-    return null
+fun <T> zDeserialize(zbytes: ZBytes, type: TypeToken<T>): T {
+    @Suppress("UNCHECKED_CAST")
+    return JNIZBytes.deserializeViaJNI(zbytes, type.type) as T
 }
