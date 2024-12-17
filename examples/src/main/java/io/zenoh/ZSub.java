@@ -35,7 +35,7 @@ public class ZSub {
                     System.out.println("Press CTRL-C to quit...");
                     while (true) {
                         Optional<Sample> wrapper = receiver.take();
-                        if (wrapper.isEmpty()) {
+                        if (!wrapper.isPresent()) {
                             break;
                         }
                         Sample sample = wrapper.get();
