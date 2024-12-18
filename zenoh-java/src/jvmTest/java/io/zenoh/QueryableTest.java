@@ -53,7 +53,7 @@ public class QueryableTest {
                 Encoding.defaultEncoding(),
                 SampleKind.PUT,
                 timestamp,
-                QoS.defaultQoS(),
+                new QoS(),
                 null
         );
 
@@ -158,9 +158,9 @@ public class QueryableTest {
         var sample = ((Reply.Success) receivedReply[0]).getSample();
         assertEquals(message, sample.getPayload());
         assertEquals(timestamp, sample.getTimestamp());
-        assertEquals(Priority.DATA_HIGH, sample.getQos().getPriority());
+        assertEquals(Priority.DATA_HIGH, sample.getPriority());
         assertTrue(sample.getQos().getExpress());
-        assertEquals(CongestionControl.DROP, sample.getQos().getCongestionControl());
+        assertEquals(CongestionControl.DROP, sample.getCongestionControl());
     }
 
     @Test

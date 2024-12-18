@@ -20,7 +20,8 @@ import io.zenoh.bytes.IntoZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.jni.JNIPublisher
 import io.zenoh.keyexpr.KeyExpr
-import io.zenoh.qos.QoS
+import io.zenoh.qos.CongestionControl
+import io.zenoh.qos.Priority
 import io.zenoh.session.SessionDeclaration
 import kotlin.Throws
 
@@ -59,7 +60,8 @@ import kotlin.Throws
  */
 class Publisher internal constructor(
     val keyExpr: KeyExpr,
-    private var qos: QoS,
+    private var congestionControl: CongestionControl,
+    private var priority: Priority,
     val encoding: Encoding,
     private var jniPublisher: JNIPublisher?,
 ) : SessionDeclaration, AutoCloseable {
@@ -69,10 +71,10 @@ class Publisher internal constructor(
     }
 
     /** Get the congestion control applied when routing the data. */
-    fun congestionControl() = qos.congestionControl
+    fun congestionControl() = congestionControl
 
     /** Get the priority of the written data. */
-    fun priority() = qos.priority
+    fun priority() = priority
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
     @Throws(ZError::class)

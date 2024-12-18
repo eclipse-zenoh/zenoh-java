@@ -28,9 +28,6 @@ data class QoS (
 ) {
 
     companion object {
-        private val defaultQoS = QoS()
-
-        @JvmStatic
-        fun defaultQoS() = defaultQoS
+        internal val defaultQoS = QoS()
     }
 }

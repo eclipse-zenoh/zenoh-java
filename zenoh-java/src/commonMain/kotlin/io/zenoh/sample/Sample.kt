@@ -31,9 +31,9 @@ import org.apache.commons.net.ntp.TimeStamp
  * @property timestamp Optional [TimeStamp].
  * @property qos The Quality of Service settings used to deliver the sample.
  * @property attachment Optional attachment.
- * @property express The express value in the [qos].
- * @property congestionControl The congestion control in the [qos].
- * @property priority The priority in the [qos].
+ * @property express [QoS] express value.
+ * @property congestionControl The congestion control policy.
+ * @property priority The priority policy.
  */
 data class Sample(
     val keyExpr: KeyExpr,

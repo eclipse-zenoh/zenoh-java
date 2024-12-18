@@ -14,10 +14,10 @@
 
 package io.zenoh;
 
-import io.zenoh.bytes.Encoding;
 import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.query.GetOptions;
+import io.zenoh.query.QueryTarget;
 import io.zenoh.query.Selector;
 import io.zenoh.query.Reply;
 import io.zenoh.sample.SampleKind;
@@ -46,21 +46,29 @@ public class ZGet implements Callable<Integer> {
         Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
         Selector selector = Selector.tryFrom(this.selectorOpt);
 
+        // Load GET options
+        GetOptions options = new GetOptions();
+        options.setPayload(ZBytes.from(this.payload));
+        options.setTarget(QueryTarget.valueOf(this.target));
+        options.setTimeout(Duration.ofMillis(this.timeout));
+        options.setAttachment(ZBytes.from(this.attachment));
+
+
         // A GET query can be performed in different ways, by default (using a blocking queue), using a callback
         // or providing a handler. Uncomment one of the function calls below to try out different implementations:
         // Implementation with a blocking queue
-        getExampleDefault(config, selector);
-        // getExampleWithCallback(config, selector);
-        // getExampleWithHandler(config, selector);
-        // getExampleProvidingConfig(config, selector);
+        getExampleDefault(config, selector, options);
+        // getExampleWithCallback(config, selector, options);
+        // getExampleWithHandler(config, selector, options);
 
         return 0;
     }
 
-    private void getExampleDefault(Config config, Selector selector) throws ZError, InterruptedException {
+    private void getExampleDefault(Config config, Selector selector, GetOptions options) throws ZError, InterruptedException {
         try (Session session = Zenoh.open(config)) {
             System.out.println("Performing Get on '" + selector + "'...");
-            BlockingQueue<Optional<Reply>> receiver = session.get(selector);
+
+            BlockingQueue<Optional<Reply>> receiver = session.get(selector, options);
 
             while (true) {
                 Optional<Reply> wrapper = receiver.take();
@@ -77,10 +85,10 @@ public class ZGet implements Callable<Integer> {
      * Example using a simple callback for handling the replies.
      * @see io.zenoh.handlers.Callback
      */
-    private void getExampleWithCallback(Config config, Selector selector) throws ZError {
+    private void getExampleWithCallback(Config config, Selector selector, GetOptions options) throws ZError {
         try (Session session = Zenoh.open(config)) {
             System.out.println("Performing Get on '" + selector + "'...");
-            session.get(selector, this::handleReply);
+            session.get(selector, this::handleReply, options);
         }
     }
 
@@ -89,31 +97,11 @@ public class ZGet implements Callable<Integer> {
      * @see QueueHandler
      * @see io.zenoh.handlers.Handler
      */
-    private void getExampleWithHandler(Config config, Selector selector) throws ZError {
+    private void getExampleWithHandler(Config config, Selector selector, GetOptions options) throws ZError {
         try (Session session = Zenoh.open(config)) {
             System.out.println("Performing Get on '" + selector + "'...");
             QueueHandler<Reply> queueHandler = new QueueHandler<>();
-            session.get(selector, queueHandler);
-        }
-    }
-
-    /**
-     * The purpose of this example is to show how to provide configuration parameters
-     * to the get query. For this, you can optionally provide a GetConfig parameter.
-     * @see GetOptions
-     */
-    private void getExampleProvidingConfig(Config config, Selector selector) throws ZError {
-        try (Session session = Zenoh.open(config)) {
-            System.out.println("Performing Get on '" + selector + "'...");
-
-            // Build the config
-            GetOptions getOptions = new GetOptions();
-            getOptions.setTimeout(Duration.ofMillis(1000));
-            getOptions.setEncoding(Encoding.ZENOH_STRING);
-            getOptions.setPayload(ZBytes.from("Example payload"));
-
-            // Apply the config
-            session.get(selector, this::handleReply, getOptions);
+            session.get(selector, queueHandler, options);
         }
     }
 

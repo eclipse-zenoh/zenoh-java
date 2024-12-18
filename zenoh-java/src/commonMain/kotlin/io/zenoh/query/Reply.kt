@@ -83,104 +83,35 @@ sealed class Reply private constructor(val replierId: ZenohId?) : ZenohType {
  * @param encoding [Encoding] of the payload of the reply.
  * @param timeStamp Optional timestamp.
  * @param attachment Optional attachment.
- * @param qos The [QoS] for the reply.
+ * @property express [QoS] express value.
+ * @property congestionControl The congestion control policy.
+ * @property priority The priority policy.
  */
 data class ReplyOptions(
     var encoding: Encoding = Encoding.defaultEncoding(),
     var timeStamp: TimeStamp? = null,
     var attachment: ZBytes? = null,
-    var qos: QoS = QoS.defaultQoS()
-) {
-
-    /**
-     * Get the QoS express value.
-     */
-    fun getExpress(): Boolean {
-        return qos.express
-    }
-
-    /**
-     * Get the QoS Priority value.
-     */
-    fun getPriority(): Priority {
-        return qos.priority
-    }
-
-    /**
-     * Get the congestion control value.
-     */
-    fun getCongestionControl(): CongestionControl {
-        return qos.congestionControl
-    }
-
-    /**
-     * Sets the express flag. If true, the reply won't be batched in order to reduce the latency.
-     */
-    fun setExpress(express: Boolean) { qos.express = express }
-
-    /**
-     * Sets the [Priority] of the reply.
-     */
-    fun setPriority(priority: Priority) { qos.priority = priority }
-
-    /**
-     * Sets the [CongestionControl] of the reply.
-     *
-     * @param congestionControl
-     */
-    fun setCongestionControl(congestionControl: CongestionControl) { qos.congestionControl = congestionControl }
-}
+    var express: Boolean = QoS.defaultQoS.express,
+    var congestionControl: CongestionControl = QoS.defaultQoS.congestionControl,
+    var priority: Priority = QoS.defaultQoS.priority
+)
 
 /**
  * Options for performing a Reply Delete to a [Query].
  *
  * @param timeStamp Optional timestamp.
  * @param attachment Optional attachment.
- * @param qos The [QoS] for the reply.
+ * @property express [QoS] express value.
+ * @property congestionControl The congestion control policy.
+ * @property priority The priority policy.
  */
 data class ReplyDelOptions(
     var timeStamp: TimeStamp? = null,
     var attachment: ZBytes? = null,
-    var qos: QoS = QoS.defaultQoS()
-) {
-    /**
-     * Get the QoS express value.
-     */
-    fun getExpress(): Boolean {
-        return qos.express
-    }
-
-    /**
-     * Get the QoS Priority value.
-     */
-    fun getPriority(): Priority {
-        return qos.priority
-    }
-
-    /**
-     * Get the congestion control value.
-     */
-    fun getCongestionControl(): CongestionControl {
-        return qos.congestionControl
-    }
-
-    /**
-     * Sets the express flag. If true, the reply won't be batched in order to reduce the latency.
-     */
-    fun setExpress(express: Boolean) { qos.express = express }
-
-    /**
-     * Sets the [Priority] of the reply.
-     */
-    fun setPriority(priority: Priority) { qos.priority = priority }
-
-    /**
-     * Sets the [CongestionControl] of the reply.
-     *
-     * @param congestionControl
-     */
-    fun setCongestionControl(congestionControl: CongestionControl) { qos.congestionControl = congestionControl }
-}
+    var express: Boolean = QoS.defaultQoS.express,
+    var congestionControl: CongestionControl = QoS.defaultQoS.congestionControl,
+    var priority: Priority = QoS.defaultQoS.priority
+)
 
 
 /**
