@@ -14,17 +14,89 @@
 
 package io.zenoh;
 
-import io.zenoh.exceptions.ZenohException;
+import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
+import picocli.CommandLine;
 
-public class ZDelete {
-    public static void main(String[] args) throws ZenohException {
+import java.util.List;
+import java.util.concurrent.Callable;
+
+import static io.zenoh.ConfigKt.loadConfig;
+
+@CommandLine.Command(
+        name = "ZDelete",
+        mixinStandardHelpOptions = true,
+        description = "Zenoh Delete example"
+)
+public class ZDelete implements Callable<Integer> {
+
+    @Override
+    public Integer call() throws ZError {
+        Zenoh.initLogFromEnvOr("error");
         System.out.println("Opening session...");
-        try (Session session = Session.open()) {
-            try (KeyExpr keyExpr = KeyExpr.tryFrom("demo/example/zenoh-java-put")) {
-                System.out.println("Deleting resources matching '" + keyExpr + "'...");
-                session.delete(keyExpr).res();
-            }
+        Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
+        try (Session session = Zenoh.open(config)) {
+            KeyExpr keyExpr = KeyExpr.tryFrom(key);
+            System.out.println("Deleting resources matching '" + keyExpr + "'...");
+            session.delete(keyExpr);
         }
+        return 0;
+    }
+
+
+    /**
+     * ----- Example CLI arguments and private fields -----
+     */
+
+    private final Boolean emptyArgs;
+
+    ZDelete(Boolean emptyArgs) {
+        this.emptyArgs = emptyArgs;
+    }
+
+    @CommandLine.Option(
+            names = {"-e", "--connect"},
+            description = "Endpoints to connect to.",
+            split = ","
+    )
+    private List<String> connect;
+
+    @CommandLine.Option(
+            names = {"-l", "--listen"},
+            description = "Endpoints to listen on.",
+            split = ","
+    )
+    private List<String> listen;
+
+    @CommandLine.Option(
+            names = {"-c", "--config"},
+            description = "A configuration file."
+    )
+    private String configFile;
+
+    @CommandLine.Option(
+            names = {"-k", "--key"},
+            description = "The key expression to delete [default: demo/example/zenoh-java-delete].",
+            defaultValue = "demo/example/zenoh-java-delete"
+    )
+    private String key;
+
+    @CommandLine.Option(
+            names = {"-m", "--mode"},
+            description = "The session mode. Default: peer. Possible values: [peer, client, router].",
+            defaultValue = "peer"
+    )
+    private String mode;
+
+    @CommandLine.Option(
+            names = {"--no-multicast-scouting"},
+            description = "Disable the multicast-based scouting mechanism.",
+            defaultValue = "false"
+    )
+    private boolean noMulticastScouting;
+
+    public static void main(String[] args) {
+        int exitCode = new CommandLine(new ZDelete(args.length == 0)).execute(args);
+        System.exit(exitCode);
     }
 }

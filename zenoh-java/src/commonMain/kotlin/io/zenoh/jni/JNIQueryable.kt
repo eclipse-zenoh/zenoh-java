@@ -15,7 +15,7 @@
 package io.zenoh.jni
 
 /**
- * Adapter class to handle the interactions with Zenoh through JNI for a [Queryable]
+ * Adapter class to handle the interactions with Zenoh through JNI for a [io.zenoh.query.Queryable]
  *
  * @property ptr: raw pointer to the underlying native Queryable.
  */

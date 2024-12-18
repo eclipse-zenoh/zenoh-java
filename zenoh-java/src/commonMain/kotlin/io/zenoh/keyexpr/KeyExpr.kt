@@ -14,10 +14,12 @@
 
 package io.zenoh.keyexpr
 
-import io.zenoh.Resolvable
 import io.zenoh.Session
-import io.zenoh.exceptions.KeyExprException
+import io.zenoh.session.SessionDeclaration
+import io.zenoh.exceptions.ZError
 import io.zenoh.jni.JNIKeyExpr
+import io.zenoh.query.IntoSelector
+import io.zenoh.query.Selector
 
 /**
  * # Address space
@@ -56,11 +58,9 @@ import io.zenoh.jni.JNIKeyExpr
  * As an alternative, employing a try-with-resources pattern using Kotlin's `use` block is recommended. This approach
  * ensures that [close] is automatically called, safely managing the lifecycle of the [KeyExpr] instance.
  *
- * @param keyExpr The string representation of the key expression.
- * @param jniKeyExpr An optional [JNIKeyExpr] instance, present when the key expression was declared through [Session.declareKeyExpr],
- *  it represents the native instance of the key expression.
  */
-class KeyExpr internal constructor(internal val keyExpr: String, internal var jniKeyExpr: JNIKeyExpr? = null): AutoCloseable {
+class KeyExpr internal constructor(internal val keyExpr: String, internal var jniKeyExpr: JNIKeyExpr? = null): AutoCloseable, IntoSelector,
+    SessionDeclaration {
 
     companion object {
 
@@ -74,10 +74,10 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
          *
          * @param keyExpr The intended key expression as a string.
          * @return The [KeyExpr] in case of success.
-         * @throws KeyExprException in the case of failure.
+         * @throws ZError in the case of failure.
          */
         @JvmStatic
-        @Throws(KeyExprException::class)
+        @Throws(ZError::class)
         fun tryFrom(keyExpr: String): KeyExpr {
             return JNIKeyExpr.tryFrom(keyExpr)
         }
@@ -90,10 +90,10 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
          *
          * @param keyExpr The intended key expression as a string.
          * @return The canonized [KeyExpr].
-         * @throws KeyExprException in the case of failure.
+         * @throws ZError in the case of failure.
          */
         @JvmStatic
-        @Throws(KeyExprException::class)
+        @Throws(ZError::class)
         fun autocanonize(keyExpr: String): KeyExpr {
             return JNIKeyExpr.autocanonize(keyExpr)
         }
@@ -104,6 +104,7 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      * defined by `this` and `other`.
      * Will return false as well if the key expression is not valid anymore.
      */
+    @Throws(ZError::class)
     fun intersects(other: KeyExpr): Boolean {
         return JNIKeyExpr.intersects(this, other)
     }
@@ -113,25 +114,37 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      * defined by `this`.
      * Will return false as well if the key expression is not valid anymore.
      */
+    @Throws(ZError::class)
     fun includes(other: KeyExpr): Boolean {
         return JNIKeyExpr.includes(this, other)
     }
 
     /**
-     * Undeclare the key expression if it was previously declared on the specified [session].
-     *
-     * @param session The session from which the key expression was previously declared.
-     * @return An empty [Resolvable].
+     * Returns the relation between 'this' and other from 'this''s point of view ([SetIntersectionLevel.INCLUDES]
+     * signifies that self includes other). Note that this is slower than [intersects] and [includes],
+     * so you should favor these methods for most applications.
      */
-    fun undeclare(session: Session): Resolvable<Unit> {
-        return session.undeclare(this)
+    @Throws(ZError::class)
+    fun relationTo(other: KeyExpr): SetIntersectionLevel {
+        return JNIKeyExpr.relationTo(this, other)
     }
 
     /**
-     * Returns true if the [KeyExpr] has still associated a native key expression allowing it to perform operations.
+     * Joins both sides, inserting a / in between them.
+     * This should be your preferred method when concatenating path segments.
      */
-    fun isValid(): Boolean {
-        return jniKeyExpr != null
+    @Throws(ZError::class)
+    fun join(other: String): KeyExpr {
+        return JNIKeyExpr.joinViaJNI(this, other)
+    }
+
+    /**
+     * Performs string concatenation and returns the result as a KeyExpr if possible.
+     * You should probably prefer [join] as Zenoh may then take advantage of the hierarchical separation it inserts.
+     */
+    @Throws(ZError::class)
+    fun concat(other: String): KeyExpr {
+        return JNIKeyExpr.concatViaJNI(this, other)
     }
 
     override fun toString(): String {
@@ -139,12 +152,25 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
     }
 
     /**
-     * Closes the key expression. Operations performed on this key expression won't be valid anymore after this call.
+     * Equivalent to [undeclare]. This function is automatically called when using try with resources.
+     *
+     * @see undeclare
      */
     override fun close() {
+        undeclare()
+    }
+
+    /**
+     * If the key expression was declared from a [Session], then [undeclare] frees the native key expression associated
+     * to this instance. The KeyExpr instance is downgraded into a normal KeyExpr, which still allows performing
+     * operations on it, but without the inner optimizations.
+     */
+    override fun undeclare() {
         jniKeyExpr?.close()
         jniKeyExpr = null
     }
+
+    override fun into(): Selector = Selector(this)
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

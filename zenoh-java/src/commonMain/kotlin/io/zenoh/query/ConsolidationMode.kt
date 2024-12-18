@@ -35,8 +35,4 @@ enum class ConsolidationMode {
 
     /** Holds back samples to only send the set of samples that had the highest timestamp for their key. */
     LATEST;
-
-    companion object {
-        fun default() = AUTO
-    }
 }

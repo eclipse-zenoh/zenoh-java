@@ -46,6 +46,7 @@ kotlin {
             val zenohPaths = "../zenoh-jni/target/$buildMode"
             jvmArgs("-Djava.library.path=$zenohPaths")
         }
+        withJava()
     }
     if (androidEnabled) {
         androidTarget {
@@ -58,7 +59,7 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 implementation("commons-net:commons-net:3.9.0")
-                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+                implementation("com.google.guava:guava:33.3.1-jre")
             }
         }
         val commonTest by getting {

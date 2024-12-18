@@ -18,24 +18,10 @@ package io.zenoh
  * Static singleton class to load the Zenoh native library once and only once, as well as the logger in function of the
  * log level configuration.
  */
-internal actual class Zenoh private actual constructor() {
-
-    actual companion object {
-        private const val ZENOH_LIB_NAME = "zenoh_jni"
-        private const val ZENOH_LOGS_PROPERTY = "zenoh.logger"
-
-        private var instance: Zenoh? = null
-
-        actual fun load() {
-            instance ?: Zenoh().also { instance = it }
-        }
-    }
+internal actual object ZenohLoad {
+    private const val ZENOH_LIB_NAME = "zenoh_jni"
 
     init {
         System.loadLibrary(ZENOH_LIB_NAME)
-        val logLevel = System.getProperty(ZENOH_LOGS_PROPERTY)
-        if (logLevel != null) {
-            Logger.start(logLevel)
-        }
     }
 }

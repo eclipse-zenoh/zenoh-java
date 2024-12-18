@@ -19,3 +19,4 @@
 /examples/build/
 /build/
 /.gradle/
+*/build/
