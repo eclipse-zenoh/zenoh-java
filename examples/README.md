@@ -4,8 +4,6 @@
 
 ## Start instructions
 
-
-
 ```bash
   ./gradle <example>
 ```
@@ -13,7 +11,7 @@
 :warning: Passing arguments to these examples has not been enabled yet for this first version. Altering the Zenoh
 configuration for these examples must be done programmatically. :warning:
 
----- 
+----
 
 ## Examples description
 
@@ -29,6 +27,7 @@ Usage:
 ```
 
 ### ZSub
+
 Creates a subscriber with a key expression.
 The subscriber will be notified of each put made on any key expression matching
 the subscriber's key expression, and will print this notification.
@@ -61,6 +60,7 @@ Usage:
 ```
 
 ### ZDelete
+
 Performs a Delete operation into a path/value into Zenoh.
 
 Usage:
