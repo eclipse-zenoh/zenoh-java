@@ -32,7 +32,7 @@ public class ZGet {
                 assert receiver != null;
                 while (true) {
                     Optional<Reply> wrapper = receiver.take();
-                    if (wrapper.isEmpty()) {
+                    if (!wrapper.isPresent()) {
                         break;
                     }
                     Reply reply = wrapper.get();

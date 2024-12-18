@@ -44,7 +44,7 @@ public class ZQueryable {
     private static void handleRequests(BlockingQueue<Optional<Query>> receiver, KeyExpr keyExpr) throws InterruptedException {
         while (true) {
             Optional<Query> wrapper = receiver.take();
-            if (wrapper.isEmpty()) {
+            if (!wrapper.isPresent()) {
                 break;
             }
             Query query = wrapper.get();
