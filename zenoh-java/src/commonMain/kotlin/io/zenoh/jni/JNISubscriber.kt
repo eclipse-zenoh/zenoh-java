@@ -15,7 +15,7 @@
 package io.zenoh.jni
 
 /**
- * Adapter class to handle the interactions with Zenoh through JNI for a [io.zenoh.subscriber.Subscriber]
+ * Adapter class to handle the interactions with Zenoh through JNI for a [io.zenoh.pubsub.Subscriber]
  *
  * @property ptr: raw pointer to the underlying native Subscriber.
  */

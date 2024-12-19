@@ -14,11 +14,12 @@
 
 package io.zenoh.jni
 
-import io.zenoh.exceptions.ZenohException
+import io.zenoh.exceptions.ZError
 import io.zenoh.keyexpr.KeyExpr
-import io.zenoh.prelude.QoS
+import io.zenoh.bytes.Encoding
+import io.zenoh.qos.QoS
+import io.zenoh.bytes.IntoZBytes
 import io.zenoh.sample.Sample
-import io.zenoh.value.Value
 import org.apache.commons.net.ntp.TimeStamp
 
 /**
@@ -30,32 +31,29 @@ import org.apache.commons.net.ntp.TimeStamp
  */
 internal class JNIQuery(private val ptr: Long) {
 
-    @Throws(ZenohException::class)
     fun replySuccess(sample: Sample) {
         val timestampEnabled = sample.timestamp != null
         replySuccessViaJNI(
             ptr,
             sample.keyExpr.jniKeyExpr?.ptr ?: 0,
             sample.keyExpr.keyExpr,
-            sample.value.payload,
-            sample.value.encoding.id.ordinal,
-            sample.value.encoding.schema,
+            sample.payload.bytes,
+            sample.encoding.id,
+            sample.encoding.schema,
             timestampEnabled,
             if (timestampEnabled) sample.timestamp!!.ntpValue() else 0,
-            sample.attachment,
+            sample.attachment?.bytes,
             sample.qos.express,
             sample.qos.priority.value,
             sample.qos.congestionControl.value
         )
     }
 
-    @Throws(ZenohException::class)
-    fun replyError(errorValue: Value) {
-        replyErrorViaJNI(ptr, errorValue.payload, errorValue.encoding.id.ordinal, errorValue.encoding.schema)
+    fun replyError(error: IntoZBytes, encoding: Encoding) {
+        replyErrorViaJNI(ptr, error.into().bytes, encoding.id, encoding.schema)
     }
 
-    @Throws(ZenohException::class)
-    fun replyDelete(keyExpr: KeyExpr, timestamp: TimeStamp?, attachment: ByteArray?, qos: QoS) {
+    fun replyDelete(keyExpr: KeyExpr, timestamp: TimeStamp?, attachment: IntoZBytes?, qos: QoS) {
             val timestampEnabled = timestamp != null
             replyDeleteViaJNI(
                 ptr,
@@ -63,7 +61,7 @@ internal class JNIQuery(private val ptr: Long) {
                 keyExpr.keyExpr,
                 timestampEnabled,
                 if (timestampEnabled) timestamp!!.ntpValue() else 0,
-                attachment,
+                attachment?.into()?.bytes,
                 qos.express,
                 qos.priority.value,
                 qos.congestionControl.value
@@ -74,7 +72,7 @@ internal class JNIQuery(private val ptr: Long) {
         freePtrViaJNI(ptr)
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     private external fun replySuccessViaJNI(
         queryPtr: Long,
         keyExprPtr: Long,
@@ -90,7 +88,7 @@ internal class JNIQuery(private val ptr: Long) {
         qosCongestionControl: Int,
     )
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     private external fun replyErrorViaJNI(
         queryPtr: Long,
         errorValuePayload: ByteArray,
@@ -98,7 +96,7 @@ internal class JNIQuery(private val ptr: Long) {
         encodingSchema: String?,
     )
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     private external fun replyDeleteViaJNI(
         queryPtr: Long,
         keyExprPtr: Long,

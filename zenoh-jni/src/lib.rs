@@ -12,15 +12,19 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+mod config;
 mod errors;
 mod key_expr;
+mod liveliness;
 mod logger;
 mod publisher;
 mod query;
 mod queryable;
+mod scouting;
 mod session;
 mod subscriber;
 mod utils;
+mod zenoh_id;
 
 // Test should be runned with `cargo test --no-default-features`
 #[test]

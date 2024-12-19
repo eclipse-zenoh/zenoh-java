@@ -14,6 +14,7 @@
 
 plugins {
     kotlin("jvm")
+    kotlin("plugin.serialization") version "1.9.0"
 }
 
 kotlin {
@@ -23,17 +24,26 @@ kotlin {
 dependencies {
     implementation(project(":zenoh-java"))
     implementation("commons-net:commons-net:3.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+    implementation("info.picocli:picocli:4.7.4")
 }
 
 tasks {
     val examples = listOf(
         "ZDelete",
         "ZGet",
+        "ZGetLiveliness",
+        "ZInfo",
+        "ZLiveliness",
+        "ZPing",
+        "ZPong",
         "ZPub",
         "ZPubThr",
         "ZPut",
         "ZQueryable",
+        "ZScout",
         "ZSub",
+        "ZSubLiveliness",
         "ZSubThr"
     )
 

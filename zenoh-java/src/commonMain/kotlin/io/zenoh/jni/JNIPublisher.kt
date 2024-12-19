@@ -14,11 +14,12 @@
 
 package io.zenoh.jni
 
-import io.zenoh.exceptions.ZenohException
-import io.zenoh.value.Value
+import io.zenoh.exceptions.ZError
+import io.zenoh.bytes.Encoding
+import io.zenoh.bytes.IntoZBytes
 
 /**
- * Adapter class to handle the interactions with Zenoh through JNI for a [io.zenoh.publication.Publisher].
+ * Adapter class to handle the interactions with Zenoh through JNI for a [io.zenoh.pubsub.Publisher].
  *
  * @property ptr: raw pointer to the underlying native Publisher.
  */
@@ -27,12 +28,14 @@ internal class JNIPublisher(private val ptr: Long) {
     /**
      * Put operation.
      *
-     * @param value The [Value] to be put.
+     * @param payload Payload of the put.
+     * @param encoding Encoding of the payload.
      * @param attachment Optional attachment.
      */
-    @Throws(ZenohException::class)
-    fun put(value: Value, attachment: ByteArray?) {
-        putViaJNI(value.payload, value.encoding.id.ordinal, value.encoding.schema, attachment, ptr)
+    @Throws(ZError::class)
+    fun put(payload: IntoZBytes, encoding: Encoding?, attachment: IntoZBytes?) {
+        val resolvedEncoding = encoding ?: Encoding.defaultEncoding()
+        putViaJNI(payload.into().bytes, resolvedEncoding.id, resolvedEncoding.schema, attachment?.into()?.bytes, ptr)
     }
 
     /**
@@ -40,9 +43,9 @@ internal class JNIPublisher(private val ptr: Long) {
      *
      * @param attachment Optional attachment.
      */
-    @Throws(ZenohException::class)
-    fun delete(attachment: ByteArray?) {
-        deleteViaJNI(attachment, ptr)
+    @Throws(ZError::class)
+    fun delete(attachment: IntoZBytes?) {
+        deleteViaJNI(attachment?.into()?.bytes, ptr)
     }
 
     /**
@@ -54,12 +57,12 @@ internal class JNIPublisher(private val ptr: Long) {
         freePtrViaJNI(ptr)
     }
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     private external fun putViaJNI(
         valuePayload: ByteArray, encodingId: Int, encodingSchema: String?, attachment: ByteArray?, ptr: Long
     )
 
-    @Throws(ZenohException::class)
+    @Throws(ZError::class)
     private external fun deleteViaJNI(attachment: ByteArray?, ptr: Long)
 
     private external fun freePtrViaJNI(ptr: Long)
