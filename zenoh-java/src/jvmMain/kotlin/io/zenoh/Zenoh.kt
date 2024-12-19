@@ -51,6 +51,10 @@ internal actual object ZenohLoad {
             osName.contains("win") -> when {
                 osArch.contains("x86_64") || osArch.contains("amd64") || osArch.contains("x64") ->
                     Target.WINDOWS_X86_64_MSVC
+
+                osArch.contains("aarch64") || osArch.contains("arm64") ->
+                    Target.WINDOWS_AARCH64_MSVC
+
                 else -> throw UnsupportedOperationException("Unsupported architecture on Windows: $osArch")
             }
 
