@@ -14,15 +14,13 @@
 
 package io.zenoh;
 
-import com.google.common.reflect.TypeToken;
 import io.zenoh.bytes.ZBytes;
+import io.zenoh.ext.ZDeserializer;
+import io.zenoh.ext.ZSerializer;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-
-import static io.zenoh.ext.ZDeserializerKt.zDeserialize;
-import static io.zenoh.ext.ZSerializerKt.zSerialize;
 
 public class ZBytesExamples {
 
@@ -76,80 +74,119 @@ public class ZBytesExamples {
 
         // Boolean example
         Boolean input1 = true;
-        var zbytes1 = zSerialize(input1, new TypeToken<>() {});
-        Boolean output1 = zDeserialize(zbytes1, new TypeToken<>() {});
+        ZSerializer<Boolean> serializer1 = new ZSerializer<>() {};
+        ZBytes zbytes1 = serializer1.serialize(input1);
+
+        ZDeserializer<Boolean> deserializer1 = new ZDeserializer<>() {};
+        Boolean output1 = deserializer1.deserialize(zbytes1);
         assert input1.equals(output1);
 
         // Byte example
         Byte input2 = 126;
-        var zbytes2 = zSerialize(input2, new TypeToken<>() {});
-        Byte output2 = zDeserialize(zbytes2, new TypeToken<>() {});
+        ZSerializer<Byte> serializer2 = new ZSerializer<>() {};
+        ZBytes zbytes2 = serializer2.serialize(input2);
+
+        ZDeserializer<Byte> deserializer2 = new ZDeserializer<>() {};
+        Byte output2 = deserializer2.deserialize(zbytes2);
         assert input2.equals(output2);
 
         // Short example
         Short input3 = 256;
-        var zbytes3 = zSerialize(input3, new TypeToken<>() {});
-        Short output3 = zDeserialize(zbytes3, new TypeToken<>() {});
+        ZSerializer<Short> serializer3 = new ZSerializer<>() {};
+        ZBytes zbytes3 = serializer3.serialize(input3);
+
+        ZDeserializer<Short> deserializer3 = new ZDeserializer<>() {};
+        Short output3 = deserializer3.deserialize(zbytes3);
         assert input3.equals(output3);
 
         // Int example
         Integer input4 = 123456;
-        var zbytes4 = zSerialize(input4, new TypeToken<>() {});
-        Integer output4 = zDeserialize(zbytes4, new TypeToken<>() {});
+        ZSerializer<Integer> serializer4 = new ZSerializer<>() {};
+        ZBytes zbytes4 = serializer4.serialize(input4);
+
+        ZDeserializer<Integer> deserializer4 = new ZDeserializer<>() {};
+        Integer output4 = deserializer4.deserialize(zbytes4);
         assert input4.equals(output4);
 
         // Long example
         Long input5 = 123456789L;
-        var zbytes5 = zSerialize(input5, new TypeToken<>() {});
-        Long output5 = zDeserialize(zbytes5, new TypeToken<>() {});
+        ZSerializer<Long> serializer5 = new ZSerializer<>() {};
+        ZBytes zbytes5 = serializer5.serialize(input5);
+
+        ZDeserializer<Long> deserializer5 = new ZDeserializer<>() {};
+        Long output5 = deserializer5.deserialize(zbytes5);
         assert input5.equals(output5);
 
         // Float example
         Float input6 = 123.45f;
-        var zbytes6 = zSerialize(input6, new TypeToken<>() {});
-        Float output6 = zDeserialize(zbytes6, new TypeToken<>() {});
+        ZSerializer<Float> serializer6 = new ZSerializer<>() {};
+        ZBytes zbytes6 = serializer6.serialize(input6);
+
+        ZDeserializer<Float> deserializer6 = new ZDeserializer<>() {};
+        Float output6 = deserializer6.deserialize(zbytes6);
         assert input6.equals(output6);
 
         // Double example
         Double input7 = 12345.6789;
-        var zbytes7 = zSerialize(input7, new TypeToken<>() {});
-        Double output7 = zDeserialize(zbytes7, new TypeToken<>() {});
+        ZSerializer<Double> serializer7 = new ZSerializer<>() {};
+        ZBytes zbytes7 = serializer7.serialize(input7);
+
+        ZDeserializer<Double> deserializer7 = new ZDeserializer<>() {};
+        Double output7 = deserializer7.deserialize(zbytes7);
         assert input7.equals(output7);
 
         // List example
         List<Integer> input12 = List.of(1, 2, 3, 4, 5);
-        var zbytes12 = zSerialize(input12, new TypeToken<>() {});
-        List<Integer> output12 = zDeserialize(zbytes12, new TypeToken<>() {});
+        ZSerializer<List<Integer>> serializer12 = new ZSerializer<>() {};
+        ZBytes zbytes12 = serializer12.serialize(input12);
+
+        ZDeserializer<List<Integer>> deserializer12 = new ZDeserializer<>() {};
+        List<Integer> output12 = deserializer12.deserialize(zbytes12);
         assert input12.equals(output12);
 
         // String example
         String input13 = "Hello, World!";
-        var zbytes13 = zSerialize(input13, new TypeToken<>() {});
-        String output13 = zDeserialize(zbytes13, new TypeToken<>() {});
+        ZSerializer<String> serializer13 = new ZSerializer<>() {};
+        ZBytes zbytes13 = serializer13.serialize(input13);
+
+        ZDeserializer<String> deserializer13 = new ZDeserializer<>() {};
+        String output13 = deserializer13.deserialize(zbytes13);
         assert input13.equals(output13);
 
         // ByteArray example
         byte[] input14 = new byte[]{1, 2, 3, 4, 5};
-        var zbytes14 = zSerialize(input14, new TypeToken<>() {});
-        byte[] output14 = zDeserialize(zbytes14, new TypeToken<>() {});
+        ZSerializer<byte[]> serializer14 = new ZSerializer<>() {};
+        ZBytes zbytes14 = serializer14.serialize(input14);
+
+        ZDeserializer<byte[]> deserializer14 = new ZDeserializer<>() {};
+        byte[] output14 = deserializer14.deserialize(zbytes14);
         assert Arrays.equals(input14, output14);
 
         // Map example
         Map<String, Integer> input15 = Map.of("one", 1, "two", 2, "three", 3);
-        var zbytes15 = zSerialize(input15, new TypeToken<>() {});
-        Map<String, Integer> output15 = zDeserialize(zbytes15, new TypeToken<>() {});
+        ZSerializer<Map<String, Integer>> serializer15 = new ZSerializer<>() {};
+        ZBytes zbytes15 = serializer15.serialize(input15);
+
+        ZDeserializer<Map<String, Integer>> deserializer15 = new ZDeserializer<>() {};
+        Map<String, Integer> output15 = deserializer15.deserialize(zbytes15);
         assert input15.equals(output15);
 
         // Nested List example
         List<List<Integer>> input18 = List.of(List.of(1, 2, 3));
-        var zbytes18 = zSerialize(input18, new TypeToken<>() {});
-        List<List<Integer>> output18 = zDeserialize(zbytes18, new TypeToken<>() {});
+        ZSerializer<List<List<Integer>>> serializer18 = new ZSerializer<>() {};
+        ZBytes zbytes18 = serializer18.serialize(input18);
+
+        ZDeserializer<List<List<Integer>>> deserializer18 = new ZDeserializer<>() {};
+        List<List<Integer>> output18 = deserializer18.deserialize(zbytes18);
         assert input18.equals(output18);
 
         // Combined types example
         List<Map<String, Integer>> input19 = List.of(Map.of("a", 1, "b", 2));
-        var zbytes19 = zSerialize(input19, new TypeToken<>() {});
-        List<Map<String, Integer>> output19 = zDeserialize(zbytes19, new TypeToken<>() {});
+        ZSerializer<List<Map<String, Integer>>> serializer19 = new ZSerializer<>() {};
+        ZBytes zbytes19 = serializer19.serialize(input19);
+
+        ZDeserializer<List<Map<String, Integer>>> deserializer19 = new ZDeserializer<>() {};
+        List<Map<String, Integer>> output19 = deserializer19.deserialize(zbytes19);
         assert input19.equals(output19);
     }
 }

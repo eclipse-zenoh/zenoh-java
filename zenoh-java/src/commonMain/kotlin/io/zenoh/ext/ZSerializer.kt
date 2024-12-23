@@ -18,6 +18,89 @@ import com.google.common.reflect.TypeToken
 import io.zenoh.bytes.ZBytes
 import io.zenoh.jni.JNIZBytes
 
-fun <T> zSerialize(t: T, type: TypeToken<T>): ZBytes {
-    return JNIZBytes.serializeViaJNI(t as Any, type.type)
+/**
+ * Zenoh serializer.
+ *
+ * This class is a utility for serializing elements of type [T] into [ZBytes].
+ *
+ * This class supports the following types:
+ * - [Boolean]
+ * - [Byte]
+ * - [Short]
+ * - [Int]
+ * - [Long]
+ * - [Float]
+ * - [Double]
+ * - [List]
+ * - [String]
+ * - [ByteArray]
+ * - [Map]
+ *
+ * For List and Map, the inner types can be a combination of the above types, including themselves.
+ *
+ * Due to Java's type erasure, an actual implementation of this abstract class needs to be created (see the examples below).
+ *
+ * This serialization utility can be used across the Zenoh ecosystem with Zenoh
+ * versions based on other supported languages such as Rust, Python, C and C++.
+ * This works when the types are equivalent (a `Byte` corresponds to an `i8` in Rust, a `Short` to an `i16`, etc).
+ *
+ * # Examples
+ *
+ * Example for a basic type, in this case an integer:
+ * ```java
+ * Integer input = 123456;
+ * ZSerializer<Integer> serializer = new ZSerializer<>() {};
+ * ZBytes zbytes = serializer.serialize(input);
+ *
+ * ZDeserializer<Integer> deserializer = new ZDeserializer<>() {};
+ * Integer output = deserializer.deserialize(zbytes);
+ * assert input.equals(output);
+ * ```
+ *
+ * Examples for parameterized types:
+ * - List
+ * ```java
+ * List<Integer> input = List.of(1, 2, 3, 4, 5);
+ * ZSerializer<List<Integer>> serializer = new ZSerializer<>() {};
+ * ZBytes zbytes = serializer.serialize(input12);
+ *
+ * ZDeserializer<List<Integer>> deserializer = new ZDeserializer<>() {};
+ * List<Integer> output = deserializer.deserialize(zbytes);
+ * assert input.equals(output);
+ * ```
+ *
+ * - Map
+ * ```java
+ * Map<String, Integer> input = Map.of("one", 1, "two", 2, "three", 3);
+ * ZSerializer<Map<String, Integer>> serializer = new ZSerializer<>() {};
+ * ZBytes zbytes = serializer.serialize(input);
+ *
+ * ZDeserializer<Map<String, Integer>> deserializer = new ZDeserializer<>() {};
+ * Map<String, Integer> output = deserializer.deserialize(zbytes);
+ * assert input.equals(output);
+ * ```
+ *
+ * As mentioned, for List and Map, the inner types can be a combination of the above types, including themselves.
+ * Here's an example with a List of Maps:
+ * ```java
+ * List<Map<String, Integer>> input = List.of(Map.of("a", 1, "b", 2));
+ * ZSerializer<List<Map<String, Integer>>> serializer = new ZSerializer<>() {};
+ * ZBytes zbytes = serializer.serialize(input);
+ *
+ * ZDeserializer<List<Map<String, Integer>>> deserializer = new ZDeserializer<>() {};
+ * List<Map<String, Integer>> output = deserializer.deserialize(zbytes);
+ * assert input.equals(output);
+ * ```
+ *
+ * For more examples, see the ZBytesExamples in the examples.
+ *
+ * @param T The type to be serialized.
+ * @see ZBytes
+ * @see ZDeserializer
+ */
+abstract class ZSerializer<T>: TypeToken<T>() {
+
+    fun serialize(t: T): ZBytes {
+        return JNIZBytes.serializeViaJNI(t as Any, this.type)
+    }
 }
