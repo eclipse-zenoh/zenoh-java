@@ -21,6 +21,7 @@ import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.jni.JNIQuery
 import io.zenoh.keyexpr.KeyExpr
+import io.zenoh.qos.QoS
 import io.zenoh.sample.Sample
 import io.zenoh.sample.SampleKind
 
@@ -63,7 +64,7 @@ class Query internal constructor(
             options.encoding,
             SampleKind.PUT,
             options.timeStamp,
-            options.qos,
+            QoS(options.congestionControl, options.priority, options.express),
             options.attachment
         )
         jniQuery?.apply {
@@ -87,7 +88,7 @@ class Query internal constructor(
                 keyExpr,
                 options.timeStamp,
                 options.attachment,
-                options.qos
+                QoS(options.congestionControl, options.priority, options.express),
             )
             jniQuery = null
         } ?: throw (ZError("Query is invalid"))

@@ -66,14 +66,15 @@ internal class JNISession {
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
             sessionPtr.get(),
-            publisherOptions.qos.congestionControl.value,
-            publisherOptions.qos.priority.value,
-            publisherOptions.qos.express,
+            publisherOptions.congestionControl.value,
+            publisherOptions.priority.value,
+            publisherOptions.express,
             publisherOptions.reliability.ordinal
         )
         return Publisher(
             keyExpr,
-            publisherOptions.qos,
+            publisherOptions.congestionControl,
+            publisherOptions.priority,
             publisherOptions.encoding,
             JNIPublisher(publisherRawPtr),
         )
@@ -353,9 +354,9 @@ internal class JNISession {
             payload.into().bytes,
             encoding.id,
             encoding.schema,
-            options.qos.congestionControl.value,
-            options.qos.priority.value,
-            options.qos.express,
+            options.congestionControl.value,
+            options.priority.value,
+            options.express,
             options.attachment?.into()?.bytes,
             options.reliability.ordinal
         )
@@ -370,9 +371,9 @@ internal class JNISession {
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
             sessionPtr.get(),
-            options.qos.congestionControl.value,
-            options.qos.priority.value,
-            options.qos.express,
+            options.congestionControl.value,
+            options.priority.value,
+            options.express,
             options.attachment?.into()?.bytes,
             options.reliability.ordinal
         )

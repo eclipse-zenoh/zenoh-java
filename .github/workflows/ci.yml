@@ -59,6 +59,15 @@ jobs:
       - name: Gradle Test
         run: gradle jvmTest --info
 
+  markdown_lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DavidAnson/markdownlint-cli2-action@v18
+        with:
+          config: '.markdownlint.yaml'
+          globs: '**/README.md'
+
   # NOTE: In GitHub repository settings, the "Require status checks to pass
   # before merging" branch protection rule ensures that commits are only merged
   # from branches where specific status checks have passed. These checks are
@@ -67,7 +76,7 @@ jobs:
   ci:
     name: CI status checks
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, markdown_lint]
     if: always()
     steps:
       - name: Check whether all jobs pass
@@ -76,7 +85,7 @@ jobs:
   # Publish snapshot packages. These jobs will only be triggered when the CI is executed on main.
   publish_jvm_snapshot_package:
     name: Publish JVM snapshot package
-    if: github.ref == 'refs/heads/main'
+    if: contains(fromJSON('["refs/heads/main"]'), github.ref)
     needs: ci
     uses: ./.github/workflows/publish-jvm.yml
     permissions:
@@ -84,10 +93,12 @@ jobs:
       packages: write
     with:
       snapshot: true
+      branch: ${{ github.ref_name }}
+    secrets: inherit
 
   publish_android_snapshot_package:
     name: Publish Android snapshot package
-    if: github.ref == 'refs/heads/main'
+    if: contains(fromJSON('["refs/heads/main"]'), github.ref)
     needs: ci
     uses: ./.github/workflows/publish-android.yml
     permissions:
@@ -95,3 +106,5 @@ jobs:
       packages: write
     with:
       snapshot: true
+      branch: ${{ github.ref_name }}
+    secrets: inherit

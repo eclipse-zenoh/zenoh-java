@@ -35,6 +35,7 @@ public class LivelinessTest {
 
         var keyExpr = KeyExpr.tryFrom("test/liveliness");
         LivelinessToken token = sessionA.liveliness().declareToken(keyExpr);
+        Thread.sleep(1000);
 
         Reply[] receivedReply = new Reply[1];
         sessionB.liveliness().get(KeyExpr.tryFrom("test/**"), reply -> receivedReply[0] = reply);
@@ -55,7 +56,7 @@ public class LivelinessTest {
         Sample[] receivedSample = new Sample[1];
 
         var subscriber = sessionA.liveliness().declareSubscriber(KeyExpr.tryFrom("test/**"), sample -> receivedSample[0] = sample);
-
+        Thread.sleep(1000);
         var token = sessionB.liveliness().declareToken(KeyExpr.tryFrom("test/liveliness"));
 
         Thread.sleep(1000);

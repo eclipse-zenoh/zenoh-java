@@ -15,18 +15,24 @@
 package io.zenoh.pubsub
 
 import io.zenoh.bytes.IntoZBytes
+import io.zenoh.qos.CongestionControl
+import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
 import io.zenoh.qos.Reliability
 
 /**
  * Options for delete operations.
  *
- * @param qos The [QoS] (Quality of Service) desired.
  * @param reliability The [Reliability] desired.
  * @param attachment Optional attachment for the delete operation.
+ * @property express [QoS] express value.
+ * @property congestionControl The congestion control policy.
+ * @property priority The priority policy.
  */
 data class DeleteOptions(
-    var qos: QoS = QoS.defaultQoS(),
     var reliability: Reliability = Reliability.RELIABLE,
-    var attachment: IntoZBytes? = null
+    var attachment: IntoZBytes? = null,
+    var express: Boolean = QoS.defaultQoS.express,
+    var congestionControl: CongestionControl = QoS.defaultQoS.congestionControl,
+    var priority: Priority = QoS.defaultQoS.priority
 )

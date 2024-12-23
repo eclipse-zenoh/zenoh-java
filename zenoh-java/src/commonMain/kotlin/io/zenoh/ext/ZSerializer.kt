@@ -100,6 +100,9 @@ import io.zenoh.jni.JNIZBytes
  */
 abstract class ZSerializer<T>: TypeToken<T>() {
 
+    /**
+     * Serialize [t] into a [ZBytes].
+     */
     fun serialize(t: T): ZBytes {
         return JNIZBytes.serializeViaJNI(t as Any, this.type)
     }

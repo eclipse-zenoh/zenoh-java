@@ -100,6 +100,9 @@ import io.zenoh.jni.JNIZBytes
  */
 abstract class ZDeserializer<T>: TypeToken<T>() {
 
+    /**
+     * Deserialize the [zbytes] into an element of type [T].
+     */
     fun deserialize(zbytes: ZBytes): T {
         @Suppress("UNCHECKED_CAST")
         return JNIZBytes.deserializeViaJNI(zbytes, this.type) as T

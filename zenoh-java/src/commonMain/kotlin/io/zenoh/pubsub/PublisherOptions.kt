@@ -20,43 +20,14 @@ import io.zenoh.qos.*
 /**
  * Options for the publisher.
  *
- * @param encoding The encoding of the payload.
  * @param reliability The desired reliability.
- * @param qos The quality of service desired.
+ * @param encoding The encoding of the payload.
+ * @property express [QoS] express value.
+ * @property congestionControl The congestion control policy.
+ * @property priority The priority policy.
  */
 data class PublisherOptions(var reliability: Reliability = Reliability.RELIABLE,
-                            var qos: QoS = QoS.defaultQoS(),
-                            var encoding: Encoding = Encoding.defaultEncoding()) {
-
-    fun getQoS(): QoS {
-        return qos
-    }
-
-    fun getCongestionControl(): CongestionControl {
-        return this.qos.congestionControl
-    }
-
-    fun getExpress(): Boolean {
-        return this.qos.express
-    }
-
-    fun getPriority(): Priority {
-        return this.qos.priority
-    }
-
-    fun setQoS(qos: QoS) {
-        this.qos = qos
-    }
-
-    fun setCongestionControl(congestionControl: CongestionControl) {
-        this.qos.congestionControl = congestionControl
-    }
-
-    fun setExpress(express: Boolean) {
-        this.qos.express = express
-    }
-
-    fun setPriority(priority: Priority) {
-        this.qos.priority = priority
-    }
-}
+                            var encoding: Encoding = Encoding.defaultEncoding(),
+                            var express: Boolean = QoS.defaultQoS.express,
+                            var congestionControl: CongestionControl = QoS.defaultQoS.congestionControl,
+                            var priority: Priority = QoS.defaultQoS.priority)
