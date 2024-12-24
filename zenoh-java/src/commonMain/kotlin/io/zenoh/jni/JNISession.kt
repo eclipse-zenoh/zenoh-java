@@ -27,6 +27,7 @@ import io.zenoh.bytes.IntoZBytes
 import io.zenoh.config.ZenohId
 import io.zenoh.bytes.into
 import io.zenoh.Config
+import io.zenoh.annotations.Unstable
 import io.zenoh.handlers.Handler
 import io.zenoh.pubsub.*
 import io.zenoh.qos.CongestionControl
@@ -129,7 +130,7 @@ internal class JNISession {
             subCallback,
             fun() {}
         )
-        return CallbackSubscriber(keyExpr,  JNISubscriber(subscriberRawPtr))
+        return CallbackSubscriber(keyExpr, JNISubscriber(subscriberRawPtr))
     }
 
     @Throws(ZError::class)
@@ -198,6 +199,33 @@ internal class JNISession {
             config.complete
         )
         return HandlerQueryable(keyExpr, JNIQueryable(queryableRawPtr), handler.receiver())
+    }
+
+    @OptIn(Unstable::class)
+    fun declareQuerier(
+        keyExpr: KeyExpr,
+        options: QuerierOptions
+    ): Querier {
+        val querierRawPtr = declareQuerierViaJNI(
+            keyExpr.jniKeyExpr?.ptr ?: 0,
+            keyExpr.keyExpr,
+            sessionPtr.get(),
+            options.target.ordinal,
+            options.consolidationMode.ordinal,
+            options.congestionControl.ordinal,
+            options.priority.ordinal,
+            options.express,
+            options.timeout.toMillis()
+        )
+        return Querier(
+            keyExpr,
+            QoS(
+                congestionControl = options.congestionControl,
+                priority = options.priority,
+                express = options.express
+            ),
+            JNIQuerier(querierRawPtr)
+        )
     }
 
     @Throws(ZError::class)
@@ -437,6 +465,19 @@ internal class JNISession {
         callback: JNIQueryableCallback,
         onClose: JNIOnCloseCallback,
         complete: Boolean
+    ): Long
+
+    @Throws(ZError::class)
+    private external fun declareQuerierViaJNI(
+        keyExprPtr: Long,
+        keyExprString: String,
+        sessionPtr: Long,
+        target: Int,
+        consolidation: Int,
+        congestionControl: Int,
+        priority: Int,
+        express: Boolean,
+        timeoutMs: Long
     ): Long
 
     @Throws(ZError::class)

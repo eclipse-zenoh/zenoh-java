@@ -14,6 +14,7 @@
 
 package io.zenoh
 
+import io.zenoh.annotations.Unstable
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.config.ZenohId
 import io.zenoh.exceptions.ZError
@@ -321,6 +322,42 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         return resolveQueryableWithCallback(keyExpr, callback, options)
     }
 
+
+    /**
+     * Declare a [Querier].
+     *
+     * A querier allows to send queries to a queryable.
+     *
+     * Queriers are automatically undeclared when dropped.
+     *
+     * Example:
+     * ```java
+     * try (Session session = Zenoh.open(config)) {
+     *     QuerierOptions options = new QuerierOptions();
+     *     options.setTarget(QueryTarget.BEST_MATCHING);
+     *     Querier querier = session.declareQuerier(selector.getKeyExpr(), options);
+     *     //...
+     *     Querier.GetOptions options = new Querier.GetOptions();
+     *     options.setPayload(ZBytes.from("Example payload"));
+     *     querier.get(reply -> {...}, options);
+     * }
+     * ```
+     *
+     * @param keyExpr The [KeyExpr] for the querier.
+     * @param options Optional [QuerierOptions] to configure the querier.
+     * @return A [Querier] that will be undeclared on drop.
+     * @throws ZError
+     */
+    @Unstable
+    @JvmOverloads
+    @Throws(ZError::class)
+    fun declareQuerier(
+        keyExpr: KeyExpr,
+        options: QuerierOptions = QuerierOptions()
+    ): Querier {
+        return resolveQuerier(keyExpr, options)
+    }
+
     /**
      * Declare a [KeyExpr].
      *
@@ -558,6 +595,16 @@ class Session private constructor(private val config: Config) : AutoCloseable {
             declarations.add(queryable)
             queryable
         } ?: throw (sessionClosedException)
+    }
+
+    @OptIn(Unstable::class)
+    private fun resolveQuerier(
+        keyExpr: KeyExpr,
+        options: QuerierOptions
+    ): Querier {
+        return jniSession?.run {
+            declareQuerier(keyExpr, options)
+        } ?: throw sessionClosedException
     }
 
     @Throws(ZError::class)
