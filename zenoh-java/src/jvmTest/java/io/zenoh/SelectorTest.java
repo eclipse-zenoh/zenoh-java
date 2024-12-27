@@ -15,6 +15,7 @@
 package io.zenoh;
 
 import io.zenoh.exceptions.ZError;
+import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.query.Parameters;
 import io.zenoh.query.Selector;
 import org.junit.Test;
@@ -46,5 +47,36 @@ public class SelectorTest {
     public void parametersTest() {
         var parameters = Parameters.from("a=1;b=2;c=1|2|3");
         assertEquals(List.of("1", "2", "3"), parameters.values("c"));
+    }
+
+    /**
+     * Check the queryable properly receives the query's selector with and without parameters.
+     */
+    @Test
+    public void selectorQueryTest() throws ZError, InterruptedException {
+        var session = Zenoh.open(Config.loadDefault());
+        var queryableKeyExpr = KeyExpr.tryFrom("a/b/**");
+
+        Selector[] receivedQuerySelector = new Selector[1];
+        var queryable = session.declareQueryable(queryableKeyExpr, query -> {
+                    receivedQuerySelector[0] = query.getSelector();
+                    query.close();
+                }
+        );
+
+        var querySelector = Selector.tryFrom("a/b/c");
+        session.get(querySelector, reply -> {
+        });
+        Thread.sleep(1000);
+        assertEquals(querySelector, receivedQuerySelector[0]);
+
+        var querySelector2 = Selector.tryFrom("a/b/c?key=value");
+        session.get(querySelector2, reply -> {
+        });
+        Thread.sleep(1000);
+        assertEquals(querySelector2, receivedQuerySelector[0]);
+
+        queryable.close();
+        session.close();
     }
 }
