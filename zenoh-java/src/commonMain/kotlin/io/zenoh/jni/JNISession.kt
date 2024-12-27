@@ -276,7 +276,7 @@ internal class JNISession {
         getViaJNI(
             selector.keyExpr.jniKeyExpr?.ptr ?: 0,
             selector.keyExpr.keyExpr,
-            selector.parameters.toString(),
+            selector.parameters?.toString(),
             sessionPtr.get(),
             getCallback,
             fun() {},
@@ -338,7 +338,7 @@ internal class JNISession {
         getViaJNI(
             selector.keyExpr.jniKeyExpr?.ptr ?: 0,
             selector.keyExpr.keyExpr,
-            selector.parameters.toString(),
+            selector.parameters?.toString(),
             sessionPtr.get(),
             getCallback,
             handler::onClose,
