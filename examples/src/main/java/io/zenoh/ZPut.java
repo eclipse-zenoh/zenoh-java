@@ -49,11 +49,7 @@ public class ZPut implements Callable<Integer> {
             } else {
                 session.put(keyExpr, ZBytes.from(value));
             }
-        } catch (ZError e) {
-            System.err.println("Error during Zenoh operation: " + e.getMessage());
-            return 1;
         }
-
         return 0;
     }
 
