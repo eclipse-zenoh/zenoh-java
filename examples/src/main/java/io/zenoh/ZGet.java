@@ -46,12 +46,20 @@ public class ZGet implements Callable<Integer> {
         Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
         Selector selector = Selector.tryFrom(this.selectorOpt);
 
+        ZBytes payload = Optional.ofNullable(this.payload)
+                .map(ZBytes::from)
+                .orElse(null);
+        ZBytes attachment = Optional.ofNullable(this.attachment)
+                .map(ZBytes::from)
+                .orElse(null);
+
         // Load GET options
         GetOptions options = new GetOptions();
-        options.setPayload(ZBytes.from(this.payload));
+
+        options.setPayload(payload);
         options.setTarget(QueryTarget.valueOf(this.target));
         options.setTimeout(Duration.ofMillis(this.timeout));
-        options.setAttachment(ZBytes.from(this.attachment));
+        options.setAttachment(attachment);
 
 
         // A GET query can be performed in different ways, by default (using a blocking queue), using a callback
@@ -146,7 +154,8 @@ public class ZGet implements Callable<Integer> {
     @CommandLine.Option(
             names = {"-t", "--target"},
             description = "The target queryables of the query. Default: BEST_MATCHING. " +
-                    "[possible values: BEST_MATCHING, ALL, ALL_COMPLETE]"
+                    "[possible values: BEST_MATCHING, ALL, ALL_COMPLETE]",
+            defaultValue = "BEST_MATCHING"
     )
     private String target;
 
