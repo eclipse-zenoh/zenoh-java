@@ -46,10 +46,6 @@ public class ZLiveliness implements Callable<Integer> {
             while (true) {
                 Thread.sleep(1000);
             }
-
-        } catch (ZError e) {
-            System.err.println("Error during Zenoh operation: " + e.getMessage());
-            return 1;
         }
     }
 

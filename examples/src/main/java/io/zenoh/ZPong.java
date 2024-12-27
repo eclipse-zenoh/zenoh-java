@@ -60,9 +60,6 @@ public class ZPong implements Callable<Integer> {
             });
 
             latch.await();
-        } catch (ZError e) {
-            System.err.println("Error: " + e.getMessage());
-            return 1;
         }
         return 0;
     }

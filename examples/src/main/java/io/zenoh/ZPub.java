@@ -38,7 +38,7 @@ import static io.zenoh.ConfigKt.loadConfig;
 public class ZPub implements Callable<Integer> {
 
     @Override
-    public Integer call() throws ZError {
+    public Integer call() throws ZError, InterruptedException {
         Zenoh.initLogFromEnvOr("error");
         Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
 
@@ -72,9 +72,6 @@ public class ZPub implements Callable<Integer> {
                 }
                 idx++;
             }
-        } catch (Exception e) {
-            System.err.println("Error: " + e.getMessage());
-            return 1;
         }
     }
 

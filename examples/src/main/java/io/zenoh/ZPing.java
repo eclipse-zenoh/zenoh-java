@@ -85,11 +85,7 @@ public class ZPing implements Callable<Integer> {
                 long rtt = samples.get(i);
                 System.out.printf("%d bytes: seq=%d rtt=%dµs lat=%dµs%n", payloadSize, i, rtt, rtt / 2);
             }
-        } catch (ZError e) {
-            System.err.println("Error: " + e.getMessage());
-            return 1;
         }
-
         return 0;
     }
 
