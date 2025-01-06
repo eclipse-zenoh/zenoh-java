@@ -50,7 +50,11 @@ kotlin {
             val zenohPaths = "../zenoh-jni/target/$buildMode"
             jvmArgs("-Djava.library.path=$zenohPaths")
         }
-        withJava()
+        if (!androidEnabled) {
+            withJava() // Adding java to a kotlin lib targeting android is incompatible
+                       // The java code is only meant for testing and is non-critical for the android publication.
+                       // Therefore, when enabling android we disable the java code.
+        }
     }
     if (androidEnabled) {
         androidTarget {
