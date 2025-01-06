@@ -25,19 +25,12 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
 
-      - uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r26
-          add-to-path: false
-          link-to-sdk: true
-
       - name: Build doc
-        run: gradle -Pandroid=true dokkaHtml
+        run: gradle dokkaJavadoc
 
       - name: Deploy doc
         if: ${{ inputs.live-run || false }}
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./zenoh-java/build/dokka/html
+          publish_dir: ./zenoh-java/build/dokka/javadoc
