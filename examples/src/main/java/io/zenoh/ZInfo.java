@@ -43,9 +43,6 @@ public class ZInfo implements Callable<Integer> {
             System.out.println("zid: " + info.zid());
             System.out.println("routers zid: " + info.routersZid());
             System.out.println("peers zid: " + info.peersZid());
-        } catch (ZError e) {
-            System.err.println("Error during Zenoh operation: " + e.getMessage());
-            return 1;
         }
         return 0;
     }
