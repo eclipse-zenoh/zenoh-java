@@ -16,6 +16,7 @@ package io.zenoh
 
 import io.zenoh.annotations.Unstable
 import io.zenoh.bytes.IntoZBytes
+import io.zenoh.bytes.ZBytes
 import io.zenoh.config.ZenohId
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.BlockingQueueHandler
@@ -511,6 +512,25 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     fun put(keyExpr: KeyExpr, payload: IntoZBytes, options: PutOptions = PutOptions()) {
         resolvePut(keyExpr, payload, options)
+    }
+
+    /**
+     * Perform a put with the provided [payload] to the specified [keyExpr].
+     *
+     * Example:
+     * ```java
+     * session.put(KeyExpr.from("a/b/c"), "Example payload");
+     * //...
+     * ```
+     *
+     * @param keyExpr The [KeyExpr] for performing the put.
+     * @param payload The payload to put as a string.
+     * @param options Optional [PutOptions] to configure the put.
+     */
+    @JvmOverloads
+    @Throws(ZError::class)
+    fun put(keyExpr: KeyExpr, payload: String, options: PutOptions = PutOptions()) {
+        resolvePut(keyExpr, ZBytes.from(payload), options)
     }
 
     /**

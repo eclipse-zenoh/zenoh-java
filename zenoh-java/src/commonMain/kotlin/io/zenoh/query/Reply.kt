@@ -16,6 +16,7 @@ package io.zenoh.query
 
 import io.zenoh.ZenohType
 import io.zenoh.bytes.Encoding
+import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.config.ZenohId
 import io.zenoh.sample.Sample
@@ -90,11 +91,13 @@ sealed class Reply private constructor(val replierId: ZenohId?) : ZenohType {
 data class ReplyOptions(
     var encoding: Encoding = Encoding.defaultEncoding(),
     var timeStamp: TimeStamp? = null,
-    var attachment: ZBytes? = null,
+    var attachment: IntoZBytes? = null,
     var express: Boolean = QoS.defaultQoS.express,
     var congestionControl: CongestionControl = QoS.defaultQoS.congestionControl,
     var priority: Priority = QoS.defaultQoS.priority
-)
+) {
+    fun setAttachment(attachment: String) = apply { this.attachment = ZBytes.from(attachment) }
+}
 
 /**
  * Options for performing a Reply Delete to a [Query].
@@ -107,11 +110,13 @@ data class ReplyOptions(
  */
 data class ReplyDelOptions(
     var timeStamp: TimeStamp? = null,
-    var attachment: ZBytes? = null,
+    var attachment: IntoZBytes? = null,
     var express: Boolean = QoS.defaultQoS.express,
     var congestionControl: CongestionControl = QoS.defaultQoS.congestionControl,
     var priority: Priority = QoS.defaultQoS.priority
-)
+) {
+    fun setAttachment(attachment: String) = apply { this.attachment = ZBytes.from(attachment) }
+}
 
 
 /**

@@ -15,6 +15,7 @@
 package io.zenoh.pubsub
 
 import io.zenoh.bytes.IntoZBytes
+import io.zenoh.bytes.ZBytes
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
@@ -35,4 +36,6 @@ data class DeleteOptions(
     var express: Boolean = QoS.defaultQoS.express,
     var congestionControl: CongestionControl = QoS.defaultQoS.congestionControl,
     var priority: Priority = QoS.defaultQoS.priority
-)
+) {
+    fun setAttachment(attachment: String) = apply { this.attachment = ZBytes.from(attachment) }
+}
