@@ -14,7 +14,6 @@
 
 package io.zenoh;
 
-import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.query.Query;
@@ -100,7 +99,7 @@ public class ZQueryable implements Callable<Integer> {
             System.out.println(">> [Queryable] Received Query '" + query.getSelector() + "'" + valueInfo);
             var options = new ReplyOptions();
             options.setTimeStamp(TimeStamp.getCurrentTime());
-            query.reply(query.getKeyExpr(), ZBytes.from(value), options);
+            query.reply(query.getKeyExpr(), value, options);
         } catch (Exception e) {
             System.err.println(">> [Queryable] Error sending reply: " + e.getMessage());
         }

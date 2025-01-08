@@ -116,7 +116,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      *         Thread.sleep(1000);
      *         String payload = String.format("[%4d] %s", idx, value);
      *         System.out.println("Putting Data ('" + keyExpr + "': '" + payload + "')...");
-     *         publisher.put(ZBytes.from(payload));
+     *         publisher.put(payload);
      *         idx++;
      *     }
      * }
@@ -241,7 +241,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      *             break;
      *         }
      *         Query query = wrapper.get();
-     *         query.reply(query.getKeyExpr(), ZBytes.from("Example reply));
+     *         query.reply(query.getKeyExpr(), "Example reply");
      *     }
      * }
      * ```
@@ -272,7 +272,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      *     @Override
      *     public void handle(Query query) {
      *          var keyExpr = query.getKeyExpr();
-     *          query.reply(keyExpr, ZBytes.from("Reply #" + counter + "!"));
+     *          query.reply(keyExpr, "Reply #" + counter + "!");
      *          counter++;
      *     }
      *
@@ -307,7 +307,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      *
      * ```java
      * try (Session session = Zenoh.open(config)) {
-     *     var queryable = session.declareQueryable(keyExpr, query -> query.reply(keyExpr, ZBytes.from("Example reply")));
+     *     var queryable = session.declareQueryable(keyExpr, query -> query.reply(keyExpr, "Example reply"));
      *     //...
      * }
      * ```
@@ -339,7 +339,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      *     Querier querier = session.declareQuerier(selector.getKeyExpr(), options);
      *     //...
      *     Querier.GetOptions options = new Querier.GetOptions();
-     *     options.setPayload(ZBytes.from("Example payload"));
+     *     options.setPayload("Example payload");
      *     querier.get(reply -> {...}, options);
      * }
      * ```
