@@ -16,6 +16,7 @@ package io.zenoh.query
 
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
+import io.zenoh.bytes.ZBytes
 import java.time.Duration
 
 /**
@@ -35,4 +36,7 @@ data class GetOptions(
     var payload: IntoZBytes? = null,
     var encoding: Encoding? = null,
     var attachment: IntoZBytes? = null
-)
+) {
+    fun setPayload(payload: String) = apply { this.payload = ZBytes.from(payload) }
+    fun setAttachment(attachment: String) = apply { this.attachment = ZBytes.from(attachment) }
+}

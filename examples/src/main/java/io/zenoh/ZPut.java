@@ -14,8 +14,6 @@
 
 package io.zenoh;
 
-import io.zenoh.bytes.ZBytes;
-import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.PutOptions;
 import picocli.CommandLine;
@@ -44,10 +42,10 @@ public class ZPut implements Callable<Integer> {
             System.out.println("Putting Data ('" + keyExpr + "': '" + value + "')...");
             if (attachment != null) {
                 var putOptions = new PutOptions();
-                putOptions.setAttachment(ZBytes.from(attachment));
-                session.put(keyExpr, ZBytes.from(value), putOptions);
+                putOptions.setAttachment(attachment);
+                session.put(keyExpr, value, putOptions);
             } else {
-                session.put(keyExpr, ZBytes.from(value));
+                session.put(keyExpr, value);
             }
         }
         return 0;

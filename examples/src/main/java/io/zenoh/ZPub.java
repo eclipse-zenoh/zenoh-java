@@ -57,18 +57,17 @@ public class ZPub implements Callable<Integer> {
             Publisher publisher = session.declarePublisher(keyExpr, publisherOptions);
 
             System.out.println("Press CTRL-C to quit...");
-            ZBytes attachmentBytes = attachment != null ? ZBytes.from(attachment) : null;
             int idx = 0;
             while (true) {
                 Thread.sleep(1000);
                 String payload = String.format("[%4d] %s", idx, value);
                 System.out.println("Putting Data ('" + keyExpr + "': '" + payload + "')...");
-                if (attachmentBytes != null) {
+                if (attachment != null) {
                     PutOptions putOptions = new PutOptions();
-                    putOptions.setAttachment(attachmentBytes);
-                    publisher.put(ZBytes.from(payload), putOptions);
+                    putOptions.setAttachment(attachment);
+                    publisher.put(payload, putOptions);
                 } else {
-                    publisher.put(ZBytes.from(payload));
+                    publisher.put(payload);
                 }
                 idx++;
             }

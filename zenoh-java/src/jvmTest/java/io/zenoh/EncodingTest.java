@@ -33,7 +33,7 @@ public class EncodingTest {
 
     private static final Encoding without_schema = Encoding.TEXT_CSV;
     private static final Encoding with_schema = Encoding.APPLICATION_JSON.withSchema("test_schema");
-    private ZBytes payload = ZBytes.from("test");
+    private final ZBytes payload = ZBytes.from("test");
 
     @Test
     public void encoding_subscriberTest() throws ZError, InterruptedException {

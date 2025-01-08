@@ -14,7 +14,6 @@
 
 package io.zenoh;
 
-import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.query.*;
 import picocli.CommandLine;
@@ -63,7 +62,7 @@ public class ZQuerier implements Callable<Integer> {
             System.out.println("Querying '" + selector + "' with payload: '" + queryPayload + "'...");
 
             Querier.GetOptions options = new Querier.GetOptions();
-            options.setPayload(ZBytes.from(queryPayload));
+            options.setPayload(queryPayload);
             options.setParameters(selector.getParameters());
 
             querier.get(this::handleReply, options);

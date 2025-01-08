@@ -16,6 +16,7 @@ package io.zenoh.pubsub
 
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
+import io.zenoh.bytes.ZBytes
 import io.zenoh.qos.*
 
 /**
@@ -35,4 +36,6 @@ data class PutOptions(
     var express: Boolean = QoS.defaultQoS.express,
     var congestionControl: CongestionControl = QoS.defaultQoS.congestionControl,
     var priority: Priority = QoS.defaultQoS.priority
-)
+) {
+    fun setAttachment(attachment: String) = apply { this.attachment = ZBytes.from(attachment) }
+}

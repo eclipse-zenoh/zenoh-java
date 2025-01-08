@@ -17,6 +17,7 @@ package io.zenoh.query
 import io.zenoh.annotations.Unstable
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
+import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
@@ -65,7 +66,10 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
         var payload: IntoZBytes? = null,
         var encoding: Encoding? = null,
         var attachment: IntoZBytes? = null
-    )
+    ) {
+        fun setPayload(payload: String) = apply { this.payload = ZBytes.from(payload) }
+        fun setAttachment(attachment: String) = apply { this.attachment = ZBytes.from(attachment) }
+    }
 
     /**
      * Perform a get operation to the [keyExpr] from the Querier and pipe them into a blocking queue.
