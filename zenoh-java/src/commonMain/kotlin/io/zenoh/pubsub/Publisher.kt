@@ -17,6 +17,7 @@ package io.zenoh.pubsub
 import io.zenoh.*
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
+import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.jni.JNIPublisher
 import io.zenoh.keyexpr.KeyExpr
@@ -41,8 +42,7 @@ import kotlin.Throws
  *         try (Publisher publisher = session.declarePublisher(keyExpr)) {
  *             int i = 0;
  *             while (true) {
- *                 var payload = ZBytes.from("Hello for the " + i + "th time!");
- *                 publisher.put(payload);
+ *                 publisher.put("Hello for the " + i + "th time!");
  *                 Thread.sleep(1000);
  *                 i++;
  *             }
@@ -87,6 +87,14 @@ class Publisher internal constructor(
     fun put(payload: IntoZBytes, options: PutOptions) {
         jniPublisher?.put(payload, options.encoding ?: this.encoding, options.attachment) ?: throw publisherNotValid
     }
+
+    /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
+    @Throws(ZError::class)
+    fun put(payload: String) = put(ZBytes.from(payload))
+
+    /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
+    @Throws(ZError::class)
+    fun put(payload: String, options: PutOptions) = put(ZBytes.from(payload), options)
 
     /**
      * Performs a DELETE operation on the specified [keyExpr]

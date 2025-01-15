@@ -37,7 +37,7 @@ import io.zenoh.session.SessionDeclaration
  *             break;
  *         }
  *         Query query = wrapper.get();
- *         query.reply(query.getKeyExpr(), ZBytes.from("Example reply");
+ *         query.reply(query.getKeyExpr(), "Example reply");
  *     }
  * }
  * ```
@@ -45,7 +45,7 @@ import io.zenoh.session.SessionDeclaration
  * Example using a [io.zenoh.handlers.Callback]:
  * ```java
  * try (Session session = Zenoh.open(config)) {
- *     var queryable = session.declareQueryable(keyExpr, query -> query.reply(query.getKeyExpr(), ZBytes.from("Example reply"));
+ *     var queryable = session.declareQueryable(keyExpr, query -> query.reply(query.getKeyExpr(), "Example reply");
  * }
  * ```
  *
@@ -89,7 +89,7 @@ sealed class Queryable(
  * Example
  * ```java
  * try (Session session = Zenoh.open(config)) {
- *     CallbackQueryable queryable = session.declareQueryable(keyExpr, query -> query.reply(query.getKeyExpr(), ZBytes.from("Example reply"));
+ *     CallbackQueryable queryable = session.declareQueryable(keyExpr, query -> query.reply(query.getKeyExpr(), "Example reply");
  * }
  * ```
  */
@@ -109,7 +109,7 @@ class CallbackQueryable internal constructor(keyExpr: KeyExpr, jniQueryable: JNI
  *             break;
  *         }
  *         Query query = wrapper.get();
- *         query.reply(query.getKeyExpr(), ZBytes.from("Example reply");
+ *         query.reply(query.getKeyExpr(), "Example reply");
  *     }
  * }
  * ```

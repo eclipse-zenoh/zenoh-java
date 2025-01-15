@@ -53,6 +53,7 @@ class Query internal constructor(
      *
      * @param keyExpr Key expression to reply to. This parameter must not be necessarily the same
      * as the key expression from the Query, however it must intersect with the query key.
+     * @param payload The reply payload.
      * @param options Optional options for configuring the reply.
      */
     @Throws(ZError::class)
@@ -65,13 +66,25 @@ class Query internal constructor(
             SampleKind.PUT,
             options.timeStamp,
             QoS(options.congestionControl, options.priority, options.express),
-            options.attachment
+            options.attachment?.into()
         )
         jniQuery?.apply {
             replySuccess(sample)
             jniQuery = null
         } ?: throw (ZError("Query is invalid"))
     }
+
+    /**
+     * Reply to the specified key expression.
+     *
+     * @param keyExpr Key expression to reply to. This parameter must not be necessarily the same
+     * as the key expression from the Query, however it must intersect with the query key.
+     * @param payload The reply payload as a string.
+     * @param options Optional options for configuring the reply.
+     */
+    @Throws(ZError::class)
+    @JvmOverloads
+    fun reply(keyExpr: KeyExpr, payload: String, options: ReplyOptions = ReplyOptions()) = reply(keyExpr, ZBytes.from(payload), options)
 
     /**
      * Reply "delete" to the specified key expression.
@@ -108,6 +121,16 @@ class Query internal constructor(
             jniQuery = null
         } ?: throw (ZError("Query is invalid"))
     }
+
+    /**
+     * Reply "error" to the specified key expression.
+     *
+     * @param message The error message as a String.
+     * @param options Optional options for configuring the reply.
+     */
+    @JvmOverloads
+    @Throws(ZError::class)
+    fun replyErr(message: String, options: ReplyErrOptions = ReplyErrOptions()) = replyErr(ZBytes.from(message), options)
 
     override fun close() {
         jniQuery?.apply {
