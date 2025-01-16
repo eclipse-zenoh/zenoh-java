@@ -1,0 +1,32 @@
+$dokka.format:javadoc-v1
+$dokka.linkExtension:html
+$dokka.location:io.zenoh.bytes/Encoding.Companion///PointingToDeclaration/io/zenoh/bytes/Encoding.Companion.html
+$dokka.location:io.zenoh.bytes/ZBytes.Companion///PointingToDeclaration/io/zenoh/bytes/ZBytes.Companion.html
+$dokka.location:io.zenoh.config/WhatAmI.Companion///PointingToDeclaration/io/zenoh/config/WhatAmI.Companion.html
+$dokka.location:io.zenoh.keyexpr/KeyExpr.Companion///PointingToDeclaration/io/zenoh/keyexpr/KeyExpr.Companion.html
+$dokka.location:io.zenoh.keyexpr/SetIntersectionLevel.Companion///PointingToDeclaration/io/zenoh/keyexpr/SetIntersectionLevel.Companion.html
+$dokka.location:io.zenoh.qos/CongestionControl.Companion///PointingToDeclaration/io/zenoh/qos/CongestionControl.Companion.html
+$dokka.location:io.zenoh.qos/Priority.Companion///PointingToDeclaration/io/zenoh/qos/Priority.Companion.html
+$dokka.location:io.zenoh.query/Parameters.Companion///PointingToDeclaration/io/zenoh/query/Parameters.Companion.html
+$dokka.location:io.zenoh.query/Querier.GetOptions///PointingToDeclaration/io/zenoh/query/Querier.GetOptions.html
+$dokka.location:io.zenoh.query/Reply.Error///PointingToDeclaration/io/zenoh/query/Reply.Error.html
+$dokka.location:io.zenoh.query/Reply.Success///PointingToDeclaration/io/zenoh/query/Reply.Success.html
+$dokka.location:io.zenoh.query/Selector.Companion///PointingToDeclaration/io/zenoh/query/Selector.Companion.html
+$dokka.location:io.zenoh.sample/SampleKind.Companion///PointingToDeclaration/io/zenoh/sample/SampleKind.Companion.html
+$dokka.location:io.zenoh/Config.Companion///PointingToDeclaration/io/zenoh/Config.Companion.html
+io.zenoh
+io.zenoh.annotations
+io.zenoh.bytes
+io.zenoh.config
+io.zenoh.exceptions
+io.zenoh.ext
+io.zenoh.handlers
+io.zenoh.keyexpr
+io.zenoh.liveliness
+io.zenoh.pubsub
+io.zenoh.qos
+io.zenoh.query
+io.zenoh.sample
+io.zenoh.scouting
+io.zenoh.session
+
