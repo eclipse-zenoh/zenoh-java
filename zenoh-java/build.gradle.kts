@@ -18,7 +18,7 @@ plugins {
     kotlin("multiplatform")
     kotlin("plugin.serialization")
     id("com.adarshr.test-logger")
-    id("org.jetbrains.dokka")
+    id("org.jetbrains.dokka-javadoc")
     `maven-publish`
     signing
 }
@@ -96,11 +96,19 @@ kotlin {
         }
     }
 
+    val javadocJar by tasks.registering(Jar::class) {
+        dependsOn("dokkaGenerate")
+        archiveClassifier.set("javadoc")
+        from("${buildDir}/dokka/html")
+    }
+
     publishing {
         publications.withType<MavenPublication> {
             groupId = "org.eclipse.zenoh"
             artifactId = "zenoh-java"
-            version = project.version.toString() + if (project.hasProperty("SNAPSHOT")) "-SNAPSHOT" else ""
+            version = rootProject.version.toString()
+
+            artifact(javadocJar)
 
             pom {
                 name.set("Zenoh Java")
@@ -140,18 +148,6 @@ kotlin {
                 credentials {
                     username = System.getenv("GITHUB_ACTOR")
                     password = System.getenv("GITHUB_TOKEN")
-                }
-            }
-            maven {
-                name = "MavenCentral"
-                url = uri(if (project.hasProperty("SNAPSHOT"))
-                    "https://oss.sonatype.org/content/repositories/snapshots/"
-                else
-                    "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
-                )
-                credentials {
-                    username = System.getenv("ORG_OSSRH_USERNAME")
-                    password = System.getenv("ORG_OSSRH_PASSWORD")
                 }
             }
         }

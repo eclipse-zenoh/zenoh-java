@@ -12,9 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-val zenohGroup = "io.zenoh"
-val zenohVersion = file("version.txt").readText()
-
 buildscript {
     repositories {
         google()
@@ -32,15 +29,34 @@ plugins {
     id("org.jetbrains.kotlin.android") version "1.9.10" apply false
     id("org.jetbrains.kotlin.multiplatform") version "1.9.0" apply false
     id("org.mozilla.rust-android-gradle.rust-android") version "0.9.6" apply false
-    id("org.jetbrains.dokka") version "1.9.10" apply false
+    id("org.jetbrains.dokka-javadoc") version "2.0.0" apply false
     id("com.adarshr.test-logger") version "3.2.0" apply false
     kotlin("plugin.serialization") version "1.9.0" apply false
+    id("io.github.gradle-nexus.publish-plugin") version "2.0.0"
+}
+
+group = "org.eclipse.zenoh"
+
+val baseVersion = file("version.txt").readText().trim()
+version = if (project.hasProperty("SNAPSHOT")) {
+    "$baseVersion-SNAPSHOT"
+} else {
+    baseVersion
+}
+
+nexusPublishing {
+    repositories {
+        sonatype {
+            nexusUrl = uri("https://oss.sonatype.org/service/local/")
+            snapshotRepositoryUrl = uri("https://oss.sonatype.org/content/repositories/snapshots/")
+
+            username = System.getenv("ORG_OSSRH_USERNAME")
+            password = System.getenv("ORG_OSSRH_PASSWORD")
+        }
+    }
 }
 
 subprojects {
-    group = zenohGroup
-    version = zenohVersion
-
     repositories {
         google()
         mavenCentral()
