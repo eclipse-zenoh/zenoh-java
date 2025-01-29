@@ -23,7 +23,7 @@ This repository provides a Java compatible Kotlin binding based on the main [Zen
 
 The code relies on the Zenoh JNI native library, which written in Rust and communicates with the Kotlin layer via the Java Native Interface (JNI).
 
-## Documentation
+## <img src="doc_icon.png" alt="Zenoh" height="70"> Documentation
 
 The documentation of the API is published at [https://eclipse-zenoh.github.io/zenoh-java/index.html](https://eclipse-zenoh.github.io/zenoh-java/index.html).
 
@@ -33,60 +33,23 @@ Alternatively, you can build it locally as [explained below](#building-the-docum
 
 # How to import
 
-:warning: Note nº1: **Breaking changes incoming**
+## <img src="android-robot.png" alt="Android" height="50">  Android
 
-With the purpose of providing an upgraded API across all the languages supported by the Zenoh ecosystem,
-we are currently releasing a series of alpha and beta versions, the latest one being currently the
-[1.0.0-beta.1](https://github.com/eclipse-zenoh/zenoh-java/releases/tag/1.0.0-beta.1).
-
-This last release still offers an 'old-fashioned' API, although it's fully
-compatible with the other 1.0.0 releases of Zenoh. You must take into consideration when importing this library
-that the API is about to be modified with some considerable breaking changes. A migration guide will be provided when
-the time comes.
-
-:warning: Note nº2: **About the released packages**
-
-The released packages can be found in the "packages" section of this repository, or in the links below:
-
-- [Android packages](https://github.com/eclipse-zenoh/zenoh-java/packages/2019754/versions)
-- [JVM packages](https://github.com/eclipse-zenoh/zenoh-java/packages/2017294/versions)
-
-These are 'nightly' packages that need to be imported as explained in the following sections of this README.
-We plan to publish our packages into Maven central for the `1.0.0` stable release.
-
-## <img src="android-robot.png" alt="Android" height="50">  For Android applications
-
-For this first version we have published a [Github package](https://github.com/eclipse-zenoh/zenoh-java/packages/2019754) with the library which can be imported on your projects.
-
-Checkout the [Zenoh demo app](https://github.com/eclipse-zenoh/zenoh-demos/tree/main/zenoh-android/ZenohApp) for an example on how to use the library.
-
-First add the Github packages repository to your `settings.gradle.kts`:
+First add the Maven central repository to your `settings.gradle.kts`:
 
 ```kotlin
 dependencyResolutionManagement {
     // ...
     repositories {
-        google()
         mavenCentral()
-        maven {
-            name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/eclipse-zenoh/zenoh-java")
-            credentials {
-                username = providers.gradleProperty("user").get()
-                password = providers.gradleProperty("token").get()
-            }
-        }
     }
 }
 ```
 
-where the username and token are your github username and a personal access token you need to generate on github with package read permissions (see the [Github documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
-This is required by Github in order to import the package, even if it's from a public repository.
-
 After that add to the dependencies in the app's `build.gradle.kts`:
 
 ```kotlin
-implementation("io.zenoh:zenoh-java-android:0.11.0")
+implementation("org.eclipse.zenoh:zenoh-java-android:1.1.1")
 ```
 
 ### Platforms
@@ -111,37 +74,23 @@ Zenoh is a communications protocol, therefore the permissions required are:
 <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 ```
 
-## <img src="jvm.png" alt="Java" height="50">  For JVM-based applications
+## <img src="jvm.png" alt="Java" height="50"> JVM
 
-Similar to Android, we have published a Github package to import on your projects.
-
-First add the Github packages repository to your `settings.gradle.kts`:
+First add the Maven central repository to your `settings.gradle.kts`:
 
 ```kotlin
 dependencyResolutionManagement {
     // ...
     repositories {
-        google()
         mavenCentral()
-        maven {
-            name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/eclipse-zenoh/zenoh-java")
-            credentials {
-                username = providers.gradleProperty("user").get()
-                password = providers.gradleProperty("token").get()
-            }
-        }
     }
 }
 ```
 
-where the username and token are your github username and a personal access token you need to generate on github with package read permissions (see the [Github documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
-This is required by Github in order to import the package, even if it's from a public repository.
-
 After that add to the dependencies in the app's `build.gradle.kts`:
 
 ```kotlin
-implementation("io.zenoh:zenoh-java-jvm:0.11.0")
+implementation("org.eclipse.zenoh:zenoh-java-jvm:1.1.1")
 ```
 
 ### Platforms
@@ -153,6 +102,7 @@ For the moment, the library targets the following platforms:
 - x86_64-apple-darwin
 - aarch64-apple-darwin
 - x86_64-pc-windows-msvc
+- aarch64-pc-windows-msvc
 
 ----
 
@@ -166,7 +116,7 @@ Basically:
 - Kotlin ([Installation guide](https://kotlinlang.org/docs/getting-started.html#backend))
 - Gradle ([Installation guide](https://gradle.org/install/))
 
-and in case of targetting Android you'll also need:
+and in case of targeting Android you'll also need:
 
 - Android SDK ([Installation guide](https://developer.android.com/about/versions/11/setup-sdk))
 
@@ -175,18 +125,18 @@ and in case of targetting Android you'll also need:
 To publish a library for a JVM project into Maven local, run
 
 ```bash
-gradle -Prelease=true publishJvmPublicationToMavenLocal
+gradle publishJvmPublicationToMavenLocal
 ```
 
-This will first, trigger the compilation of Zenoh-JNI in release (if you want debug, specify `-Prelease=false`), and second publish the library into maven local, containing the native library
+This will first, trigger the compilation of Zenoh-JNI in release, and second publish the library into maven local, containing the native library
 as a resource that will be loaded during runtime.
 
 :warning: The native library will be compiled against the default rustup target on your machine, so although it may work fine
 for you on your desktop, the generated publication may not be working on another computer with a different operating system and/or a different cpu architecture.
 
-Once we have published the package, we should be able to find it under `~/.m2/repository/io/zenoh/zenoh-java-jvm/0.11.0`.
+Once we have published the package, we should be able to find it under `~/.m2/repository/org/eclipse/zenoh/zenoh-java-jvm/1.1.1`.
 
-Finally, in the `build.gradle.kts` file of the project where you intend to use this library, add mavenLocal to the list of repositories and add zenoh-java as a dependency:
+Finally, in the gradle file of the project where you intend to use this library, add mavenLocal to the list of repositories and add zenoh-java as a dependency:
 
 ```kotlin
 repositories {
@@ -195,8 +145,7 @@ repositories {
 }
 
 dependencies {
-    testImplementation(kotlin("test"))
-    implementation("io.zenoh:zenoh-java-jvm:0.11.0")
+    implementation("org.eclipse.zenoh:zenoh-java-jvm:1.1.1")
 }
 ```
 
@@ -237,43 +186,27 @@ gradle -Pandroid=true publishAndroidReleasePublicationToMavenLocal
 This will first trigger the compilation of the Zenoh-JNI for the previously mentioned targets, and secondly will
 publish the library, containing the native binaries.
 
-You should now be able to see the package under `~/.m2/repository/io/zenoh/zenoh-java-android/0.11.0`
-with the following files:
+You should now be able to see the package under `~/.m2/repository/org/eclipse/zenoh/zenoh-java-android/1.1.1`.
 
-```raw
-zenoh-java-android-0.11.0-sources.jar
-zenoh-java-android-0.11.0.aar
-zenoh-java-android-0.11.0.module
-zenoh-java-android-0.11.0.pom
-```
-
-Now the library is published on maven local, let's now see how to import it into an Android project.
-
-First, we need to indicate we want to look into mavenLocal for our library, so in your top level `build.gradle.kts` you need to specify
-the `mavenLocal` repository:
+Finally, in the gradle file of the project where you intend to use this library, add mavenLocal to the list of repositories and add zenoh-java-android as a dependency:
 
 ```kotlin
 repositories {
     mavenCentral()
-    ...
-    mavenLocal() // We add this line
+    mavenLocal()
+}
+
+dependencies {
+    implementation("org.eclipse.zenoh:zenoh-kotlin-android:1.1.1")
 }
 ```
 
-Then in your app's `build.gradle.kts` filen add the dependency:
-
-```kotlin
-implementation("io.zenoh:zenoh-java-android:0.11.0")
-```
-
-And finally, do not forget to add the required internet permissions on your manifest!
+Reminder that in order to work during runtime, the following permissions must be enabled in the app's manifest:
 
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
 <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 ```
-
-And that was it! You can now import the code from the `io.zenoh` package and use it at your will.
 
 ## Building the documentation
 
@@ -282,7 +215,7 @@ Because it's a Kotlin project, we use [Dokka](https://kotlinlang.org/docs/dokka-
 In order to build it, run:
 
 ```bash
-gradle zenoh-java:dokkaHtml
+gradle dokkaGenerate
 ```
 
 ## Running the tests
@@ -294,55 +227,66 @@ gradle jvmTest
 ```
 
 This will compile the native library on debug mode (if not already available) and run the tests afterward against the JVM target.
-Running the tests against the Android target (by using `gradle testDebugUnitTest`) is equivalent to running them against the JVM one, since they are common
-tests executed locally as Unit tests.
 
 ## Logging
 
-Rust logs are propagated when setting the property `zenoh.logger=debug` (using RUST_LOG=debug will result in nothing)
+Rust logs are propagated when setting the `RUST_LOG` environment variable.
 
 For instance running the ZPub test as follows:
 
 ```bash
-gradle -Pzenoh.logger=debug ZPub
+RUST_LOG=debug gradle ZPub
 ```
 
 causes the logs to appear in standard output.
 
-The log levels are the ones from Rust: `trace`, `info`, `debug`, `error` and `warn`.
+The log levels are the ones from Rust, typically `trace`, `info`, `debug`, `error` and `warn` (though other log filtering options are available, see <https://docs.rs/env_logger/latest/env_logger/#enabling-logging>).
+
+Alternatively, the logs can be enabled programmatically through `Zenoh.initLogFromEnvOr(logfilter)`, for instance:
+
+```kotlin
+Zenoh.initLogFromEnvOr("debug")
+```
 
 ----
 
 # Examples
 
-You can find some examples located under the [`/examples` folder](examples).
-Once we've built the project, to run them, simply run `./gradlew <EXAMPLE_NAME>`.
-
-For instance in order to run the [ZPub](examples/src/main/java/io.zenoh/ZPub.java) example, type:
-
-```bash
-./gradlew ZPub
-```
-
-You can find more info about these examples on the [examples README file](/examples/README.md).
+You can find some examples located under the [`/examples` folder](examples). Checkout the [examples README file](/examples/README.md).
 
 ----
 
-# :warning: Considerations & Future work
+# Old packages
 
-## Packaging
+Old released versions were published into Github packages.
 
-We intend to publish this code on Maven in the short term in order to ease the installation, but for the moment, until we
-add some extra functionalities and test this library a bit further, we will only publish packages to Github packages.
+In case you want to use one of the versions published into github packages, add the Github packages repository to your `settings.gradle.kts` as follows:
 
-## Potential API changes
+```kotlin
+dependencyResolutionManagement {
+    // ...
+    repositories {
+        google()
+        mavenCentral()
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/eclipse-zenoh/zenoh-java")
+            credentials {
+                username = providers.gradleProperty("user").get()
+                password = providers.gradleProperty("token").get()
+            }
+        }
+    }
+}
+```
 
-When using this library, keep in mind the api is not fully stable. Changes are to be expected, especially for version 1.0.0.
+where the username and token are your github username and a personal access token you need to generate on github with package read permissions (see the [Github documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
+This is required by Github in order to import the package, even if it's from a public repository.
 
-## Performance
+Then after that, add the dependency as usual:
 
-The communication between the Kotlin code and the Rust code through the java native interface (JNI) has its toll on performance.
-
-Some preliminary performance evaluations done on an M2 Mac indicate around a 50% performance drop regarding the publication throughput
-(compared to Rust-Rust communication), and for subscription throughput the performance is similar to that of zenoh-python, with around 500K messages per second
-for an 8 bytes payload messages.
+```kotlin
+dependencies {
+    implementation("org.eclipse.zenoh:zenoh-java-jvm:<version>")
+}
+```
