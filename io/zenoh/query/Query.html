@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <!-- NewPage -->
 <html lang="en"><head>
-    <title>Query 1.1.1 API </title>
+    <title>Query </title>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="dc.created" content="2020-03-25">
     <link rel="stylesheet" type="text/css" href="../../../stylesheet.css" title="Style">
@@ -108,6 +108,14 @@ var pathtoroot = "../../../";
                         <dt>All Implemented Interfaces:</dt>
                         <dd>
                             
+                            <code>io.zenoh.ZenohType</code>
+                            
+                            ,
+                            
+                            
+                            <code>java.lang.AutoCloseable</code>
+                            
+                            
                         </dd>
                     </dl>
                     
@@ -115,7 +123,7 @@ var pathtoroot = "../../../";
                     <pre class="wrap-overflow">
 
 public final class <span class="typeNameLabel"><a href=Query.html>Query</a></span>
- implements <a href=../ZenohType.html>ZenohType</a>
+ implements <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/AutoCloseable.html>AutoCloseable</a>, <a href=../ZenohType.html>ZenohType</a>
                     </pre>
                     <div class="block"><p>Represents a Zenoh Query in Kotlin.</p><p>A Query is generated within the context of a <a href=Queryable.html>Queryable</a>, when receiving a <a href=Query.html>Query</a> request.</p></div>
 
@@ -330,7 +338,7 @@ public final class <span class="typeNameLabel"><a href=Query.html>Query</a></spa
                                         </tr>
                                         
                                         <tr id="i6" class="altColor">
-                                            <td class="colFirst"><code>final <a href=https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-unit/index.html>Unit</a></code>
+                                            <td class="colFirst"><code>final <a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a></code>
                                             </td>
                                             <th class="colSecond" scope="row"><code><a href=Query.html#reply(io.zenoh.keyexpr.KeyExpr,io.zenoh.bytes.IntoZBytes,io.zenoh.query.ReplyOptions)>reply</a>(<a href=../keyexpr/KeyExpr.html>KeyExpr</a> keyExpr, <a href=../bytes/IntoZBytes.html>IntoZBytes</a> payload, <a href=ReplyOptions.html>ReplyOptions</a> options) </code>
                                             </th>
@@ -338,15 +346,15 @@ public final class <span class="typeNameLabel"><a href=Query.html>Query</a></spa
                                         </tr>
                                         
                                         <tr id="i7" class="rowColor">
-                                            <td class="colFirst"><code>final <a href=https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-unit/index.html>Unit</a></code>
+                                            <td class="colFirst"><code>final <a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a></code>
                                             </td>
-                                            <th class="colSecond" scope="row"><code><a href=Query.html#reply(io.zenoh.keyexpr.KeyExpr,java.lang.String,io.zenoh.query.ReplyOptions)>reply</a>(<a href=../keyexpr/KeyExpr.html>KeyExpr</a> keyExpr, <a href=https://docs.oracle.com/javase/8/docs/api/java/lang/String.html>String</a> payload, <a href=ReplyOptions.html>ReplyOptions</a> options) </code>
+                                            <th class="colSecond" scope="row"><code><a href=Query.html#reply(io.zenoh.keyexpr.KeyExpr,java.lang.String,io.zenoh.query.ReplyOptions)>reply</a>(<a href=../keyexpr/KeyExpr.html>KeyExpr</a> keyExpr, <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> payload, <a href=ReplyOptions.html>ReplyOptions</a> options) </code>
                                             </th>
                                             <td class="colLast">Reply to the specified key expression.</td>
                                         </tr>
                                         
                                         <tr id="i8" class="altColor">
-                                            <td class="colFirst"><code>final <a href=https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-unit/index.html>Unit</a></code>
+                                            <td class="colFirst"><code>final <a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a></code>
                                             </td>
                                             <th class="colSecond" scope="row"><code><a href=Query.html#replyDel(io.zenoh.keyexpr.KeyExpr,io.zenoh.query.ReplyDelOptions)>replyDel</a>(<a href=../keyexpr/KeyExpr.html>KeyExpr</a> keyExpr, <a href=ReplyDelOptions.html>ReplyDelOptions</a> options) </code>
                                             </th>
@@ -354,7 +362,7 @@ public final class <span class="typeNameLabel"><a href=Query.html>Query</a></spa
                                         </tr>
                                         
                                         <tr id="i9" class="rowColor">
-                                            <td class="colFirst"><code>final <a href=https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-unit/index.html>Unit</a></code>
+                                            <td class="colFirst"><code>final <a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a></code>
                                             </td>
                                             <th class="colSecond" scope="row"><code><a href=Query.html#replyErr(io.zenoh.bytes.IntoZBytes,io.zenoh.query.ReplyErrOptions)>replyErr</a>(<a href=../bytes/IntoZBytes.html>IntoZBytes</a> message, <a href=ReplyErrOptions.html>ReplyErrOptions</a> options) </code>
                                             </th>
@@ -362,15 +370,15 @@ public final class <span class="typeNameLabel"><a href=Query.html>Query</a></spa
                                         </tr>
                                         
                                         <tr id="i10" class="altColor">
-                                            <td class="colFirst"><code>final <a href=https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-unit/index.html>Unit</a></code>
+                                            <td class="colFirst"><code>final <a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a></code>
                                             </td>
-                                            <th class="colSecond" scope="row"><code><a href=Query.html#replyErr(java.lang.String,io.zenoh.query.ReplyErrOptions)>replyErr</a>(<a href=https://docs.oracle.com/javase/8/docs/api/java/lang/String.html>String</a> message, <a href=ReplyErrOptions.html>ReplyErrOptions</a> options) </code>
+                                            <th class="colSecond" scope="row"><code><a href=Query.html#replyErr(java.lang.String,io.zenoh.query.ReplyErrOptions)>replyErr</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> message, <a href=ReplyErrOptions.html>ReplyErrOptions</a> options) </code>
                                             </th>
                                             <td class="colLast">Reply &quot;error&quot; to the specified key expression.</td>
                                         </tr>
                                         
                                         <tr id="i11" class="rowColor">
-                                            <td class="colFirst"><code><a href=https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-unit/index.html>Unit</a></code>
+                                            <td class="colFirst"><code><a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a></code>
                                             </td>
                                             <th class="colSecond" scope="row"><code><a href=Query.html#close()>close</a>() </code>
                                             </th>
@@ -567,7 +575,7 @@ public final class <span class="typeNameLabel"><a href=Query.html>Query</a></spa
                                           >
                                     <li class="blockList">
                                         <h4>reply</h4>
-                                        <pre class="methodSignature"> final <a href=https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-unit/index.html>Unit</a> <a href=Query.html#reply(io.zenoh.keyexpr.KeyExpr,io.zenoh.bytes.IntoZBytes,io.zenoh.query.ReplyOptions)>reply</a>(<a href=../keyexpr/KeyExpr.html>KeyExpr</a> keyExpr, <a href=../bytes/IntoZBytes.html>IntoZBytes</a> payload, <a href=ReplyOptions.html>ReplyOptions</a> options)</pre>
+                                        <pre class="methodSignature"> final <a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a> <a href=Query.html#reply(io.zenoh.keyexpr.KeyExpr,io.zenoh.bytes.IntoZBytes,io.zenoh.query.ReplyOptions)>reply</a>(<a href=../keyexpr/KeyExpr.html>KeyExpr</a> keyExpr, <a href=../bytes/IntoZBytes.html>IntoZBytes</a> payload, <a href=ReplyOptions.html>ReplyOptions</a> options)</pre>
                                         <div class="block"><p>Reply to the specified key expression.</p></div>
 
                                         <dl>
@@ -605,7 +613,7 @@ public final class <span class="typeNameLabel"><a href=Query.html>Query</a></spa
                                           >
                                     <li class="blockList">
                                         <h4>reply</h4>
-                                        <pre class="methodSignature"> final <a href=https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-unit/index.html>Unit</a> <a href=Query.html#reply(io.zenoh.keyexpr.KeyExpr,java.lang.String,io.zenoh.query.ReplyOptions)>reply</a>(<a href=../keyexpr/KeyExpr.html>KeyExpr</a> keyExpr, <a href=https://docs.oracle.com/javase/8/docs/api/java/lang/String.html>String</a> payload, <a href=ReplyOptions.html>ReplyOptions</a> options)</pre>
+                                        <pre class="methodSignature"> final <a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a> <a href=Query.html#reply(io.zenoh.keyexpr.KeyExpr,java.lang.String,io.zenoh.query.ReplyOptions)>reply</a>(<a href=../keyexpr/KeyExpr.html>KeyExpr</a> keyExpr, <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> payload, <a href=ReplyOptions.html>ReplyOptions</a> options)</pre>
                                         <div class="block"><p>Reply to the specified key expression.</p></div>
 
                                         <dl>
@@ -643,7 +651,7 @@ public final class <span class="typeNameLabel"><a href=Query.html>Query</a></spa
                                           >
                                     <li class="blockList">
                                         <h4>replyDel</h4>
-                                        <pre class="methodSignature"> final <a href=https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-unit/index.html>Unit</a> <a href=Query.html#replyDel(io.zenoh.keyexpr.KeyExpr,io.zenoh.query.ReplyDelOptions)>replyDel</a>(<a href=../keyexpr/KeyExpr.html>KeyExpr</a> keyExpr, <a href=ReplyDelOptions.html>ReplyDelOptions</a> options)</pre>
+                                        <pre class="methodSignature"> final <a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a> <a href=Query.html#replyDel(io.zenoh.keyexpr.KeyExpr,io.zenoh.query.ReplyDelOptions)>replyDel</a>(<a href=../keyexpr/KeyExpr.html>KeyExpr</a> keyExpr, <a href=ReplyDelOptions.html>ReplyDelOptions</a> options)</pre>
                                         <div class="block"><p>Reply &quot;delete&quot; to the specified key expression.</p></div>
 
                                         <dl>
@@ -677,7 +685,7 @@ public final class <span class="typeNameLabel"><a href=Query.html>Query</a></spa
                                           >
                                     <li class="blockList">
                                         <h4>replyErr</h4>
-                                        <pre class="methodSignature"> final <a href=https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-unit/index.html>Unit</a> <a href=Query.html#replyErr(io.zenoh.bytes.IntoZBytes,io.zenoh.query.ReplyErrOptions)>replyErr</a>(<a href=../bytes/IntoZBytes.html>IntoZBytes</a> message, <a href=ReplyErrOptions.html>ReplyErrOptions</a> options)</pre>
+                                        <pre class="methodSignature"> final <a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a> <a href=Query.html#replyErr(io.zenoh.bytes.IntoZBytes,io.zenoh.query.ReplyErrOptions)>replyErr</a>(<a href=../bytes/IntoZBytes.html>IntoZBytes</a> message, <a href=ReplyErrOptions.html>ReplyErrOptions</a> options)</pre>
                                         <div class="block"><p>Reply &quot;error&quot; to the specified key expression.</p></div>
 
                                         <dl>
@@ -711,7 +719,7 @@ public final class <span class="typeNameLabel"><a href=Query.html>Query</a></spa
                                           >
                                     <li class="blockList">
                                         <h4>replyErr</h4>
-                                        <pre class="methodSignature"> final <a href=https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-unit/index.html>Unit</a> <a href=Query.html#replyErr(java.lang.String,io.zenoh.query.ReplyErrOptions)>replyErr</a>(<a href=https://docs.oracle.com/javase/8/docs/api/java/lang/String.html>String</a> message, <a href=ReplyErrOptions.html>ReplyErrOptions</a> options)</pre>
+                                        <pre class="methodSignature"> final <a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a> <a href=Query.html#replyErr(java.lang.String,io.zenoh.query.ReplyErrOptions)>replyErr</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> message, <a href=ReplyErrOptions.html>ReplyErrOptions</a> options)</pre>
                                         <div class="block"><p>Reply &quot;error&quot; to the specified key expression.</p></div>
 
                                         <dl>
@@ -745,7 +753,7 @@ public final class <span class="typeNameLabel"><a href=Query.html>Query</a></spa
                                           >
                                     <li class="blockList">
                                         <h4>close</h4>
-                                        <pre class="methodSignature"> <a href=https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-unit/index.html>Unit</a> <a href=Query.html#close()>close</a>()</pre>
+                                        <pre class="methodSignature"> <a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a> <a href=Query.html#close()>close</a>()</pre>
                                         <div class="block"></div>
 
                                         <dl>

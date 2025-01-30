@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <!-- NewPage -->
 <html lang="en"><head>
-    <title>KeyExpr 1.1.1 API </title>
+    <title>KeyExpr </title>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="dc.created" content="2020-03-25">
     <link rel="stylesheet" type="text/css" href="../../../stylesheet.css" title="Style">
@@ -108,6 +108,19 @@ var pathtoroot = "../../../";
                         <dt>All Implemented Interfaces:</dt>
                         <dd>
                             
+                            <code>io.zenoh.query.IntoSelector</code>
+                            
+                            ,
+                            
+                            
+                            <code>io.zenoh.session.SessionDeclaration</code>
+                            
+                            ,
+                            
+                            
+                            <code>java.lang.AutoCloseable</code>
+                            
+                            
                         </dd>
                     </dl>
                     
@@ -115,7 +128,7 @@ var pathtoroot = "../../../";
                     <pre class="wrap-overflow">
 
 public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a></span>
- implements <a href=../query/IntoSelector.html>IntoSelector</a>, <a href=../session/SessionDeclaration.html>SessionDeclaration</a>
+ implements <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/AutoCloseable.html>AutoCloseable</a>, <a href=../query/IntoSelector.html>IntoSelector</a>, <a href=../session/SessionDeclaration.html>SessionDeclaration</a>
                     </pre>
                     <div class="block"><p>Zenoh's address space is designed around keys which serve as the names of resources.</p><p>Keys are slash-separated lists of non-empty UTF8 strings. They may not contain the following characters: <code>$*#?</code>.</p><p>Zenoh's operations are executed on key expressions, a small language that allows the definition of sets of keys via the use of wildcards:</p><ul><li><p><code>*</code> is the single-chunk wildcard, and will match any chunk: <code>a/*/c</code> will match <code>a/b/c</code>, <code>a/hello/c</code>, etc...</p></li><li><p><code>**</code> is the 0 or more chunks wildcard: <code>a/**/c</code> matches <code>a/c</code>, <code>a/b/c</code>, <code>a/b/hello/c</code>, etc...</p></li><li><p><code>$*</code> is the sub-chunk wildcard, it will match any amount of non-/ characters: <code>a/b$*</code> matches <code>a/b</code>, <code>a/because</code>, <code>a/blue</code>... but not <code>a/c</code> nor <code>a/blue/c</code></p></li></ul><p>To allow for better performance and gain the property that two key expressions define the same set if and only if they are the same string, the rules of canon form are mandatory for a key expression to be propagated by a Zenoh network:</p><ul><li><p><code>**/**</code> may not exist, as it could always be replaced by the shorter <code>**</code>,</p></li><li><p><code>** /*</code> may not exist, and must be written as its equivalent <code>*/**</code> instead,</p></li><li><p><code>$*</code> may not exist alone in a chunk, as it must be written <code>*</code> instead.</p></li></ul><p>The <code>KeyExpr.autocanonize</code> constructor exists to correct eventual infringements of the canonization rules.</p><p>A KeyExpr is a string that has been validated to be a valid Key Expression.</p><p>A <a href=KeyExpr.html>KeyExpr</a> acts as a container for the string representation of a key expression. Operations like <code>intersects</code>, <code>includes</code>, and <code>equals</code> are processed at the native layer using this string representation. For improved performance, consider initializing a <a href=KeyExpr.html>KeyExpr</a> through <a href=../Session.html#declareKeyExpr(java.lang.String)>Session.declareKeyExpr</a>. This method associates the <a href=KeyExpr.html>KeyExpr</a> with a native instance, thereby optimizing operation execution. However, it is crucial to manually invoke <a href=KeyExpr.html#close()>close</a> on each <a href=KeyExpr.html>KeyExpr</a> instance before it is garbage collected to prevent memory leaks.</p><p>As an alternative, employing a try-with-resources pattern using Kotlin's <code>use</code> block is recommended. This approach ensures that <a href=KeyExpr.html#close()>close</a> is automatically called, safely managing the lifecycle of the <a href=KeyExpr.html>KeyExpr</a> instance.</p></div>
 
@@ -259,7 +272,7 @@ public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a><
                                         </tr>
                                         
                                         <tr id="i0" class="altColor">
-                                            <td class="colFirst"><code>final <a href=https://docs.oracle.com/javase/8/docs/api/java/lang/Boolean.html>Boolean</a></code>
+                                            <td class="colFirst"><code>final <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Boolean.html>Boolean</a></code>
                                             </td>
                                             <th class="colSecond" scope="row"><code><a href=KeyExpr.html#intersects(io.zenoh.keyexpr.KeyExpr)>intersects</a>(<a href=KeyExpr.html>KeyExpr</a> other) </code>
                                             </th>
@@ -267,7 +280,7 @@ public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a><
                                         </tr>
                                         
                                         <tr id="i1" class="rowColor">
-                                            <td class="colFirst"><code>final <a href=https://docs.oracle.com/javase/8/docs/api/java/lang/Boolean.html>Boolean</a></code>
+                                            <td class="colFirst"><code>final <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Boolean.html>Boolean</a></code>
                                             </td>
                                             <th class="colSecond" scope="row"><code><a href=KeyExpr.html#includes(io.zenoh.keyexpr.KeyExpr)>includes</a>(<a href=KeyExpr.html>KeyExpr</a> other) </code>
                                             </th>
@@ -285,7 +298,7 @@ public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a><
                                         <tr id="i3" class="rowColor">
                                             <td class="colFirst"><code>final <a href=KeyExpr.html>KeyExpr</a></code>
                                             </td>
-                                            <th class="colSecond" scope="row"><code><a href=KeyExpr.html#join(java.lang.String)>join</a>(<a href=https://docs.oracle.com/javase/8/docs/api/java/lang/String.html>String</a> other) </code>
+                                            <th class="colSecond" scope="row"><code><a href=KeyExpr.html#join(java.lang.String)>join</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> other) </code>
                                             </th>
                                             <td class="colLast">Joins both sides, inserting a / in between them.</td>
                                         </tr>
@@ -293,13 +306,13 @@ public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a><
                                         <tr id="i4" class="altColor">
                                             <td class="colFirst"><code>final <a href=KeyExpr.html>KeyExpr</a></code>
                                             </td>
-                                            <th class="colSecond" scope="row"><code><a href=KeyExpr.html#concat(java.lang.String)>concat</a>(<a href=https://docs.oracle.com/javase/8/docs/api/java/lang/String.html>String</a> other) </code>
+                                            <th class="colSecond" scope="row"><code><a href=KeyExpr.html#concat(java.lang.String)>concat</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> other) </code>
                                             </th>
                                             <td class="colLast">Performs string concatenation and returns the result as a KeyExpr if possible.</td>
                                         </tr>
                                         
                                         <tr id="i5" class="rowColor">
-                                            <td class="colFirst"><code><a href=https://docs.oracle.com/javase/8/docs/api/java/lang/String.html>String</a></code>
+                                            <td class="colFirst"><code><a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a></code>
                                             </td>
                                             <th class="colSecond" scope="row"><code><a href=KeyExpr.html#toString()>toString</a>() </code>
                                             </th>
@@ -307,7 +320,7 @@ public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a><
                                         </tr>
                                         
                                         <tr id="i6" class="altColor">
-                                            <td class="colFirst"><code><a href=https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-unit/index.html>Unit</a></code>
+                                            <td class="colFirst"><code><a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a></code>
                                             </td>
                                             <th class="colSecond" scope="row"><code><a href=KeyExpr.html#close()>close</a>() </code>
                                             </th>
@@ -315,7 +328,7 @@ public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a><
                                         </tr>
                                         
                                         <tr id="i7" class="rowColor">
-                                            <td class="colFirst"><code><a href=https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-unit/index.html>Unit</a></code>
+                                            <td class="colFirst"><code><a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a></code>
                                             </td>
                                             <th class="colSecond" scope="row"><code><a href=KeyExpr.html#undeclare()>undeclare</a>() </code>
                                             </th>
@@ -331,15 +344,15 @@ public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a><
                                         </tr>
                                         
                                         <tr id="i9" class="rowColor">
-                                            <td class="colFirst"><code><a href=https://docs.oracle.com/javase/8/docs/api/java/lang/Boolean.html>Boolean</a></code>
+                                            <td class="colFirst"><code><a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Boolean.html>Boolean</a></code>
                                             </td>
-                                            <th class="colSecond" scope="row"><code><a href=KeyExpr.html#equals(java.lang.Object)>equals</a>(<a href=https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html>Object</a> other) </code>
+                                            <th class="colSecond" scope="row"><code><a href=KeyExpr.html#equals(java.lang.Object)>equals</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Object.html>Object</a> other) </code>
                                             </th>
                                             <td class="colLast"></td>
                                         </tr>
                                         
                                         <tr id="i10" class="altColor">
-                                            <td class="colFirst"><code><a href=https://docs.oracle.com/javase/8/docs/api/java/lang/Integer.html>Integer</a></code>
+                                            <td class="colFirst"><code><a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Integer.html>Integer</a></code>
                                             </td>
                                             <th class="colSecond" scope="row"><code><a href=KeyExpr.html#hashCode()>hashCode</a>() </code>
                                             </th>
@@ -398,7 +411,7 @@ public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a><
                                           >
                                     <li class="blockList">
                                         <h4>intersects</h4>
-                                        <pre class="methodSignature"> final <a href=https://docs.oracle.com/javase/8/docs/api/java/lang/Boolean.html>Boolean</a> <a href=KeyExpr.html#intersects(io.zenoh.keyexpr.KeyExpr)>intersects</a>(<a href=KeyExpr.html>KeyExpr</a> other)</pre>
+                                        <pre class="methodSignature"> final <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Boolean.html>Boolean</a> <a href=KeyExpr.html#intersects(io.zenoh.keyexpr.KeyExpr)>intersects</a>(<a href=KeyExpr.html>KeyExpr</a> other)</pre>
                                         <div class="block"><p>Intersects operation. This method returns <code>True</code> if there exists at least one key that belongs to both sets defined by <code>this</code> and <code>other</code>. Will return false as well if the key expression is not valid anymore.</p></div>
 
                                         <dl>
@@ -421,7 +434,7 @@ public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a><
                                           >
                                     <li class="blockList">
                                         <h4>includes</h4>
-                                        <pre class="methodSignature"> final <a href=https://docs.oracle.com/javase/8/docs/api/java/lang/Boolean.html>Boolean</a> <a href=KeyExpr.html#includes(io.zenoh.keyexpr.KeyExpr)>includes</a>(<a href=KeyExpr.html>KeyExpr</a> other)</pre>
+                                        <pre class="methodSignature"> final <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Boolean.html>Boolean</a> <a href=KeyExpr.html#includes(io.zenoh.keyexpr.KeyExpr)>includes</a>(<a href=KeyExpr.html>KeyExpr</a> other)</pre>
                                         <div class="block"><p>Includes operation. This method returns <code>true</code> when all the keys defined by <code>other</code> also belong to the set defined by <code>this</code>. Will return false as well if the key expression is not valid anymore.</p></div>
 
                                         <dl>
@@ -467,7 +480,7 @@ public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a><
                                           >
                                     <li class="blockList">
                                         <h4>join</h4>
-                                        <pre class="methodSignature"> final <a href=KeyExpr.html>KeyExpr</a> <a href=KeyExpr.html#join(java.lang.String)>join</a>(<a href=https://docs.oracle.com/javase/8/docs/api/java/lang/String.html>String</a> other)</pre>
+                                        <pre class="methodSignature"> final <a href=KeyExpr.html>KeyExpr</a> <a href=KeyExpr.html#join(java.lang.String)>join</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> other)</pre>
                                         <div class="block"><p>Joins both sides, inserting a / in between them. This should be your preferred method when concatenating path segments.</p></div>
 
                                         <dl>
@@ -490,7 +503,7 @@ public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a><
                                           >
                                     <li class="blockList">
                                         <h4>concat</h4>
-                                        <pre class="methodSignature"> final <a href=KeyExpr.html>KeyExpr</a> <a href=KeyExpr.html#concat(java.lang.String)>concat</a>(<a href=https://docs.oracle.com/javase/8/docs/api/java/lang/String.html>String</a> other)</pre>
+                                        <pre class="methodSignature"> final <a href=KeyExpr.html>KeyExpr</a> <a href=KeyExpr.html#concat(java.lang.String)>concat</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> other)</pre>
                                         <div class="block"><p>Performs string concatenation and returns the result as a KeyExpr if possible. You should probably prefer <a href=KeyExpr.html#join(java.lang.String)>join</a> as Zenoh may then take advantage of the hierarchical separation it inserts.</p></div>
 
                                         <dl>
@@ -513,7 +526,7 @@ public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a><
                                           >
                                     <li class="blockList">
                                         <h4>toString</h4>
-                                        <pre class="methodSignature"> <a href=https://docs.oracle.com/javase/8/docs/api/java/lang/String.html>String</a> <a href=KeyExpr.html#toString()>toString</a>()</pre>
+                                        <pre class="methodSignature"> <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> <a href=KeyExpr.html#toString()>toString</a>()</pre>
                                         <div class="block"></div>
 
                                         <dl>
@@ -536,7 +549,7 @@ public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a><
                                           >
                                     <li class="blockList">
                                         <h4>close</h4>
-                                        <pre class="methodSignature"> <a href=https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-unit/index.html>Unit</a> <a href=KeyExpr.html#close()>close</a>()</pre>
+                                        <pre class="methodSignature"> <a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a> <a href=KeyExpr.html#close()>close</a>()</pre>
                                         <div class="block"><p>Equivalent to <a href=KeyExpr.html#undeclare()>undeclare</a>. This function is automatically called when using try with resources.</p></div>
 
                                         <dl>
@@ -559,7 +572,7 @@ public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a><
                                           >
                                     <li class="blockList">
                                         <h4>undeclare</h4>
-                                        <pre class="methodSignature"> <a href=https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-unit/index.html>Unit</a> <a href=KeyExpr.html#undeclare()>undeclare</a>()</pre>
+                                        <pre class="methodSignature"> <a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a> <a href=KeyExpr.html#undeclare()>undeclare</a>()</pre>
                                         <div class="block"><p>If the key expression was declared from a <a href=../Session.html>Session</a>, then <a href=KeyExpr.html#undeclare()>undeclare</a> frees the native key expression associated to this instance. The KeyExpr instance is downgraded into a normal KeyExpr, which still allows performing operations on it, but without the inner optimizations.</p></div>
 
                                         <dl>
@@ -605,7 +618,7 @@ public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a><
                                           >
                                     <li class="blockList">
                                         <h4>equals</h4>
-                                        <pre class="methodSignature"> <a href=https://docs.oracle.com/javase/8/docs/api/java/lang/Boolean.html>Boolean</a> <a href=KeyExpr.html#equals(java.lang.Object)>equals</a>(<a href=https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html>Object</a> other)</pre>
+                                        <pre class="methodSignature"> <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Boolean.html>Boolean</a> <a href=KeyExpr.html#equals(java.lang.Object)>equals</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Object.html>Object</a> other)</pre>
                                         <div class="block"></div>
 
                                         <dl>
@@ -628,7 +641,7 @@ public final class <span class="typeNameLabel"><a href=KeyExpr.html>KeyExpr</a><
                                           >
                                     <li class="blockList">
                                         <h4>hashCode</h4>
-                                        <pre class="methodSignature"> <a href=https://docs.oracle.com/javase/8/docs/api/java/lang/Integer.html>Integer</a> <a href=KeyExpr.html#hashCode()>hashCode</a>()</pre>
+                                        <pre class="methodSignature"> <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Integer.html>Integer</a> <a href=KeyExpr.html#hashCode()>hashCode</a>()</pre>
                                         <div class="block"></div>
 
                                         <dl>
