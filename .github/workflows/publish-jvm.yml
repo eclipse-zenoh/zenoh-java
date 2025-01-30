@@ -12,7 +12,10 @@ on:
         description: Target branch
         type: string
         required: false
-  workflow_dispatch:
+      maven_publish:
+        type: boolean
+        required: false
+        default: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -74,7 +77,7 @@ jobs:
         shell: bash
         run: |
           case ${{ matrix.job.target }} in
-            *-linux-gnu*) cargo +stable install cargo-deb --locked;;
+            *-linux-gnu*) cargo +stable install cargo-deb --locked ;;
           esac
 
           case ${{ matrix.job.target }} in
@@ -173,20 +176,14 @@ jobs:
         run: |
           if [[ "${{ inputs.snapshot }}" == "true" ]]; then
             echo "PUB_MODE=-PSNAPSHOT" >> $GITHUB_ENV
+          else
+            echo "RELEASE=closeAndReleaseSonatypeStagingRepository" >> $GITHUB_ENV
           fi
 
-      - name: Gradle Publish JVM Package to GitHub packages repository
-        run: ./gradlew publishJvmPublicationToGithubPackagesRepository -PremotePublication=true ${{ env.PUB_MODE }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ORG_GPG_KEY_ID: ${{ secrets.ORG_GPG_KEY_ID }}
-          ORG_GPG_SUBKEY_ID: ${{ secrets.ORG_GPG_SUBKEY_ID }}
-          ORG_GPG_PRIVATE_KEY: ${{ secrets.ORG_GPG_PRIVATE_KEY }}
-          ORG_GPG_PASSPHRASE: ${{ secrets.ORG_GPG_PASSPHRASE }}
-
-
-      - name: Gradle Publish JVM Package to Maven Central repository
-        run: ./gradlew publishJvmPublicationToMavenCentralRepository -PremotePublication=true ${{ env.PUB_MODE }}
+      - if: ${{ inputs.maven_publish == true }}
+        name: Gradle Publish JVM Package to Maven Central repository
+        run: |
+          ./gradlew publishJvmPublicationToSonatypeRepository ${{ env.RELEASE }} --info -PremotePublication=true ${{ env.PUB_MODE }}
         env:
           ORG_OSSRH_USERNAME: ${{ secrets.ORG_OSSRH_USERNAME }}
           ORG_OSSRH_PASSWORD: ${{ secrets.ORG_OSSRH_PASSWORD }}
@@ -194,3 +191,10 @@ jobs:
           ORG_GPG_SUBKEY_ID: ${{ secrets.ORG_GPG_SUBKEY_ID }}
           ORG_GPG_PRIVATE_KEY: ${{ secrets.ORG_GPG_PRIVATE_KEY }}
           ORG_GPG_PASSPHRASE: ${{ secrets.ORG_GPG_PASSPHRASE }}
+
+      - name: "Upload gradle problems report"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: problem-reports-${{ github.job }}.zip
+          path: ${{ github.workspace }}/build/reports/problems/

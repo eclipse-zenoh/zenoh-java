@@ -18,7 +18,7 @@ plugins {
     kotlin("multiplatform")
     kotlin("plugin.serialization")
     id("com.adarshr.test-logger")
-    id("org.jetbrains.dokka")
+    id("org.jetbrains.dokka-javadoc")
     `maven-publish`
     signing
 }
@@ -26,7 +26,7 @@ plugins {
 val androidEnabled = project.findProperty("android")?.toString()?.toBoolean() == true
 val release = project.findProperty("release")?.toString()?.toBoolean() == true
 
-// If the publication is meant to be done on a remote repository (GitHub packages or Maven central).
+// If the publication is meant to be done on a remote repository (Maven central).
 // Modifying this property will affect the release workflows!
 val isRemotePublication = project.findProperty("remotePublication")?.toString()?.toBoolean() == true
 
@@ -96,11 +96,19 @@ kotlin {
         }
     }
 
+    val javadocJar by tasks.registering(Jar::class) {
+        dependsOn("dokkaGenerate")
+        archiveClassifier.set("javadoc")
+        from("${buildDir}/dokka/html")
+    }
+
     publishing {
         publications.withType<MavenPublication> {
             groupId = "org.eclipse.zenoh"
             artifactId = "zenoh-java"
-            version = project.version.toString() + if (project.hasProperty("SNAPSHOT")) "-SNAPSHOT" else ""
+            version = rootProject.version.toString()
+
+            artifact(javadocJar)
 
             pom {
                 name.set("Zenoh Java")
@@ -129,29 +137,6 @@ kotlin {
                     connection.set("scm:git:https://github.com/eclipse-zenoh/zenoh-java.git")
                     developerConnection.set("scm:git:https://github.com/eclipse-zenoh/zenoh-java.git")
                     url.set("https://github.com/eclipse-zenoh/zenoh-java")
-                }
-            }
-        }
-
-        repositories {
-            maven {
-                name = "GithubPackages"
-                url = uri("https://maven.pkg.github.com/eclipse-zenoh/zenoh-java")
-                credentials {
-                    username = System.getenv("GITHUB_ACTOR")
-                    password = System.getenv("GITHUB_TOKEN")
-                }
-            }
-            maven {
-                name = "MavenCentral"
-                url = uri(if (project.hasProperty("SNAPSHOT"))
-                    "https://oss.sonatype.org/content/repositories/snapshots/"
-                else
-                    "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
-                )
-                credentials {
-                    username = System.getenv("ORG_OSSRH_USERNAME")
-                    password = System.getenv("ORG_OSSRH_PASSWORD")
                 }
             }
         }
@@ -204,7 +189,7 @@ fun buildZenohJNI(mode: BuildMode = BuildMode.DEBUG) {
     }
 
     val result = project.exec {
-        commandLine(*(cargoCommand.toTypedArray()), "--manifest-path", "./zenoh-jni/Cargo.toml")
+        commandLine(*(cargoCommand.toTypedArray()), "--manifest-path", "../zenoh-jni/Cargo.toml")
     }
 
     if (result.exitValue != 0) {
