@@ -42,7 +42,6 @@ public class ZPing implements Callable<Integer> {
     public Integer call() throws Exception {
         Zenoh.initLogFromEnvOr("error");
 
-        // Load Zenoh configuration
         Config config = loadConfig(true, configFile, connect, listen, noMulticastScouting, mode);
 
         System.out.println("Opening session...");

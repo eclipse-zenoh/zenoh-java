@@ -43,10 +43,13 @@ public class ZQueryable implements Callable<Integer> {
         Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
         KeyExpr keyExpr = KeyExpr.tryFrom(this.key);
 
+        System.out.println("Opening session...");
+        Session session = Zenoh.open(config);
+
         // A Queryable can be implemented in multiple ways. Uncomment one to try:
-        declareQueryableWithBlockingQueue(config, keyExpr);
-        // declareQueryableWithCallback(config, keyExpr);
-        // declareQueryableProvidingConfig(config, keyExpr);
+        declareQueryableWithBlockingQueue(session, keyExpr);
+        // declareQueryableWithCallback(session, keyExpr);
+        // declareQueryableProvidingConfig(session, keyExpr);
 
         return 0;
     }
@@ -54,18 +57,17 @@ public class ZQueryable implements Callable<Integer> {
     /**
      * Default implementation using a blocking queue to handle incoming queries.
      */
-    private void declareQueryableWithBlockingQueue(Config config, KeyExpr keyExpr) throws ZError, InterruptedException {
-        try (Session session = Zenoh.open(config)) {
-            var queryable = session.declareQueryable(keyExpr);
-            BlockingQueue<Optional<Query>> receiver = queryable.getReceiver();
-            while (true) {
-                Optional<Query> wrapper = receiver.take();
-                if (wrapper.isEmpty()) {
-                    break;
-                }
-                Query query = wrapper.get();
-                handleQuery(query);
+    private void declareQueryableWithBlockingQueue(Session session, KeyExpr keyExpr) throws ZError, InterruptedException {
+        System.out.println("Declaring Queryable on '" + keyExpr + "'...");
+        var queryable = session.declareQueryable(keyExpr);
+        BlockingQueue<Optional<Query>> receiver = queryable.getReceiver();
+        while (true) {
+            Optional<Query> wrapper = receiver.take();
+            if (wrapper.isEmpty()) {
+                break;
             }
+            Query query = wrapper.get();
+            handleQuery(query);
         }
     }
 
@@ -74,10 +76,9 @@ public class ZQueryable implements Callable<Integer> {
      *
      * @see io.zenoh.handlers.Callback
      */
-    private void declareQueryableWithCallback(Config config, KeyExpr keyExpr) throws ZError {
-        try (Session session = Zenoh.open(config)) {
-            session.declareQueryable(keyExpr, this::handleQuery);
-        }
+    private void declareQueryableWithCallback(Session session, KeyExpr keyExpr) throws ZError {
+        System.out.println("Declaring Queryable on '" + keyExpr + "'...");
+        session.declareQueryable(keyExpr, this::handleQuery);
     }
 
     /**
@@ -85,12 +86,11 @@ public class ZQueryable implements Callable<Integer> {
      *
      * @see QueryableOptions
      */
-    private void declareQueryableProvidingConfig(Config config, KeyExpr keyExpr) throws ZError {
-        try (Session session = Zenoh.open(config)) {
-            QueryableOptions queryableOptions = new QueryableOptions();
-            queryableOptions.setComplete(true);
-            session.declareQueryable(keyExpr, this::handleQuery, queryableOptions);
-        }
+    private void declareQueryableProvidingConfig(Session session, KeyExpr keyExpr) throws ZError {
+        System.out.println("Declaring Queryable on '" + keyExpr + "'...");
+        QueryableOptions queryableOptions = new QueryableOptions();
+        queryableOptions.setComplete(true);
+        session.declareQueryable(keyExpr, this::handleQuery, queryableOptions);
     }
 
     private void handleQuery(Query query) {
