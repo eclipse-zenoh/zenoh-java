@@ -40,10 +40,12 @@ public class ZGetLiveliness implements Callable<Integer> {
         Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
         KeyExpr keyExpr = KeyExpr.tryFrom(this.key);
 
+        Session session = Zenoh.open(config);
+
         // Uncomment one of the lines below to try out different implementations:
-        getLivelinessWithBlockingQueue(config, keyExpr);
-        // getLivelinessWithCallback(config, keyExpr);
-        // getLivelinessWithHandler(config, keyExpr);
+        getLivelinessWithBlockingQueue(session, keyExpr);
+        // getLivelinessWithCallback(session, keyExpr);
+        // getLivelinessWithHandler(session, keyExpr);
 
         return 0;
     }
@@ -51,17 +53,16 @@ public class ZGetLiveliness implements Callable<Integer> {
     /**
      * Default implementation using a blocking queue to handle replies.
      */
-    private void getLivelinessWithBlockingQueue(Config config, KeyExpr keyExpr) throws ZError, InterruptedException {
-        try (Session session = Zenoh.open(config)) {
-            BlockingQueue<Optional<Reply>> replyQueue = session.liveliness().get(keyExpr, Duration.ofMillis(timeout));
+    private void getLivelinessWithBlockingQueue(Session session, KeyExpr keyExpr) throws ZError, InterruptedException {
+        System.out.println("Sending Liveliness Query '" + keyExpr + "'.");
+        BlockingQueue<Optional<Reply>> replyQueue = session.liveliness().get(keyExpr, Duration.ofMillis(timeout));
 
-            while (true) {
-                Optional<Reply> wrapper = replyQueue.take();
-                if (wrapper.isEmpty()) {
-                    break;
-                }
-                handleReply(wrapper.get());
+        while (true) {
+            Optional<Reply> wrapper = replyQueue.take();
+            if (wrapper.isEmpty()) {
+                break;
             }
+            handleReply(wrapper.get());
         }
     }
 
@@ -69,10 +70,9 @@ public class ZGetLiveliness implements Callable<Integer> {
      * Example using a callback to handle liveliness replies asynchronously.
      * @see io.zenoh.handlers.Callback
      */
-    private void getLivelinessWithCallback(Config config, KeyExpr keyExpr) throws ZError {
-        try (Session session = Zenoh.open(config)) {
-            session.liveliness().get(keyExpr, this::handleReply, Duration.ofMillis(timeout));
-        }
+    private void getLivelinessWithCallback(Session session, KeyExpr keyExpr) throws ZError {
+        System.out.println("Sending Liveliness Query '" + keyExpr + "'.");
+        session.liveliness().get(keyExpr, this::handleReply, Duration.ofMillis(timeout));
     }
 
     /**
@@ -80,11 +80,10 @@ public class ZGetLiveliness implements Callable<Integer> {
      * @see QueueHandler
      * @see io.zenoh.handlers.Handler
      */
-    private void getLivelinessWithHandler(Config config, KeyExpr keyExpr) throws ZError {
-        try (Session session = Zenoh.open(config)) {
-            QueueHandler<Reply> queueHandler = new QueueHandler<>();
-            session.liveliness().get(keyExpr, queueHandler, Duration.ofMillis(timeout));
-        }
+    private void getLivelinessWithHandler(Session session, KeyExpr keyExpr) throws ZError {
+        System.out.println("Sending Liveliness Query '" + keyExpr + "'.");
+        QueueHandler<Reply> queueHandler = new QueueHandler<>();
+        session.liveliness().get(keyExpr, queueHandler, Duration.ofMillis(timeout));
     }
 
     private void handleReply(Reply reply) {

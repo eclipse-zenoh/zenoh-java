@@ -42,11 +42,14 @@ public class ZSubLiveliness implements Callable<Integer> {
         Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
         KeyExpr keyExpr = KeyExpr.tryFrom(this.key);
 
+        System.out.println("Opening session...");
+        Session session = Zenoh.open(config);
+
         // Subscribing to liveliness tokens can be implemented in multiple ways.
         // Uncomment the desired implementation:
-        subscribeToLivelinessWithBlockingQueue(config, keyExpr);
-        // subscribeToLivelinessWithCallback(config, keyExpr);
-        // subscribeToLivelinessWithHandler(config, keyExpr);
+        subscribeToLivelinessWithBlockingQueue(session, keyExpr);
+        // subscribeToLivelinessWithCallback(session, keyExpr);
+        // subscribeToLivelinessWithHandler(session, keyExpr);
 
         return 0;
     }
@@ -54,20 +57,18 @@ public class ZSubLiveliness implements Callable<Integer> {
     /**
      * Default implementation using a blocking queue to handle incoming liveliness tokens.
      */
-    private void subscribeToLivelinessWithBlockingQueue(Config config, KeyExpr keyExpr) throws ZError, InterruptedException {
-        try (Session session = Zenoh.open(config)) {
-            var options = new LivelinessSubscriberOptions(history);
-            var subscriber = session.liveliness().declareSubscriber(keyExpr, options);
+    private void subscribeToLivelinessWithBlockingQueue(Session session, KeyExpr keyExpr) throws ZError, InterruptedException {
+        var options = new LivelinessSubscriberOptions(history);
+        var subscriber = session.liveliness().declareSubscriber(keyExpr, options);
 
-            BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
-            System.out.println("Listening for liveliness tokens...");
-            while (true) {
-                Optional<Sample> wrapper = receiver.take();
-                if (wrapper.isEmpty()) {
-                    break;
-                }
-                handleLivelinessSample(wrapper.get());
+        BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
+        System.out.println("Listening for liveliness tokens...");
+        while (true) {
+            Optional<Sample> wrapper = receiver.take();
+            if (wrapper.isEmpty()) {
+                break;
             }
+            handleLivelinessSample(wrapper.get());
         }
     }
 
@@ -76,15 +77,13 @@ public class ZSubLiveliness implements Callable<Integer> {
      *
      * @see io.zenoh.handlers.Callback
      */
-    private void subscribeToLivelinessWithCallback(Config config, KeyExpr keyExpr) throws ZError {
-        try (Session session = Zenoh.open(config)) {
-            var options = new LivelinessSubscriberOptions(history);
-            session.liveliness().declareSubscriber(
-                    keyExpr,
-                    this::handleLivelinessSample,
-                    options
-            );
-        }
+    private void subscribeToLivelinessWithCallback(Session session, KeyExpr keyExpr) throws ZError {
+        var options = new LivelinessSubscriberOptions(history);
+        session.liveliness().declareSubscriber(
+                keyExpr,
+                this::handleLivelinessSample,
+                options
+        );
     }
 
     /**
@@ -93,16 +92,14 @@ public class ZSubLiveliness implements Callable<Integer> {
      * @see io.zenoh.handlers.Handler
      * @see QueueHandler
      */
-    private void subscribeToLivelinessWithHandler(Config config, KeyExpr keyExpr) throws ZError {
-        try (Session session = Zenoh.open(config)) {
-            QueueHandler<Sample> queueHandler = new QueueHandler<>();
-            var options = new LivelinessSubscriberOptions(history);
-            session.liveliness().declareSubscriber(
-                    keyExpr,
-                    queueHandler,
-                    options
-            );
-        }
+    private void subscribeToLivelinessWithHandler(Session session, KeyExpr keyExpr) throws ZError {
+        QueueHandler<Sample> queueHandler = new QueueHandler<>();
+        var options = new LivelinessSubscriberOptions(history);
+        session.liveliness().declareSubscriber(
+                keyExpr,
+                queueHandler,
+                options
+        );
     }
 
     /**

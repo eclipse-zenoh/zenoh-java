@@ -41,10 +41,13 @@ public class ZQuerier implements Callable<Integer> {
         QueryTarget queryTarget = target != null ? QueryTarget.valueOf(target.toUpperCase()) : QueryTarget.BEST_MATCHING;
         Duration queryTimeout = Duration.ofMillis(timeout);
 
+        System.out.println("Opening session...");
         Session session = Zenoh.open(config);
         QuerierOptions options = new QuerierOptions();
         options.setTarget(queryTarget);
         options.setTimeout(queryTimeout);
+
+        System.out.println("Declaring querier on '" + selector + "'...");
         Querier querier = session.declareQuerier(selector.getKeyExpr(), options);
 
         performQueries(querier, selector);
