@@ -92,9 +92,9 @@ data class ReplyOptions(
     var encoding: Encoding = Encoding.defaultEncoding(),
     var timeStamp: TimeStamp? = null,
     var attachment: IntoZBytes? = null,
-    var express: Boolean = QoS.defaultQoS.express,
-    var congestionControl: CongestionControl = QoS.defaultQoS.congestionControl,
-    var priority: Priority = QoS.defaultQoS.priority
+    var express: Boolean = QoS.defaultResponse.express,
+    var congestionControl: CongestionControl = QoS.defaultResponse.congestionControl,
+    var priority: Priority = QoS.defaultResponse.priority
 ) {
     fun setAttachment(attachment: String) = apply { this.attachment = ZBytes.from(attachment) }
 }
@@ -111,9 +111,9 @@ data class ReplyOptions(
 data class ReplyDelOptions(
     var timeStamp: TimeStamp? = null,
     var attachment: IntoZBytes? = null,
-    var express: Boolean = QoS.defaultQoS.express,
-    var congestionControl: CongestionControl = QoS.defaultQoS.congestionControl,
-    var priority: Priority = QoS.defaultQoS.priority
+    var express: Boolean = QoS.defaultResponse.express,
+    var congestionControl: CongestionControl = QoS.defaultResponse.congestionControl,
+    var priority: Priority = QoS.defaultResponse.priority
 ) {
     fun setAttachment(attachment: String) = apply { this.attachment = ZBytes.from(attachment) }
 }

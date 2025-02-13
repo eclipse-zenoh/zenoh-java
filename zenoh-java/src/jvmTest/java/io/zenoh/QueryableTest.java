@@ -53,7 +53,7 @@ public class QueryableTest {
                 Encoding.defaultEncoding(),
                 SampleKind.PUT,
                 timestamp,
-                new QoS(),
+                new QoS(CongestionControl.BLOCK, Priority.DATA, false),
                 null
         );
 
