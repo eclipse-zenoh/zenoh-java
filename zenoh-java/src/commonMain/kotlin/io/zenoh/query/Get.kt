@@ -17,6 +17,7 @@ package io.zenoh.query
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
+import io.zenoh.qos.QoS
 import java.time.Duration
 
 /**
@@ -28,6 +29,7 @@ import java.time.Duration
  * @param payload Optional payload.
  * @param encoding Encoding of the payload.
  * @param attachment Optional attachment.
+ * @param qos The intended [QoS] for the query.
  */
 data class GetOptions(
     var timeout: Duration = Duration.ofMillis(10000),
@@ -35,7 +37,8 @@ data class GetOptions(
     var consolidation: ConsolidationMode = ConsolidationMode.AUTO,
     var payload: IntoZBytes? = null,
     var encoding: Encoding? = null,
-    var attachment: IntoZBytes? = null
+    var attachment: IntoZBytes? = null,
+    var qos: QoS = QoS.defaultQoS
 ) {
     fun setPayload(payload: String) = apply { this.payload = ZBytes.from(payload) }
     fun setAttachment(attachment: String) = apply { this.attachment = ZBytes.from(attachment) }
