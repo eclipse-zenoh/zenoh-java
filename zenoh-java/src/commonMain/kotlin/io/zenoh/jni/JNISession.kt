@@ -286,7 +286,10 @@ internal class JNISession {
             options.attachment?.into()?.bytes,
             options.payload?.into()?.bytes,
             options.encoding?.id ?: Encoding.defaultEncoding().id,
-            options.encoding?.schema
+            options.encoding?.schema,
+            options.qos.congestionControl.value,
+            options.qos.priority.value,
+            options.qos.express
         )
     }
 
@@ -348,11 +351,13 @@ internal class JNISession {
             options.attachment?.into()?.bytes,
             options.payload?.into()?.bytes,
             options.encoding?.id ?: Encoding.defaultEncoding().id,
-            options.encoding?.schema
+            options.encoding?.schema,
+            options.qos.congestionControl.value,
+            options.qos.priority.value,
+            options.qos.express
         )
         return handler.receiver()
     }
-
 
     @Throws(ZError::class)
     fun declareKeyExpr(keyExpr: String): KeyExpr {
@@ -501,6 +506,9 @@ internal class JNISession {
         payload: ByteArray?,
         encodingId: Int,
         encodingSchema: String?,
+        congestionControl: Int,
+        priority: Int,
+        express: Boolean,
     )
 
     @Throws(ZError::class)
