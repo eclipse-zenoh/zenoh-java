@@ -159,7 +159,7 @@ data class QuerierOptions(
     var target: QueryTarget = QueryTarget.BEST_MATCHING,
     var consolidationMode: ConsolidationMode = ConsolidationMode.AUTO,
     var timeout: Duration = Duration.ofMillis(10000),
-    var express: Boolean = QoS.defaultQoS.express,
-    var congestionControl: CongestionControl = QoS.defaultQoS.congestionControl,
-    var priority: Priority = QoS.defaultQoS.priority
+    var express: Boolean = QoS.defaultRequest.express,
+    var congestionControl: CongestionControl = QoS.defaultRequest.congestionControl,
+    var priority: Priority = QoS.defaultRequest.priority
 )
