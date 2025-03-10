@@ -42,11 +42,14 @@ public class ZSub implements Callable<Integer> {
         Config config = loadConfig(emptyArgs, configFile, connect, listen, noMulticastScouting, mode);
         KeyExpr keyExpr = KeyExpr.tryFrom(this.key);
 
+        System.out.println("Opening session...");
+        Session session = Zenoh.open(config);
+
         // Subscribers can be declared in different ways.
         // Uncomment one of the lines below to try out different implementations:
-        subscribeWithBlockingQueue(config, keyExpr);
-        // subscribeWithCallback(config, keyExpr);
-        // subscribeWithHandler(config, keyExpr);
+        subscribeWithBlockingQueue(session, keyExpr);
+        // subscribeWithCallback(session, keyExpr);
+        // subscribeWithHandler(session, keyExpr);
 
         return 0;
     }
@@ -54,18 +57,17 @@ public class ZSub implements Callable<Integer> {
     /**
      * Default implementation using a blocking queue to handle incoming samples.
      */
-    private void subscribeWithBlockingQueue(Config config, KeyExpr keyExpr) throws ZError, InterruptedException {
-        try (Session session = Zenoh.open(config)) {
-            try (HandlerSubscriber<BlockingQueue<Optional<Sample>>> subscriber = session.declareSubscriber(keyExpr)) {
-                BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
-                assert receiver != null;
-                while (true) {
-                    Optional<Sample> wrapper = receiver.take();
-                    if (wrapper.isEmpty()) {
-                        break;
-                    }
-                    handleSample(wrapper.get());
+    private void subscribeWithBlockingQueue(Session session, KeyExpr keyExpr) throws ZError, InterruptedException {
+        System.out.println("Declaring Subscriber on '" + keyExpr + "'...");
+        try (HandlerSubscriber<BlockingQueue<Optional<Sample>>> subscriber = session.declareSubscriber(keyExpr)) {
+            BlockingQueue<Optional<Sample>> receiver = subscriber.getReceiver();
+            assert receiver != null;
+            while (true) {
+                Optional<Sample> wrapper = receiver.take();
+                if (wrapper.isEmpty()) {
+                    break;
                 }
+                handleSample(wrapper.get());
             }
         }
     }
@@ -74,10 +76,9 @@ public class ZSub implements Callable<Integer> {
      * Example using a callback to handle incoming samples asynchronously.
      * @see io.zenoh.handlers.Callback
      */
-    private void subscribeWithCallback(Config config, KeyExpr keyExpr) throws ZError {
-        try (Session session = Zenoh.open(config)) {
-            session.declareSubscriber(keyExpr, this::handleSample);
-        }
+    private void subscribeWithCallback(Session session, KeyExpr keyExpr) throws ZError {
+        System.out.println("Declaring Subscriber on '" + keyExpr + "'...");
+        session.declareSubscriber(keyExpr, this::handleSample);
     }
 
     /**
@@ -85,13 +86,12 @@ public class ZSub implements Callable<Integer> {
      * @see QueueHandler
      * @see Handler
      */
-    private void subscribeWithHandler(Config config, KeyExpr keyExpr) throws ZError {
-        try (Session session = Zenoh.open(config)) {
-            QueueHandler<Sample> queueHandler = new QueueHandler<>();
-            var subscriber = session.declareSubscriber(keyExpr, queueHandler);
-            for (Sample sample : subscriber.getReceiver()) {
-                System.out.println(sample);
-            }
+    private void subscribeWithHandler(Session session, KeyExpr keyExpr) throws ZError {
+        System.out.println("Declaring Subscriber on '" + keyExpr + "'...");
+        QueueHandler<Sample> queueHandler = new QueueHandler<>();
+        var subscriber = session.declareSubscriber(keyExpr, queueHandler);
+        for (Sample sample : subscriber.getReceiver()) {
+            System.out.println(sample);
         }
     }
 

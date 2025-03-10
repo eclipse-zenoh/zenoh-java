@@ -14,7 +14,6 @@
 
 package io.zenoh;
 
-import io.zenoh.exceptions.ZError;
 import io.zenoh.session.SessionInfo;
 import picocli.CommandLine;
 
