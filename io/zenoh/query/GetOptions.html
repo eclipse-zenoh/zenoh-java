@@ -208,6 +208,12 @@ public final class <span class="typeNameLabel"><a href=GetOptions.html>GetOption
                                             <td class="colLast"></td>
                                         </tr>
                                         
+                                        <tr class="altColor">
+                                            <td class="colFirst"><code>private  <a href=../qos/QoS.html>QoS</a></code></td>
+                                            <th class="colSecond" scope="row"><code><a href=GetOptions.html#qos>qos</a></code></th>
+                                            <td class="colLast"></td>
+                                        </tr>
+                                        
                                     </table>
                                 </div>
                             </li>
@@ -234,7 +240,7 @@ public final class <span class="typeNameLabel"><a href=GetOptions.html>GetOption
                                         
                                             <tr class="altColor">
                                                 <th class="colConstructorName" scope="row"><code><span class="memberNameLink"><a
-                                                        href="#GetOptions(java.time.Duration,io.zenoh.query.QueryTarget,io.zenoh.query.ConsolidationMode,io.zenoh.bytes.IntoZBytes,io.zenoh.bytes.Encoding,io.zenoh.bytes.IntoZBytes)">GetOptions</a></span>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/time/Duration.html>Duration</a> timeout, <a href=QueryTarget.html>QueryTarget</a> target, <a href=ConsolidationMode.html>ConsolidationMode</a> consolidation, <a href=../bytes/IntoZBytes.html>IntoZBytes</a> payload, <a href=../bytes/Encoding.html>Encoding</a> encoding, <a href=../bytes/IntoZBytes.html>IntoZBytes</a> attachment)</code></th>
+                                                        href="#GetOptions(java.time.Duration,io.zenoh.query.QueryTarget,io.zenoh.query.ConsolidationMode,io.zenoh.bytes.IntoZBytes,io.zenoh.bytes.Encoding,io.zenoh.bytes.IntoZBytes,io.zenoh.qos.QoS)">GetOptions</a></span>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/time/Duration.html>Duration</a> timeout, <a href=QueryTarget.html>QueryTarget</a> target, <a href=ConsolidationMode.html>ConsolidationMode</a> consolidation, <a href=../bytes/IntoZBytes.html>IntoZBytes</a> payload, <a href=../bytes/Encoding.html>Encoding</a> encoding, <a href=../bytes/IntoZBytes.html>IntoZBytes</a> attachment, <a href=../qos/QoS.html>QoS</a> qos)</code></th>
                                                 <td class="colLast"></td>
                                             </tr>
                                         
@@ -384,6 +390,22 @@ public final class <span class="typeNameLabel"><a href=GetOptions.html>GetOption
                                         </tr>
                                         
                                         <tr id="i12" class="altColor">
+                                            <td class="colFirst"><code>final <a href=../qos/QoS.html>QoS</a></code>
+                                            </td>
+                                            <th class="colSecond" scope="row"><code><a href=GetOptions.html#getQos()>getQos</a>() </code>
+                                            </th>
+                                            <td class="colLast"></td>
+                                        </tr>
+                                        
+                                        <tr id="i13" class="rowColor">
+                                            <td class="colFirst"><code>final <a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a></code>
+                                            </td>
+                                            <th class="colSecond" scope="row"><code><a href=GetOptions.html#setQos(io.zenoh.qos.QoS)>setQos</a>(<a href=../qos/QoS.html>QoS</a> qos) </code>
+                                            </th>
+                                            <td class="colLast"></td>
+                                        </tr>
+                                        
+                                        <tr id="i14" class="altColor">
                                             <td class="colFirst"><code>final &lt;Error class: unknown class&gt;</code>
                                             </td>
                                             <th class="colSecond" scope="row"><code><a href=GetOptions.html#setPayload(java.lang.String)>setPayload</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> payload) </code>
@@ -391,7 +413,7 @@ public final class <span class="typeNameLabel"><a href=GetOptions.html>GetOption
                                             <td class="colLast"></td>
                                         </tr>
                                         
-                                        <tr id="i13" class="rowColor">
+                                        <tr id="i15" class="rowColor">
                                             <td class="colFirst"><code>final &lt;Error class: unknown class&gt;</code>
                                             </td>
                                             <th class="colSecond" scope="row"><code><a href=GetOptions.html#setAttachment(java.lang.String)>setAttachment</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> attachment) </code>
@@ -430,11 +452,11 @@ public final class <span class="typeNameLabel"><a href=GetOptions.html>GetOption
                             </a>
                                 <h3>Constructor Detail</h3>
                                 
-                                <a name="GetOptions(java.time.Duration,io.zenoh.query.QueryTarget,io.zenoh.query.ConsolidationMode,io.zenoh.bytes.IntoZBytes,io.zenoh.bytes.Encoding,io.zenoh.bytes.IntoZBytes)"></a>
+                                <a name="GetOptions(java.time.Duration,io.zenoh.query.QueryTarget,io.zenoh.query.ConsolidationMode,io.zenoh.bytes.IntoZBytes,io.zenoh.bytes.Encoding,io.zenoh.bytes.IntoZBytes,io.zenoh.qos.QoS)"></a>
                                 <ul class="blockList">
                                     <li class="blockList">
                                         <h4>GetOptions</h4>
-                                        <pre>GetOptions(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/time/Duration.html>Duration</a> timeout, <a href=QueryTarget.html>QueryTarget</a> target, <a href=ConsolidationMode.html>ConsolidationMode</a> consolidation, <a href=../bytes/IntoZBytes.html>IntoZBytes</a> payload, <a href=../bytes/Encoding.html>Encoding</a> encoding, <a href=../bytes/IntoZBytes.html>IntoZBytes</a> attachment)</pre>
+                                        <pre>GetOptions(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/time/Duration.html>Duration</a> timeout, <a href=QueryTarget.html>QueryTarget</a> target, <a href=ConsolidationMode.html>ConsolidationMode</a> consolidation, <a href=../bytes/IntoZBytes.html>IntoZBytes</a> payload, <a href=../bytes/Encoding.html>Encoding</a> encoding, <a href=../bytes/IntoZBytes.html>IntoZBytes</a> attachment, <a href=../qos/QoS.html>QoS</a> qos)</pre>
                                         <div class="block"></div>
                                         
                                         <dl>
@@ -462,6 +484,10 @@ public final class <span class="typeNameLabel"><a href=GetOptions.html>GetOption
                                             
                                             
                                             <dd><code>attachment</code> - Optional attachment.</dd>
+                                            
+                                            
+                                            
+                                            <dd><code>qos</code> - The intended <a href=../qos/QoS.html>QoS</a> for the query.</dd>
                                             
                                             
                                         </dl>
@@ -788,6 +814,59 @@ public final class <span class="typeNameLabel"><a href=GetOptions.html>GetOption
                                             
                                             
                                             <dd><code>attachment</code> - Optional attachment.</dd>
+                                            
+                                            
+                                        
+
+                                        
+
+                                        
+
+                                        </dl>
+                                    </li>
+                                </ul>
+                                
+                                <a id="getQos()">
+                                    <!--   -->
+                                </a>
+                                <ul class=
+                                              "blockList"
+                                          >
+                                    <li class="blockList">
+                                        <h4>getQos</h4>
+                                        <pre class="methodSignature"> final <a href=../qos/QoS.html>QoS</a> <a href=GetOptions.html#getQos()>getQos</a>()</pre>
+                                        <div class="block"></div>
+
+                                        <dl>
+
+                                        
+
+                                        
+
+                                        
+
+                                        </dl>
+                                    </li>
+                                </ul>
+                                
+                                <a id="setQos(io.zenoh.qos.QoS)">
+                                    <!--   -->
+                                </a>
+                                <ul class=
+                                              "blockList"
+                                          >
+                                    <li class="blockList">
+                                        <h4>setQos</h4>
+                                        <pre class="methodSignature"> final <a href=https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html>Unit</a> <a href=GetOptions.html#setQos(io.zenoh.qos.QoS)>setQos</a>(<a href=../qos/QoS.html>QoS</a> qos)</pre>
+                                        <div class="block"></div>
+
+                                        <dl>
+
+                                        
+                                            <dt><span class="paramLabel">Parameters:</span></dt>
+                                            
+                                            
+                                            <dd><code>qos</code> - The intended <a href=../qos/QoS.html>QoS</a> for the query.</dd>
                                             
                                             
                                         
