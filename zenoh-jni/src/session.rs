@@ -48,7 +48,7 @@ use crate::{
 ///
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_openSessionViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_00024Companion_openSessionViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     config_ptr: *const Config,

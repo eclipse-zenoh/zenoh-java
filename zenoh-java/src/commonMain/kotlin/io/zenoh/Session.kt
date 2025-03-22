@@ -52,7 +52,7 @@ import java.util.concurrent.LinkedBlockingDeque
  */
 class Session private constructor(private val config: Config) : AutoCloseable {
 
-    internal var jniSession: JNISession? = JNISession()
+    internal var jniSession: JNISession? = null
 
     private var declarations = mutableListOf<SessionDeclaration>()
 
@@ -681,7 +681,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     /** Launches the session through the jni session, returning the [Session] on success. */
     @Throws(ZError::class)
     private fun launch(): Session {
-        jniSession!!.open(config)
+        this.jniSession = JNISession.open(config)
         return this
     }
 }

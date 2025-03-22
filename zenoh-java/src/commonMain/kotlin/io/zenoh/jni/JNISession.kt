@@ -37,28 +37,27 @@ import io.zenoh.query.*
 import io.zenoh.sample.Sample
 import io.zenoh.sample.SampleKind
 import org.apache.commons.net.ntp.TimeStamp
-import java.util.concurrent.atomic.AtomicLong
 
 /** Adapter class to handle the communication with the Zenoh JNI code for a [Session]. */
-internal class JNISession {
+internal class JNISession(val sessionPtr: Long) {
 
     companion object {
         init {
             ZenohLoad
         }
-    }
 
-    /* Pointer to the underlying Rust zenoh session. */
-    internal var sessionPtr: AtomicLong = AtomicLong(0)
+        @Throws(ZError::class)
+        fun open(config: Config): JNISession {
+            val sessionPtr = openSessionViaJNI(config.jniConfig.ptr)
+            return JNISession(sessionPtr)
+        }
 
-    @Throws(ZError::class)
-    fun open(config: Config) {
-        val session = openSessionViaJNI(config.jniConfig.ptr)
-        sessionPtr.set(session)
+        @Throws(ZError::class)
+        private external fun openSessionViaJNI(configPtr: Long): Long
     }
 
     fun close() {
-        closeSessionViaJNI(sessionPtr.get())
+        closeSessionViaJNI(sessionPtr)
     }
 
     @Throws(ZError::class)
@@ -66,7 +65,7 @@ internal class JNISession {
         val publisherRawPtr = declarePublisherViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
-            sessionPtr.get(),
+            sessionPtr,
             publisherOptions.congestionControl.value,
             publisherOptions.priority.value,
             publisherOptions.express,
@@ -100,7 +99,7 @@ internal class JNISession {
                 handler.handle(sample)
             }
         val subscriberRawPtr = declareSubscriberViaJNI(
-            keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr.get(), subCallback, handler::onClose
+            keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr, subCallback, handler::onClose
         )
         return HandlerSubscriber(keyExpr, JNISubscriber(subscriberRawPtr), handler.receiver())
     }
@@ -126,7 +125,7 @@ internal class JNISession {
         val subscriberRawPtr = declareSubscriberViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
-            sessionPtr.get(),
+            sessionPtr,
             subCallback,
             fun() {}
         )
@@ -159,7 +158,7 @@ internal class JNISession {
         val queryableRawPtr = declareQueryableViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
-            sessionPtr.get(),
+            sessionPtr,
             queryCallback,
             fun() {},
             config.complete
@@ -193,7 +192,7 @@ internal class JNISession {
         val queryableRawPtr = declareQueryableViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
-            sessionPtr.get(),
+            sessionPtr,
             queryCallback,
             handler::onClose,
             config.complete
@@ -209,7 +208,7 @@ internal class JNISession {
         val querierRawPtr = declareQuerierViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
-            sessionPtr.get(),
+            sessionPtr,
             options.target.ordinal,
             options.consolidationMode.ordinal,
             options.congestionControl.ordinal,
@@ -277,7 +276,7 @@ internal class JNISession {
             selector.keyExpr.jniKeyExpr?.ptr ?: 0,
             selector.keyExpr.keyExpr,
             selector.parameters?.toString(),
-            sessionPtr.get(),
+            sessionPtr,
             getCallback,
             fun() {},
             options.timeout.toMillis(),
@@ -342,7 +341,7 @@ internal class JNISession {
             selector.keyExpr.jniKeyExpr?.ptr ?: 0,
             selector.keyExpr.keyExpr,
             selector.parameters?.toString(),
-            sessionPtr.get(),
+            sessionPtr,
             getCallback,
             handler::onClose,
             options.timeout.toMillis(),
@@ -361,14 +360,14 @@ internal class JNISession {
 
     @Throws(ZError::class)
     fun declareKeyExpr(keyExpr: String): KeyExpr {
-        val ptr = declareKeyExprViaJNI(sessionPtr.get(), keyExpr)
+        val ptr = declareKeyExprViaJNI(sessionPtr, keyExpr)
         return KeyExpr(keyExpr, JNIKeyExpr(ptr))
     }
 
     @Throws(ZError::class)
     fun undeclareKeyExpr(keyExpr: KeyExpr) {
         keyExpr.jniKeyExpr?.run {
-            undeclareKeyExprViaJNI(sessionPtr.get(), this.ptr)
+            undeclareKeyExprViaJNI(sessionPtr, this.ptr)
             keyExpr.jniKeyExpr = null
         } ?: throw ZError("Attempting to undeclare a non declared key expression.")
     }
@@ -383,7 +382,7 @@ internal class JNISession {
         putViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
-            sessionPtr.get(),
+            sessionPtr,
             payload.into().bytes,
             encoding.id,
             encoding.schema,
@@ -403,7 +402,7 @@ internal class JNISession {
         deleteViaJNI(
             keyExpr.jniKeyExpr?.ptr ?: 0,
             keyExpr.keyExpr,
-            sessionPtr.get(),
+            sessionPtr,
             options.congestionControl.value,
             options.priority.value,
             options.express,
@@ -414,17 +413,17 @@ internal class JNISession {
 
     @Throws(ZError::class)
     fun zid(): ZenohId {
-        return ZenohId(getZidViaJNI(sessionPtr.get()))
+        return ZenohId(getZidViaJNI(sessionPtr))
     }
 
     @Throws(ZError::class)
     fun peersZid(): List<ZenohId> {
-        return getPeersZidViaJNI(sessionPtr.get()).map { ZenohId(it) }
+        return getPeersZidViaJNI(sessionPtr).map { ZenohId(it) }
     }
 
     @Throws(ZError::class)
     fun routersZid(): List<ZenohId> {
-        return getRoutersZidViaJNI(sessionPtr.get()).map { ZenohId(it) }
+        return getRoutersZidViaJNI(sessionPtr).map { ZenohId(it) }
     }
 
     @Throws(ZError::class)
@@ -435,9 +434,6 @@ internal class JNISession {
 
     @Throws(ZError::class)
     private external fun getRoutersZidViaJNI(ptr: Long): List<ByteArray>
-
-    @Throws(ZError::class)
-    private external fun openSessionViaJNI(configPtr: Long): Long
 
     @Throws(ZError::class)
     private external fun closeSessionViaJNI(ptr: Long)
