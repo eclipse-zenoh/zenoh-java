@@ -28,6 +28,6 @@ import io.zenoh.qos.*
  */
 data class PublisherOptions(var reliability: Reliability = Reliability.RELIABLE,
                             var encoding: Encoding = Encoding.defaultEncoding(),
-                            var express: Boolean = QoS.defaultQoS.express,
-                            var congestionControl: CongestionControl = QoS.defaultQoS.congestionControl,
-                            var priority: Priority = QoS.defaultQoS.priority)
+                            var express: Boolean = QoS.defaultPush.express,
+                            var congestionControl: CongestionControl = QoS.defaultPush.congestionControl,
+                            var priority: Priority = QoS.defaultPush.priority)

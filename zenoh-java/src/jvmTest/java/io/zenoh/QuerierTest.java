@@ -18,6 +18,8 @@ import io.zenoh.bytes.Encoding;
 import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
+import io.zenoh.qos.CongestionControl;
+import io.zenoh.qos.Priority;
 import io.zenoh.qos.QoS;
 import io.zenoh.query.Querier;
 import io.zenoh.query.Reply;
@@ -56,7 +58,7 @@ public class QuerierTest {
                 Encoding.defaultEncoding(),
                 SampleKind.PUT,
                 new TimeStamp(Date.from(Instant.now())),
-                new QoS(),
+                new QoS(CongestionControl.BLOCK, Priority.DATA, false),
                 null
         );
         var examplePayload = ZBytes.from("Example payload");

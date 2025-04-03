@@ -38,7 +38,7 @@ data class GetOptions(
     var payload: IntoZBytes? = null,
     var encoding: Encoding? = null,
     var attachment: IntoZBytes? = null,
-    var qos: QoS = QoS.defaultQoS
+    var qos: QoS = QoS.defaultRequest
 ) {
     fun setPayload(payload: String) = apply { this.payload = ZBytes.from(payload) }
     fun setAttachment(attachment: String) = apply { this.attachment = ZBytes.from(attachment) }
