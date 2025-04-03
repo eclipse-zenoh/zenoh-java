@@ -51,7 +51,7 @@ public class QuerierTest {
      * Test validating both Queryable and get operations.
      */
     @Test
-    public void querier_runsWithCallbackTest() throws ZError {
+    public void querier_runsWithCallbackTest() throws ZError, InterruptedException {
         var sample = new Sample(
                 testKeyExpr,
                 testPayload,
@@ -91,6 +91,7 @@ public class QuerierTest {
             options
         );
 
+        Thread.sleep(1000);
         assertNotNull(receivedReply[0]);
         assertEquals(sample, ((Reply.Success) receivedReply[0]).getSample());
 
