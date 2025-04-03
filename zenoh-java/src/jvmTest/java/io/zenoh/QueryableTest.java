@@ -44,7 +44,7 @@ public class QueryableTest {
     }
 
     @Test
-    public void queryableRunsWithCallback() throws ZError {
+    public void queryableRunsWithCallback() throws ZError, InterruptedException {
         var timestamp = new TimeStamp(Date.from(Instant.now()));
 
         var sample = new Sample(
@@ -70,7 +70,7 @@ public class QueryableTest {
 
         Reply[] reply = new Reply[1];
         session.get(testKeyExpr.into(), reply1 -> reply[0] = reply1);
-
+        Thread.sleep(1000);
         assertNotNull(reply[0]);
         Sample receivedSample = ((Reply.Success) reply[0]).getSample();
         assertEquals(sample, receivedSample);
@@ -130,7 +130,7 @@ public class QueryableTest {
     }
 
     @Test
-    public void queryReplySuccessTest() throws ZError {
+    public void queryReplySuccessTest() throws ZError, InterruptedException {
         var message = ZBytes.from("Test message");
         var timestamp = TimeStamp.getCurrentTime();
 
@@ -149,7 +149,7 @@ public class QueryableTest {
 
         Reply[] receivedReply = new Reply[1];
         session.get(testKeyExpr, reply -> receivedReply[0] = reply);
-
+        Thread.sleep(1000);
         queryable.close();
 
         assertNotNull(receivedReply[0]);

@@ -171,7 +171,7 @@ public class UserAttachmentTest {
     }
 
     @Test
-    public void queryReplyWithAttachmentTest() throws ZError {
+    public void queryReplyWithAttachmentTest() throws ZError, InterruptedException {
         Reply[] reply = new Reply[1];
         var queryable = session.declareQueryable(keyExpr, query -> {
             try {
@@ -191,6 +191,7 @@ public class UserAttachmentTest {
 
         queryable.close();
 
+        Thread.sleep(1000);
         Reply receivedReply = reply[0];
         assertNotNull(receivedReply);
         ZBytes receivedAttachment = ((Reply.Success) receivedReply).getSample().getAttachment();
@@ -198,7 +199,7 @@ public class UserAttachmentTest {
     }
 
     @Test
-    public void queryReplyWithoutAttachmentTest() throws ZError {
+    public void queryReplyWithoutAttachmentTest() throws ZError, InterruptedException {
         Reply[] reply = new Reply[1];
         var queryable = session.declareQueryable(keyExpr, query -> {
             try {
@@ -211,6 +212,7 @@ public class UserAttachmentTest {
 
         queryable.close();
 
+        Thread.sleep(1000);
         Reply receivedReply = reply[0];
         assertNotNull(receivedReply);
         ZBytes receivedAttachment = ((Reply.Success) receivedReply).getSample().getAttachment();

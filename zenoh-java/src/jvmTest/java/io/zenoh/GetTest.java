@@ -55,13 +55,14 @@ public class GetTest {
     }
 
     @Test
-    public void get_runsWithCallbackTest() throws ZError {
+    public void get_runsWithCallbackTest() throws ZError, InterruptedException {
         Reply[] reply = new Reply[1];
 
         var getOptions = new GetOptions();
         getOptions.setTimeout(Duration.ofMillis(1000));
         session.get(selector, reply1 -> reply[0] = reply1, getOptions);
 
+        Thread.sleep(1000);
         assertNotNull(reply[0]);
         Sample sample = ((Reply.Success) reply[0]).getSample();
         assertEquals(payload, sample.getPayload());
