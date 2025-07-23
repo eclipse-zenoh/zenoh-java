@@ -359,7 +359,6 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * @return A [Querier] that will be undeclared on drop.
      * @throws ZError
      */
-    @Unstable
     @JvmOverloads
     @Throws(ZError::class)
     fun declareQuerier(
@@ -627,7 +626,6 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         } ?: throw (sessionClosedException)
     }
 
-    @OptIn(Unstable::class)
     private fun resolveQuerier(
         keyExpr: KeyExpr,
         options: QuerierOptions
