@@ -28,6 +28,7 @@ import io.zenoh.config.ZenohId
 import io.zenoh.bytes.into
 import io.zenoh.Config
 import io.zenoh.annotations.Unstable
+import io.zenoh.config.EntityGlobalId
 import io.zenoh.handlers.Handler
 import io.zenoh.pubsub.*
 import io.zenoh.qos.CongestionControl
@@ -234,7 +235,8 @@ internal class JNISession(val sessionPtr: Long) {
         options: GetOptions
     ) {
         val getCallback = JNIGetCallback {
-                replierId: ByteArray?,
+                replierZid: ByteArray?,
+                replierEid: Int,
                 success: Boolean,
                 keyExpr: String?,
                 payload1: ByteArray,
@@ -260,10 +262,10 @@ internal class JNISession(val sessionPtr: Long) {
                     QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
                     attachmentBytes?.into()
                 )
-                reply = Reply.Success(replierId?.let { ZenohId(it) }, sample)
+                reply = Reply.Success(replierZid?.let { EntityGlobalId(ZenohId(it), replierEid.toUInt()) }, sample)
             } else {
                 reply = Reply.Error(
-                    replierId?.let { ZenohId(it) },
+                    replierZid?.let { EntityGlobalId(ZenohId(it), replierEid.toUInt()) },
                     payload1.into(),
                     Encoding(encodingId, schema = encodingSchema)
                 )
@@ -299,7 +301,8 @@ internal class JNISession(val sessionPtr: Long) {
         options: GetOptions
     ): R {
         val getCallback = JNIGetCallback {
-                replierId: ByteArray?,
+                replierZid: ByteArray?,
+                replierEid: Int,
                 success: Boolean,
                 keyExpr: String?,
                 payload1: ByteArray,
@@ -325,10 +328,10 @@ internal class JNISession(val sessionPtr: Long) {
                     QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
                     attachmentBytes?.into()
                 )
-                reply = Reply.Success(replierId?.let { ZenohId(it) }, sample)
+                reply = Reply.Success(replierZid?.let { EntityGlobalId(ZenohId(it), replierEid.toUInt()) }, sample)
             } else {
                 reply = Reply.Error(
-                    replierId?.let { ZenohId(it) },
+                    replierZid?.let { EntityGlobalId(ZenohId(it), replierEid.toUInt()) },
                     payload1.into(),
                     Encoding(encodingId, schema = encodingSchema)
                 )

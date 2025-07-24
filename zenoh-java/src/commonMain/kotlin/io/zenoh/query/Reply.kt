@@ -18,7 +18,7 @@ import io.zenoh.ZenohType
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
-import io.zenoh.config.ZenohId
+import io.zenoh.config.EntityGlobalId
 import io.zenoh.sample.Sample
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
@@ -28,16 +28,16 @@ import org.apache.commons.net.ntp.TimeStamp
 /**
  * Class to represent a Zenoh Reply to a remote query.
  *
- * @property replierId: unique ID identifying the replier.
+ * @property replierId: unique global ID identifying the replier.
  * @see Success
  * @see Error
  */
-sealed class Reply private constructor(val replierId: ZenohId?) : ZenohType {
+sealed class Reply private constructor(val replierId: EntityGlobalId?) : ZenohType {
 
     /**
      * A Success reply.
      */
-    class Success internal constructor(replierId: ZenohId?, val sample: Sample) : Reply(replierId) {
+    class Success internal constructor(replierId: EntityGlobalId?, val sample: Sample) : Reply(replierId) {
 
         override fun toString(): String {
             return "Success(sample=$sample)"
@@ -58,7 +58,7 @@ sealed class Reply private constructor(val replierId: ZenohId?) : ZenohType {
     /**
      * An Error reply.
      */
-    class Error internal constructor(replierId: ZenohId?, val error: ZBytes, val encoding: Encoding) :
+    class Error internal constructor(replierId: EntityGlobalId?, val error: ZBytes, val encoding: Encoding) :
         Reply(replierId) {
 
         override fun toString(): String {

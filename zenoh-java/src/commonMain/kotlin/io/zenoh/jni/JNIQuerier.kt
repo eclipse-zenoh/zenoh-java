@@ -18,6 +18,7 @@ import io.zenoh.annotations.Unstable
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.into
+import io.zenoh.config.EntityGlobalId
 import io.zenoh.config.ZenohId
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.Callback
@@ -61,7 +62,8 @@ internal class JNIQuerier(val ptr: Long) {
         encoding: Encoding?
     ): R {
         val getCallback = JNIGetCallback {
-                replierId: ByteArray?,
+                replierZid: ByteArray?,
+                replierEid: Int,
                 success: Boolean,
                 keyExpr2: String?,
                 payload2: ByteArray,
@@ -87,10 +89,10 @@ internal class JNIQuerier(val ptr: Long) {
                     QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
                     attachmentBytes?.into()
                 )
-                reply = Reply.Success(replierId?.let { ZenohId(it) }, sample)
+                reply = Reply.Success(replierZid?.let { EntityGlobalId(ZenohId(it), replierEid.toUInt()) }, sample)
             } else {
                 reply = Reply.Error(
-                    replierId?.let { ZenohId(it) },
+                    replierZid?.let { EntityGlobalId(ZenohId(it), replierEid.toUInt()) },
                     payload2.into(),
                     Encoding(encodingId, schema = encodingSchema)
                 )

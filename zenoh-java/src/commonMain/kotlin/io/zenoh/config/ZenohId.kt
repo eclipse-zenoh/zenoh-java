@@ -15,6 +15,7 @@
 package io.zenoh.config
 
 import io.zenoh.jni.JNIZenohId
+import kotlin.math.absoluteValue
 
 /**
  * The global unique id of a Zenoh peer.
@@ -37,4 +38,21 @@ data class ZenohId internal constructor(internal val bytes: ByteArray) {
     override fun hashCode(): Int {
         return bytes.contentHashCode()
     }
+}
+
+/**
+ * The global unique id of a Zenoh entity.
+ * Contains two fields:
+ * - zid: the global unique id of a Zenoh peer.
+ * - eid: *unsigned* unique identifier of the entity within the Zenoh peer.
+ */
+data class EntityGlobalId internal constructor(
+    val zid: ZenohId,
+    // Rename default getter which is not accessible on Java due to unsigned type
+    @get:JvmName("getEidUInt") val eid: UInt,
+) {
+
+    @Suppress("unused")
+    // Manually defined getter for Java
+    fun getEid(): Long = eid.toLong().absoluteValue
 }
