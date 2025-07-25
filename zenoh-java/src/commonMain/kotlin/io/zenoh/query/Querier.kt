@@ -54,7 +54,6 @@ import java.util.concurrent.LinkedBlockingDeque
  * @param keyExpr The [KeyExpr] of the querier.
  * @param qos The [QoS] configuration of the querier.
  */
-@Unstable
 class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private var jniQuerier: JNIQuerier?) :
     SessionDeclaration, AutoCloseable {
 
