@@ -20,3 +20,9 @@
 /build/
 /.gradle/
 */build/
+
+# Android JNI compiled libraries
+jni/
+
+# Cargo configuration files
+zenoh-jni/.cargo/
