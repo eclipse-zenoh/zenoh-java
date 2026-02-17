@@ -194,8 +194,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_closeSessionViaJNI(
 /// - `_class`: The JNI class.
 /// - `key_expr_ptr`: Raw pointer to the [KeyExpr] to be used for the publisher, may be null.
 /// - `key_expr_str`: String representation of the [KeyExpr] to be used for the publisher.
-///     It is only considered when the key_expr_ptr parameter is null, meaning the function is
-///     receiving a key expression that was not declared.
+///   It is only considered when the key_expr_ptr parameter is null, meaning the function is
+///   receiving a key expression that was not declared.
 /// - `session_ptr`: Raw pointer to the Zenoh [Session] to be used for the publisher.
 /// - `congestion_control`: The [zenoh::publisher::CongestionControl] configuration as an ordinal.
 /// - `priority`: The [zenoh::core::Priority] configuration as an ordinal.
@@ -258,8 +258,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declarePublisherViaJNI(
 /// - `_class`: The JNI class.
 /// - `key_expr_ptr`: Raw pointer to the [KeyExpr] to be used for the operation, may be null.
 /// - `key_expr_str`: String representation of the [KeyExpr] to be used for the operation.
-///     It is only considered when the key_expr_ptr parameter is null, meaning the function is
-///     receiving a key expression that was not declared.
+///   It is only considered when the key_expr_ptr parameter is null, meaning the function is
+///   receiving a key expression that was not declared.
 /// - `session_ptr`: Raw pointer to the [Session] to be used for the operation.
 /// - `payload`: The payload to send through the network.
 /// - `encoding_id`: The encoding id of the payload.
@@ -332,8 +332,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
 /// - `_class`: The JNI class.
 /// - `key_expr_ptr`: Raw pointer to the [KeyExpr] to be used for the operation, may be null.
 /// - `key_expr_str`: String representation of the [KeyExpr] to be used for the operation.
-///     It is only considered when the key_expr_ptr parameter is null, meaning the function is
-///     receiving a key expression that was not declared.
+///   It is only considered when the key_expr_ptr parameter is null, meaning the function is
+///   receiving a key expression that was not declared.
 /// - `session_ptr`: Raw pointer to the [Session] to be used for the operation.
 /// - `congestion_control`: The [CongestionControl] mechanism specified.
 /// - `priority`: The [Priority] mechanism specified.
@@ -397,9 +397,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_deleteViaJNI(
 /// - `env`: The JNI environment.
 /// - `_class`: The JNI class.
 /// - `key_expr_ptr`: The key expression pointer for the subscriber. May be null in case of using an
-///     undeclared key expression.
+///   undeclared key expression.
 /// - `key_expr_str`: String representation of the key expression to be used to declare the subscriber.
-///     It won't be considered in case a key_expr_ptr to a declared key expression is provided.
+///   It won't be considered in case a key_expr_ptr to a declared key expression is provided.
 /// - `session_ptr`: The raw pointer to the Zenoh session.
 /// - `callback`: The callback function as an instance of the `JNISubscriberCallback` interface in Java/Kotlin.
 /// - `on_close`: A Java/Kotlin `JNIOnCloseCallback` function interface to be called upon closing the subscriber.
@@ -522,9 +522,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareSubscriberViaJNI(
 /// - `env`: The JNI environment.
 /// - `_class`: The JNI class.
 /// - `key_expr_ptr`: A raw pointer to the [KeyExpr] to be used for the querier. May be null in case of using an
-///     undeclared key expression.
+///   undeclared key expression.
 /// - `key_expr_str`: String representation of the key expression to be used to declare the querier.
-///     It won't be considered in case a key_expr_ptr to a declared key expression is provided.
+///   It won't be considered in case a key_expr_ptr to a declared key expression is provided.
 /// - `target`: The ordinal value of the query target enum value.
 /// - `consolidation`: The ordinal value of the consolidation enum value.
 /// - `congestion_control`: The ordinal value of the congestion control enum value.
@@ -585,9 +585,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
 /// - `env`: The JNI environment.
 /// - `_class`: The JNI class.
 /// - `key_expr_ptr`: A raw pointer to the [KeyExpr] to be used for the queryable. May be null in case of using an
-///     undeclared key expression.
+///   undeclared key expression.
 /// - `key_expr_str`: String representation of the key expression to be used to declare the queryable.
-///     It won't be considered in case a key_expr_ptr to a declared key expression is provided.
+///   It won't be considered in case a key_expr_ptr to a declared key expression is provided.
 /// - `session_ptr`: A raw pointer to the Zenoh [Session] to be used to declare the queryable.
 /// - `callback`: The callback function as an instance of the `JNIQueryableCallback` interface in Java/Kotlin.
 /// - `on_close`: A Java/Kotlin `JNIOnCloseCallback` function interface to be called upon closing the queryable.
@@ -840,9 +840,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_undeclareKeyExprViaJNI(
 /// - `env`: The JNI environment.
 /// - `_class`: The JNI class.
 /// - `key_expr_ptr`: Raw pointer to a declared [KeyExpr] to be used for the query. May be null in case
-///     of using a non declared key expression, in which case the `key_expr_str` parameter will be used instead.
+///   of using a non declared key expression, in which case the `key_expr_str` parameter will be used instead.
 /// - `key_expr_str`: String representation of the key expression to be used to declare the query. It is not
-///     considered if a `key_expr_ptr` is provided.
+///   considered if a `key_expr_ptr` is provided.
 /// - `selector_params`: Optional parameters of the selector.
 /// - `session_ptr`: A raw pointer to the Zenoh [Session].
 /// - `callback`: A Java/Kotlin callback to be called upon receiving a reply.
