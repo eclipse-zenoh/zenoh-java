@@ -137,8 +137,6 @@ public class QueryableTest {
         Queryable queryable = session.declareQueryable(testKeyExpr, query -> {
             var options = new ReplyOptions();
             options.setTimeStamp(timestamp);
-            options.setPriority(Priority.DATA_HIGH);
-            options.setCongestionControl(CongestionControl.DROP);
             options.setExpress(true);
             try {
                 query.reply(testKeyExpr, message, options);
@@ -158,9 +156,9 @@ public class QueryableTest {
         var sample = ((Reply.Success) receivedReply[0]).getSample();
         assertEquals(message, sample.getPayload());
         assertEquals(timestamp, sample.getTimestamp());
-        assertEquals(Priority.DATA_HIGH, sample.getPriority());
+        assertEquals(Priority.DATA, sample.getPriority());
         assertTrue(sample.getQos().getExpress());
-        assertEquals(CongestionControl.DROP, sample.getCongestionControl());
+        assertEquals(CongestionControl.BLOCK, sample.getCongestionControl());
     }
 
     @Test
