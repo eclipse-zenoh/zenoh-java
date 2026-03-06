@@ -93,7 +93,9 @@ data class ReplyOptions(
     var timeStamp: TimeStamp? = null,
     var attachment: IntoZBytes? = null,
     var express: Boolean = QoS.defaultResponse.express,
+    @Deprecated("Congestion control on reply QoS is deprecated and will be ignored. See eclipse-zenoh/zenoh#2382.")
     var congestionControl: CongestionControl = QoS.defaultResponse.congestionControl,
+    @Deprecated("Priority on reply QoS is deprecated and will be ignored. See eclipse-zenoh/zenoh#2382.")
     var priority: Priority = QoS.defaultResponse.priority
 ) {
     fun setAttachment(attachment: String) = apply { this.attachment = ZBytes.from(attachment) }
@@ -112,7 +114,9 @@ data class ReplyDelOptions(
     var timeStamp: TimeStamp? = null,
     var attachment: IntoZBytes? = null,
     var express: Boolean = QoS.defaultResponse.express,
+    @Deprecated("Congestion control on reply QoS is deprecated and will be ignored. See eclipse-zenoh/zenoh#2382.")
     var congestionControl: CongestionControl = QoS.defaultResponse.congestionControl,
+    @Deprecated("Priority on reply QoS is deprecated and will be ignored. See eclipse-zenoh/zenoh#2382.")
     var priority: Priority = QoS.defaultResponse.priority
 ) {
     fun setAttachment(attachment: String) = apply { this.attachment = ZBytes.from(attachment) }
