@@ -215,7 +215,8 @@ internal class JNISession(val sessionPtr: Long) {
             options.congestionControl.ordinal,
             options.priority.ordinal,
             options.express,
-            options.timeout.toMillis()
+            options.timeout.toMillis(),
+            options.acceptReplies.ordinal
         )
         return Querier(
             keyExpr,
@@ -290,7 +291,8 @@ internal class JNISession(val sessionPtr: Long) {
             options.encoding?.schema,
             options.qos.congestionControl.value,
             options.qos.priority.value,
-            options.qos.express
+            options.qos.express,
+            options.acceptReplies.ordinal
         )
     }
 
@@ -356,7 +358,8 @@ internal class JNISession(val sessionPtr: Long) {
             options.encoding?.schema,
             options.qos.congestionControl.value,
             options.qos.priority.value,
-            options.qos.express
+            options.qos.express,
+            options.acceptReplies.ordinal
         )
         return handler.receiver()
     }
@@ -481,7 +484,8 @@ internal class JNISession(val sessionPtr: Long) {
         congestionControl: Int,
         priority: Int,
         express: Boolean,
-        timeoutMs: Long
+        timeoutMs: Long,
+        acceptReplies: Int
     ): Long
 
     @Throws(ZError::class)
@@ -508,6 +512,7 @@ internal class JNISession(val sessionPtr: Long) {
         congestionControl: Int,
         priority: Int,
         express: Boolean,
+        acceptReplies: Int,
     )
 
     @Throws(ZError::class)

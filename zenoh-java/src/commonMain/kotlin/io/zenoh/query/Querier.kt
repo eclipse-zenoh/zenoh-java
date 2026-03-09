@@ -160,5 +160,6 @@ data class QuerierOptions(
     var timeout: Duration = Duration.ofMillis(10000),
     var express: Boolean = QoS.defaultRequest.express,
     var congestionControl: CongestionControl = QoS.defaultRequest.congestionControl,
-    var priority: Priority = QoS.defaultRequest.priority
+    var priority: Priority = QoS.defaultRequest.priority,
+    var acceptReplies: ReplyKeyExpr = ReplyKeyExpr.MATCHING_QUERY
 )
