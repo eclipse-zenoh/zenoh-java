@@ -43,9 +43,7 @@ internal class JNIQuery(private val ptr: Long) {
             timestampEnabled,
             if (timestampEnabled) sample.timestamp!!.ntpValue() else 0,
             sample.attachment?.bytes,
-            sample.qos.express,
-            sample.qos.priority.value,
-            sample.qos.congestionControl.value
+            sample.qos.express
         )
     }
 
@@ -62,9 +60,7 @@ internal class JNIQuery(private val ptr: Long) {
                 timestampEnabled,
                 if (timestampEnabled) timestamp!!.ntpValue() else 0,
                 attachment?.into()?.bytes,
-                qos.express,
-                qos.priority.value,
-                qos.congestionControl.value
+                qos.express
             )
         }
 
@@ -84,8 +80,6 @@ internal class JNIQuery(private val ptr: Long) {
         timestampNtp64: Long,
         attachment: ByteArray?,
         qosExpress: Boolean,
-        qosPriority: Int,
-        qosCongestionControl: Int,
     )
 
     @Throws(ZError::class)
@@ -105,8 +99,6 @@ internal class JNIQuery(private val ptr: Long) {
         timestampNtp64: Long,
         attachment: ByteArray?,
         qosExpress: Boolean,
-        qosPriority: Int,
-        qosCongestionControl: Int,
     )
 
     /** Frees the underlying native Query. */

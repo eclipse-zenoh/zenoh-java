@@ -6,8 +6,6 @@ import io.zenoh.exceptions.ZError;
 import io.zenoh.handlers.Handler;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.query.*;
-import io.zenoh.qos.CongestionControl;
-import io.zenoh.qos.Priority;
 import io.zenoh.qos.QoS;
 import io.zenoh.sample.Sample;
 import io.zenoh.sample.SampleKind;
@@ -47,16 +45,6 @@ public class QueryableTest {
     public void queryableRunsWithCallback() throws ZError, InterruptedException {
         var timestamp = new TimeStamp(Date.from(Instant.now()));
 
-        var sample = new Sample(
-                testKeyExpr,
-                testPayload,
-                Encoding.defaultEncoding(),
-                SampleKind.PUT,
-                timestamp,
-                new QoS(CongestionControl.BLOCK, Priority.DATA, false),
-                null
-        );
-
         var queryable = session.declareQueryable(testKeyExpr, query ->
         {
             try {
@@ -73,7 +61,10 @@ public class QueryableTest {
         Thread.sleep(1000);
         assertNotNull(reply[0]);
         Sample receivedSample = ((Reply.Success) reply[0]).getSample();
-        assertEquals(sample, receivedSample);
+        assertEquals(testPayload, receivedSample.getPayload());
+        assertEquals(Encoding.defaultEncoding(), receivedSample.getEncoding());
+        assertEquals(SampleKind.PUT, receivedSample.getKind());
+        assertEquals(timestamp, receivedSample.getTimestamp());
         queryable.close();
     }
 
@@ -137,8 +128,6 @@ public class QueryableTest {
         Queryable queryable = session.declareQueryable(testKeyExpr, query -> {
             var options = new ReplyOptions();
             options.setTimeStamp(timestamp);
-            options.setPriority(Priority.DATA_HIGH);
-            options.setCongestionControl(CongestionControl.DROP);
             options.setExpress(true);
             try {
                 query.reply(testKeyExpr, message, options);
@@ -158,9 +147,7 @@ public class QueryableTest {
         var sample = ((Reply.Success) receivedReply[0]).getSample();
         assertEquals(message, sample.getPayload());
         assertEquals(timestamp, sample.getTimestamp());
-        assertEquals(Priority.DATA_HIGH, sample.getPriority());
         assertTrue(sample.getQos().getExpress());
-        assertEquals(CongestionControl.DROP, sample.getCongestionControl());
     }
 
     @Test
