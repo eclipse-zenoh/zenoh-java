@@ -712,10 +712,7 @@ fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> Z
             )
         })?;
 
-    let accepts_replies: jint = match query
-        .accepts_replies()
-        .map_err(|err| zerror!("Error getting accepts_replies from query: {}", err))?
-    {
+    let accepts_replies: jint = match query.accepts_replies() {
         ReplyKeyExpr::MatchingQuery => 0,
         ReplyKeyExpr::Any => 1,
     };
