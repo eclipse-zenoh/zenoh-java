@@ -14,17 +14,12 @@
 
 package io.zenoh;
 
-import io.zenoh.bytes.Encoding;
 import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
-import io.zenoh.qos.CongestionControl;
-import io.zenoh.qos.Priority;
-import io.zenoh.qos.QoS;
 import io.zenoh.query.Querier;
 import io.zenoh.query.Reply;
 import io.zenoh.query.ReplyOptions;
-import io.zenoh.sample.Sample;
 import io.zenoh.sample.SampleKind;
 import org.apache.commons.net.ntp.TimeStamp;
 import org.junit.Test;
@@ -52,15 +47,7 @@ public class QuerierTest {
      */
     @Test
     public void querier_runsWithCallbackTest() throws ZError, InterruptedException {
-        var sample = new Sample(
-                testKeyExpr,
-                testPayload,
-                Encoding.defaultEncoding(),
-                SampleKind.PUT,
-                new TimeStamp(Date.from(Instant.now())),
-                new QoS(CongestionControl.BLOCK, Priority.DATA, false),
-                null
-        );
+        var timestamp = new TimeStamp(Date.from(Instant.now()));
         var examplePayload = ZBytes.from("Example payload");
         var exampleAttachment = ZBytes.from("Example attachment");
         var session = Zenoh.open(Config.loadDefault());
@@ -70,9 +57,9 @@ public class QuerierTest {
                 assertEquals(examplePayload, query.getPayload());
 
                 var replyOptions = new ReplyOptions();
-                replyOptions.setTimeStamp(sample.getTimestamp());
+                replyOptions.setTimeStamp(timestamp);
             try {
-                query.reply(testKeyExpr, sample.getPayload(), replyOptions);
+                query.reply(testKeyExpr, testPayload, replyOptions);
             } catch (ZError e) {
                 throw new RuntimeException(e);
             }
@@ -93,7 +80,11 @@ public class QuerierTest {
 
         Thread.sleep(1000);
         assertNotNull(receivedReply[0]);
-        assertEquals(sample, ((Reply.Success) receivedReply[0]).getSample());
+        var receivedSample = ((Reply.Success) receivedReply[0]).getSample();
+        assertEquals(testKeyExpr, receivedSample.getKeyExpr());
+        assertEquals(testPayload, receivedSample.getPayload());
+        assertEquals(SampleKind.PUT, receivedSample.getKind());
+        assertEquals(timestamp, receivedSample.getTimestamp());
 
         queryable.close();
         querier.close();
