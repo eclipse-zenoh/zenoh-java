@@ -97,6 +97,7 @@ public class QueryableTest {
         assertNull(query.getPayload());
         assertNull(query.getEncoding());
         assertNull(query.getAttachment());
+        assertEquals(ReplyKeyExpr.MATCHING_QUERY, query.getAcceptsReplies());
 
         receivedQuery[0] = null;
         var payload = ZBytes.from("Test value");
@@ -116,6 +117,24 @@ public class QueryableTest {
         assertEquals(payload, query.getPayload());
         assertEquals(Encoding.ZENOH_STRING, query.getEncoding());
         assertEquals(attachment, query.getAttachment());
+
+        queryable.close();
+    }
+
+    @Test
+    public void queryAcceptsRepliesAnyTest() throws ZError, InterruptedException {
+        Query[] receivedQuery = new Query[1];
+        var queryable = session.declareQueryable(testKeyExpr, query -> receivedQuery[0] = query);
+
+        var getOptions = new GetOptions();
+        getOptions.setAcceptReplies(ReplyKeyExpr.ANY);
+        session.get(testKeyExpr, getOptions);
+
+        Thread.sleep(100);
+
+        Query query = receivedQuery[0];
+        assertNotNull(query);
+        assertEquals(ReplyKeyExpr.ANY, query.getAcceptsReplies());
 
         queryable.close();
     }

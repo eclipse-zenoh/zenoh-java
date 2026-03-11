@@ -138,7 +138,7 @@ internal class JNISession(val sessionPtr: Long) {
         keyExpr: KeyExpr, callback: Callback<Query>, config: QueryableOptions
     ): CallbackQueryable {
         val queryCallback =
-            JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long ->
+            JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long, acceptReplies: Int ->
                 val jniQuery = JNIQuery(queryPtr)
                 val keyExpr2 = KeyExpr(keyExpr1, null)
                 val selector = if (selectorParams.isEmpty()) {
@@ -146,12 +146,14 @@ internal class JNISession(val sessionPtr: Long) {
                 } else {
                     Selector(keyExpr2, Parameters.from(selectorParams))
                 }
+                val replyKeyExpr = ReplyKeyExpr.entries[acceptReplies]
                 val query = Query(
                     keyExpr2,
                     selector,
                     payload?.into(),
                     payload?.let { Encoding(encodingId, schema = encodingSchema) },
                     attachmentBytes?.into(),
+                    replyKeyExpr,
                     jniQuery
                 )
                 callback.run(query)
@@ -172,7 +174,7 @@ internal class JNISession(val sessionPtr: Long) {
         keyExpr: KeyExpr, handler: Handler<Query, R>, config: QueryableOptions
     ): HandlerQueryable<R> {
         val queryCallback =
-            JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long ->
+            JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long, acceptReplies: Int ->
                 val jniQuery = JNIQuery(queryPtr)
                 val keyExpr2 = KeyExpr(keyExpr1, null)
                 val selector = if (selectorParams.isEmpty()) {
@@ -180,12 +182,14 @@ internal class JNISession(val sessionPtr: Long) {
                 } else {
                     Selector(keyExpr2, Parameters.from(selectorParams))
                 }
+                val replyKeyExpr = ReplyKeyExpr.entries[acceptReplies]
                 val query = Query(
                     keyExpr2,
                     selector,
                     payload?.into(),
                     payload?.let { Encoding(encodingId, schema = encodingSchema) },
                     attachmentBytes?.into(),
+                    replyKeyExpr,
                     jniQuery
                 )
                 handler.handle(query)

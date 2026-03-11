@@ -35,6 +35,7 @@ import io.zenoh.sample.SampleKind
  * @property payload Optional payload in case the received query was declared using "with query".
  * @property encoding Encoding of the [payload].
  * @property attachment Optional attachment.
+ * @property acceptsReplies The [ReplyKeyExpr] indicating what key expressions are accepted in replies.
  */
 class Query internal constructor(
     val keyExpr: KeyExpr,
@@ -42,6 +43,7 @@ class Query internal constructor(
     val payload: ZBytes?,
     val encoding: Encoding?,
     val attachment: ZBytes?,
+    val acceptsReplies: ReplyKeyExpr,
     private var jniQuery: JNIQuery?
 ) : AutoCloseable, ZenohType {
 

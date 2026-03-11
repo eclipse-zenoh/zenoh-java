@@ -23,7 +23,7 @@ use zenoh::{
     config::Config,
     key_expr::KeyExpr,
     pubsub::{Publisher, Subscriber},
-    query::{Querier, Query, Queryable, ReplyError, Selector},
+    query::{Querier, Query, Queryable, ReplyError, ReplyKeyExpr, Selector},
     sample::Sample,
     session::{EntityGlobalId, Session, ZenohId},
     Wait,
@@ -712,13 +712,21 @@ fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> Z
             )
         })?;
 
+    let accepts_replies: jint = match query
+        .accepts_replies()
+        .map_err(|err| zerror!("Error getting accepts_replies from query: {}", err))?
+    {
+        ReplyKeyExpr::MatchingQuery => 0,
+        ReplyKeyExpr::Any => 1,
+    };
+
     let query_ptr = Arc::into_raw(Arc::new(query));
 
     let result = env
         .call_method(
             callback_global_ref,
             "run",
-            "(Ljava/lang/String;Ljava/lang/String;[BILjava/lang/String;[BJ)V",
+            "(Ljava/lang/String;Ljava/lang/String;[BILjava/lang/String;[BJI)V",
             &[
                 JValue::from(&key_expr_str),
                 JValue::from(&selector_params_jstr),
@@ -727,6 +735,7 @@ fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> Z
                 JValue::from(&encoding_schema),
                 JValue::from(&attachment_bytes),
                 JValue::from(query_ptr as jlong),
+                JValue::from(accepts_replies),
             ],
         )
         .map(|_| ())
