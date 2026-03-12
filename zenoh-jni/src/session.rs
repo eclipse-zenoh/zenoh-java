@@ -23,7 +23,7 @@ use zenoh::{
     config::Config,
     key_expr::KeyExpr,
     pubsub::{Publisher, Subscriber},
-    query::{Querier, Query, Queryable, ReplyError, Selector},
+    query::{Querier, Query, Queryable, ReplyError, ReplyKeyExpr, Selector},
     sample::Sample,
     session::{EntityGlobalId, Session, ZenohId},
     Wait,
@@ -545,6 +545,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
     priority: jint,
     is_express: jboolean,
     timeout_ms: jlong,
+    accept_replies: jint,
 ) -> *const Querier<'static> {
     let session = Arc::from_raw(session_ptr);
     || -> ZResult<*const Querier<'static>> {
@@ -554,6 +555,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
         let congestion_control = decode_congestion_control(congestion_control)?;
         let timeout = Duration::from_millis(timeout_ms as u64);
         let priority = decode_priority(priority)?;
+        let reply_key_expr = decode_reply_key_expr(accept_replies)?;
         tracing::debug!("Declaring querier on '{}'...", key_expr);
 
         let querier = session
@@ -564,6 +566,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
             .target(query_target)
             .priority(priority)
             .timeout(timeout)
+            .accept_replies(reply_key_expr)
             .wait()
             .map_err(|err| zerror!(err))?;
 
@@ -709,13 +712,18 @@ fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> Z
             )
         })?;
 
+    let accepts_replies: jint = match query.accepts_replies() {
+        ReplyKeyExpr::MatchingQuery => 0,
+        ReplyKeyExpr::Any => 1,
+    };
+
     let query_ptr = Arc::into_raw(Arc::new(query));
 
     let result = env
         .call_method(
             callback_global_ref,
             "run",
-            "(Ljava/lang/String;Ljava/lang/String;[BILjava/lang/String;[BJ)V",
+            "(Ljava/lang/String;Ljava/lang/String;[BILjava/lang/String;[BJI)V",
             &[
                 JValue::from(&key_expr_str),
                 JValue::from(&selector_params_jstr),
@@ -724,6 +732,7 @@ fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> Z
                 JValue::from(&encoding_schema),
                 JValue::from(&attachment_bytes),
                 JValue::from(query_ptr as jlong),
+                JValue::from(accepts_replies),
             ],
         )
         .map(|_| ())
@@ -889,6 +898,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getViaJNI(
     congestion_control: jint,
     priority: jint,
     is_express: jboolean,
+    accept_replies: jint,
 ) {
     let session = Arc::from_raw(session_ptr);
     let _ = || -> ZResult<()> {
@@ -901,6 +911,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getViaJNI(
         let timeout = Duration::from_millis(timeout_ms as u64);
         let congestion_control = decode_congestion_control(congestion_control)?;
         let priority = decode_priority(priority)?;
+        let reply_key_expr = decode_reply_key_expr(accept_replies)?;
         let on_close = load_on_close(&java_vm, on_close_global_ref);
         let selector_params = if selector_params.is_null() {
             String::new()
@@ -940,7 +951,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getViaJNI(
             })
             .target(query_target)
             .timeout(timeout)
-            .consolidation(consolidation);
+            .consolidation(consolidation)
+            .accept_replies(reply_key_expr);
 
         if !payload.is_null() {
             let encoding = decode_encoding(&mut env, encoding_id, &encoding_schema)?;

@@ -30,6 +30,7 @@ import java.time.Duration
  * @param encoding Encoding of the payload.
  * @param attachment Optional attachment.
  * @param qos The intended [QoS] for the query.
+ * @param acceptReplies The [ReplyKeyExpr] accepted by the query.
  */
 data class GetOptions(
     var timeout: Duration = Duration.ofMillis(10000),
@@ -38,7 +39,8 @@ data class GetOptions(
     var payload: IntoZBytes? = null,
     var encoding: Encoding? = null,
     var attachment: IntoZBytes? = null,
-    var qos: QoS = QoS.defaultRequest
+    var qos: QoS = QoS.defaultRequest,
+    var acceptReplies: ReplyKeyExpr = ReplyKeyExpr.MATCHING_QUERY
 ) {
     fun setPayload(payload: String) = apply { this.payload = ZBytes.from(payload) }
     fun setAttachment(attachment: String) = apply { this.attachment = ZBytes.from(attachment) }
