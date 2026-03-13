@@ -216,8 +216,8 @@ internal class JNISession(val sessionPtr: Long) {
             sessionPtr,
             options.target.ordinal,
             options.consolidationMode.ordinal,
-            options.congestionControl.ordinal,
-            options.priority.ordinal,
+            options.congestionControl.value,
+            options.priority.value,
             options.express,
             options.timeout.toMillis(),
             options.acceptReplies.ordinal
