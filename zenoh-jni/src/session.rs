@@ -45,37 +45,6 @@ use crate::{
     errors::ZResult, key_expr::process_kotlin_key_expr, throw_exception, utils::*, zerror,
 };
 
-/// Open a Zenoh session via JNI.
-///
-/// It returns an [Arc] raw pointer to the Zenoh Session, which should be stored as a private read-only attribute
-/// of the session object in the Java/Kotlin code. Subsequent calls to other session functions will require
-/// this raw pointer to retrieve the [Session] using `Arc::from_raw`.
-///
-/// If opening the session fails, an exception is thrown on the JVM, and a null pointer is returned.
-///
-/// # Parameters:
-/// - `env`: The JNI environment.
-/// - `_class`: The JNI class (parameter required by the JNI interface but unused).
-/// - `config_path`: Nullable path to the Zenoh config file. If null, the default configuration will be loaded.
-///
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_00024Companion_openSessionViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    config_ptr: *const Config,
-) -> *const Session {
-    let session = open_session(config_ptr);
-    match session {
-        Ok(session) => Arc::into_raw(Arc::new(session)),
-        Err(err) => {
-            tracing::error!("Unable to open session: {}", err);
-            throw_exception!(env, zerror!(err));
-            null()
-        }
-    }
-}
-
 /// Open a Zenoh session with the configuration pointed out by `config_path`.
 ///
 /// If the config path provided is null then the default configuration is loaded.
@@ -1212,10 +1181,13 @@ fn ids_to_java_list(env: &mut JNIEnv, ids: Vec<ZenohId>) -> jni::errors::Result<
     Ok(array_list.as_raw())
 }
 
-/// Open a Zenoh session via JNI (instance-method variant for zenoh-kotlin compatibility).
+/// Open a Zenoh session via JNI.
 ///
-/// This is an alias for the companion-object variant, allowing zenoh-kotlin to call
-/// `openSessionViaJNI` as an instance method on `JNISession`.
+/// It returns an [Arc] raw pointer to the Zenoh Session, which should be stored as a private read-only attribute
+/// of the session object in the Java/Kotlin code. Subsequent calls to other session functions will require
+/// this raw pointer to retrieve the [Session] using `Arc::from_raw`.
+///
+/// If opening the session fails, an exception is thrown on the JVM, and a null pointer is returned.
 ///
 /// # Parameters:
 /// - `env`: The JNI environment.

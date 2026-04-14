@@ -53,6 +53,7 @@ internal class JNISession(val sessionPtr: Long) {
             return JNISession(sessionPtr)
         }
 
+        @JvmStatic
         @Throws(ZError::class)
         private external fun openSessionViaJNI(configPtr: Long): Long
     }
