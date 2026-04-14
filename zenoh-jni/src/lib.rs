@@ -14,6 +14,8 @@
 
 mod config;
 mod errors;
+#[cfg(feature = "zenoh-ext")]
+mod ext;
 mod key_expr;
 mod liveliness;
 mod logger;
@@ -30,8 +32,6 @@ mod utils;
 #[cfg(feature = "zenoh-ext")]
 mod zbytes;
 mod zenoh_id;
-#[cfg(feature = "zenoh-ext")]
-mod ext;
 
 // Test should be runned with `cargo test --no-default-features`
 #[test]
