@@ -21,12 +21,24 @@ use jni::{
 };
 use zenoh::{
     config::Config,
+    handlers::Callback,
     key_expr::KeyExpr,
-    pubsub::{Publisher, Subscriber},
+    pubsub::{Publisher, PublisherBuilder, Subscriber, SubscriberBuilder},
     query::{Querier, Query, Queryable, ReplyError, ReplyKeyExpr, Selector},
     sample::Sample,
     session::{EntityGlobalId, Session, ZenohId},
     Wait,
+};
+
+use crate::owned_object::OwnedObject;
+use crate::sample_callback::SetJniSampleCallback;
+#[cfg(feature = "zenoh-ext")]
+use jni::sys::jdouble;
+#[cfg(feature = "zenoh-ext")]
+use zenoh_ext::{
+    AdvancedPublisher, AdvancedPublisherBuilderExt, AdvancedSubscriber,
+    AdvancedSubscriberBuilderExt, CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig,
+    RepliesConfig,
 };
 
 use crate::{
@@ -1198,4 +1210,321 @@ fn ids_to_java_list(env: &mut JNIEnv, ids: Vec<ZenohId>) -> jni::errors::Result<
         jlist.add(env, value)?;
     }
     Ok(array_list.as_raw())
+}
+
+/// Open a Zenoh session via JNI (instance-method variant for zenoh-kotlin compatibility).
+///
+/// This is an alias for the companion-object variant, allowing zenoh-kotlin to call
+/// `openSessionViaJNI` as an instance method on `JNISession`.
+///
+/// # Parameters:
+/// - `env`: The JNI environment.
+/// - `_class`: The JNI class (parameter required by the JNI interface but unused).
+/// - `config_ptr`: Pointer to the Zenoh config. If null, the default configuration will be loaded.
+///
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_openSessionViaJNI(
+    mut env: JNIEnv,
+    _class: JClass,
+    config_ptr: *const Config,
+) -> *const Session {
+    let session = open_session(config_ptr);
+    match session {
+        Ok(session) => Arc::into_raw(Arc::new(session)),
+        Err(err) => {
+            tracing::error!("Unable to open session: {}", err);
+            throw_exception!(env, zerror!(err));
+            null()
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+unsafe fn prepare_publisher_builder<'a, 'b>(
+    env: &mut JNIEnv,
+    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
+    key_expr_str: &JString,
+    session: &'a Session,
+    congestion_control: jint,
+    priority: jint,
+    is_express: jboolean,
+    reliability: jint,
+) -> ZResult<PublisherBuilder<'a, 'b>> {
+    let key_expr = process_kotlin_key_expr(env, key_expr_str, key_expr_ptr)?;
+    let congestion_control = decode_congestion_control(congestion_control)?;
+    let priority = decode_priority(priority)?;
+    let reliability = decode_reliability(reliability)?;
+    let builder = session
+        .declare_publisher(key_expr)
+        .congestion_control(congestion_control)
+        .priority(priority)
+        .express(is_express != 0)
+        .reliability(reliability);
+    Ok(builder)
+}
+
+unsafe fn prepare_subscriber_builder<'a, 'b>(
+    env: &mut JNIEnv,
+    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
+    key_expr_str: &JString,
+    session: &'a Session,
+    callback: JObject,
+    on_close: JObject,
+    entity_name: &str,
+) -> ZResult<SubscriberBuilder<'a, 'b, Callback<Sample>>> {
+    let key_expr = process_kotlin_key_expr(env, key_expr_str, key_expr_ptr)?;
+    tracing::debug!("Declaring {entity_name} on '{}'...", key_expr);
+
+    let builder = session
+        .declare_subscriber(key_expr.to_owned())
+        .set_jni_sample_callback(env, callback, on_close)?;
+
+    tracing::debug!("{entity_name} declared on '{}'.", key_expr);
+    Ok(builder)
+}
+
+/// Declare an advanced Zenoh subscriber via JNI.
+///
+/// # Parameters:
+/// - `env`: The JNI environment.
+/// - `_class`: The JNI class.
+/// - `key_expr_ptr`: Raw pointer to the [KeyExpr], may be null.
+/// - `key_expr_str`: String representation of the [KeyExpr].
+/// - `history_config_enabled`: Whether history config is enabled.
+/// - `history_detect_late_publishers`: Whether to detect late publishers in history.
+/// - `history_max_samples`: Max samples in history (<=0 means unlimited).
+/// - `history_max_age_seconds`: Max age in seconds for history (<=0.0 means unlimited).
+/// - `recovery_config_enabled`: Whether recovery config is enabled.
+/// - `recovery_config_is_heartbeat`: Whether to use heartbeat recovery.
+/// - `recovery_query_period_ms`: Query period for periodic recovery in milliseconds.
+/// - `subscriber_detection`: Allow this subscriber to be detected through liveliness.
+/// - `session_ptr`: The raw pointer to the Zenoh session.
+/// - `callback`: The callback function as an instance of the `JNISubscriberCallback` interface.
+/// - `on_close`: A `JNIOnCloseCallback` to be called upon closing the subscriber.
+///
+/// Returns:
+/// - A raw pointer to the declared [AdvancedSubscriber]. In case of failure, an exception is thrown and null is returned.
+///
+/// Safety:
+/// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
+///
+#[cfg(feature = "zenoh-ext")]
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedSubscriberViaJNI(
+    mut env: JNIEnv,
+    _class: JClass,
+    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
+    key_expr_str: JString,
+    session_ptr: *const Session,
+    // HistoryConfig
+    history_config_enabled: jboolean,
+    history_detect_late_publishers: jboolean,
+    history_max_samples: jlong,
+    history_max_age_seconds: jdouble,
+    // RecoveryConfig
+    recovery_config_enabled: jboolean,
+    recovery_config_is_heartbeat: jboolean,
+    recovery_query_period_ms: jlong,
+
+    subscriber_detection: jboolean,
+
+    callback: JObject,
+    on_close: JObject,
+) -> *const AdvancedSubscriber<()> {
+    let session = Arc::from_raw(session_ptr);
+    let subscriber_ptr = || -> ZResult<*const AdvancedSubscriber<()>> {
+        let mut builder = prepare_subscriber_builder(
+            &mut env,
+            key_expr_ptr,
+            &key_expr_str,
+            &session,
+            callback,
+            on_close,
+            "advanced subscriber",
+        )?
+        .advanced();
+
+        if history_config_enabled != 0 {
+            let mut history = match history_detect_late_publishers != 0 {
+                true => HistoryConfig::default().detect_late_publishers(),
+                false => HistoryConfig::default(),
+            };
+
+            if history_max_samples > 0 {
+                history = history.max_samples(
+                    history_max_samples
+                        .try_into()
+                        .map_err(|e: std::num::TryFromIntError| zerror!(e.to_string()))?,
+                );
+            }
+
+            if history_max_age_seconds > 0.0 {
+                history = history.max_age(history_max_age_seconds);
+            }
+
+            builder = builder.history(history);
+        }
+
+        if recovery_config_enabled != 0 {
+            let recovery = if recovery_config_is_heartbeat != 0 {
+                RecoveryConfig::default().heartbeat()
+            } else {
+                let dur = Duration::from_millis(
+                    recovery_query_period_ms
+                        .try_into()
+                        .map_err(|e: std::num::TryFromIntError| zerror!(e.to_string()))?,
+                );
+                RecoveryConfig::default().periodic_queries(dur)
+            };
+            builder = builder.recovery(recovery);
+        }
+
+        if subscriber_detection != 0 {
+            builder = builder.subscriber_detection();
+        }
+
+        builder
+            .wait()
+            .map(|s| Arc::into_raw(Arc::new(s)))
+            .map_err(|err| zerror!("Unable to declare advanced subscriber: {}", err))
+    }()
+    .unwrap_or_else(|err| {
+        throw_exception!(env, err);
+        null()
+    });
+    std::mem::forget(session);
+    subscriber_ptr
+}
+
+/// Declare an advanced Zenoh publisher via JNI.
+///
+/// # Parameters:
+/// - `env`: The JNI environment.
+/// - `_class`: The JNI class.
+/// - `key_expr_ptr`: Raw pointer to the [KeyExpr] to be used for the publisher, may be null.
+/// - `key_expr_str`: String representation of the [KeyExpr].
+/// - `session_ptr`: Raw pointer to the Zenoh [Session] to be used for the publisher.
+/// - `congestion_control`: The [CongestionControl] configuration as an ordinal.
+/// - `priority`: The [Priority] configuration as an ordinal.
+/// - `is_express`: The express config of the publisher.
+/// - `reliability`: The reliability value as an ordinal.
+/// - `cache_enabled`: If true, attach a cache to the [AdvancedPublisher].
+/// - `cache_max_samples`: How many samples to keep for each resource.
+/// - `cache_replies_priority`: The [Priority] for cache replies as an ordinal.
+/// - `cache_replies_congestion_control`: The [CongestionControl] for cache replies as an ordinal.
+/// - `cache_replies_is_express`: The express config for cache replies.
+/// - `sample_miss_detection_enabled`: Enables sample miss detection functionality.
+/// - `sample_miss_detection_enable_heartbeat`: Use heartbeat for miss detection.
+/// - `sample_miss_detection_heartbeat_ms`: Heartbeat period in milliseconds.
+/// - `sample_miss_detection_heartbeat_is_sporadic`: Whether heartbeat is sporadic.
+/// - `publisher_detection`: Enables publisher detection.
+///
+/// # Returns:
+/// - A raw pointer to the declared [AdvancedPublisher] or null in case of failure.
+///
+/// # Safety:
+/// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
+///
+#[cfg(feature = "zenoh-ext")]
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedPublisherViaJNI(
+    mut env: JNIEnv,
+    _class: JClass,
+    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
+    key_expr_str: JString,
+    session_ptr: *const Session,
+    congestion_control: jint,
+    priority: jint,
+    is_express: jboolean,
+    reliability: jint,
+    // CacheConfig
+    cache_enabled: jboolean,
+    cache_max_samples: jlong,
+    cache_replies_priority: jint,
+    cache_replies_congestion_control: jint,
+    cache_replies_is_express: jboolean,
+    // MissDetectionConfig
+    sample_miss_detection_enabled: jboolean,
+    sample_miss_detection_enable_heartbeat: jboolean,
+    sample_miss_detection_heartbeat_ms: jlong,
+    sample_miss_detection_heartbeat_is_sporadic: jboolean,
+
+    publisher_detection: jboolean,
+) -> *const AdvancedPublisher<'static> {
+    let session = OwnedObject::from_raw(session_ptr);
+    let publisher_ptr = || -> ZResult<*const AdvancedPublisher<'static>> {
+        let mut builder = prepare_publisher_builder(
+            &mut env,
+            key_expr_ptr,
+            &key_expr_str,
+            &session,
+            congestion_control,
+            priority,
+            is_express,
+            reliability,
+        )?
+        .advanced();
+
+        // fill CacheConfig
+        if cache_enabled != 0 {
+            let cache_congestion_control =
+                decode_congestion_control(cache_replies_congestion_control)?;
+
+            let cache_priority = decode_priority(cache_replies_priority)?;
+
+            let replies_config = RepliesConfig::default()
+                .priority(cache_priority)
+                .congestion_control(cache_congestion_control)
+                .express(cache_replies_is_express != 0);
+
+            let cache_config = CacheConfig::default()
+                .max_samples(
+                    cache_max_samples
+                        .try_into()
+                        .map_err(|e: std::num::TryFromIntError| zerror!(e.to_string()))?,
+                )
+                .replies_config(replies_config);
+
+            builder = builder.cache(cache_config);
+        }
+
+        // fill MissDetectionConfig
+        if sample_miss_detection_enabled != 0 {
+            let miss_detection_config = {
+                let mut result = MissDetectionConfig::default();
+                if sample_miss_detection_enable_heartbeat != 0 {
+                    let duration = Duration::from_millis(
+                        sample_miss_detection_heartbeat_ms
+                            .try_into()
+                            .map_err(|e: std::num::TryFromIntError| zerror!(e.to_string()))?,
+                    );
+
+                    result = match sample_miss_detection_heartbeat_is_sporadic != 0 {
+                        true => result.sporadic_heartbeat(duration),
+                        false => result.heartbeat(duration),
+                    };
+                }
+                result
+            };
+            builder = builder.sample_miss_detection(miss_detection_config);
+        }
+
+        if publisher_detection != 0 {
+            builder = builder.publisher_detection();
+        }
+
+        let result = builder.wait();
+        match result {
+            Ok(publisher) => Ok(Arc::into_raw(Arc::new(publisher))),
+            Err(err) => Err(zerror!(err)),
+        }
+    }()
+    .unwrap_or_else(|err| {
+        throw_exception!(env, err);
+        null()
+    });
+    publisher_ptr
 }
