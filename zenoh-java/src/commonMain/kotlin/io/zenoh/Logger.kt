@@ -25,6 +25,7 @@ internal class Logger {
 
         @Throws(ZError::class)
         fun start(filter: String) {
+            ZenohLoad
             startLogsViaJNI(filter)
         }
 
