@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2023 ZettaScale Technology
+// Copyright (c) 2026 ZettaScale Technology
 //
 // This program and the accompanying materials are made available under the
 // terms of the Eclipse Public License 2.0 which is available at
@@ -16,9 +16,6 @@ import com.nishtahir.CargoExtension
 
 plugins {
     kotlin("multiplatform")
-    kotlin("plugin.serialization")
-    id("com.adarshr.test-logger")
-    id("org.jetbrains.dokka-javadoc")
     `maven-publish`
     signing
 }
@@ -30,7 +27,7 @@ val release = project.findProperty("release")?.toString()?.toBoolean() == true
 // Modifying this property will affect the release workflows!
 val isRemotePublication = project.findProperty("remotePublication")?.toString()?.toBoolean() == true
 
-var buildMode = if (release) "release" else "debug"
+var buildMode = if (release) BuildMode.RELEASE else BuildMode.DEBUG
 
 if (androidEnabled) {
     apply(plugin = "com.android.library")
@@ -51,9 +48,7 @@ kotlin {
             jvmArgs("-Djava.library.path=$zenohPaths")
         }
         if (!androidEnabled) {
-            withJava() // Adding java to a kotlin lib targeting android is incompatible
-                       // The java code is only meant for testing and is non-critical for the android publication.
-                       // Therefore, when enabling android we disable the java code.
+            withJava()
         }
     }
     if (androidEnabled) {
@@ -64,13 +59,7 @@ kotlin {
 
     @Suppress("Unused")
     sourceSets {
-        val commonMain by getting {
-            dependencies {
-                implementation(project(":zenoh-jni-runtime"))
-                implementation("commons-net:commons-net:3.9.0")
-                implementation("com.google.guava:guava:33.3.1-jre")
-            }
-        }
+        val commonMain by getting {}
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
@@ -83,28 +72,28 @@ kotlin {
                 }
             }
         }
-        val jvmMain by getting {}
+        val jvmMain by getting {
+            if (isRemotePublication) {
+                resources.srcDir("../jni-libs").include("*/**")
+            } else {
+                resources.srcDir("../zenoh-jni/target/$buildMode").include(arrayListOf("*.dylib", "*.so", "*.dll"))
+            }
+        }
 
-        val jvmTest by getting {}
-    }
-
-    val javadocJar by tasks.registering(Jar::class) {
-        dependsOn("dokkaGenerate")
-        archiveClassifier.set("javadoc")
-        from("${buildDir}/dokka/html")
+        val jvmTest by getting {
+            resources.srcDir("../zenoh-jni/target/$buildMode").include(arrayListOf("*.dylib", "*.so", "*.dll"))
+        }
     }
 
     publishing {
         publications.withType<MavenPublication> {
             groupId = "org.eclipse.zenoh"
-            artifactId = "zenoh-java"
+            artifactId = "zenoh-jni-runtime"
             version = rootProject.version.toString()
 
-            artifact(javadocJar)
-
             pom {
-                name.set("Zenoh Java")
-                description.set("The Eclipse Zenoh: Zero Overhead Pub/sub, Store/Query and Compute.")
+                name.set("Zenoh JNI Runtime")
+                description.set("The Eclipse Zenoh JNI runtime layer for zenoh-java and zenoh-kotlin.")
                 url.set("https://zenoh.io/")
 
                 licenses {
@@ -118,11 +107,6 @@ kotlin {
                         id.set("ZettaScale")
                         name.set("ZettaScale Zenoh Team")
                         email.set("zenoh@zettascale.tech")
-                    }
-                    developer {
-                        id.set("DariusIMP")
-                        name.set("Darius Maitia")
-                        email.set("darius@zettascale.tech")
                     }
                 }
                 scm {
@@ -147,8 +131,6 @@ tasks.withType<PublishToMavenRepository>().configureEach {
 
 tasks.withType<Test> {
     doFirst {
-        // The line below is added for the Android Unit tests which are equivalent to the JVM tests.
-        // For them to work we need to specify the path to the native library as a system property and not as a jvmArg.
         systemProperty("java.library.path", "../zenoh-jni/target/$buildMode")
     }
 }
@@ -160,12 +142,51 @@ tasks.whenObjectAdded {
 }
 
 tasks.named("compileKotlinJvm") {
-    dependsOn(":zenoh-jni-runtime:buildZenohJni")
+    dependsOn("buildZenohJni")
+}
+
+tasks.register("buildZenohJni") {
+    doLast {
+        if (!isRemotePublication) {
+            buildZenohJNI(buildMode)
+        }
+    }
+}
+
+fun buildZenohJNI(mode: BuildMode = BuildMode.DEBUG) {
+    val cargoCommand = mutableListOf("cargo", "build")
+
+    if (mode == BuildMode.RELEASE) {
+        cargoCommand.add("--release")
+    }
+
+    val result = project.exec {
+        commandLine(*(cargoCommand.toTypedArray()), "--manifest-path", "../zenoh-jni/Cargo.toml")
+    }
+
+    if (result.exitValue != 0) {
+        throw GradleException("Failed to build Zenoh-JNI.")
+    }
+
+    Thread.sleep(1000)
+}
+
+enum class BuildMode {
+    DEBUG {
+        override fun toString(): String {
+            return "debug"
+        }
+    },
+    RELEASE {
+        override fun toString(): String {
+            return "release"
+        }
+    }
 }
 
 fun Project.configureAndroid() {
     extensions.configure<com.android.build.gradle.LibraryExtension>("android") {
-        namespace = "io.zenoh"
+        namespace = "io.zenoh.jni"
         compileSdk = 30
 
         ndkVersion = "26.0.10792818"

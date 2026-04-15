@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2023 ZettaScale Technology
+// Copyright (c) 2026 ZettaScale Technology
 //
 // This program and the accompanying materials are made available under the
 // terms of the Eclipse Public License 2.0 which is available at
@@ -12,20 +12,9 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-pluginManagement {
-    repositories {
-        gradlePluginPortal()
-        mavenCentral()
-        google()
-    }
-}
-rootProject.name = "zenoh-java"
+package io.zenoh.jni.callbacks
 
-include(":zenoh-java")
-include(":zenoh-jni-runtime")
-include(":examples")
-include(":zenoh-jni")
-
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version("0.4.0")
+/** Callback for matching listener notifications; receives true when matching subscribers exist. */
+public fun interface JNIMatchingListenerCallback {
+    fun run(matching: Boolean)
 }

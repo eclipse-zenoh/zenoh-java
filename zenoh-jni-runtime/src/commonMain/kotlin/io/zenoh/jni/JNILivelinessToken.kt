@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2023 ZettaScale Technology
+// Copyright (c) 2026 ZettaScale Technology
 //
 // This program and the accompanying materials are made available under the
 // terms of the Eclipse Public License 2.0 which is available at
@@ -12,20 +12,16 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-pluginManagement {
-    repositories {
-        gradlePluginPortal()
-        mavenCentral()
-        google()
+package io.zenoh.jni
+
+/** Adapter class for a native Zenoh LivelinessToken. */
+public class JNILivelinessToken(public val ptr: Long) {
+
+    fun undeclare() {
+        undeclareViaJNI(ptr)
     }
-}
-rootProject.name = "zenoh-java"
 
-include(":zenoh-java")
-include(":zenoh-jni-runtime")
-include(":examples")
-include(":zenoh-jni")
-
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version("0.4.0")
+    companion object {
+        external fun undeclareViaJNI(ptr: Long)
+    }
 }

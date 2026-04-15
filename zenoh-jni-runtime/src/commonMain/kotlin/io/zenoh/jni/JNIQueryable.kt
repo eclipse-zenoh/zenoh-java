@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2023 ZettaScale Technology
+// Copyright (c) 2026 ZettaScale Technology
 //
 // This program and the accompanying materials are made available under the
 // terms of the Eclipse Public License 2.0 which is available at
@@ -12,20 +12,18 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-pluginManagement {
-    repositories {
-        gradlePluginPortal()
-        mavenCentral()
-        google()
+package io.zenoh.jni
+
+/**
+ * Adapter class to handle the interactions with Zenoh through JNI for a Queryable.
+ *
+ * @property ptr: raw pointer to the underlying native Queryable.
+ */
+public class JNIQueryable(public val ptr: Long) {
+
+    fun close() {
+        freePtrViaJNI(ptr)
     }
-}
-rootProject.name = "zenoh-java"
 
-include(":zenoh-java")
-include(":zenoh-jni-runtime")
-include(":examples")
-include(":zenoh-jni")
-
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version("0.4.0")
+    private external fun freePtrViaJNI(ptr: Long)
 }

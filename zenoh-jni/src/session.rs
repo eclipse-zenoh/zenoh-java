@@ -1306,7 +1306,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedSubscriberV
     on_close: JObject,
 ) -> *const AdvancedSubscriber<()> {
     let session = OwnedObject::from_raw(session_ptr);
-    let subscriber_ptr = || -> ZResult<*const AdvancedSubscriber<()>> {
+    || -> ZResult<*const AdvancedSubscriber<()>> {
         let mut builder = prepare_subscriber_builder(
             &mut env,
             key_expr_ptr,
