@@ -12,8 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-import com.nishtahir.CargoExtension
-
 plugins {
     kotlin("multiplatform")
     kotlin("plugin.serialization")
@@ -34,9 +32,7 @@ var buildMode = if (release) "release" else "debug"
 
 if (androidEnabled) {
     apply(plugin = "com.android.library")
-    apply(plugin = "org.mozilla.rust-android-gradle.rust-android")
 
-    configureCargo()
     configureAndroid()
 }
 
@@ -153,12 +149,6 @@ tasks.withType<Test> {
     }
 }
 
-tasks.whenObjectAdded {
-    if ((this.name == "mergeDebugJniLibFolders" || this.name == "mergeReleaseJniLibFolders")) {
-        this.dependsOn("cargoBuild")
-    }
-}
-
 tasks.named("compileKotlinJvm") {
     dependsOn(":zenoh-jni-runtime:buildZenohJni")
 }
@@ -198,22 +188,5 @@ fun Project.configureAndroid() {
                 withJavadocJar()
             }
         }
-    }
-}
-
-fun Project.configureCargo() {
-    extensions.configure<CargoExtension>("cargo") {
-        pythonCommand = "python3"
-        module = "../zenoh-jni"
-        libname = "zenoh-jni"
-        targetIncludes = arrayOf("libzenoh_jni.so")
-        targetDirectory = "../zenoh-jni/target/"
-        profile = "release"
-        targets = arrayListOf(
-            "arm",
-            "arm64",
-            "x86",
-            "x86_64",
-        )
     }
 }
