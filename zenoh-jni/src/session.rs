@@ -1305,7 +1305,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedSubscriberV
     callback: JObject,
     on_close: JObject,
 ) -> *const AdvancedSubscriber<()> {
-    let session = Arc::from_raw(session_ptr);
+    let session = OwnedObject::from_raw(session_ptr);
     let subscriber_ptr = || -> ZResult<*const AdvancedSubscriber<()>> {
         let mut builder = prepare_subscriber_builder(
             &mut env,
@@ -1365,9 +1365,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedSubscriberV
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
         null()
-    });
-    std::mem::forget(session);
-    subscriber_ptr
+    })
 }
 
 /// Declare an advanced Zenoh publisher via JNI.
