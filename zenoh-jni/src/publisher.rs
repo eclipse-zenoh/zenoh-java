@@ -21,6 +21,7 @@ use jni::{
 };
 use zenoh::{pubsub::Publisher, Wait};
 
+use crate::owned_object::OwnedObject;
 use crate::throw_exception;
 use crate::{
     errors::ZResult,
@@ -56,7 +57,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_putViaJNI(
     attachment: /*nullable*/ JByteArray,
     publisher_ptr: *const Publisher<'static>,
 ) {
-    let publisher = Arc::from_raw(publisher_ptr);
+    let publisher = OwnedObject::from_raw(publisher_ptr);
     let _ = || -> ZResult<()> {
         let payload = decode_byte_array(&env, payload)?;
         let mut publication = publisher.put(payload);
@@ -69,7 +70,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_putViaJNI(
         publication.wait().map_err(|err| zerror!(err))
     }()
     .map_err(|err| throw_exception!(env, err));
-    std::mem::forget(publisher);
 }
 
 /// Performs a DELETE operation on a Zenoh publisher via JNI.
@@ -94,7 +94,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_deleteViaJNI(
     attachment: /*nullable*/ JByteArray,
     publisher_ptr: *const Publisher<'static>,
 ) {
-    let publisher = Arc::from_raw(publisher_ptr);
+    let publisher = OwnedObject::from_raw(publisher_ptr);
     let _ = || -> ZResult<()> {
         let mut delete = publisher.delete();
         if !attachment.is_null() {
@@ -104,7 +104,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_deleteViaJNI(
         delete.wait().map_err(|err| zerror!(err))
     }()
     .map_err(|err| throw_exception!(env, err));
-    std::mem::forget(publisher)
 }
 
 /// Frees the publisher.

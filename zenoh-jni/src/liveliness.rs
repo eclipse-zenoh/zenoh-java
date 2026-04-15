@@ -28,6 +28,7 @@ use zenoh::{
 use crate::{
     errors::ZResult,
     key_expr::process_kotlin_key_expr,
+    owned_object::OwnedObject,
     session::{on_reply_error, on_reply_success},
     throw_exception,
     utils::{
@@ -49,7 +50,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_getViaJNI(
     timeout_ms: jlong,
     on_close: JObject,
 ) {
-    let session = unsafe { Arc::from_raw(session_ptr) };
+    let session = unsafe { OwnedObject::from_raw(session_ptr) };
     let _ = || -> ZResult<()> {
         let key_expr = unsafe { process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr) }?;
         let java_vm = Arc::new(get_java_vm(&mut env)?);
@@ -98,7 +99,6 @@ pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_getViaJNI(
     .map_err(|err| {
         throw_exception!(env, err);
     });
-    std::mem::forget(session);
 }
 
 #[no_mangle]
@@ -110,8 +110,8 @@ pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_declareTokenViaJNI(
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
 ) -> *const LivelinessToken {
-    let session = unsafe { Arc::from_raw(session_ptr) };
-    let ptr = || -> ZResult<*const LivelinessToken> {
+    let session = unsafe { OwnedObject::from_raw(session_ptr) };
+    || -> ZResult<*const LivelinessToken> {
         let key_expr = unsafe { process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr) }?;
         tracing::trace!("Declaring liveliness token on '{key_expr}'.");
         let token = session
@@ -124,9 +124,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_declareTokenViaJNI(
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
         null()
-    });
-    std::mem::forget(session);
-    ptr
+    })
 }
 
 #[no_mangle]
@@ -151,7 +149,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_declareSubscriberViaJNI(
     history: jboolean,
     on_close: JObject,
 ) -> *const Subscriber<()> {
-    let session = unsafe { Arc::from_raw(session_ptr) };
+    let session = unsafe { OwnedObject::from_raw(session_ptr) };
     || -> ZResult<*const Subscriber<()>> {
         let java_vm = Arc::new(get_java_vm(&mut env)?);
         let callback_global_ref = get_callback_global_ref(&mut env, callback)?;
@@ -232,7 +230,6 @@ pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_declareSubscriberViaJNI(
             result.map_err(|err| zerror!("Unable to declare liveliness subscriber: {}", err))?;
 
         tracing::debug!("Subscriber declared on '{}'.", key_expr);
-        std::mem::forget(session);
         Ok(Arc::into_raw(Arc::new(subscriber)))
     }()
     .unwrap_or_else(|err| {

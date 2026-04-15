@@ -22,6 +22,7 @@ use jni::{
 use zenoh::{config::WhatAmIMatcher, Wait};
 use zenoh::{scouting::Scout, Config};
 
+use crate::owned_object::OwnedObject;
 use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close};
 use crate::{errors::ZResult, throw_exception, zerror};
 
@@ -54,10 +55,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIScout_00024Companion_scoutViaJNI(
         let config = if config_ptr.is_null() {
             Config::default()
         } else {
-            let arc_cfg = Arc::from_raw(config_ptr);
-            let config_clone = arc_cfg.as_ref().clone();
-            std::mem::forget(arc_cfg);
-            config_clone
+            let arc_cfg = OwnedObject::from_raw(config_ptr);
+            (*arc_cfg).clone()
         };
         zenoh::scout(whatAmIMatcher, config)
             .callback(move |hello| {

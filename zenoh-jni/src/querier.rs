@@ -24,6 +24,7 @@ use zenoh::{key_expr::KeyExpr, query::Querier, Wait};
 use crate::{
     errors::ZResult,
     key_expr::process_kotlin_key_expr,
+    owned_object::OwnedObject,
     session::{on_reply_error, on_reply_success},
     throw_exception,
     utils::{
@@ -69,7 +70,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_getViaJNI(
     encoding_id: jint,
     encoding_schema: /*nullable*/ JString,
 ) {
-    let querier = Arc::from_raw(querier_ptr);
+    let querier = OwnedObject::from_raw(querier_ptr);
     let _ = || -> ZResult<()> {
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let java_vm = Arc::new(get_java_vm(&mut env)?);
@@ -118,7 +119,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_getViaJNI(
             .map_err(|err| zerror!(err))
     }()
     .map_err(|err| throw_exception!(env, err));
-    std::mem::forget(querier);
 }
 
 ///

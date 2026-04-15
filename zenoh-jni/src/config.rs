@@ -21,6 +21,7 @@ use jni::{
 };
 use zenoh::Config;
 
+use crate::owned_object::OwnedObject;
 use crate::{errors::ZResult, zerror};
 use crate::{throw_exception, utils::decode_string};
 
@@ -130,8 +131,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_getJsonViaJN
     cfg_ptr: *const Config,
     key: JString,
 ) -> jstring {
-    let arc_cfg: Arc<Config> = Arc::from_raw(cfg_ptr);
-    let result = || -> ZResult<jstring> {
+    let arc_cfg = OwnedObject::from_raw(cfg_ptr);
+    || -> ZResult<jstring> {
         let key = decode_string(&mut env, &key)?;
         let json = arc_cfg.get_json(&key).map_err(|err| zerror!(err))?;
         let java_json = env.new_string(json).map_err(|err| zerror!(err))?;
@@ -140,9 +141,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_getJsonViaJN
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
         JString::default().as_raw()
-    });
-    std::mem::forget(arc_cfg);
-    result
+    })
 }
 
 /// Inserts a json5 value associated to the provided [key]. May throw an exception in case of failure, which must be handled
