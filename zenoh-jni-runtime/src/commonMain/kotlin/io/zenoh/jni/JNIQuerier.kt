@@ -22,7 +22,22 @@ import io.zenoh.jni.callbacks.JNIOnCloseCallback
 public class JNIQuerier(public val ptr: Long) {
 
     @Throws(ZError::class)
-    external fun getViaJNI(
+    fun get(
+        keyExprPtr: Long,
+        keyExprString: String,
+        parameters: String?,
+        callback: JNIGetCallback,
+        onClose: JNIOnCloseCallback,
+        attachmentBytes: ByteArray?,
+        payload: ByteArray?,
+        encodingId: Int,
+        encodingSchema: String?,
+    ) {
+        getViaJNI(ptr, keyExprPtr, keyExprString, parameters, callback, onClose, attachmentBytes, payload, encodingId, encodingSchema)
+    }
+
+    @Throws(ZError::class)
+    private external fun getViaJNI(
         querierPtr: Long,
         keyExprPtr: Long,
         keyExprString: String,
