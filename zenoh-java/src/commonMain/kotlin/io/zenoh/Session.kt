@@ -777,11 +777,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 handler.handle(reply)
             }
             val sel = selector.into()
-            getViaJNI(
+            get(
                 sel.keyExpr.jniKeyExpr?.ptr ?: 0,
                 sel.keyExpr.keyExpr,
                 sel.parameters?.toString(),
-                sessionPtr,
                 getCallback,
                 handler::onClose,
                 options.timeout.toMillis(),
@@ -828,11 +827,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 callback.run(reply)
             }
             val sel = selector.into()
-            getViaJNI(
+            get(
                 sel.keyExpr.jniKeyExpr?.ptr ?: 0,
                 sel.keyExpr.keyExpr,
                 sel.parameters?.toString(),
-                sessionPtr,
                 getCallback,
                 fun() {},
                 options.timeout.toMillis(),
@@ -854,10 +852,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     internal fun resolvePut(keyExpr: KeyExpr, payload: IntoZBytes, putOptions: PutOptions) {
         jniSession?.run {
             val encoding = putOptions.encoding ?: Encoding.defaultEncoding()
-            putViaJNI(
+            put(
                 keyExpr.jniKeyExpr?.ptr ?: 0,
                 keyExpr.keyExpr,
-                sessionPtr,
                 payload.into().bytes,
                 encoding.id,
                 encoding.schema,
@@ -873,10 +870,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     internal fun resolveDelete(keyExpr: KeyExpr, deleteOptions: DeleteOptions) {
         jniSession?.run {
-            deleteViaJNI(
+            delete(
                 keyExpr.jniKeyExpr?.ptr ?: 0,
                 keyExpr.keyExpr,
-                sessionPtr,
                 deleteOptions.congestionControl.value,
                 deleteOptions.priority.value,
                 deleteOptions.express,

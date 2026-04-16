@@ -140,7 +140,27 @@ public class JNISession(public val sessionPtr: Long) {
     private external fun undeclareKeyExprViaJNI(sessionPtr: Long, keyExprPtr: Long)
 
     @Throws(ZError::class)
-    external fun getViaJNI(
+    fun get(
+        keyExprPtr: Long,
+        keyExprString: String,
+        selectorParams: String?,
+        callback: JNIGetCallback,
+        onClose: JNIOnCloseCallback,
+        timeoutMs: Long,
+        target: Int,
+        consolidation: Int,
+        attachmentBytes: ByteArray?,
+        payload: ByteArray?,
+        encodingId: Int,
+        encodingSchema: String?,
+        congestionControl: Int,
+        priority: Int,
+        express: Boolean,
+        acceptReplies: Int,
+    ) = getViaJNI(keyExprPtr, keyExprString, selectorParams, sessionPtr, callback, onClose, timeoutMs, target, consolidation, attachmentBytes, payload, encodingId, encodingSchema, congestionControl, priority, express, acceptReplies)
+
+    @Throws(ZError::class)
+    private external fun getViaJNI(
         keyExprPtr: Long,
         keyExprString: String,
         selectorParams: String?,
@@ -161,7 +181,21 @@ public class JNISession(public val sessionPtr: Long) {
     )
 
     @Throws(ZError::class)
-    external fun putViaJNI(
+    fun put(
+        keyExprPtr: Long,
+        keyExprString: String,
+        valuePayload: ByteArray,
+        valueEncoding: Int,
+        valueEncodingSchema: String?,
+        congestionControl: Int,
+        priority: Int,
+        express: Boolean,
+        attachmentBytes: ByteArray?,
+        reliability: Int
+    ) = putViaJNI(keyExprPtr, keyExprString, sessionPtr, valuePayload, valueEncoding, valueEncodingSchema, congestionControl, priority, express, attachmentBytes, reliability)
+
+    @Throws(ZError::class)
+    private external fun putViaJNI(
         keyExprPtr: Long,
         keyExprString: String,
         sessionPtr: Long,
@@ -176,7 +210,18 @@ public class JNISession(public val sessionPtr: Long) {
     )
 
     @Throws(ZError::class)
-    external fun deleteViaJNI(
+    fun delete(
+        keyExprPtr: Long,
+        keyExprString: String,
+        congestionControl: Int,
+        priority: Int,
+        express: Boolean,
+        attachmentBytes: ByteArray?,
+        reliability: Int
+    ) = deleteViaJNI(keyExprPtr, keyExprString, sessionPtr, congestionControl, priority, express, attachmentBytes, reliability)
+
+    @Throws(ZError::class)
+    private external fun deleteViaJNI(
         keyExprPtr: Long,
         keyExprString: String,
         sessionPtr: Long,
