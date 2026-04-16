@@ -400,8 +400,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     fun declareKeyExpr(keyExpr: String): KeyExpr {
         return jniSession?.run {
-            val ptr = declareKeyExprViaJNI(sessionPtr, keyExpr)
-            val ke = KeyExpr(keyExpr, JNIKeyExpr(ptr))
+            val ke = KeyExpr(keyExpr, declareKeyExpr(keyExpr))
             strongDeclarations.add(ke)
             ke
         } ?: throw sessionClosedException
@@ -420,7 +419,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     fun undeclare(keyExpr: KeyExpr) {
         jniSession?.run {
             keyExpr.jniKeyExpr?.run {
-                undeclareKeyExprViaJNI(sessionPtr, ptr)
+                undeclareKeyExpr(ptr)
                 keyExpr.jniKeyExpr = null
             } ?: throw ZError("Attempting to undeclare a non declared key expression.")
         } ?: throw (sessionClosedException)

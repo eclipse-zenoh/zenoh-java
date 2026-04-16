@@ -128,10 +128,16 @@ public class JNISession(public val sessionPtr: Long) {
     ): Long
 
     @Throws(ZError::class)
-    external fun declareKeyExprViaJNI(sessionPtr: Long, keyExpr: String): Long
+    fun declareKeyExpr(keyExpr: String): JNIKeyExpr = JNIKeyExpr(declareKeyExprViaJNI(sessionPtr, keyExpr))
 
     @Throws(ZError::class)
-    external fun undeclareKeyExprViaJNI(sessionPtr: Long, keyExprPtr: Long)
+    private external fun declareKeyExprViaJNI(sessionPtr: Long, keyExpr: String): Long
+
+    @Throws(ZError::class)
+    fun undeclareKeyExpr(keyExprPtr: Long) = undeclareKeyExprViaJNI(sessionPtr, keyExprPtr)
+
+    @Throws(ZError::class)
+    private external fun undeclareKeyExprViaJNI(sessionPtr: Long, keyExprPtr: Long)
 
     @Throws(ZError::class)
     external fun getViaJNI(
