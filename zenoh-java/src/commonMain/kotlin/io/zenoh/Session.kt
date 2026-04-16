@@ -884,12 +884,12 @@ class Session private constructor(private val config: Config) : AutoCloseable {
 
     @Throws(ZError::class)
     internal fun zid(): ZenohId {
-        return jniSession?.run { ZenohId(getZidViaJNI(sessionPtr)) } ?: throw sessionClosedException
+        return jniSession?.run { ZenohId(getZid()) } ?: throw sessionClosedException
     }
 
     @Throws(ZError::class)
     internal fun getPeersId(): List<ZenohId> {
-        return jniSession?.run { getPeersZidViaJNI(sessionPtr).map { ZenohId(it) } } ?: throw sessionClosedException
+        return jniSession?.run { getPeersZid().map { ZenohId(it) } } ?: throw sessionClosedException
     }
 
     @Throws(ZError::class)

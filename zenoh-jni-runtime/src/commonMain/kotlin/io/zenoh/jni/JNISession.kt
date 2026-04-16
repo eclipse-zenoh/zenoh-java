@@ -233,16 +233,38 @@ public class JNISession(public val sessionPtr: Long) {
     )
 
     @Throws(ZError::class)
-    external fun getZidViaJNI(ptr: Long): ByteArray
+    fun getZid(): ByteArray = getZidViaJNI(sessionPtr)
 
     @Throws(ZError::class)
-    external fun getPeersZidViaJNI(ptr: Long): List<ByteArray>
+    private external fun getZidViaJNI(ptr: Long): ByteArray
+
+    @Throws(ZError::class)
+    fun getPeersZid(): List<ByteArray> = getPeersZidViaJNI(sessionPtr)
+
+    @Throws(ZError::class)
+    private external fun getPeersZidViaJNI(ptr: Long): List<ByteArray>
 
     @Throws(ZError::class)
     external fun getRoutersZidViaJNI(ptr: Long): List<ByteArray>
 
     @Throws(ZError::class)
-    external fun declareAdvancedSubscriberViaJNI(
+    fun declareAdvancedSubscriber(
+        keyExprPtr: Long,
+        keyExprStr: String,
+        historyConfigEnabled: Boolean,
+        historyDetectLatePublishers: Boolean,
+        historyMaxSamples: Long,
+        historyMaxAgeSeconds: Double,
+        recoveryConfigEnabled: Boolean,
+        recoveryConfigIsHeartbeat: Boolean,
+        recoveryQueryPeriodMs: Long,
+        subscriberDetection: Boolean,
+        callback: JNISubscriberCallback,
+        onClose: JNIOnCloseCallback,
+    ): JNIAdvancedSubscriber = JNIAdvancedSubscriber(declareAdvancedSubscriberViaJNI(sessionPtr, keyExprPtr, keyExprStr, historyConfigEnabled, historyDetectLatePublishers, historyMaxSamples, historyMaxAgeSeconds, recoveryConfigEnabled, recoveryConfigIsHeartbeat, recoveryQueryPeriodMs, subscriberDetection, callback, onClose))
+
+    @Throws(ZError::class)
+    private external fun declareAdvancedSubscriberViaJNI(
         sessionPtr: Long,
         keyExprPtr: Long,
         keyExprStr: String,
@@ -259,7 +281,27 @@ public class JNISession(public val sessionPtr: Long) {
     ): Long
 
     @Throws(ZError::class)
-    external fun declareAdvancedPublisherViaJNI(
+    fun declareAdvancedPublisher(
+        keyExprPtr: Long,
+        keyExprStr: String,
+        congestionControl: Int,
+        priority: Int,
+        isExpress: Boolean,
+        reliability: Int,
+        cacheEnabled: Boolean,
+        cacheMaxSamples: Long,
+        cacheRepliesPriority: Int,
+        cacheRepliesCongestionControl: Int,
+        cacheRepliesIsExpress: Boolean,
+        sampleMissDetectionEnabled: Boolean,
+        sampleMissDetectionEnableHeartbeat: Boolean,
+        sampleMissDetectionHeartbeatMs: Long,
+        sampleMissDetectionHeartbeatIsSporadic: Boolean,
+        publisherDetection: Boolean,
+    ): JNIAdvancedPublisher = JNIAdvancedPublisher(declareAdvancedPublisherViaJNI(sessionPtr, keyExprPtr, keyExprStr, congestionControl, priority, isExpress, reliability, cacheEnabled, cacheMaxSamples, cacheRepliesPriority, cacheRepliesCongestionControl, cacheRepliesIsExpress, sampleMissDetectionEnabled, sampleMissDetectionEnableHeartbeat, sampleMissDetectionHeartbeatMs, sampleMissDetectionHeartbeatIsSporadic, publisherDetection))
+
+    @Throws(ZError::class)
+    private external fun declareAdvancedPublisherViaJNI(
         sessionPtr: Long,
         keyExprPtr: Long,
         keyExprStr: String,
