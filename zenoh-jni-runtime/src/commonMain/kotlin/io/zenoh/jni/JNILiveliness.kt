@@ -23,10 +23,24 @@ import io.zenoh.jni.callbacks.JNISubscriberCallback
 public object JNILiveliness {
 
     @Throws(ZError::class)
-    external fun declareTokenViaJNI(sessionPtr: Long, keyExprPtr: Long, keyExprString: String): Long
+    fun declareToken(sessionPtr: Long, keyExprPtr: Long, keyExprString: String): JNILivelinessToken =
+        JNILivelinessToken(declareTokenViaJNI(sessionPtr, keyExprPtr, keyExprString))
 
     @Throws(ZError::class)
-    external fun declareSubscriberViaJNI(
+    private external fun declareTokenViaJNI(sessionPtr: Long, keyExprPtr: Long, keyExprString: String): Long
+
+    @Throws(ZError::class)
+    fun declareSubscriber(
+        sessionPtr: Long,
+        keyExprPtr: Long,
+        keyExprString: String,
+        callback: JNISubscriberCallback,
+        history: Boolean,
+        onClose: JNIOnCloseCallback,
+    ): JNISubscriber = JNISubscriber(declareSubscriberViaJNI(sessionPtr, keyExprPtr, keyExprString, callback, history, onClose))
+
+    @Throws(ZError::class)
+    private external fun declareSubscriberViaJNI(
         sessionPtr: Long,
         keyExprPtr: Long,
         keyExprString: String,

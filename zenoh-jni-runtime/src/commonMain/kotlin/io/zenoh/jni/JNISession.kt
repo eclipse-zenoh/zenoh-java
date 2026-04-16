@@ -44,7 +44,17 @@ public class JNISession(public val sessionPtr: Long) {
     private external fun closeSessionViaJNI(ptr: Long)
 
     @Throws(ZError::class)
-    external fun declarePublisherViaJNI(
+    fun declarePublisher(
+        keyExprPtr: Long,
+        keyExprString: String,
+        congestionControl: Int,
+        priority: Int,
+        express: Boolean,
+        reliability: Int
+    ): JNIPublisher = JNIPublisher(declarePublisherViaJNI(keyExprPtr, keyExprString, sessionPtr, congestionControl, priority, express, reliability))
+
+    @Throws(ZError::class)
+    private external fun declarePublisherViaJNI(
         keyExprPtr: Long,
         keyExprString: String,
         sessionPtr: Long,
@@ -55,7 +65,15 @@ public class JNISession(public val sessionPtr: Long) {
     ): Long
 
     @Throws(ZError::class)
-    external fun declareSubscriberViaJNI(
+    fun declareSubscriber(
+        keyExprPtr: Long,
+        keyExprString: String,
+        callback: JNISubscriberCallback,
+        onClose: JNIOnCloseCallback,
+    ): JNISubscriber = JNISubscriber(declareSubscriberViaJNI(keyExprPtr, keyExprString, sessionPtr, callback, onClose))
+
+    @Throws(ZError::class)
+    private external fun declareSubscriberViaJNI(
         keyExprPtr: Long,
         keyExprString: String,
         sessionPtr: Long,
@@ -64,7 +82,16 @@ public class JNISession(public val sessionPtr: Long) {
     ): Long
 
     @Throws(ZError::class)
-    external fun declareQueryableViaJNI(
+    fun declareQueryable(
+        keyExprPtr: Long,
+        keyExprString: String,
+        callback: JNIQueryableCallback,
+        onClose: JNIOnCloseCallback,
+        complete: Boolean
+    ): JNIQueryable = JNIQueryable(declareQueryableViaJNI(keyExprPtr, keyExprString, sessionPtr, callback, onClose, complete))
+
+    @Throws(ZError::class)
+    private external fun declareQueryableViaJNI(
         keyExprPtr: Long,
         keyExprString: String,
         sessionPtr: Long,
@@ -74,7 +101,20 @@ public class JNISession(public val sessionPtr: Long) {
     ): Long
 
     @Throws(ZError::class)
-    external fun declareQuerierViaJNI(
+    fun declareQuerier(
+        keyExprPtr: Long,
+        keyExprString: String,
+        target: Int,
+        consolidation: Int,
+        congestionControl: Int,
+        priority: Int,
+        express: Boolean,
+        timeoutMs: Long,
+        acceptReplies: Int
+    ): JNIQuerier = JNIQuerier(declareQuerierViaJNI(keyExprPtr, keyExprString, sessionPtr, target, consolidation, congestionControl, priority, express, timeoutMs, acceptReplies))
+
+    @Throws(ZError::class)
+    private external fun declareQuerierViaJNI(
         keyExprPtr: Long,
         keyExprString: String,
         sessionPtr: Long,

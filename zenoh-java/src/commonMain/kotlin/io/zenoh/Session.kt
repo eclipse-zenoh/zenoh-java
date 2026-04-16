@@ -597,21 +597,19 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     internal fun resolvePublisher(keyExpr: KeyExpr, options: PublisherOptions): Publisher {
         return jniSession?.run {
-            val publisherRawPtr = declarePublisherViaJNI(
-                keyExpr.jniKeyExpr?.ptr ?: 0,
-                keyExpr.keyExpr,
-                sessionPtr,
-                options.congestionControl.value,
-                options.priority.value,
-                options.express,
-                options.reliability.ordinal
-            )
             val publisher = Publisher(
                 keyExpr,
                 options.congestionControl,
                 options.priority,
                 options.encoding,
-                JNIPublisher(publisherRawPtr)
+                declarePublisher(
+                    keyExpr.jniKeyExpr?.ptr ?: 0,
+                    keyExpr.keyExpr,
+                    options.congestionControl.value,
+                    options.priority.value,
+                    options.express,
+                    options.reliability.ordinal
+                )
             )
             weakDeclarations.add(WeakReference(publisher))
             publisher
@@ -638,10 +636,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                         )
                     )
                 }
-            val subscriberRawPtr = declareSubscriberViaJNI(
-                keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr, subCallback, handler::onClose
-            )
-            val subscriber = HandlerSubscriber(keyExpr, JNISubscriber(subscriberRawPtr), handler.receiver())
+            val subscriber = HandlerSubscriber(keyExpr, declareSubscriber(keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, subCallback, handler::onClose), handler.receiver())
             strongDeclarations.add(subscriber)
             subscriber
         } ?: throw (sessionClosedException)
@@ -667,10 +662,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                         )
                     )
                 }
-            val subscriberRawPtr = declareSubscriberViaJNI(
-                keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr, subCallback, fun() {}
-            )
-            val subscriber = CallbackSubscriber(keyExpr, JNISubscriber(subscriberRawPtr))
+            val subscriber = CallbackSubscriber(keyExpr, declareSubscriber(keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, subCallback, fun() {}))
             strongDeclarations.add(subscriber)
             subscriber
         } ?: throw (sessionClosedException)
@@ -698,10 +690,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                         )
                     )
                 }
-            val queryableRawPtr = declareQueryableViaJNI(
-                keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr, queryCallback, handler::onClose, options.complete
-            )
-            val queryable = HandlerQueryable(keyExpr, JNIQueryable(queryableRawPtr), handler.receiver())
+            val queryable = HandlerQueryable(keyExpr, declareQueryable(keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, queryCallback, handler::onClose, options.complete), handler.receiver())
             strongDeclarations.add(queryable)
             queryable
         } ?: throw (sessionClosedException)
@@ -729,10 +718,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                         )
                     )
                 }
-            val queryableRawPtr = declareQueryableViaJNI(
-                keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr, queryCallback, fun() {}, options.complete
-            )
-            val queryable = CallbackQueryable(keyExpr, JNIQueryable(queryableRawPtr))
+            val queryable = CallbackQueryable(keyExpr, declareQueryable(keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, queryCallback, fun() {}, options.complete))
             strongDeclarations.add(queryable)
             queryable
         } ?: throw (sessionClosedException)
@@ -744,22 +730,20 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         options: QuerierOptions
     ): Querier {
         return jniSession?.run {
-            val querierRawPtr = declareQuerierViaJNI(
-                keyExpr.jniKeyExpr?.ptr ?: 0,
-                keyExpr.keyExpr,
-                sessionPtr,
-                options.target.ordinal,
-                options.consolidationMode.ordinal,
-                options.congestionControl.value,
-                options.priority.value,
-                options.express,
-                options.timeout.toMillis(),
-                options.acceptReplies.ordinal
-            )
             val querier = Querier(
                 keyExpr,
                 QoS(congestionControl = options.congestionControl, priority = options.priority, express = options.express),
-                JNIQuerier(querierRawPtr)
+                declareQuerier(
+                    keyExpr.jniKeyExpr?.ptr ?: 0,
+                    keyExpr.keyExpr,
+                    options.target.ordinal,
+                    options.consolidationMode.ordinal,
+                    options.congestionControl.value,
+                    options.priority.value,
+                    options.express,
+                    options.timeout.toMillis(),
+                    options.acceptReplies.ordinal
+                )
             )
             weakDeclarations.add(WeakReference(querier))
             querier
