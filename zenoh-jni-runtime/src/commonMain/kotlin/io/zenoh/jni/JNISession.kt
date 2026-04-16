@@ -51,13 +51,13 @@ public class JNISession(public val sessionPtr: Long) {
         priority: Int,
         express: Boolean,
         reliability: Int
-    ): JNIPublisher = JNIPublisher(declarePublisherViaJNI(keyExprPtr, keyExprString, sessionPtr, congestionControl, priority, express, reliability))
+    ): JNIPublisher = JNIPublisher(declarePublisherViaJNI(sessionPtr, keyExprPtr, keyExprString, congestionControl, priority, express, reliability))
 
     @Throws(ZError::class)
     private external fun declarePublisherViaJNI(
+        sessionPtr: Long,
         keyExprPtr: Long,
         keyExprString: String,
-        sessionPtr: Long,
         congestionControl: Int,
         priority: Int,
         express: Boolean,
@@ -70,13 +70,13 @@ public class JNISession(public val sessionPtr: Long) {
         keyExprString: String,
         callback: JNISubscriberCallback,
         onClose: JNIOnCloseCallback,
-    ): JNISubscriber = JNISubscriber(declareSubscriberViaJNI(keyExprPtr, keyExprString, sessionPtr, callback, onClose))
+    ): JNISubscriber = JNISubscriber(declareSubscriberViaJNI(sessionPtr, keyExprPtr, keyExprString, callback, onClose))
 
     @Throws(ZError::class)
     private external fun declareSubscriberViaJNI(
+        sessionPtr: Long,
         keyExprPtr: Long,
         keyExprString: String,
-        sessionPtr: Long,
         callback: JNISubscriberCallback,
         onClose: JNIOnCloseCallback,
     ): Long
@@ -88,13 +88,13 @@ public class JNISession(public val sessionPtr: Long) {
         callback: JNIQueryableCallback,
         onClose: JNIOnCloseCallback,
         complete: Boolean
-    ): JNIQueryable = JNIQueryable(declareQueryableViaJNI(keyExprPtr, keyExprString, sessionPtr, callback, onClose, complete))
+    ): JNIQueryable = JNIQueryable(declareQueryableViaJNI(sessionPtr, keyExprPtr, keyExprString, callback, onClose, complete))
 
     @Throws(ZError::class)
     private external fun declareQueryableViaJNI(
+        sessionPtr: Long,
         keyExprPtr: Long,
         keyExprString: String,
-        sessionPtr: Long,
         callback: JNIQueryableCallback,
         onClose: JNIOnCloseCallback,
         complete: Boolean
@@ -111,13 +111,13 @@ public class JNISession(public val sessionPtr: Long) {
         express: Boolean,
         timeoutMs: Long,
         acceptReplies: Int
-    ): JNIQuerier = JNIQuerier(declareQuerierViaJNI(keyExprPtr, keyExprString, sessionPtr, target, consolidation, congestionControl, priority, express, timeoutMs, acceptReplies))
+    ): JNIQuerier = JNIQuerier(declareQuerierViaJNI(sessionPtr, keyExprPtr, keyExprString, target, consolidation, congestionControl, priority, express, timeoutMs, acceptReplies))
 
     @Throws(ZError::class)
     private external fun declareQuerierViaJNI(
+        sessionPtr: Long,
         keyExprPtr: Long,
         keyExprString: String,
-        sessionPtr: Long,
         target: Int,
         consolidation: Int,
         congestionControl: Int,
@@ -157,14 +157,14 @@ public class JNISession(public val sessionPtr: Long) {
         priority: Int,
         express: Boolean,
         acceptReplies: Int,
-    ) = getViaJNI(keyExprPtr, keyExprString, selectorParams, sessionPtr, callback, onClose, timeoutMs, target, consolidation, attachmentBytes, payload, encodingId, encodingSchema, congestionControl, priority, express, acceptReplies)
+    ) = getViaJNI(sessionPtr, keyExprPtr, keyExprString, selectorParams, callback, onClose, timeoutMs, target, consolidation, attachmentBytes, payload, encodingId, encodingSchema, congestionControl, priority, express, acceptReplies)
 
     @Throws(ZError::class)
     private external fun getViaJNI(
+        sessionPtr: Long,
         keyExprPtr: Long,
         keyExprString: String,
         selectorParams: String?,
-        sessionPtr: Long,
         callback: JNIGetCallback,
         onClose: JNIOnCloseCallback,
         timeoutMs: Long,
@@ -192,13 +192,13 @@ public class JNISession(public val sessionPtr: Long) {
         express: Boolean,
         attachmentBytes: ByteArray?,
         reliability: Int
-    ) = putViaJNI(keyExprPtr, keyExprString, sessionPtr, valuePayload, valueEncoding, valueEncodingSchema, congestionControl, priority, express, attachmentBytes, reliability)
+    ) = putViaJNI(sessionPtr, keyExprPtr, keyExprString, valuePayload, valueEncoding, valueEncodingSchema, congestionControl, priority, express, attachmentBytes, reliability)
 
     @Throws(ZError::class)
     private external fun putViaJNI(
+        sessionPtr: Long,
         keyExprPtr: Long,
         keyExprString: String,
-        sessionPtr: Long,
         valuePayload: ByteArray,
         valueEncoding: Int,
         valueEncodingSchema: String?,
@@ -218,13 +218,13 @@ public class JNISession(public val sessionPtr: Long) {
         express: Boolean,
         attachmentBytes: ByteArray?,
         reliability: Int
-    ) = deleteViaJNI(keyExprPtr, keyExprString, sessionPtr, congestionControl, priority, express, attachmentBytes, reliability)
+    ) = deleteViaJNI(sessionPtr, keyExprPtr, keyExprString, congestionControl, priority, express, attachmentBytes, reliability)
 
     @Throws(ZError::class)
     private external fun deleteViaJNI(
+        sessionPtr: Long,
         keyExprPtr: Long,
         keyExprString: String,
-        sessionPtr: Long,
         congestionControl: Int,
         priority: Int,
         express: Boolean,
@@ -243,9 +243,9 @@ public class JNISession(public val sessionPtr: Long) {
 
     @Throws(ZError::class)
     external fun declareAdvancedSubscriberViaJNI(
+        sessionPtr: Long,
         keyExprPtr: Long,
         keyExprStr: String,
-        sessionPtr: Long,
         historyConfigEnabled: Boolean,
         historyDetectLatePublishers: Boolean,
         historyMaxSamples: Long,
@@ -260,9 +260,9 @@ public class JNISession(public val sessionPtr: Long) {
 
     @Throws(ZError::class)
     external fun declareAdvancedPublisherViaJNI(
+        sessionPtr: Long,
         keyExprPtr: Long,
         keyExprStr: String,
-        sessionPtr: Long,
         congestionControl: Int,
         priority: Int,
         isExpress: Boolean,

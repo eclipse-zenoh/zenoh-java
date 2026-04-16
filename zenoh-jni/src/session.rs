@@ -226,9 +226,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_closeSessionViaJNI(
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declarePublisherViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
-    session_ptr: *const Session,
     congestion_control: jint,
     priority: jint,
     is_express: jboolean,
@@ -289,9 +289,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declarePublisherViaJNI(
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
-    session_ptr: *const Session,
     payload: JByteArray,
     encoding_id: jint,
     encoding_schema: JString,
@@ -360,9 +360,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_deleteViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
-    session_ptr: *const Session,
     congestion_control: jint,
     priority: jint,
     is_express: jboolean,
@@ -426,9 +426,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_deleteViaJNI(
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareSubscriberViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
-    session_ptr: *const Session,
     callback: JObject,
     on_close: JObject,
 ) -> *const Subscriber<()> {
@@ -474,9 +474,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareSubscriberViaJNI(
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
-    session_ptr: *const Session,
     target: jint,
     consolidation: jint,
     congestion_control: jint,
@@ -550,9 +550,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQueryableViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
-    session_ptr: *const Session,
     callback: JObject,
     on_close: JObject,
     complete: jboolean,
@@ -814,10 +814,10 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_undeclareKeyExprViaJNI(
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
     selector_params: /*nullable*/ JString,
-    session_ptr: *const Session,
     callback: JObject,
     on_close: JObject,
     timeout_ms: jlong,
@@ -1156,9 +1156,9 @@ fn ids_to_java_list(env: &mut JNIEnv, ids: Vec<ZenohId>) -> jni::errors::Result<
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedSubscriberViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
-    session_ptr: *const Session,
     // HistoryConfig
     history_config_enabled: jboolean,
     history_detect_late_publishers: jboolean,
@@ -1269,9 +1269,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedSubscriberV
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedPublisherViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
-    session_ptr: *const Session,
     congestion_control: jint,
     priority: jint,
     is_express: jboolean,
