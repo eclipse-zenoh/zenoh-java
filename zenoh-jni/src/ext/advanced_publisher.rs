@@ -261,11 +261,11 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_getMatchingStatu
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_putViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    publisher_ptr: *const AdvancedPublisher<'static>,
     payload: JByteArray,
     encoding_id: jint,
     encoding_schema: /*nullable*/ JString,
     attachment: /*nullable*/ JByteArray,
-    publisher_ptr: *const AdvancedPublisher<'static>,
 ) {
     let publisher = OwnedObject::from_raw(publisher_ptr);
     let _ = || -> ZResult<()> {
@@ -301,8 +301,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_putViaJNI(
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_deleteViaJNI(
     mut env: JNIEnv,
     _class: JClass,
-    attachment: /*nullable*/ JByteArray,
     publisher_ptr: *const AdvancedPublisher<'static>,
+    attachment: /*nullable*/ JByteArray,
 ) {
     let publisher = OwnedObject::from_raw(publisher_ptr);
     let _ = || -> ZResult<()> {

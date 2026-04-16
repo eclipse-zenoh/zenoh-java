@@ -51,11 +51,11 @@ use crate::{
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_putViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    publisher_ptr: *const Publisher<'static>,
     payload: JByteArray,
     encoding_id: jint,
     encoding_schema: /*nullable*/ JString,
     attachment: /*nullable*/ JByteArray,
-    publisher_ptr: *const Publisher<'static>,
 ) {
     let publisher = OwnedObject::from_raw(publisher_ptr);
     let _ = || -> ZResult<()> {
@@ -91,8 +91,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_putViaJNI(
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_deleteViaJNI(
     mut env: JNIEnv,
     _class: JClass,
-    attachment: /*nullable*/ JByteArray,
     publisher_ptr: *const Publisher<'static>,
+    attachment: /*nullable*/ JByteArray,
 ) {
     let publisher = OwnedObject::from_raw(publisher_ptr);
     let _ = || -> ZResult<()> {

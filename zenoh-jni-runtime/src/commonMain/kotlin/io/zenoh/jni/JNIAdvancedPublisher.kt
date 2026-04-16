@@ -27,12 +27,12 @@ public class JNIAdvancedPublisher(public val ptr: Long) {
 
     @Throws(ZError::class)
     fun put(payload: ByteArray, encodingId: Int, encodingSchema: String?, attachment: ByteArray?) {
-        putViaJNI(payload, encodingId, encodingSchema, attachment, ptr)
+        putViaJNI(ptr, payload, encodingId, encodingSchema, attachment)
     }
 
     @Throws(ZError::class)
     fun delete(attachment: ByteArray?) {
-        deleteViaJNI(attachment, ptr)
+        deleteViaJNI(ptr, attachment)
     }
 
     @Throws(ZError::class)
@@ -52,11 +52,11 @@ public class JNIAdvancedPublisher(public val ptr: Long) {
 
     @Throws(ZError::class)
     private external fun putViaJNI(
-        payload: ByteArray, encodingId: Int, encodingSchema: String?, attachment: ByteArray?, ptr: Long
+        ptr: Long, payload: ByteArray, encodingId: Int, encodingSchema: String?, attachment: ByteArray?
     )
 
     @Throws(ZError::class)
-    private external fun deleteViaJNI(attachment: ByteArray?, ptr: Long)
+    private external fun deleteViaJNI(ptr: Long, attachment: ByteArray?)
 
     @Throws(ZError::class)
     private external fun declareMatchingListenerViaJNI(
