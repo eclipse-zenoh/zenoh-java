@@ -22,6 +22,6 @@ public class JNILivelinessToken(public val ptr: Long) {
     }
 
     companion object {
-        external fun undeclareViaJNI(ptr: Long)
+        private external fun undeclareViaJNI(ptr: Long)
     }
 }

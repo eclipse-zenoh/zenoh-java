@@ -39,7 +39,7 @@ public class JNIScout(private val ptr: Long) {
             configPtr: Long,
         ): Long
 
-        external fun freePtrViaJNI(ptr: Long)
+        private external fun freePtrViaJNI(ptr: Long)
     }
 
     fun close() {

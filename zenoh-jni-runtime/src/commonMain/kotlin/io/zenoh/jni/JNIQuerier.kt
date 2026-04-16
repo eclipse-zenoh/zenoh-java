@@ -35,7 +35,7 @@ public class JNIQuerier(public val ptr: Long) {
         encodingSchema: String?,
     )
 
-    external fun freePtrViaJNI(ptr: Long)
+    private external fun freePtrViaJNI(ptr: Long)
 
     fun close() {
         freePtrViaJNI(ptr)

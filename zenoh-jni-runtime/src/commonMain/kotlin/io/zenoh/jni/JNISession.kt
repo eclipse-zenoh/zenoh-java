@@ -41,7 +41,7 @@ public class JNISession(public val sessionPtr: Long) {
     }
 
     @Throws(ZError::class)
-    external fun closeSessionViaJNI(ptr: Long)
+    private external fun closeSessionViaJNI(ptr: Long)
 
     @Throws(ZError::class)
     external fun declarePublisherViaJNI(
