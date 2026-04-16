@@ -26,59 +26,26 @@ public class JNIKeyExpr(public val ptr: Long) {
         }
 
         @Throws(ZError::class)
-        fun tryFrom(keyExpr: String): String {
-            return tryFromViaJNI(keyExpr)
-        }
+        internal external fun tryFromViaJNI(keyExpr: String): String
 
         @Throws(ZError::class)
-        fun autocanonize(keyExpr: String): String {
-            return autocanonizeViaJNI(keyExpr)
-        }
+        internal external fun autocanonizeViaJNI(keyExpr: String): String
 
         @Throws(ZError::class)
-        fun intersects(ptrA: Long, keyExprA: String, ptrB: Long, keyExprB: String): Boolean =
-            intersectsViaJNI(ptrA, keyExprA, ptrB, keyExprB)
+        internal external fun intersectsViaJNI(ptrA: Long, keyExprA: String, ptrB: Long, keyExprB: String): Boolean
 
         @Throws(ZError::class)
-        fun includes(ptrA: Long, keyExprA: String, ptrB: Long, keyExprB: String): Boolean =
-            includesViaJNI(ptrA, keyExprA, ptrB, keyExprB)
+        internal external fun includesViaJNI(ptrA: Long, keyExprA: String, ptrB: Long, keyExprB: String): Boolean
 
         /** Returns SetIntersectionLevel ordinal as Int. Callers convert to SetIntersectionLevel. */
         @Throws(ZError::class)
-        fun relationTo(ptrA: Long, keyExprA: String, ptrB: Long, keyExprB: String): Int {
-            return relationToViaJNI(ptrA, keyExprA, ptrB, keyExprB)
-        }
+        internal external fun relationToViaJNI(ptrA: Long, keyExprA: String, ptrB: Long, keyExprB: String): Int
 
         @Throws(ZError::class)
-        fun join(ptrA: Long, keyExprA: String, other: String): String {
-            return joinViaJNI(ptrA, keyExprA, other)
-        }
+        internal external fun joinViaJNI(ptrA: Long, keyExprA: String, other: String): String
 
         @Throws(ZError::class)
-        fun concat(ptrA: Long, keyExprA: String, other: String): String {
-            return concatViaJNI(ptrA, keyExprA, other)
-        }
-
-        @Throws(ZError::class)
-        private external fun tryFromViaJNI(keyExpr: String): String
-
-        @Throws(ZError::class)
-        private external fun autocanonizeViaJNI(keyExpr: String): String
-
-        @Throws(ZError::class)
-        private external fun intersectsViaJNI(ptrA: Long, keyExprA: String, ptrB: Long, keyExprB: String): Boolean
-
-        @Throws(ZError::class)
-        private external fun includesViaJNI(ptrA: Long, keyExprA: String, ptrB: Long, keyExprB: String): Boolean
-
-        @Throws(ZError::class)
-        private external fun relationToViaJNI(ptrA: Long, keyExprA: String, ptrB: Long, keyExprB: String): Int
-
-        @Throws(ZError::class)
-        private external fun joinViaJNI(ptrA: Long, keyExprA: String, other: String): String
-
-        @Throws(ZError::class)
-        private external fun concatViaJNI(ptrA: Long, keyExprA: String, other: String): String
+        internal external fun concatViaJNI(ptrA: Long, keyExprA: String, other: String): String
     }
 
     fun close() {
