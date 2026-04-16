@@ -27,41 +27,16 @@ public class JNIConfig(public val ptr: Long) {
         }
 
         @Throws(ZError::class)
-        fun loadDefaultConfig(): Long {
-            return loadDefaultConfigViaJNI()
-        }
+        internal external fun loadDefaultConfigViaJNI(): Long
 
         @Throws(ZError::class)
-        fun loadConfigFile(path: String): Long {
-            return loadConfigFileViaJNI(path)
-        }
+        internal external fun loadConfigFileViaJNI(path: String): Long
 
         @Throws(ZError::class)
-        fun loadJsonConfig(rawConfig: String): Long {
-            return loadJsonConfigViaJNI(rawConfig)
-        }
+        internal external fun loadJsonConfigViaJNI(rawConfig: String): Long
 
         @Throws(ZError::class)
-        fun loadYamlConfig(rawConfig: String): Long {
-            return loadYamlConfigViaJNI(rawConfig)
-        }
-
-        @Throws(ZError::class)
-        fun loadJson5Config(rawConfig: String): Long {
-            return loadJsonConfigViaJNI(rawConfig)
-        }
-
-        @Throws(ZError::class)
-        private external fun loadDefaultConfigViaJNI(): Long
-
-        @Throws(ZError::class)
-        private external fun loadConfigFileViaJNI(path: String): Long
-
-        @Throws(ZError::class)
-        private external fun loadJsonConfigViaJNI(rawConfig: String): Long
-
-        @Throws(ZError::class)
-        private external fun loadYamlConfigViaJNI(rawConfig: String): Long
+        internal external fun loadYamlConfigViaJNI(rawConfig: String): Long
 
         @Throws(ZError::class)
         private external fun getIdViaJNI(ptr: Long): ByteArray

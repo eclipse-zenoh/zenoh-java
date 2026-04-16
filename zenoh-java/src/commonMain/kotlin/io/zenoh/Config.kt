@@ -46,7 +46,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         fun loadDefault(): Config {
-            return Config(JNIConfig(JNIConfig.loadDefaultConfig()))
+            return Config(JNIConfig(JNIConfig.loadDefaultConfigViaJNI()))
         }
 
         /**
@@ -59,7 +59,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromFile(file: File): Config {
-            return Config(JNIConfig(JNIConfig.loadConfigFile(file.toString())))
+            return Config(JNIConfig(JNIConfig.loadConfigFileViaJNI(file.toString())))
         }
 
         /**
@@ -72,7 +72,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromFile(path: Path): Config {
-            return Config(JNIConfig(JNIConfig.loadConfigFile(path.toString())))
+            return Config(JNIConfig(JNIConfig.loadConfigFileViaJNI(path.toString())))
         }
 
         /**
@@ -87,7 +87,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromJson(config: String): Config {
-            return Config(JNIConfig(JNIConfig.loadJsonConfig(config)))
+            return Config(JNIConfig(JNIConfig.loadJsonConfigViaJNI(config)))
         }
 
         /**
@@ -102,7 +102,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromJson5(config: String): Config {
-            return Config(JNIConfig(JNIConfig.loadJson5Config(config)))
+            return Config(JNIConfig(JNIConfig.loadJsonConfigViaJNI(config)))
         }
 
         /**
@@ -117,7 +117,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromYaml(config: String): Config {
-            return Config(JNIConfig(JNIConfig.loadYamlConfig(config)))
+            return Config(JNIConfig(JNIConfig.loadYamlConfigViaJNI(config)))
         }
 
         /**
