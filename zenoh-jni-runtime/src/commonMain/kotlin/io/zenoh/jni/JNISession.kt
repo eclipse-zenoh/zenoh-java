@@ -321,6 +321,51 @@ public class JNISession(public val sessionPtr: Long) {
         publisherDetection: Boolean,
     ): Long
 
+    @Throws(ZError::class)
+    fun declareLivelinessToken(keyExprPtr: Long, keyExprString: String): JNILivelinessToken =
+        JNILivelinessToken(declareLivelinessTokenViaJNI(sessionPtr, keyExprPtr, keyExprString))
+
+    @Throws(ZError::class)
+    private external fun declareLivelinessTokenViaJNI(sessionPtr: Long, keyExprPtr: Long, keyExprString: String): Long
+
+    @Throws(ZError::class)
+    fun declareLivelinessSubscriber(
+        keyExprPtr: Long,
+        keyExprString: String,
+        callback: JNISubscriberCallback,
+        history: Boolean,
+        onClose: JNIOnCloseCallback,
+    ): JNISubscriber = JNISubscriber(declareLivelinessSubscriberViaJNI(sessionPtr, keyExprPtr, keyExprString, callback, history, onClose))
+
+    @Throws(ZError::class)
+    private external fun declareLivelinessSubscriberViaJNI(
+        sessionPtr: Long,
+        keyExprPtr: Long,
+        keyExprString: String,
+        callback: JNISubscriberCallback,
+        history: Boolean,
+        onClose: JNIOnCloseCallback,
+    ): Long
+
+    @Throws(ZError::class)
+    fun livelinessGet(
+        keyExprPtr: Long,
+        keyExprString: String,
+        callback: JNIGetCallback,
+        timeoutMs: Long,
+        onClose: JNIOnCloseCallback,
+    ) = livelinessGetViaJNI(sessionPtr, keyExprPtr, keyExprString, callback, timeoutMs, onClose)
+
+    @Throws(ZError::class)
+    private external fun livelinessGetViaJNI(
+        sessionPtr: Long,
+        keyExprPtr: Long,
+        keyExprString: String,
+        callback: JNIGetCallback,
+        timeoutMs: Long,
+        onClose: JNIOnCloseCallback,
+    )
+
     fun close() {
         closeSessionViaJNI(sessionPtr)
     }

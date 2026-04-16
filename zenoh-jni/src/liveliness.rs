@@ -38,7 +38,7 @@ use crate::{
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_getViaJNI(
+pub extern "C" fn Java_io_zenoh_jni_JNISession_livelinessGetViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     session_ptr: *const Session,
@@ -101,7 +101,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_getViaJNI(
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_declareTokenViaJNI(
+pub extern "C" fn Java_io_zenoh_jni_JNISession_declareLivelinessTokenViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     session_ptr: *const Session,
@@ -137,7 +137,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNILivelinessToken_00024Companion_undeclareV
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNILiveliness_declareSubscriberViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareLivelinessSubscriberViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     session_ptr: *const Session,
