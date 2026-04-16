@@ -19,7 +19,7 @@ import io.zenoh.jni.callbacks.JNIGetCallback
 import io.zenoh.jni.callbacks.JNIOnCloseCallback
 
 /** Adapter class for a native Zenoh querier. */
-public class JNIQuerier(public val ptr: Long) {
+public class JNIQuerier(private val ptr: Long) {
 
     @Throws(ZError::class)
     fun get(

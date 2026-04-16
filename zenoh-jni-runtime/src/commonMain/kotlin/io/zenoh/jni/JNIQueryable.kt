@@ -19,7 +19,7 @@ package io.zenoh.jni
  *
  * @property ptr: raw pointer to the underlying native Queryable.
  */
-public class JNIQueryable(public val ptr: Long) {
+public class JNIQueryable(private val ptr: Long) {
 
     fun close() {
         freePtrViaJNI(ptr)

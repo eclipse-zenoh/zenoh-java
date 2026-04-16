@@ -24,7 +24,7 @@ import io.zenoh.jni.callbacks.JNISubscriberCallback
  *
  * @property ptr Raw pointer to the underlying native AdvancedSubscriber.
  */
-public class JNIAdvancedSubscriber(public val ptr: Long) {
+public class JNIAdvancedSubscriber(private val ptr: Long) {
 
     @Throws(ZError::class)
     fun declareDetectPublishersSubscriber(

@@ -15,7 +15,7 @@
 package io.zenoh.jni
 
 /** Adapter class for a native Zenoh SampleMissListener. */
-public class JNISampleMissListener(public val ptr: Long) {
+public class JNISampleMissListener(private val ptr: Long) {
 
     fun close() {
         freePtrViaJNI(ptr)

@@ -21,7 +21,7 @@ import io.zenoh.exceptions.ZError
  *
  * @property ptr Raw pointer to the underlying native Publisher.
  */
-public class JNIPublisher(public val ptr: Long) {
+public class JNIPublisher(private val ptr: Long) {
 
     @Throws(ZError::class)
     fun put(payload: ByteArray, encodingId: Int, encodingSchema: String?, attachment: ByteArray?) {

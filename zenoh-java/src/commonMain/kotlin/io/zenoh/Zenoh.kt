@@ -60,8 +60,7 @@ object Zenoh {
             handler.handle(Hello(WhatAmI.fromInt(whatAmI), ZenohId(id), locators))
         }
         val binaryWhatAmI = scoutOptions.whatAmI.map { it.value }.reduce { acc, it -> acc or it }
-        val ptr = JNIScout.scoutViaJNI(binaryWhatAmI, scoutCallback, handler::onClose, scoutOptions.config?.jniConfig?.ptr ?: 0)
-        return HandlerScout(JNIScout(ptr), handler.receiver())
+        return HandlerScout(JNIScout.scout(binaryWhatAmI, scoutCallback, handler::onClose, scoutOptions.config?.jniConfig), handler.receiver())
     }
 
     /**
@@ -83,8 +82,7 @@ object Zenoh {
             handler.handle(Hello(WhatAmI.fromInt(whatAmI), ZenohId(id), locators))
         }
         val binaryWhatAmI = scoutOptions.whatAmI.map { it.value }.reduce { acc, it -> acc or it }
-        val ptr = JNIScout.scoutViaJNI(binaryWhatAmI, scoutCallback, handler::onClose, scoutOptions.config?.jniConfig?.ptr ?: 0)
-        return HandlerScout(JNIScout(ptr), handler.receiver())
+        return HandlerScout(JNIScout.scout(binaryWhatAmI, scoutCallback, handler::onClose, scoutOptions.config?.jniConfig), handler.receiver())
     }
 
     /**
@@ -105,8 +103,7 @@ object Zenoh {
             callback.run(Hello(WhatAmI.fromInt(whatAmI), ZenohId(id), locators))
         }
         val binaryWhatAmI = scoutOptions.whatAmI.map { it.value }.reduce { acc, it -> acc or it }
-        val ptr = JNIScout.scoutViaJNI(binaryWhatAmI, scoutCallback, fun() {}, scoutOptions.config?.jniConfig?.ptr ?: 0)
-        return CallbackScout(JNIScout(ptr))
+        return CallbackScout(JNIScout.scout(binaryWhatAmI, scoutCallback, fun() {}, scoutOptions.config?.jniConfig))
     }
 
     /**

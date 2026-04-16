@@ -19,7 +19,7 @@ package io.zenoh.jni
  *
  * @property ptr: raw pointer to the underlying native Subscriber.
  */
-public class JNISubscriber(public val ptr: Long) {
+public class JNISubscriber(private val ptr: Long) {
 
     fun close() {
         freePtrViaJNI(ptr)

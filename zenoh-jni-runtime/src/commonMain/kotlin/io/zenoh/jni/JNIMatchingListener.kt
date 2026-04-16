@@ -15,7 +15,7 @@
 package io.zenoh.jni
 
 /** Adapter class for a native Zenoh MatchingListener. */
-public class JNIMatchingListener(public val ptr: Long) {
+public class JNIMatchingListener(private val ptr: Long) {
 
     fun close() {
         freePtrViaJNI(ptr)

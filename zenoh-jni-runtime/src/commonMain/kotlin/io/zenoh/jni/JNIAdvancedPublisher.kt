@@ -23,7 +23,7 @@ import io.zenoh.jni.callbacks.JNIOnCloseCallback
  *
  * @property ptr Raw pointer to the underlying native AdvancedPublisher.
  */
-public class JNIAdvancedPublisher(public val ptr: Long) {
+public class JNIAdvancedPublisher(private val ptr: Long) {
 
     @Throws(ZError::class)
     fun put(payload: ByteArray, encodingId: Int, encodingSchema: String?, attachment: ByteArray?) {

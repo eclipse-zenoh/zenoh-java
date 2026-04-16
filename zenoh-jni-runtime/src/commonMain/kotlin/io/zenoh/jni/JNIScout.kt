@@ -32,7 +32,15 @@ public class JNIScout(private val ptr: Long) {
         }
 
         @Throws(ZError::class)
-        external fun scoutViaJNI(
+        fun scout(
+            whatAmI: Int,
+            callback: JNIScoutCallback,
+            onClose: JNIOnCloseCallback,
+            config: JNIConfig?,
+        ): JNIScout = JNIScout(scoutViaJNI(whatAmI, callback, onClose, config?.ptr ?: 0))
+
+        @Throws(ZError::class)
+        private external fun scoutViaJNI(
             whatAmI: Int,
             callback: JNIScoutCallback,
             onClose: JNIOnCloseCallback,

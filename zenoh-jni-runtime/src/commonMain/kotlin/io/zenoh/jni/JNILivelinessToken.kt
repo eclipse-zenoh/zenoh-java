@@ -15,7 +15,7 @@
 package io.zenoh.jni
 
 /** Adapter class for a native Zenoh LivelinessToken. */
-public class JNILivelinessToken(public val ptr: Long) {
+public class JNILivelinessToken(private val ptr: Long) {
 
     fun undeclare() {
         undeclareViaJNI(ptr)

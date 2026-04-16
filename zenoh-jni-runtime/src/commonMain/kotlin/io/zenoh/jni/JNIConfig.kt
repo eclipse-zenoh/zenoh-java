@@ -18,7 +18,7 @@ import io.zenoh.ZenohLoad
 import io.zenoh.exceptions.ZError
 
 /** Adapter for the native Zenoh config. */
-public class JNIConfig(public val ptr: Long) {
+public class JNIConfig(internal val ptr: Long) {
 
     companion object {
 
