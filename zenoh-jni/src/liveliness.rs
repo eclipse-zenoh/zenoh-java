@@ -137,7 +137,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNILivelinessToken_00024Companion_undeclareV
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_declareSubscriberViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNILiveliness_declareSubscriberViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     session_ptr: *const Session,
@@ -147,19 +147,17 @@ pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_declareSubscriberViaJNI(
     history: jboolean,
     on_close: JObject,
 ) -> *const Subscriber<()> {
-    let session = unsafe { OwnedObject::from_raw(session_ptr) };
+    let session = OwnedObject::from_raw(session_ptr);
     || -> ZResult<*const Subscriber<()>> {
-        let key_expr = unsafe { process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr) }?;
+        let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         tracing::debug!("Declaring liveliness subscriber on '{}'...", key_expr);
 
-        let subscriber = unsafe {
-            session
-                .liveliness()
-                .declare_subscriber(key_expr.to_owned())
-                .history(history != 0)
-                .set_jni_sample_callback(&mut env, callback, on_close)
-        }?
-        .wait()
+        let subscriber = session
+            .liveliness()
+            .declare_subscriber(key_expr.to_owned())
+            .history(history != 0)
+            .set_jni_sample_callback(&mut env, callback, on_close)?
+            .wait()
             .map_err(|err| zerror!("Unable to declare liveliness subscriber: {}", err))?;
 
         tracing::debug!("Subscriber declared on '{}'.", key_expr);
