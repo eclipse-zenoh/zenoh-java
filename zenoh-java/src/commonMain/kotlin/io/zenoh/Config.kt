@@ -46,7 +46,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         fun loadDefault(): Config {
-            return Config(JNIConfig(JNIConfig.loadDefaultConfigViaJNI()))
+            return Config(JNIConfig.loadDefault())
         }
 
         /**
@@ -59,7 +59,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromFile(file: File): Config {
-            return Config(JNIConfig(JNIConfig.loadConfigFileViaJNI(file.toString())))
+            return Config(JNIConfig.loadFromFile(file.toString()))
         }
 
         /**
@@ -72,7 +72,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromFile(path: Path): Config {
-            return Config(JNIConfig(JNIConfig.loadConfigFileViaJNI(path.toString())))
+            return Config(JNIConfig.loadFromFile(path.toString()))
         }
 
         /**
@@ -87,7 +87,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromJson(config: String): Config {
-            return Config(JNIConfig(JNIConfig.loadJsonConfigViaJNI(config)))
+            return Config(JNIConfig.loadFromJson(config))
         }
 
         /**
@@ -102,7 +102,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromJson5(config: String): Config {
-            return Config(JNIConfig(JNIConfig.loadJsonConfigViaJNI(config)))
+            return Config(JNIConfig.loadFromJson(config))
         }
 
         /**
@@ -117,7 +117,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromYaml(config: String): Config {
-            return Config(JNIConfig(JNIConfig.loadYamlConfigViaJNI(config)))
+            return Config(JNIConfig.loadFromYaml(config))
         }
 
         /**

@@ -30,8 +30,8 @@ public class JNISession(public val sessionPtr: Long) {
         }
 
         @Throws(ZError::class)
-        fun open(configPtr: Long): JNISession {
-            val sessionPtr = openSessionViaJNI(configPtr)
+        fun open(config: JNIConfig): JNISession {
+            val sessionPtr = openSessionViaJNI(config.ptr)
             return JNISession(sessionPtr)
         }
 

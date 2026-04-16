@@ -900,7 +900,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     /** Launches the session through the jni session, returning the [Session] on success. */
     @Throws(ZError::class)
     private fun launch(): Session {
-        this.jniSession = JNISession.open(config.jniConfig.ptr)
+        this.jniSession = JNISession.open(config.jniConfig)
         return this
     }
 }

@@ -17,7 +17,7 @@ package io.zenoh.jni
 import io.zenoh.ZenohLoad
 import io.zenoh.exceptions.ZError
 
-/** Adapter for the native Zenoh config. Factory methods return raw pointers for use by facade classes. */
+/** Adapter for the native Zenoh config. */
 public class JNIConfig(public val ptr: Long) {
 
     companion object {
@@ -27,16 +27,28 @@ public class JNIConfig(public val ptr: Long) {
         }
 
         @Throws(ZError::class)
-        internal external fun loadDefaultConfigViaJNI(): Long
+        fun loadDefault(): JNIConfig = JNIConfig(loadDefaultConfigViaJNI())
 
         @Throws(ZError::class)
-        internal external fun loadConfigFileViaJNI(path: String): Long
+        fun loadFromFile(path: String): JNIConfig = JNIConfig(loadConfigFileViaJNI(path))
 
         @Throws(ZError::class)
-        internal external fun loadJsonConfigViaJNI(rawConfig: String): Long
+        fun loadFromJson(rawConfig: String): JNIConfig = JNIConfig(loadJsonConfigViaJNI(rawConfig))
 
         @Throws(ZError::class)
-        internal external fun loadYamlConfigViaJNI(rawConfig: String): Long
+        fun loadFromYaml(rawConfig: String): JNIConfig = JNIConfig(loadYamlConfigViaJNI(rawConfig))
+
+        @Throws(ZError::class)
+        private external fun loadDefaultConfigViaJNI(): Long
+
+        @Throws(ZError::class)
+        private external fun loadConfigFileViaJNI(path: String): Long
+
+        @Throws(ZError::class)
+        private external fun loadJsonConfigViaJNI(rawConfig: String): Long
+
+        @Throws(ZError::class)
+        private external fun loadYamlConfigViaJNI(rawConfig: String): Long
 
         @Throws(ZError::class)
         private external fun getIdViaJNI(ptr: Long): ByteArray
@@ -55,12 +67,13 @@ public class JNIConfig(public val ptr: Long) {
     }
 
     @Throws(ZError::class)
-    fun getJson(key: String): String {
-        return getJsonViaJNI(ptr, key)
-    }
+    fun getId(): ByteArray = getIdViaJNI(ptr)
+
+    @Throws(ZError::class)
+    fun getJson(key: String): String = getJsonViaJNI(ptr, key)
 
     @Throws(ZError::class)
     fun insertJson5(key: String, value: String) {
-        insertJson5ViaJNI(this.ptr, key, value)
+        insertJson5ViaJNI(ptr, key, value)
     }
 }
