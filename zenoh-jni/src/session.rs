@@ -21,9 +21,8 @@ use jni::{
 };
 use zenoh::{
     config::Config,
-    handlers::Callback,
     key_expr::KeyExpr,
-    pubsub::{Publisher, PublisherBuilder, Subscriber, SubscriberBuilder},
+    pubsub::{Publisher, Subscriber},
     query::{Querier, Query, Queryable, ReplyError, ReplyKeyExpr, Selector},
     sample::Sample,
     session::{EntityGlobalId, Session, ZenohId},
@@ -1192,50 +1191,6 @@ fn ids_to_java_list(env: &mut JNIEnv, ids: Vec<ZenohId>) -> jni::errors::Result<
     Ok(array_list.as_raw())
 }
 
-#[allow(clippy::too_many_arguments)]
-unsafe fn prepare_publisher_builder<'a, 'b>(
-    env: &mut JNIEnv,
-    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
-    key_expr_str: &JString,
-    session: &'a Session,
-    congestion_control: jint,
-    priority: jint,
-    is_express: jboolean,
-    reliability: jint,
-) -> ZResult<PublisherBuilder<'a, 'b>> {
-    let key_expr = process_kotlin_key_expr(env, key_expr_str, key_expr_ptr)?;
-    let congestion_control = decode_congestion_control(congestion_control)?;
-    let priority = decode_priority(priority)?;
-    let reliability = decode_reliability(reliability)?;
-    let builder = session
-        .declare_publisher(key_expr)
-        .congestion_control(congestion_control)
-        .priority(priority)
-        .express(is_express != 0)
-        .reliability(reliability);
-    Ok(builder)
-}
-
-unsafe fn prepare_subscriber_builder<'a, 'b>(
-    env: &mut JNIEnv,
-    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
-    key_expr_str: &JString,
-    session: &'a Session,
-    callback: JObject,
-    on_close: JObject,
-    entity_name: &str,
-) -> ZResult<SubscriberBuilder<'a, 'b, Callback<Sample>>> {
-    let key_expr = process_kotlin_key_expr(env, key_expr_str, key_expr_ptr)?;
-    tracing::debug!("Declaring {entity_name} on '{}'...", key_expr);
-
-    let builder = session
-        .declare_subscriber(key_expr.to_owned())
-        .set_jni_sample_callback(env, callback, on_close)?;
-
-    tracing::debug!("{entity_name} declared on '{}'.", key_expr);
-    Ok(builder)
-}
-
 /// Declare an advanced Zenoh subscriber via JNI.
 ///
 /// # Parameters:
@@ -1287,16 +1242,13 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedSubscriberV
 ) -> *const AdvancedSubscriber<()> {
     let session = OwnedObject::from_raw(session_ptr);
     || -> ZResult<*const AdvancedSubscriber<()>> {
-        let mut builder = prepare_subscriber_builder(
-            &mut env,
-            key_expr_ptr,
-            &key_expr_str,
-            &session,
-            callback,
-            on_close,
-            "advanced subscriber",
-        )?
-        .advanced();
+        let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
+        tracing::debug!("Declaring advanced subscriber on '{}'...", key_expr);
+        let mut builder = session
+            .declare_subscriber(key_expr.to_owned())
+            .set_jni_sample_callback(&mut env, callback, on_close)?
+            .advanced();
+        tracing::debug!("Advanced subscriber declared on '{}'.", key_expr);
 
         if history_config_enabled != 0 {
             let mut history = match history_detect_late_publishers != 0 {
@@ -1406,17 +1358,17 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedPublisherVi
 ) -> *const AdvancedPublisher<'static> {
     let session = OwnedObject::from_raw(session_ptr);
     let publisher_ptr = || -> ZResult<*const AdvancedPublisher<'static>> {
-        let mut builder = prepare_publisher_builder(
-            &mut env,
-            key_expr_ptr,
-            &key_expr_str,
-            &session,
-            congestion_control,
-            priority,
-            is_express,
-            reliability,
-        )?
-        .advanced();
+        let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
+        let congestion_control = decode_congestion_control(congestion_control)?;
+        let priority = decode_priority(priority)?;
+        let reliability = decode_reliability(reliability)?;
+        let mut builder = session
+            .declare_publisher(key_expr)
+            .congestion_control(congestion_control)
+            .priority(priority)
+            .express(is_express != 0)
+            .reliability(reliability)
+            .advanced();
 
         // fill CacheConfig
         if cache_enabled != 0 {
