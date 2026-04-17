@@ -104,6 +104,6 @@ abstract class ZSerializer<T>: TypeToken<T>() {
      * Serialize [t] into a [ZBytes].
      */
     fun serialize(t: T): ZBytes {
-        return JNIZBytes.serializeViaJNI(t as Any, this.type)
+        return ZBytes(JNIZBytes.serialize(t as Any, this.type))
     }
 }

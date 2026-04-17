@@ -12,8 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-import com.nishtahir.CargoExtension
-
 plugins {
     kotlin("multiplatform")
     kotlin("plugin.serialization")
@@ -30,13 +28,11 @@ val release = project.findProperty("release")?.toString()?.toBoolean() == true
 // Modifying this property will affect the release workflows!
 val isRemotePublication = project.findProperty("remotePublication")?.toString()?.toBoolean() == true
 
-var buildMode = if (release) BuildMode.RELEASE else BuildMode.DEBUG
+var buildMode = if (release) "release" else "debug"
 
 if (androidEnabled) {
     apply(plugin = "com.android.library")
-    apply(plugin = "org.mozilla.rust-android-gradle.rust-android")
 
-    configureCargo()
     configureAndroid()
 }
 
@@ -66,6 +62,7 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
+                api(project(":zenoh-jni-runtime"))
                 implementation("commons-net:commons-net:3.9.0")
                 implementation("com.google.guava:guava:33.3.1-jre")
             }
@@ -82,18 +79,9 @@ kotlin {
                 }
             }
         }
-        val jvmMain by getting {
-            if (isRemotePublication) {
-                // The line below is intended to load the native libraries that are crosscompiled on GitHub actions when publishing a JVM package.
-                resources.srcDir("../jni-libs").include("*/**")
-            } else {
-                resources.srcDir("../zenoh-jni/target/$buildMode").include(arrayListOf("*.dylib", "*.so", "*.dll"))
-            }
-        }
+        val jvmMain by getting {}
 
-        val jvmTest by getting {
-            resources.srcDir("../zenoh-jni/target/$buildMode").include(arrayListOf("*.dylib", "*.so", "*.dll"))
-        }
+        val jvmTest by getting {}
     }
 
     val javadocJar by tasks.registering(Jar::class) {
@@ -161,55 +149,8 @@ tasks.withType<Test> {
     }
 }
 
-tasks.whenObjectAdded {
-    if ((this.name == "mergeDebugJniLibFolders" || this.name == "mergeReleaseJniLibFolders")) {
-        this.dependsOn("cargoBuild")
-    }
-}
-
 tasks.named("compileKotlinJvm") {
-    dependsOn("buildZenohJni")
-}
-
-tasks.register("buildZenohJni") {
-    doLast {
-        if (!isRemotePublication) {
-            // This is intended for local publications. For publications done through GitHub workflows,
-            // the zenoh-jni build is achieved and loaded differently from the CI
-            buildZenohJNI(buildMode)
-        }
-    }
-}
-
-fun buildZenohJNI(mode: BuildMode = BuildMode.DEBUG) {
-    val cargoCommand = mutableListOf("cargo", "build")
-
-    if (mode == BuildMode.RELEASE) {
-        cargoCommand.add("--release")
-    }
-
-    val result = project.exec {
-        commandLine(*(cargoCommand.toTypedArray()), "--manifest-path", "../zenoh-jni/Cargo.toml")
-    }
-
-    if (result.exitValue != 0) {
-        throw GradleException("Failed to build Zenoh-JNI.")
-    }
-
-    Thread.sleep(1000)
-}
-
-enum class BuildMode {
-    DEBUG {
-        override fun toString(): String {
-            return "debug"
-        }
-    },
-    RELEASE {
-        override fun toString(): String {
-            return "release"
-        }
-    }
+    dependsOn(":zenoh-jni-runtime:buildZenohJni")
 }
 
 fun Project.configureAndroid() {
@@ -247,22 +188,5 @@ fun Project.configureAndroid() {
                 withJavadocJar()
             }
         }
-    }
-}
-
-fun Project.configureCargo() {
-    extensions.configure<CargoExtension>("cargo") {
-        pythonCommand = "python3"
-        module = "../zenoh-jni"
-        libname = "zenoh-jni"
-        targetIncludes = arrayOf("libzenoh_jni.so")
-        targetDirectory = "../zenoh-jni/target/"
-        profile = "release"
-        targets = arrayListOf(
-            "arm",
-            "arm64",
-            "x86",
-            "x86_64",
-        )
     }
 }

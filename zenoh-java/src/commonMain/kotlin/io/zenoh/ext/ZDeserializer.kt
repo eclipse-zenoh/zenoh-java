@@ -106,6 +106,6 @@ abstract class ZDeserializer<T>: TypeToken<T>() {
      */
     fun deserialize(zbytes: IntoZBytes): T {
         @Suppress("UNCHECKED_CAST")
-        return JNIZBytes.deserializeViaJNI(zbytes.into(), this.type) as T
+        return JNIZBytes.deserialize(zbytes.into().bytes, this.type) as T
     }
 }

@@ -15,23 +15,40 @@
 package io.zenoh
 
 import io.zenoh.annotations.Unstable
+import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
+import io.zenoh.bytes.into
+import io.zenoh.config.EntityGlobalId
 import io.zenoh.config.ZenohId
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
+import io.zenoh.jni.JNIKeyExpr
+import io.zenoh.jni.JNIPublisher
+import io.zenoh.jni.JNIQuery
+import io.zenoh.jni.JNIQuerier
+import io.zenoh.jni.JNIQueryable
 import io.zenoh.jni.JNISession
+import io.zenoh.jni.JNISubscriber
+import io.zenoh.jni.callbacks.JNIGetCallback
+import io.zenoh.jni.callbacks.JNIQueryableCallback
+import io.zenoh.jni.callbacks.JNISubscriberCallback
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.liveliness.Liveliness
 import io.zenoh.pubsub.*
+import io.zenoh.qos.CongestionControl
+import io.zenoh.qos.Priority
+import io.zenoh.qos.QoS
 import io.zenoh.query.*
 import io.zenoh.query.Query
 import io.zenoh.query.Queryable
 import io.zenoh.sample.Sample
+import io.zenoh.sample.SampleKind
 import io.zenoh.session.SessionDeclaration
 import io.zenoh.session.SessionInfo
+import org.apache.commons.net.ntp.TimeStamp
 import java.lang.ref.WeakReference
 import java.util.*
 import java.util.concurrent.BlockingQueue
@@ -383,9 +400,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     fun declareKeyExpr(keyExpr: String): KeyExpr {
         return jniSession?.run {
-            val keyexpr = declareKeyExpr(keyExpr)
-            strongDeclarations.add(keyexpr)
-            keyexpr
+            val ke = KeyExpr(keyExpr, declareKeyExpr(keyExpr))
+            strongDeclarations.add(ke)
+            ke
         } ?: throw sessionClosedException
     }
 
@@ -400,8 +417,11 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @Throws(ZError::class)
     fun undeclare(keyExpr: KeyExpr) {
-        return jniSession?.run {
-            undeclareKeyExpr(keyExpr)
+        jniSession?.run {
+            keyExpr.jniKeyExpr?.run {
+                undeclareKeyExpr(this)
+                keyExpr.jniKeyExpr = null
+            } ?: throw ZError("Attempting to undeclare a non declared key expression.")
         } ?: throw (sessionClosedException)
     }
 
@@ -576,7 +596,20 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     internal fun resolvePublisher(keyExpr: KeyExpr, options: PublisherOptions): Publisher {
         return jniSession?.run {
-            val publisher = declarePublisher(keyExpr, options)
+            val publisher = Publisher(
+                keyExpr,
+                options.congestionControl,
+                options.priority,
+                options.encoding,
+                declarePublisher(
+                    keyExpr.jniKeyExpr,
+                    keyExpr.keyExpr,
+                    options.congestionControl.value,
+                    options.priority.value,
+                    options.express,
+                    options.reliability.ordinal
+                )
+            )
             weakDeclarations.add(WeakReference(publisher))
             publisher
         } ?: throw (sessionClosedException)
@@ -587,7 +620,22 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         keyExpr: KeyExpr, handler: Handler<Sample, R>
     ): HandlerSubscriber<R> {
         return jniSession?.run {
-            val subscriber = declareSubscriberWithHandler(keyExpr, handler)
+            val subCallback =
+                JNISubscriberCallback { keyExpr1, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
+                    val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
+                    handler.handle(
+                        Sample(
+                            KeyExpr(keyExpr1, null),
+                            payload.into(),
+                            Encoding(encodingId, schema = encodingSchema),
+                            SampleKind.fromInt(kind),
+                            timestamp,
+                            QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
+                            attachmentBytes?.into()
+                        )
+                    )
+                }
+            val subscriber = HandlerSubscriber(keyExpr, declareSubscriber(keyExpr.jniKeyExpr, keyExpr.keyExpr, subCallback, handler::onClose), handler.receiver())
             strongDeclarations.add(subscriber)
             subscriber
         } ?: throw (sessionClosedException)
@@ -598,7 +646,22 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         keyExpr: KeyExpr, callback: Callback<Sample>
     ): CallbackSubscriber {
         return jniSession?.run {
-            val subscriber = declareSubscriberWithCallback(keyExpr, callback)
+            val subCallback =
+                JNISubscriberCallback { keyExpr1, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
+                    val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
+                    callback.run(
+                        Sample(
+                            KeyExpr(keyExpr1, null),
+                            payload.into(),
+                            Encoding(encodingId, schema = encodingSchema),
+                            SampleKind.fromInt(kind),
+                            timestamp,
+                            QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
+                            attachmentBytes?.into()
+                        )
+                    )
+                }
+            val subscriber = CallbackSubscriber(keyExpr, declareSubscriber(keyExpr.jniKeyExpr, keyExpr.keyExpr, subCallback, fun() {}))
             strongDeclarations.add(subscriber)
             subscriber
         } ?: throw (sessionClosedException)
@@ -609,7 +672,24 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         keyExpr: KeyExpr, handler: Handler<Query, R>, options: QueryableOptions
     ): HandlerQueryable<R> {
         return jniSession?.run {
-            val queryable = declareQueryableWithHandler(keyExpr, handler, options)
+            val queryCallback =
+                JNIQueryableCallback { keyExpr1, selectorParams, payload, encodingId, encodingSchema, attachmentBytes, queryPtr, acceptReplies ->
+                    val jniQuery = JNIQuery(queryPtr)
+                    val keyExpr2 = KeyExpr(keyExpr1, null)
+                    val selector = if (selectorParams.isEmpty()) Selector(keyExpr2) else Selector(keyExpr2, Parameters.from(selectorParams))
+                    handler.handle(
+                        Query(
+                            keyExpr2,
+                            selector,
+                            payload?.into(),
+                            payload?.let { Encoding(encodingId, schema = encodingSchema) },
+                            attachmentBytes?.into(),
+                            ReplyKeyExpr.entries[acceptReplies],
+                            jniQuery
+                        )
+                    )
+                }
+            val queryable = HandlerQueryable(keyExpr, declareQueryable(keyExpr.jniKeyExpr, keyExpr.keyExpr, queryCallback, handler::onClose, options.complete), handler.receiver())
             strongDeclarations.add(queryable)
             queryable
         } ?: throw (sessionClosedException)
@@ -620,18 +700,50 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         keyExpr: KeyExpr, callback: Callback<Query>, options: QueryableOptions
     ): CallbackQueryable {
         return jniSession?.run {
-            val queryable = declareQueryableWithCallback(keyExpr, callback, options)
+            val queryCallback =
+                JNIQueryableCallback { keyExpr1, selectorParams, payload, encodingId, encodingSchema, attachmentBytes, queryPtr, acceptReplies ->
+                    val jniQuery = JNIQuery(queryPtr)
+                    val keyExpr2 = KeyExpr(keyExpr1, null)
+                    val selector = if (selectorParams.isEmpty()) Selector(keyExpr2) else Selector(keyExpr2, Parameters.from(selectorParams))
+                    callback.run(
+                        Query(
+                            keyExpr2,
+                            selector,
+                            payload?.into(),
+                            payload?.let { Encoding(encodingId, schema = encodingSchema) },
+                            attachmentBytes?.into(),
+                            ReplyKeyExpr.entries[acceptReplies],
+                            jniQuery
+                        )
+                    )
+                }
+            val queryable = CallbackQueryable(keyExpr, declareQueryable(keyExpr.jniKeyExpr, keyExpr.keyExpr, queryCallback, fun() {}, options.complete))
             strongDeclarations.add(queryable)
             queryable
         } ?: throw (sessionClosedException)
     }
 
+    @OptIn(Unstable::class)
     private fun resolveQuerier(
         keyExpr: KeyExpr,
         options: QuerierOptions
     ): Querier {
         return jniSession?.run {
-            val querier = declareQuerier(keyExpr, options)
+            val querier = Querier(
+                keyExpr,
+                QoS(congestionControl = options.congestionControl, priority = options.priority, express = options.express),
+                declareQuerier(
+                    keyExpr.jniKeyExpr,
+                    keyExpr.keyExpr,
+                    options.target.ordinal,
+                    options.consolidationMode.ordinal,
+                    options.congestionControl.value,
+                    options.priority.value,
+                    options.express,
+                    options.timeout.toMillis(),
+                    options.acceptReplies.ordinal
+                )
+            )
             weakDeclarations.add(WeakReference(querier))
             querier
         } ?: throw sessionClosedException
@@ -643,11 +755,48 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         handler: Handler<Reply, R>,
         options: GetOptions
     ): R {
-        return jniSession?.performGetWithHandler(
-            selector,
-            handler,
-            options
-        ) ?: throw sessionClosedException
+        return jniSession?.run {
+            val getCallback = JNIGetCallback { replierZid, replierEid, success, keyExpr, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
+                val reply: Reply = if (success) {
+                    val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
+                    Reply.Success(
+                        replierZid?.let { EntityGlobalId(ZenohId(it), replierEid.toUInt()) },
+                        Sample(
+                            KeyExpr(keyExpr!!, null),
+                            payload.into(),
+                            Encoding(encodingId, schema = encodingSchema),
+                            SampleKind.fromInt(kind),
+                            timestamp,
+                            QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
+                            attachmentBytes?.into()
+                        )
+                    )
+                } else {
+                    Reply.Error(replierZid?.let { EntityGlobalId(ZenohId(it), replierEid.toUInt()) }, payload.into(), Encoding(encodingId, schema = encodingSchema))
+                }
+                handler.handle(reply)
+            }
+            val sel = selector.into()
+            get(
+                sel.keyExpr.jniKeyExpr,
+                sel.keyExpr.keyExpr,
+                sel.parameters?.toString(),
+                getCallback,
+                handler::onClose,
+                options.timeout.toMillis(),
+                options.target.ordinal,
+                options.consolidation.ordinal,
+                options.attachment?.into()?.bytes,
+                options.payload?.into()?.bytes,
+                options.encoding?.id ?: Encoding.defaultEncoding().id,
+                options.encoding?.schema,
+                options.qos.congestionControl.value,
+                options.qos.priority.value,
+                options.qos.express,
+                options.acceptReplies.ordinal
+            )
+            handler.receiver()
+        } ?: throw sessionClosedException
     }
 
     @Throws(ZError::class)
@@ -656,42 +805,102 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         callback: Callback<Reply>,
         options: GetOptions
     ) {
-        return jniSession?.performGetWithCallback(
-            selector,
-            callback,
-            options
-        ) ?: throw sessionClosedException
+        jniSession?.run {
+            val getCallback = JNIGetCallback { replierZid, replierEid, success, keyExpr, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
+                val reply: Reply = if (success) {
+                    val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
+                    Reply.Success(
+                        replierZid?.let { EntityGlobalId(ZenohId(it), replierEid.toUInt()) },
+                        Sample(
+                            KeyExpr(keyExpr!!, null),
+                            payload.into(),
+                            Encoding(encodingId, schema = encodingSchema),
+                            SampleKind.fromInt(kind),
+                            timestamp,
+                            QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
+                            attachmentBytes?.into()
+                        )
+                    )
+                } else {
+                    Reply.Error(replierZid?.let { EntityGlobalId(ZenohId(it), replierEid.toUInt()) }, payload.into(), Encoding(encodingId, schema = encodingSchema))
+                }
+                callback.run(reply)
+            }
+            val sel = selector.into()
+            get(
+                sel.keyExpr.jniKeyExpr,
+                sel.keyExpr.keyExpr,
+                sel.parameters?.toString(),
+                getCallback,
+                fun() {},
+                options.timeout.toMillis(),
+                options.target.ordinal,
+                options.consolidation.ordinal,
+                options.attachment?.into()?.bytes,
+                options.payload?.into()?.bytes,
+                options.encoding?.id ?: Encoding.defaultEncoding().id,
+                options.encoding?.schema,
+                options.qos.congestionControl.value,
+                options.qos.priority.value,
+                options.qos.express,
+                options.acceptReplies.ordinal
+            )
+        } ?: throw sessionClosedException
     }
 
     @Throws(ZError::class)
     internal fun resolvePut(keyExpr: KeyExpr, payload: IntoZBytes, putOptions: PutOptions) {
-        jniSession?.run { performPut(keyExpr, payload, putOptions) }
+        jniSession?.run {
+            val encoding = putOptions.encoding ?: Encoding.defaultEncoding()
+            put(
+                keyExpr.jniKeyExpr,
+                keyExpr.keyExpr,
+                payload.into().bytes,
+                encoding.id,
+                encoding.schema,
+                putOptions.congestionControl.value,
+                putOptions.priority.value,
+                putOptions.express,
+                putOptions.attachment?.into()?.bytes,
+                putOptions.reliability.ordinal
+            )
+        }
     }
 
     @Throws(ZError::class)
     internal fun resolveDelete(keyExpr: KeyExpr, deleteOptions: DeleteOptions) {
-        jniSession?.run { performDelete(keyExpr, deleteOptions) }
+        jniSession?.run {
+            delete(
+                keyExpr.jniKeyExpr,
+                keyExpr.keyExpr,
+                deleteOptions.congestionControl.value,
+                deleteOptions.priority.value,
+                deleteOptions.express,
+                deleteOptions.attachment?.into()?.bytes,
+                deleteOptions.reliability.ordinal
+            )
+        }
     }
 
     @Throws(ZError::class)
     internal fun zid(): ZenohId {
-        return jniSession?.zid() ?: throw sessionClosedException
+        return jniSession?.run { ZenohId(getZid()) } ?: throw sessionClosedException
     }
 
     @Throws(ZError::class)
     internal fun getPeersId(): List<ZenohId> {
-        return jniSession?.peersZid() ?: throw sessionClosedException
+        return jniSession?.run { getPeersZid().map { ZenohId(it) } } ?: throw sessionClosedException
     }
 
     @Throws(ZError::class)
     internal fun getRoutersId(): List<ZenohId> {
-        return jniSession?.routersZid() ?: throw sessionClosedException
+        return jniSession?.run { getRoutersZid().map { ZenohId(it) } } ?: throw sessionClosedException
     }
 
     /** Launches the session through the jni session, returning the [Session] on success. */
     @Throws(ZError::class)
     private fun launch(): Session {
-        this.jniSession = JNISession.open(config)
+        this.jniSession = JNISession.open(config.jniConfig)
         return this
     }
 }

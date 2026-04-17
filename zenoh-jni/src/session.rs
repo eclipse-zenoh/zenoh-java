@@ -12,7 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::{mem, ops::Deref, ptr::null, sync::Arc, time::Duration};
+use std::{ops::Deref, ptr::null, sync::Arc, time::Duration};
 
 use jni::{
     objects::{GlobalRef, JByteArray, JClass, JList, JObject, JString, JValue},
@@ -27,6 +27,17 @@ use zenoh::{
     sample::Sample,
     session::{EntityGlobalId, Session, ZenohId},
     Wait,
+};
+
+use crate::owned_object::OwnedObject;
+use crate::sample_callback::SetJniSampleCallback;
+#[cfg(feature = "zenoh-ext")]
+use jni::sys::jdouble;
+#[cfg(feature = "zenoh-ext")]
+use zenoh_ext::{
+    AdvancedPublisher, AdvancedPublisherBuilderExt, AdvancedSubscriber,
+    AdvancedSubscriberBuilderExt, CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig,
+    RepliesConfig,
 };
 
 use crate::{
@@ -44,11 +55,11 @@ use crate::{
 /// # Parameters:
 /// - `env`: The JNI environment.
 /// - `_class`: The JNI class (parameter required by the JNI interface but unused).
-/// - `config_path`: Nullable path to the Zenoh config file. If null, the default configuration will be loaded.
+/// - `config_ptr`: Pointer to the Zenoh config. If null, the default configuration will be loaded.
 ///
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_00024Companion_openSessionViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_openSessionViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     config_ptr: *const Config,
@@ -69,12 +80,10 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_00024Companion_openSession
 /// If the config path provided is null then the default configuration is loaded.
 ///
 unsafe fn open_session(config_ptr: *const Config) -> ZResult<Session> {
-    let config = Arc::from_raw(config_ptr);
-    let result = zenoh::open(config.as_ref().clone())
+    let config = OwnedObject::from_raw(config_ptr);
+    zenoh::open((*config).clone())
         .wait()
-        .map_err(|err| zerror!(err));
-    mem::forget(config);
-    result
+        .map_err(|err: zenoh::Error| zerror!(err))
 }
 
 /// Open a Zenoh session with a JSON configuration.
@@ -217,16 +226,16 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_closeSessionViaJNI(
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declarePublisherViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
-    session_ptr: *const Session,
     congestion_control: jint,
     priority: jint,
     is_express: jboolean,
     reliability: jint,
 ) -> *const Publisher<'static> {
-    let session = Arc::from_raw(session_ptr);
-    let publisher_ptr = || -> ZResult<*const Publisher<'static>> {
+    let session = OwnedObject::from_raw(session_ptr);
+    || -> ZResult<*const Publisher<'static>> {
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let congestion_control = decode_congestion_control(congestion_control)?;
         let priority = decode_priority(priority)?;
@@ -246,9 +255,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declarePublisherViaJNI(
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
         null()
-    });
-    std::mem::forget(session);
-    publisher_ptr
+    })
 }
 
 /// Performs a `put` operation in the Zenoh session via JNI.
@@ -282,9 +289,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declarePublisherViaJNI(
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
-    session_ptr: *const Session,
     payload: JByteArray,
     encoding_id: jint,
     encoding_schema: JString,
@@ -294,7 +301,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
     attachment: JByteArray,
     reliability: jint,
 ) {
-    let session = Arc::from_raw(session_ptr);
+    let session = OwnedObject::from_raw(session_ptr);
     let _ = || -> ZResult<()> {
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let payload = decode_byte_array(&env, payload)?;
@@ -322,7 +329,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
             .map_err(|err| zerror!(err))
     }()
     .map_err(|err| throw_exception!(env, err));
-    std::mem::forget(session);
 }
 
 /// Performs a `delete` operation in the Zenoh session via JNI.
@@ -354,16 +360,16 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_deleteViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
-    session_ptr: *const Session,
     congestion_control: jint,
     priority: jint,
     is_express: jboolean,
     attachment: JByteArray,
     reliability: jint,
 ) {
-    let session = Arc::from_raw(session_ptr);
+    let session = OwnedObject::from_raw(session_ptr);
     let _ = || -> ZResult<()> {
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let congestion_control = decode_congestion_control(congestion_control)?;
@@ -388,7 +394,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_deleteViaJNI(
             .map_err(|err| zerror!(err))
     }()
     .map_err(|err| throw_exception!(env, err));
-    std::mem::forget(session);
 }
 
 /// Declare a Zenoh subscriber via JNI.
@@ -421,91 +426,24 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_deleteViaJNI(
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareSubscriberViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
-    session_ptr: *const Session,
     callback: JObject,
     on_close: JObject,
 ) -> *const Subscriber<()> {
-    let session = Arc::from_raw(session_ptr);
+    let session = OwnedObject::from_raw(session_ptr);
     || -> ZResult<*const Subscriber<()>> {
-        let java_vm = Arc::new(get_java_vm(&mut env)?);
-        let callback_global_ref = get_callback_global_ref(&mut env, callback)?;
-        let on_close_global_ref = get_callback_global_ref(&mut env, on_close)?;
-        let on_close = load_on_close(&java_vm, on_close_global_ref);
-
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         tracing::debug!("Declaring subscriber on '{}'...", key_expr);
 
-        let result = session
+        let subscriber = session
             .declare_subscriber(key_expr.to_owned())
-            .callback(move |sample: Sample| {
-                on_close.noop(); // Moves `on_close` inside the closure so it gets destroyed with the closure
-                let _ = || -> ZResult<()> {
-                    let mut env = java_vm.attach_current_thread_as_daemon().map_err(|err| {
-                        zerror!("Unable to attach thread for subscriber: {}", err)
-                    })?;
-                    let byte_array = bytes_to_java_array(&env, sample.payload())
-                        .map(|array| env.auto_local(array))?;
-
-                    let encoding_id: jint = sample.encoding().id() as jint;
-                    let encoding_schema = match sample.encoding().schema() {
-                        Some(schema) => slice_to_java_string(&env, schema)?,
-                        None => JString::default(),
-                    };
-                    let kind = sample.kind() as jint;
-                    let (timestamp, is_valid) = sample
-                        .timestamp()
-                        .map(|timestamp| (timestamp.get_time().as_u64(), true))
-                        .unwrap_or((0, false));
-
-                    let attachment_bytes = sample
-                        .attachment()
-                        .map_or_else(
-                            || Ok(JByteArray::default()),
-                            |attachment| bytes_to_java_array(&env, attachment),
-                        )
-                        .map(|array| env.auto_local(array))
-                        .map_err(|err| zerror!("Error processing attachment: {}", err))?;
-
-                    let key_expr_str = env.auto_local(
-                        env.new_string(sample.key_expr().to_string())
-                            .map_err(|err| zerror!("Error processing sample key expr: {}", err))?,
-                    );
-
-                    let express = sample.express();
-                    let priority = sample.priority() as jint;
-                    let cc = sample.congestion_control() as jint;
-
-                    env.call_method(
-                        &callback_global_ref,
-                        "run",
-                        "(Ljava/lang/String;[BILjava/lang/String;IJZ[BZII)V",
-                        &[
-                            JValue::from(&key_expr_str),
-                            JValue::from(&byte_array),
-                            JValue::from(encoding_id),
-                            JValue::from(&encoding_schema),
-                            JValue::from(kind),
-                            JValue::from(timestamp as i64),
-                            JValue::from(is_valid),
-                            JValue::from(&attachment_bytes),
-                            JValue::from(express),
-                            JValue::from(priority),
-                            JValue::from(cc),
-                        ],
-                    )
-                    .map_err(|err| zerror!(err))?;
-                    Ok(())
-                }()
-                .map_err(|err| tracing::error!("On subscriber callback error: {err}"));
-            })
-            .wait();
-
-        let subscriber = result.map_err(|err| zerror!("Unable to declare subscriber: {}", err))?;
+            .set_jni_sample_callback(&mut env, callback, on_close)?
+            .wait()
+            .map_err(|err| zerror!("Unable to declare subscriber: {}", err))?;
 
         tracing::debug!("Subscriber declared on '{}'.", key_expr);
-        std::mem::forget(session);
         Ok(Arc::into_raw(Arc::new(subscriber)))
     }()
     .unwrap_or_else(|err| {
@@ -536,9 +474,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareSubscriberViaJNI(
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
-    session_ptr: *const Session,
     target: jint,
     consolidation: jint,
     congestion_control: jint,
@@ -547,7 +485,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
     timeout_ms: jlong,
     accept_replies: jint,
 ) -> *const Querier<'static> {
-    let session = Arc::from_raw(session_ptr);
+    let session = OwnedObject::from_raw(session_ptr);
     || -> ZResult<*const Querier<'static>> {
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let query_target = decode_query_target(target)?;
@@ -571,7 +509,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
             .map_err(|err| zerror!(err))?;
 
         tracing::debug!("Querier declared on '{}'.", key_expr);
-        std::mem::forget(session);
         Ok(Arc::into_raw(Arc::new(querier)))
     }()
     .unwrap_or_else(|err| {
@@ -613,15 +550,15 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQueryableViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
-    session_ptr: *const Session,
     callback: JObject,
     on_close: JObject,
     complete: jboolean,
 ) -> *const Queryable<()> {
-    let session = Arc::from_raw(session_ptr);
-    let query_ptr = || -> ZResult<*const Queryable<()>> {
+    let session = OwnedObject::from_raw(session_ptr);
+    || -> ZResult<*const Queryable<()>> {
         let java_vm = Arc::new(get_java_vm(&mut env)?);
         let callback_global_ref = get_callback_global_ref(&mut env, callback)?;
         let on_close_global_ref = get_callback_global_ref(&mut env, on_close)?;
@@ -657,9 +594,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQueryableViaJNI(
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
         null()
-    });
-    std::mem::forget(session);
-    query_ptr
+    })
 }
 
 fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> ZResult<()> {
@@ -776,8 +711,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareKeyExprViaJNI(
     session_ptr: *const Session,
     key_expr_str: JString,
 ) -> *const KeyExpr<'static> {
-    let session: Arc<Session> = Arc::from_raw(session_ptr);
-    let key_expr_ptr = || -> ZResult<*const KeyExpr<'static>> {
+    let session = OwnedObject::from_raw(session_ptr);
+    || -> ZResult<*const KeyExpr<'static>> {
         let key_expr_str = decode_string(&mut env, &key_expr_str)?;
         let key_expr = session
             .declare_keyexpr(key_expr_str.to_owned())
@@ -794,9 +729,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareKeyExprViaJNI(
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
         null()
-    });
-    mem::forget(session);
-    key_expr_ptr
+    })
 }
 
 /// Undeclare a [KeyExpr] through a [Session] via JNI.
@@ -827,7 +760,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_undeclareKeyExprViaJNI(
     session_ptr: *const Session,
     key_expr_ptr: *const KeyExpr<'static>,
 ) {
-    let session = Arc::from_raw(session_ptr);
+    let session = OwnedObject::from_raw(session_ptr);
     let key_expr = Arc::from_raw(key_expr_ptr);
     let key_expr_clone = key_expr.deref().clone();
     match session.undeclare(key_expr_clone).wait() {
@@ -839,7 +772,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_undeclareKeyExprViaJNI(
             );
         }
     }
-    std::mem::forget(session);
     // `key_expr` is intentionally left to be freed by Rust
 }
 
@@ -882,10 +814,10 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_undeclareKeyExprViaJNI(
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getViaJNI(
     mut env: JNIEnv,
     _class: JClass,
+    session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
     selector_params: /*nullable*/ JString,
-    session_ptr: *const Session,
     callback: JObject,
     on_close: JObject,
     timeout_ms: jlong,
@@ -900,7 +832,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getViaJNI(
     is_express: jboolean,
     accept_replies: jint,
 ) {
-    let session = Arc::from_raw(session_ptr);
+    let session = OwnedObject::from_raw(session_ptr);
     let _ = || -> ZResult<()> {
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let java_vm = Arc::new(get_java_vm(&mut env)?);
@@ -971,7 +903,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getViaJNI(
             .map_err(|err| zerror!(err))
     }()
     .map_err(|err| throw_exception!(env, err));
-    std::mem::forget(session);
 }
 
 pub(crate) fn on_reply_success(
@@ -1130,8 +1061,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getPeersZidViaJNI(
     _class: JClass,
     session_ptr: *const Session,
 ) -> jobject {
-    let session = Arc::from_raw(session_ptr);
-    let ids = {
+    let session = OwnedObject::from_raw(session_ptr);
+    {
         let peers_zid = session.info().peers_zid().wait();
         let ids = peers_zid.collect::<Vec<ZenohId>>();
         ids_to_java_list(&mut env, ids).map_err(|err| zerror!(err))
@@ -1139,9 +1070,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getPeersZidViaJNI(
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
         JObject::default().as_raw()
-    });
-    std::mem::forget(session);
-    ids
+    })
 }
 
 /// Returns a list of zenoh ids as byte arrays corresponding to the routers connected to the session provided.
@@ -1153,8 +1082,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getRoutersZidViaJNI(
     _class: JClass,
     session_ptr: *const Session,
 ) -> jobject {
-    let session = Arc::from_raw(session_ptr);
-    let ids = {
+    let session = OwnedObject::from_raw(session_ptr);
+    {
         let peers_zid = session.info().routers_zid().wait();
         let ids = peers_zid.collect::<Vec<ZenohId>>();
         ids_to_java_list(&mut env, ids).map_err(|err| zerror!(err))
@@ -1162,9 +1091,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getRoutersZidViaJNI(
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
         JObject::default().as_raw()
-    });
-    std::mem::forget(session);
-    ids
+    })
 }
 
 /// Returns the Zenoh ID as a byte array of the session.
@@ -1175,8 +1102,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getZidViaJNI(
     _class: JClass,
     session_ptr: *const Session,
 ) -> jbyteArray {
-    let session = Arc::from_raw(session_ptr);
-    let ids = {
+    let session = OwnedObject::from_raw(session_ptr);
+    {
         let zid = session.info().zid().wait();
         env.byte_array_from_slice(&zid.to_le_bytes())
             .map(|x| x.as_raw())
@@ -1185,9 +1112,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getZidViaJNI(
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
         JByteArray::default().as_raw()
-    });
-    std::mem::forget(session);
-    ids
+    })
 }
 
 fn ids_to_java_list(env: &mut JNIEnv, ids: Vec<ZenohId>) -> jni::errors::Result<jobject> {
@@ -1198,4 +1123,244 @@ fn ids_to_java_list(env: &mut JNIEnv, ids: Vec<ZenohId>) -> jni::errors::Result<
         jlist.add(env, value)?;
     }
     Ok(array_list.as_raw())
+}
+
+/// Declare an advanced Zenoh subscriber via JNI.
+///
+/// # Parameters:
+/// - `env`: The JNI environment.
+/// - `_class`: The JNI class.
+/// - `key_expr_ptr`: Raw pointer to the [KeyExpr], may be null.
+/// - `key_expr_str`: String representation of the [KeyExpr].
+/// - `history_config_enabled`: Whether history config is enabled.
+/// - `history_detect_late_publishers`: Whether to detect late publishers in history.
+/// - `history_max_samples`: Max samples in history (<=0 means unlimited).
+/// - `history_max_age_seconds`: Max age in seconds for history (<=0.0 means unlimited).
+/// - `recovery_config_enabled`: Whether recovery config is enabled.
+/// - `recovery_config_is_heartbeat`: Whether to use heartbeat recovery.
+/// - `recovery_query_period_ms`: Query period for periodic recovery in milliseconds.
+/// - `subscriber_detection`: Allow this subscriber to be detected through liveliness.
+/// - `session_ptr`: The raw pointer to the Zenoh session.
+/// - `callback`: The callback function as an instance of the `JNISubscriberCallback` interface.
+/// - `on_close`: A `JNIOnCloseCallback` to be called upon closing the subscriber.
+///
+/// Returns:
+/// - A raw pointer to the declared [AdvancedSubscriber]. In case of failure, an exception is thrown and null is returned.
+///
+/// Safety:
+/// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
+///
+#[cfg(feature = "zenoh-ext")]
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedSubscriberViaJNI(
+    mut env: JNIEnv,
+    _class: JClass,
+    session_ptr: *const Session,
+    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
+    key_expr_str: JString,
+    // HistoryConfig
+    history_config_enabled: jboolean,
+    history_detect_late_publishers: jboolean,
+    history_max_samples: jlong,
+    history_max_age_seconds: jdouble,
+    // RecoveryConfig
+    recovery_config_enabled: jboolean,
+    recovery_config_is_heartbeat: jboolean,
+    recovery_query_period_ms: jlong,
+
+    subscriber_detection: jboolean,
+
+    callback: JObject,
+    on_close: JObject,
+) -> *const AdvancedSubscriber<()> {
+    let session = OwnedObject::from_raw(session_ptr);
+    || -> ZResult<*const AdvancedSubscriber<()>> {
+        let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
+        tracing::debug!("Declaring advanced subscriber on '{}'...", key_expr);
+        let mut builder = session
+            .declare_subscriber(key_expr.to_owned())
+            .set_jni_sample_callback(&mut env, callback, on_close)?
+            .advanced();
+        tracing::debug!("Advanced subscriber declared on '{}'.", key_expr);
+
+        if history_config_enabled != 0 {
+            let mut history = match history_detect_late_publishers != 0 {
+                true => HistoryConfig::default().detect_late_publishers(),
+                false => HistoryConfig::default(),
+            };
+
+            if history_max_samples > 0 {
+                history = history.max_samples(
+                    history_max_samples
+                        .try_into()
+                        .map_err(|e: std::num::TryFromIntError| zerror!(e.to_string()))?,
+                );
+            }
+
+            if history_max_age_seconds > 0.0 {
+                history = history.max_age(history_max_age_seconds);
+            }
+
+            builder = builder.history(history);
+        }
+
+        if recovery_config_enabled != 0 {
+            let recovery = if recovery_config_is_heartbeat != 0 {
+                RecoveryConfig::default().heartbeat()
+            } else {
+                let dur = Duration::from_millis(
+                    recovery_query_period_ms
+                        .try_into()
+                        .map_err(|e: std::num::TryFromIntError| zerror!(e.to_string()))?,
+                );
+                RecoveryConfig::default().periodic_queries(dur)
+            };
+            builder = builder.recovery(recovery);
+        }
+
+        if subscriber_detection != 0 {
+            builder = builder.subscriber_detection();
+        }
+
+        builder
+            .wait()
+            .map(|s| Arc::into_raw(Arc::new(s)))
+            .map_err(|err| zerror!("Unable to declare advanced subscriber: {}", err))
+    }()
+    .unwrap_or_else(|err| {
+        throw_exception!(env, err);
+        null()
+    })
+}
+
+/// Declare an advanced Zenoh publisher via JNI.
+///
+/// # Parameters:
+/// - `env`: The JNI environment.
+/// - `_class`: The JNI class.
+/// - `key_expr_ptr`: Raw pointer to the [KeyExpr] to be used for the publisher, may be null.
+/// - `key_expr_str`: String representation of the [KeyExpr].
+/// - `session_ptr`: Raw pointer to the Zenoh [Session] to be used for the publisher.
+/// - `congestion_control`: The [CongestionControl] configuration as an ordinal.
+/// - `priority`: The [Priority] configuration as an ordinal.
+/// - `is_express`: The express config of the publisher.
+/// - `reliability`: The reliability value as an ordinal.
+/// - `cache_enabled`: If true, attach a cache to the [AdvancedPublisher].
+/// - `cache_max_samples`: How many samples to keep for each resource.
+/// - `cache_replies_priority`: The [Priority] for cache replies as an ordinal.
+/// - `cache_replies_congestion_control`: The [CongestionControl] for cache replies as an ordinal.
+/// - `cache_replies_is_express`: The express config for cache replies.
+/// - `sample_miss_detection_enabled`: Enables sample miss detection functionality.
+/// - `sample_miss_detection_enable_heartbeat`: Use heartbeat for miss detection.
+/// - `sample_miss_detection_heartbeat_ms`: Heartbeat period in milliseconds.
+/// - `sample_miss_detection_heartbeat_is_sporadic`: Whether heartbeat is sporadic.
+/// - `publisher_detection`: Enables publisher detection.
+///
+/// # Returns:
+/// - A raw pointer to the declared [AdvancedPublisher] or null in case of failure.
+///
+/// # Safety:
+/// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
+///
+#[cfg(feature = "zenoh-ext")]
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedPublisherViaJNI(
+    mut env: JNIEnv,
+    _class: JClass,
+    session_ptr: *const Session,
+    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
+    key_expr_str: JString,
+    congestion_control: jint,
+    priority: jint,
+    is_express: jboolean,
+    reliability: jint,
+    // CacheConfig
+    cache_enabled: jboolean,
+    cache_max_samples: jlong,
+    cache_replies_priority: jint,
+    cache_replies_congestion_control: jint,
+    cache_replies_is_express: jboolean,
+    // MissDetectionConfig
+    sample_miss_detection_enabled: jboolean,
+    sample_miss_detection_enable_heartbeat: jboolean,
+    sample_miss_detection_heartbeat_ms: jlong,
+    sample_miss_detection_heartbeat_is_sporadic: jboolean,
+
+    publisher_detection: jboolean,
+) -> *const AdvancedPublisher<'static> {
+    let session = OwnedObject::from_raw(session_ptr);
+    let publisher_ptr = || -> ZResult<*const AdvancedPublisher<'static>> {
+        let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
+        let congestion_control = decode_congestion_control(congestion_control)?;
+        let priority = decode_priority(priority)?;
+        let reliability = decode_reliability(reliability)?;
+        let mut builder = session
+            .declare_publisher(key_expr)
+            .congestion_control(congestion_control)
+            .priority(priority)
+            .express(is_express != 0)
+            .reliability(reliability)
+            .advanced();
+
+        // fill CacheConfig
+        if cache_enabled != 0 {
+            let cache_congestion_control =
+                decode_congestion_control(cache_replies_congestion_control)?;
+
+            let cache_priority = decode_priority(cache_replies_priority)?;
+
+            let replies_config = RepliesConfig::default()
+                .priority(cache_priority)
+                .congestion_control(cache_congestion_control)
+                .express(cache_replies_is_express != 0);
+
+            let cache_config = CacheConfig::default()
+                .max_samples(
+                    cache_max_samples
+                        .try_into()
+                        .map_err(|e: std::num::TryFromIntError| zerror!(e.to_string()))?,
+                )
+                .replies_config(replies_config);
+
+            builder = builder.cache(cache_config);
+        }
+
+        // fill MissDetectionConfig
+        if sample_miss_detection_enabled != 0 {
+            let miss_detection_config = {
+                let mut result = MissDetectionConfig::default();
+                if sample_miss_detection_enable_heartbeat != 0 {
+                    let duration = Duration::from_millis(
+                        sample_miss_detection_heartbeat_ms
+                            .try_into()
+                            .map_err(|e: std::num::TryFromIntError| zerror!(e.to_string()))?,
+                    );
+
+                    result = match sample_miss_detection_heartbeat_is_sporadic != 0 {
+                        true => result.sporadic_heartbeat(duration),
+                        false => result.heartbeat(duration),
+                    };
+                }
+                result
+            };
+            builder = builder.sample_miss_detection(miss_detection_config);
+        }
+
+        if publisher_detection != 0 {
+            builder = builder.publisher_detection();
+        }
+
+        let result = builder.wait();
+        match result {
+            Ok(publisher) => Ok(Arc::into_raw(Arc::new(publisher))),
+            Err(err) => Err(zerror!(err)),
+        }
+    }()
+    .unwrap_or_else(|err| {
+        throw_exception!(env, err);
+        null()
+    });
+    publisher_ptr
 }
