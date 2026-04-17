@@ -82,6 +82,18 @@ public actual object ZenohLoad {
         return Result.success(target)
     }
 
+    /**
+     * Unzip library.
+     *
+     * The Zenoh libraries are stored within the JAR as compressed ZIP files.
+     * The location of the zipped files is expected to be under target/target.zip.
+     * It is expected that the zip file only contains the compressed library.
+     *
+     * The uncompressed library will be stored temporarily and deleted on exit.
+     *
+     * @param compressedLib Input stream pointing to the compressed library.
+     * @return A result with the uncompressed library file.
+     */
     private fun unzipLibrary(compressedLib: InputStream): Result<File> = runCatching {
         val zipInputStream = ZipInputStream(compressedLib)
         val buffer = ByteArray(1024)
