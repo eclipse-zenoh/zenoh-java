@@ -155,7 +155,8 @@ public actual object ZenohLoad {
     /**
      * Try loading local library.
      *
-     * @param target
+     * This function aims to load the default library that is usually included when building the zenoh kotlin library
+     * locally.
      */
     private fun tryLoadingLocalLibrary(): Result<Unit> = runCatching {
         val lib = ClassLoader.getSystemClassLoader().findLibraryStream(ZENOH_LIB_NAME)
