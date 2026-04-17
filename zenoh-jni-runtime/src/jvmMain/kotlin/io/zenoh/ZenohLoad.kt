@@ -35,7 +35,13 @@ public actual object ZenohLoad {
             tryLoadingLibraryFromJarPackage(target).getOrThrow()
         }
     }
-
+    /**
+     * Determine target
+     *
+     * Determines the [Target] corresponding to the machine on top of which the native code will run.
+     *
+     * @return A result with the target.
+     */
     private fun determineTarget(): Result<Target> = runCatching {
         val osName = System.getProperty("os.name").lowercase()
         val osArch = System.getProperty("os.arch").lowercase()
