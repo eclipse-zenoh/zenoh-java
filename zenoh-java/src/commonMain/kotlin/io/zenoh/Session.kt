@@ -419,7 +419,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     fun undeclare(keyExpr: KeyExpr) {
         jniSession?.run {
             keyExpr.jniKeyExpr?.run {
-                undeclareKeyExpr(ptr)
+                undeclareKeyExpr(this)
                 keyExpr.jniKeyExpr = null
             } ?: throw ZError("Attempting to undeclare a non declared key expression.")
         } ?: throw (sessionClosedException)
@@ -602,7 +602,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.priority,
                 options.encoding,
                 declarePublisher(
-                    keyExpr.jniKeyExpr?.ptr ?: 0,
+                    keyExpr.jniKeyExpr,
                     keyExpr.keyExpr,
                     options.congestionControl.value,
                     options.priority.value,
@@ -635,7 +635,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                         )
                     )
                 }
-            val subscriber = HandlerSubscriber(keyExpr, declareSubscriber(keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, subCallback, handler::onClose), handler.receiver())
+            val subscriber = HandlerSubscriber(keyExpr, declareSubscriber(keyExpr.jniKeyExpr, keyExpr.keyExpr, subCallback, handler::onClose), handler.receiver())
             strongDeclarations.add(subscriber)
             subscriber
         } ?: throw (sessionClosedException)
@@ -661,7 +661,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                         )
                     )
                 }
-            val subscriber = CallbackSubscriber(keyExpr, declareSubscriber(keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, subCallback, fun() {}))
+            val subscriber = CallbackSubscriber(keyExpr, declareSubscriber(keyExpr.jniKeyExpr, keyExpr.keyExpr, subCallback, fun() {}))
             strongDeclarations.add(subscriber)
             subscriber
         } ?: throw (sessionClosedException)
@@ -689,7 +689,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                         )
                     )
                 }
-            val queryable = HandlerQueryable(keyExpr, declareQueryable(keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, queryCallback, handler::onClose, options.complete), handler.receiver())
+            val queryable = HandlerQueryable(keyExpr, declareQueryable(keyExpr.jniKeyExpr, keyExpr.keyExpr, queryCallback, handler::onClose, options.complete), handler.receiver())
             strongDeclarations.add(queryable)
             queryable
         } ?: throw (sessionClosedException)
@@ -717,7 +717,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                         )
                     )
                 }
-            val queryable = CallbackQueryable(keyExpr, declareQueryable(keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, queryCallback, fun() {}, options.complete))
+            val queryable = CallbackQueryable(keyExpr, declareQueryable(keyExpr.jniKeyExpr, keyExpr.keyExpr, queryCallback, fun() {}, options.complete))
             strongDeclarations.add(queryable)
             queryable
         } ?: throw (sessionClosedException)
@@ -733,7 +733,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 keyExpr,
                 QoS(congestionControl = options.congestionControl, priority = options.priority, express = options.express),
                 declareQuerier(
-                    keyExpr.jniKeyExpr?.ptr ?: 0,
+                    keyExpr.jniKeyExpr,
                     keyExpr.keyExpr,
                     options.target.ordinal,
                     options.consolidationMode.ordinal,
@@ -778,7 +778,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
             }
             val sel = selector.into()
             get(
-                sel.keyExpr.jniKeyExpr?.ptr ?: 0,
+                sel.keyExpr.jniKeyExpr,
                 sel.keyExpr.keyExpr,
                 sel.parameters?.toString(),
                 getCallback,
@@ -828,7 +828,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
             }
             val sel = selector.into()
             get(
-                sel.keyExpr.jniKeyExpr?.ptr ?: 0,
+                sel.keyExpr.jniKeyExpr,
                 sel.keyExpr.keyExpr,
                 sel.parameters?.toString(),
                 getCallback,
@@ -853,7 +853,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         jniSession?.run {
             val encoding = putOptions.encoding ?: Encoding.defaultEncoding()
             put(
-                keyExpr.jniKeyExpr?.ptr ?: 0,
+                keyExpr.jniKeyExpr,
                 keyExpr.keyExpr,
                 payload.into().bytes,
                 encoding.id,
@@ -871,7 +871,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     internal fun resolveDelete(keyExpr: KeyExpr, deleteOptions: DeleteOptions) {
         jniSession?.run {
             delete(
-                keyExpr.jniKeyExpr?.ptr ?: 0,
+                keyExpr.jniKeyExpr,
                 keyExpr.keyExpr,
                 deleteOptions.congestionControl.value,
                 deleteOptions.priority.value,

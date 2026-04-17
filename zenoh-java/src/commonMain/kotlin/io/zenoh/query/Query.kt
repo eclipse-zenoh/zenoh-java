@@ -68,7 +68,7 @@ class Query internal constructor(
         val timestampEnabled = timestamp != null
         jniQuery?.apply {
             replySuccess(
-                keyExpr.jniKeyExpr?.ptr ?: 0,
+                keyExpr.jniKeyExpr,
                 keyExpr.keyExpr,
                 zbytes.bytes,
                 encoding?.id ?: Encoding.defaultEncoding().id,
@@ -108,7 +108,7 @@ class Query internal constructor(
         val timestampEnabled = timestamp != null
         jniQuery?.apply {
             replyDelete(
-                keyExpr.jniKeyExpr?.ptr ?: 0,
+                keyExpr.jniKeyExpr,
                 keyExpr.keyExpr,
                 timestampEnabled,
                 if (timestampEnabled) timestamp!!.ntpValue() else 0,

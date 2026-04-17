@@ -25,7 +25,7 @@ public class JNIQuery(private val ptr: Long) {
 
     @Throws(ZError::class)
     fun replySuccess(
-        keyExprPtr: Long,
+        jniKeyExpr: JNIKeyExpr?,
         keyExprString: String,
         payload: ByteArray,
         encodingId: Int,
@@ -35,7 +35,7 @@ public class JNIQuery(private val ptr: Long) {
         attachment: ByteArray?,
         qosExpress: Boolean,
     ) {
-        replySuccessViaJNI(ptr, keyExprPtr, keyExprString, payload, encodingId, encodingSchema, timestampEnabled, timestampNtp64, attachment, qosExpress)
+        replySuccessViaJNI(ptr, jniKeyExpr?.ptr ?: 0, keyExprString, payload, encodingId, encodingSchema, timestampEnabled, timestampNtp64, attachment, qosExpress)
     }
 
     @Throws(ZError::class)
@@ -45,14 +45,14 @@ public class JNIQuery(private val ptr: Long) {
 
     @Throws(ZError::class)
     fun replyDelete(
-        keyExprPtr: Long,
+        jniKeyExpr: JNIKeyExpr?,
         keyExprString: String,
         timestampEnabled: Boolean,
         timestampNtp64: Long,
         attachment: ByteArray?,
         qosExpress: Boolean,
     ) {
-        replyDeleteViaJNI(ptr, keyExprPtr, keyExprString, timestampEnabled, timestampNtp64, attachment, qosExpress)
+        replyDeleteViaJNI(ptr, jniKeyExpr?.ptr ?: 0, keyExprString, timestampEnabled, timestampNtp64, attachment, qosExpress)
     }
 
     fun close() {
