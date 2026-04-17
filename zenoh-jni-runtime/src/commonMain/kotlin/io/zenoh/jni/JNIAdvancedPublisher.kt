@@ -36,8 +36,8 @@ public class JNIAdvancedPublisher(private val ptr: Long) {
     }
 
     @Throws(ZError::class)
-    fun declareMatchingListener(callback: JNIMatchingListenerCallback, onClose: JNIOnCloseCallback): Long =
-        declareMatchingListenerViaJNI(ptr, callback, onClose)
+    fun declareMatchingListener(callback: JNIMatchingListenerCallback, onClose: JNIOnCloseCallback): JNIMatchingListener =
+        JNIMatchingListener(declareMatchingListenerViaJNI(ptr, callback, onClose))
 
     @Throws(ZError::class)
     fun declareBackgroundMatchingListener(callback: JNIMatchingListenerCallback, onClose: JNIOnCloseCallback) =

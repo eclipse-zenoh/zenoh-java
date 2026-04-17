@@ -14,7 +14,7 @@
 
 package io.zenoh
 
-public enum class Target {
+internal enum class Target {
     WINDOWS_X86_64_MSVC,
     WINDOWS_AARCH64_MSVC,
     LINUX_X86_64,

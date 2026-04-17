@@ -31,7 +31,7 @@ public class JNIAdvancedSubscriber(private val ptr: Long) {
         history: Boolean,
         callback: JNISubscriberCallback,
         onClose: JNIOnCloseCallback,
-    ): Long = declareDetectPublishersSubscriberViaJNI(ptr, history, callback, onClose)
+    ): JNISubscriber = JNISubscriber(declareDetectPublishersSubscriberViaJNI(ptr, history, callback, onClose))
 
     @Throws(ZError::class)
     fun declareBackgroundDetectPublishersSubscriber(
@@ -44,7 +44,7 @@ public class JNIAdvancedSubscriber(private val ptr: Long) {
     fun declareSampleMissListener(
         callback: JNISampleMissListenerCallback,
         onClose: JNIOnCloseCallback,
-    ): Long = declareSampleMissListenerViaJNI(ptr, callback, onClose)
+    ): JNISampleMissListener = JNISampleMissListener(declareSampleMissListenerViaJNI(ptr, callback, onClose))
 
     @Throws(ZError::class)
     fun declareBackgroundSampleMissListener(

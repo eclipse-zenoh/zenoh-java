@@ -127,9 +127,9 @@ pub extern "C" fn Java_io_zenoh_jni_JNISession_declareLivelinessTokenViaJNI(
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNILivelinessToken_00024Companion_undeclareViaJNI(
+pub extern "C" fn Java_io_zenoh_jni_JNILivelinessToken_undeclareViaJNI(
     _env: JNIEnv,
-    _: JClass,
+    _: JObject,
     token_ptr: *const LivelinessToken,
 ) {
     unsafe { Arc::from_raw(token_ptr) };

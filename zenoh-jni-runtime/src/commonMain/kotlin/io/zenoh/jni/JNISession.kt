@@ -22,7 +22,7 @@ import io.zenoh.jni.callbacks.JNIQueryableCallback
 import io.zenoh.jni.callbacks.JNISubscriberCallback
 
 /** Adapter class to handle communication with the Zenoh JNI code for a Session. */
-public class JNISession(public val sessionPtr: Long) {
+public class JNISession(internal val sessionPtr: Long) {
 
     companion object {
         init {
