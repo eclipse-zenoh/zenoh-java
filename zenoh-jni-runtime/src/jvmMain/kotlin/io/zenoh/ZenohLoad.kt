@@ -140,6 +140,13 @@ public actual object ZenohLoad {
         System.load(tempLib.absolutePath)
     }
 
+    /**
+     * Load library from jar package.
+     *
+     * Attempts to load the library corresponding to the `target` specified from the zenoh kotlin jar.
+     *
+     * @param target
+     */
     private fun tryLoadingLibraryFromJarPackage(target: Target): Result<Unit> = runCatching {
         val lib: Result<InputStream> = loadLibraryAsInputStream(target)
         lib.onSuccess { loadZenohJNI(it) }.onFailure { throw Exception("Unable to load Zenoh JNI: $it") }
