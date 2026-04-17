@@ -152,6 +152,13 @@ public actual object ZenohLoad {
         lib.onSuccess { loadZenohJNI(it) }.onFailure { throw Exception("Unable to load Zenoh JNI: $it") }
     }
 
+    /**
+     * Load library from jar package.
+     *
+     * Attempts to load the library corresponding to the `target` specified from the zenoh kotlin jar.
+     *
+     * @param target
+     */
     private fun tryLoadingLocalLibrary(): Result<Unit> = runCatching {
         val lib = ClassLoader.getSystemClassLoader().findLibraryStream(ZENOH_LIB_NAME)
             ?: javaClass.classLoader.findLibraryStream(
