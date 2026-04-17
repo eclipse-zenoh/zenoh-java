@@ -21,7 +21,8 @@ import java.io.InputStream
 import java.util.zip.ZipInputStream
 
 /**
- * Static singleton class to load the Zenoh native library once and only once.
+ * Static singleton class to load the Zenoh native library once and only once, as well as the logger in function of the
+ * log level configuration.
  */
 public actual object ZenohLoad {
     private const val ZENOH_LIB_NAME = "zenoh_jni"
