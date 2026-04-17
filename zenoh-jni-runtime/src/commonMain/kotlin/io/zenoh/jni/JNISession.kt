@@ -245,7 +245,10 @@ public class JNISession(public val sessionPtr: Long) {
     private external fun getPeersZidViaJNI(ptr: Long): List<ByteArray>
 
     @Throws(ZError::class)
-    external fun getRoutersZidViaJNI(ptr: Long): List<ByteArray>
+    fun getRoutersZid(): List<ByteArray> = getRoutersZidViaJNI(sessionPtr)
+
+    @Throws(ZError::class)
+    private external fun getRoutersZidViaJNI(ptr: Long): List<ByteArray>
 
     @Throws(ZError::class)
     fun declareAdvancedSubscriber(

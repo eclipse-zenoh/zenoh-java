@@ -894,7 +894,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
 
     @Throws(ZError::class)
     internal fun getRoutersId(): List<ZenohId> {
-        return jniSession?.run { getRoutersZidViaJNI(sessionPtr).map { ZenohId(it) } } ?: throw sessionClosedException
+        return jniSession?.run { getRoutersZid().map { ZenohId(it) } } ?: throw sessionClosedException
     }
 
     /** Launches the session through the jni session, returning the [Session] on success. */
