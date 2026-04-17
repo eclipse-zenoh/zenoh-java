@@ -153,9 +153,7 @@ public actual object ZenohLoad {
     }
 
     /**
-     * Load library from jar package.
-     *
-     * Attempts to load the library corresponding to the `target` specified from the zenoh kotlin jar.
+     * Try loading local library.
      *
      * @param target
      */
