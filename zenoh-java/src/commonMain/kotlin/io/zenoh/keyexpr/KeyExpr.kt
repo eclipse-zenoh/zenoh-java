@@ -79,7 +79,7 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
         @JvmStatic
         @Throws(ZError::class)
         fun tryFrom(keyExpr: String): KeyExpr {
-            return KeyExpr(JNIKeyExpr.tryFromViaJNI(keyExpr))
+            return KeyExpr(JNIKeyExpr.tryFrom(keyExpr))
         }
 
         /**
@@ -95,7 +95,7 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
         @JvmStatic
         @Throws(ZError::class)
         fun autocanonize(keyExpr: String): KeyExpr {
-            return KeyExpr(JNIKeyExpr.autocanonizeViaJNI(keyExpr))
+            return KeyExpr(JNIKeyExpr.autocanonize(keyExpr))
         }
     }
 

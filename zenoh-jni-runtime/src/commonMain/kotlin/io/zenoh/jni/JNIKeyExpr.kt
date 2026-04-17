@@ -26,10 +26,16 @@ public class JNIKeyExpr(internal val ptr: Long) {
         }
 
         @Throws(ZError::class)
-        internal external fun tryFromViaJNI(keyExpr: String): String
+        fun tryFrom(keyExpr: String): String = tryFromViaJNI(keyExpr)
 
         @Throws(ZError::class)
-        internal external fun autocanonizeViaJNI(keyExpr: String): String
+        fun autocanonize(keyExpr: String): String = autocanonizeViaJNI(keyExpr)
+
+        @Throws(ZError::class)
+        private external fun tryFromViaJNI(keyExpr: String): String
+
+        @Throws(ZError::class)
+        private external fun autocanonizeViaJNI(keyExpr: String): String
 
         @Throws(ZError::class)
         fun intersects(a: JNIKeyExpr?, aStr: String, b: JNIKeyExpr?, bStr: String): Boolean =

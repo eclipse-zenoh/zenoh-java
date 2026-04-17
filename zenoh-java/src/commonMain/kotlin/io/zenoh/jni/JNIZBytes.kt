@@ -25,9 +25,13 @@ internal object JNIZBytes {
         ZenohLoad
     }
 
-    @JvmStatic
-    external fun serializeViaJNI(any: Any, type: Type): ZBytes
+    fun serialize(any: Any, type: Type): ZBytes = serializeViaJNI(any, type)
+
+    fun deserialize(zBytes: ZBytes, type: Type): Any = deserializeViaJNI(zBytes, type)
 
     @JvmStatic
-    external fun deserializeViaJNI(zBytes: ZBytes, type: Type): Any
+    private external fun serializeViaJNI(any: Any, type: Type): ZBytes
+
+    @JvmStatic
+    private external fun deserializeViaJNI(zBytes: ZBytes, type: Type): Any
 }
