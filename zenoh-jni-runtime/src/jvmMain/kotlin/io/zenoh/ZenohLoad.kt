@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2026 ZettaScale Technology
+// Copyright (c) 2023 ZettaScale Technology
 //
 // This program and the accompanying materials are made available under the
 // terms of the Eclipse Public License 2.0 which is available at
@@ -21,7 +21,8 @@ import java.io.InputStream
 import java.util.zip.ZipInputStream
 
 /**
- * Static singleton class to load the Zenoh native library once and only once.
+ * Static singleton class to load the Zenoh native library once and only once, as well as the logger in function of the
+ * log level configuration.
  */
 public actual object ZenohLoad {
     private const val ZENOH_LIB_NAME = "zenoh_jni"
@@ -35,6 +36,13 @@ public actual object ZenohLoad {
         }
     }
 
+    /**
+     * Determine target
+     *
+     * Determines the [Target] corresponding to the machine on top of which the native code will run.
+     *
+     * @return A result with the target.
+     */
     private fun determineTarget(): Result<Target> = runCatching {
         val osName = System.getProperty("os.name").lowercase()
         val osArch = System.getProperty("os.arch").lowercase()
@@ -75,6 +83,18 @@ public actual object ZenohLoad {
         return Result.success(target)
     }
 
+    /**
+     * Unzip library.
+     *
+     * The Zenoh libraries are stored within the JAR as compressed ZIP files.
+     * The location of the zipped files is expected to be under target/target.zip.
+     * It is expected that the zip file only contains the compressed library.
+     *
+     * The uncompressed library will be stored temporarily and deleted on exit.
+     *
+     * @param compressedLib Input stream pointing to the compressed library.
+     * @return A result with the uncompressed library file.
+     */
     private fun unzipLibrary(compressedLib: InputStream): Result<File> = runCatching {
         val zipInputStream = ZipInputStream(compressedLib)
         val buffer = ByteArray(1024)
@@ -120,11 +140,24 @@ public actual object ZenohLoad {
         System.load(tempLib.absolutePath)
     }
 
+    /**
+     * Load library from jar package.
+     *
+     * Attempts to load the library corresponding to the `target` specified from the zenoh kotlin jar.
+     *
+     * @param target
+     */
     private fun tryLoadingLibraryFromJarPackage(target: Target): Result<Unit> = runCatching {
         val lib: Result<InputStream> = loadLibraryAsInputStream(target)
         lib.onSuccess { loadZenohJNI(it) }.onFailure { throw Exception("Unable to load Zenoh JNI: $it") }
     }
 
+    /**
+     * Try loading local library.
+     *
+     * This function aims to load the default library that is usually included when building the zenoh kotlin library
+     * locally.
+     */
     private fun tryLoadingLocalLibrary(): Result<Unit> = runCatching {
         val lib = ClassLoader.getSystemClassLoader().findLibraryStream(ZENOH_LIB_NAME)
             ?: javaClass.classLoader.findLibraryStream(
