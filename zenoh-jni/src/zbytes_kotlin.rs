@@ -249,11 +249,9 @@ fn serialize(
             let bytes = decode_byte_array(env, JByteArray::from(any)).map_err(|err| zerror!(err))?;
             serializer.serialize(bytes);
         }
-        // Unsigned types: `toByte/Short/Int/Long()` returns the raw signed bits;
-        // we reinterpret as unsigned — wire encoding is identical (LE fixed-width).
         KotlinType::UByte => {
             let v = env
-                .call_method(&any, "toByte", "()B", &[])
+                .get_field(&any, "data", "B")
                 .map_err(|err| zerror!(err))?
                 .b()
                 .map_err(|err| zerror!(err))?;
@@ -261,7 +259,7 @@ fn serialize(
         }
         KotlinType::UShort => {
             let v = env
-                .call_method(&any, "toShort", "()S", &[])
+                .get_field(&any, "data", "S")
                 .map_err(|err| zerror!(err))?
                 .s()
                 .map_err(|err| zerror!(err))?;
@@ -269,7 +267,7 @@ fn serialize(
         }
         KotlinType::UInt => {
             let v = env
-                .call_method(&any, "toInt", "()I", &[])
+                .get_field(&any, "data", "I")
                 .map_err(|err| zerror!(err))?
                 .i()
                 .map_err(|err| zerror!(err))?;
@@ -277,7 +275,7 @@ fn serialize(
         }
         KotlinType::ULong => {
             let v = env
-                .call_method(&any, "toLong", "()J", &[])
+                .get_field(&any, "data", "J")
                 .map_err(|err| zerror!(err))?
                 .j()
                 .map_err(|err| zerror!(err))?;

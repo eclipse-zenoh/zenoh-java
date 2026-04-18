@@ -91,6 +91,9 @@ kotlin {
 
         val jvmTest by getting {
             resources.srcDir("../zenoh-jni/target/$buildMode").include(arrayListOf("*.dylib", "*.so", "*.dll"))
+            dependencies {
+                implementation(kotlin("test-junit"))
+            }
         }
     }
 
