@@ -123,14 +123,14 @@ and in case of targeting Android you'll also need:
 
 This repository ships a [Gradle wrapper](https://docs.gradle.org/current/userguide/gradle_wrapper.html) (`./gradlew` / `gradlew.bat`), so no system-wide Gradle installation is required. The wrapper pins the build to **Gradle 8.12.1** and verifies the distribution checksum before use, ensuring a reproducible and tamper-evident build environment.
 
-Use `./gradlew` in place of `gradle` for all commands listed below.
+Use `./gradlew` on Unix/macOS/Linux (or `gradlew.bat` on Windows) in place of `gradle` for all commands listed below.
 
 ## <img src="jvm.png" alt="JVM" height="50"> JVM
 
 To publish a library for a JVM project into Maven local, run
 
 ```bash
-gradle publishJvmPublicationToMavenLocal
+./gradlew publishJvmPublicationToMavenLocal
 ```
 
 This will first, trigger the compilation of Zenoh-JNI in release, and second publish the library into maven local, containing the native library
@@ -185,7 +185,7 @@ to install them.
 So, in order to publish the library onto Maven Local, run:
 
 ```bash
-gradle -Pandroid=true publishAndroidReleasePublicationToMavenLocal
+./gradlew -Pandroid=true publishAndroidReleasePublicationToMavenLocal
 ```
 
 This will first trigger the compilation of the Zenoh-JNI for the previously mentioned targets, and secondly will
@@ -220,7 +220,7 @@ Because it's a Kotlin project, we use [Dokka](https://kotlinlang.org/docs/dokka-
 In order to build it, run:
 
 ```bash
-gradle dokkaGenerate
+./gradlew dokkaGenerate
 ```
 
 ## Running the tests
@@ -228,7 +228,7 @@ gradle dokkaGenerate
 To run the tests, run:
 
 ```bash
-gradle jvmTest
+./gradlew jvmTest
 ```
 
 This will compile the native library on debug mode (if not already available) and run the tests afterward against the JVM target.
@@ -240,7 +240,7 @@ Rust logs are propagated when setting the `RUST_LOG` environment variable.
 For instance running the ZPub test as follows:
 
 ```bash
-RUST_LOG=debug gradle ZPub
+RUST_LOG=debug ./gradlew ZPub
 ```
 
 causes the logs to appear in standard output.
