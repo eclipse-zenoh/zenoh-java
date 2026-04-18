@@ -31,6 +31,8 @@ mod subscriber;
 mod utils;
 #[cfg(feature = "zenoh-ext")]
 mod zbytes;
+#[cfg(feature = "zenoh-ext")]
+mod zbytes_kotlin;
 mod zenoh_id;
 
 // Test should be runned with `cargo test --no-default-features`
