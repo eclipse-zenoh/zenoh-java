@@ -60,18 +60,20 @@ kotlin {
     @Suppress("Unused")
     sourceSets {
         val commonMain by getting {}
-        // javaMain is an intermediate source set between commonMain and both jvmMain/androidMain.
+        // jvmAndAndroidMain is an intermediate source set between commonMain and both jvmMain/androidMain.
         // It holds code that uses java.lang.reflect.Type — available on JVM and Android (ART),
         // but absent on Kotlin/Native and Kotlin/JS targets. Placing such code here (rather than
         // commonMain) ensures those targets can be added in the future without compilation errors.
-        val javaMain by creating { dependsOn(commonMain) }
+        // Note: named jvmAndAndroidMain (not javaMain) to avoid conflicting with the DokkaSourceSetSpec
+        // that Dokka auto-registers for the Java compilation created by withJava().
+        val jvmAndAndroidMain by creating { dependsOn(commonMain) }
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
             }
         }
         if (androidEnabled) {
-            val androidMain by getting { dependsOn(javaMain) }
+            val androidMain by getting { dependsOn(jvmAndAndroidMain) }
             val androidUnitTest by getting {
                 dependencies {
                     implementation(kotlin("test-junit"))
@@ -79,7 +81,7 @@ kotlin {
             }
         }
         val jvmMain by getting {
-            dependsOn(javaMain)
+            dependsOn(jvmAndAndroidMain)
             if (isRemotePublication) {
                 resources.srcDir("../jni-libs").include("*/**")
             } else {

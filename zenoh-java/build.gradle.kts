@@ -67,26 +67,28 @@ kotlin {
                 implementation("com.google.guava:guava:33.3.1-jre")
             }
         }
-        // javaMain is an intermediate source set between commonMain and both jvmMain/androidMain.
+        // jvmAndAndroidMain is an intermediate source set between commonMain and both jvmMain/androidMain.
         // ZSerializer and ZDeserializer use java.lang.reflect.Type (via Guava's TypeToken) —
         // available on JVM and Android (ART), but absent on Kotlin/Native and Kotlin/JS targets.
         // Placing them here (rather than commonMain) ensures those targets can be added in the
         // future without compilation errors.
-        val javaMain by creating { dependsOn(commonMain) }
+        // Note: named jvmAndAndroidMain (not javaMain) to avoid conflicting with the DokkaSourceSetSpec
+        // that Dokka auto-registers for the Java compilation created by withJava().
+        val jvmAndAndroidMain by creating { dependsOn(commonMain) }
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
             }
         }
         if (androidEnabled) {
-            val androidMain by getting { dependsOn(javaMain) }
+            val androidMain by getting { dependsOn(jvmAndAndroidMain) }
             val androidUnitTest by getting {
                 dependencies {
                     implementation(kotlin("test-junit"))
                 }
             }
         }
-        val jvmMain by getting { dependsOn(javaMain) }
+        val jvmMain by getting { dependsOn(jvmAndAndroidMain) }
 
         val jvmTest by getting {}
     }
