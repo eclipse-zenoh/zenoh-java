@@ -60,12 +60,18 @@ kotlin {
     @Suppress("Unused")
     sourceSets {
         val commonMain by getting {}
+        // javaMain is an intermediate source set between commonMain and both jvmMain/androidMain.
+        // It holds code that uses java.lang.reflect.Type — available on JVM and Android (ART),
+        // but absent on Kotlin/Native and Kotlin/JS targets. Placing such code here (rather than
+        // commonMain) ensures those targets can be added in the future without compilation errors.
+        val javaMain by creating { dependsOn(commonMain) }
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
             }
         }
         if (androidEnabled) {
+            val androidMain by getting { dependsOn(javaMain) }
             val androidUnitTest by getting {
                 dependencies {
                     implementation(kotlin("test-junit"))
@@ -73,6 +79,7 @@ kotlin {
             }
         }
         val jvmMain by getting {
+            dependsOn(javaMain)
             if (isRemotePublication) {
                 resources.srcDir("../jni-libs").include("*/**")
             } else {
