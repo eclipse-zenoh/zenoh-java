@@ -84,7 +84,9 @@ fn decode_ktype_arg(env: &mut JNIEnv, ktype: &JObject, index: i32) -> ZResult<Ko
         .map_err(|err| zerror!(err))?;
 
     if arg_type.is_null() {
-        return Err(zerror!("KTypeProjection.type is null (star projection not supported)"));
+        return Err(zerror!(
+            "KTypeProjection.type is null (star projection not supported)"
+        ));
     }
     decode_ktype(env, arg_type)
 }
@@ -92,13 +94,20 @@ fn decode_ktype_arg(env: &mut JNIEnv, ktype: &JObject, index: i32) -> ZResult<Ko
 /// Decodes a `kotlin.reflect.KType` JVM object into a [KotlinType] enum.
 fn decode_ktype(env: &mut JNIEnv, ktype: JObject) -> ZResult<KotlinType> {
     let classifier = env
-        .call_method(&ktype, "getClassifier", "()Lkotlin/reflect/KClassifier;", &[])
+        .call_method(
+            &ktype,
+            "getClassifier",
+            "()Lkotlin/reflect/KClassifier;",
+            &[],
+        )
         .map_err(|err| zerror!(err))?
         .l()
         .map_err(|err| zerror!(err))?;
 
     if classifier.is_null() {
-        return Err(zerror!("KType has no classifier (star projection not supported)"));
+        return Err(zerror!(
+            "KType has no classifier (star projection not supported)"
+        ));
     }
 
     let name_obj = env
@@ -108,7 +117,9 @@ fn decode_ktype(env: &mut JNIEnv, ktype: JObject) -> ZResult<KotlinType> {
         .map_err(|err| zerror!(err))?;
 
     if name_obj.is_null() {
-        return Err(zerror!("KClass has no qualified name (anonymous/local class not supported)"));
+        return Err(zerror!(
+            "KClass has no qualified name (anonymous/local class not supported)"
+        ));
     }
 
     let qualified_name: std::string::String = env
@@ -130,9 +141,9 @@ fn decode_ktype(env: &mut JNIEnv, ktype: JObject) -> ZResult<KotlinType> {
         "kotlin.UShort" => Ok(KotlinType::UShort),
         "kotlin.UInt" => Ok(KotlinType::UInt),
         "kotlin.ULong" => Ok(KotlinType::ULong),
-        "kotlin.collections.List" => {
-            Ok(KotlinType::List(Box::new(decode_ktype_arg(env, &ktype, 0)?)))
-        }
+        "kotlin.collections.List" => Ok(KotlinType::List(Box::new(decode_ktype_arg(
+            env, &ktype, 0,
+        )?))),
         "kotlin.collections.Map" => {
             let key = decode_ktype_arg(env, &ktype, 0)?;
             let val = decode_ktype_arg(env, &ktype, 1)?;
@@ -147,7 +158,11 @@ fn decode_ktype(env: &mut JNIEnv, ktype: JObject) -> ZResult<KotlinType> {
             let first = decode_ktype_arg(env, &ktype, 0)?;
             let second = decode_ktype_arg(env, &ktype, 1)?;
             let third = decode_ktype_arg(env, &ktype, 2)?;
-            Ok(KotlinType::Triple(Box::new(first), Box::new(second), Box::new(third)))
+            Ok(KotlinType::Triple(
+                Box::new(first),
+                Box::new(second),
+                Box::new(third),
+            ))
         }
         _ => Err(zerror!("Unsupported Kotlin type: {}", qualified_name)),
     }
@@ -246,7 +261,8 @@ fn serialize(
             serializer.serialize(s);
         }
         KotlinType::ByteArray => {
-            let bytes = decode_byte_array(env, JByteArray::from(any)).map_err(|err| zerror!(err))?;
+            let bytes =
+                decode_byte_array(env, JByteArray::from(any)).map_err(|err| zerror!(err))?;
             serializer.serialize(bytes);
         }
         KotlinType::UByte => {
@@ -374,49 +390,63 @@ fn deserialize(
 ) -> ZResult<jobject> {
     match ktype {
         KotlinType::Boolean => {
-            let v = deserializer.deserialize::<bool>().map_err(|err| zerror!(err))?;
+            let v = deserializer
+                .deserialize::<bool>()
+                .map_err(|err| zerror!(err))?;
             let obj = env
                 .new_object("java/lang/Boolean", "(Z)V", &[JValue::Bool(v as u8)])
                 .map_err(|err| zerror!(err))?;
             Ok(obj.as_raw())
         }
         KotlinType::Byte => {
-            let v = deserializer.deserialize::<i8>().map_err(|err| zerror!(err))?;
+            let v = deserializer
+                .deserialize::<i8>()
+                .map_err(|err| zerror!(err))?;
             let obj = env
                 .new_object("java/lang/Byte", "(B)V", &[JValue::Byte(v)])
                 .map_err(|err| zerror!(err))?;
             Ok(obj.as_raw())
         }
         KotlinType::Short => {
-            let v = deserializer.deserialize::<i16>().map_err(|err| zerror!(err))?;
+            let v = deserializer
+                .deserialize::<i16>()
+                .map_err(|err| zerror!(err))?;
             let obj = env
                 .new_object("java/lang/Short", "(S)V", &[JValue::Short(v)])
                 .map_err(|err| zerror!(err))?;
             Ok(obj.as_raw())
         }
         KotlinType::Int => {
-            let v = deserializer.deserialize::<i32>().map_err(|err| zerror!(err))?;
+            let v = deserializer
+                .deserialize::<i32>()
+                .map_err(|err| zerror!(err))?;
             let obj = env
                 .new_object("java/lang/Integer", "(I)V", &[JValue::Int(v)])
                 .map_err(|err| zerror!(err))?;
             Ok(obj.as_raw())
         }
         KotlinType::Long => {
-            let v = deserializer.deserialize::<i64>().map_err(|err| zerror!(err))?;
+            let v = deserializer
+                .deserialize::<i64>()
+                .map_err(|err| zerror!(err))?;
             let obj = env
                 .new_object("java/lang/Long", "(J)V", &[JValue::Long(v)])
                 .map_err(|err| zerror!(err))?;
             Ok(obj.as_raw())
         }
         KotlinType::Float => {
-            let v = deserializer.deserialize::<f32>().map_err(|err| zerror!(err))?;
+            let v = deserializer
+                .deserialize::<f32>()
+                .map_err(|err| zerror!(err))?;
             let obj = env
                 .new_object("java/lang/Float", "(F)V", &[JValue::Float(v)])
                 .map_err(|err| zerror!(err))?;
             Ok(obj.as_raw())
         }
         KotlinType::Double => {
-            let v = deserializer.deserialize::<f64>().map_err(|err| zerror!(err))?;
+            let v = deserializer
+                .deserialize::<f64>()
+                .map_err(|err| zerror!(err))?;
             let obj = env
                 .new_object("java/lang/Double", "(D)V", &[JValue::Double(v)])
                 .map_err(|err| zerror!(err))?;
@@ -439,28 +469,36 @@ fn deserialize(
             Ok(jbytes.into_raw())
         }
         KotlinType::UByte => {
-            let v = deserializer.deserialize::<u8>().map_err(|err| zerror!(err))?;
+            let v = deserializer
+                .deserialize::<u8>()
+                .map_err(|err| zerror!(err))?;
             let obj = env
                 .new_object("kotlin/UByte", "(B)V", &[JValue::Byte(v as i8)])
                 .map_err(|err| zerror!(err))?;
             Ok(obj.as_raw())
         }
         KotlinType::UShort => {
-            let v = deserializer.deserialize::<u16>().map_err(|err| zerror!(err))?;
+            let v = deserializer
+                .deserialize::<u16>()
+                .map_err(|err| zerror!(err))?;
             let obj = env
                 .new_object("kotlin/UShort", "(S)V", &[JValue::Short(v as i16)])
                 .map_err(|err| zerror!(err))?;
             Ok(obj.as_raw())
         }
         KotlinType::UInt => {
-            let v = deserializer.deserialize::<u32>().map_err(|err| zerror!(err))?;
+            let v = deserializer
+                .deserialize::<u32>()
+                .map_err(|err| zerror!(err))?;
             let obj = env
                 .new_object("kotlin/UInt", "(I)V", &[JValue::Int(v as i32)])
                 .map_err(|err| zerror!(err))?;
             Ok(obj.as_raw())
         }
         KotlinType::ULong => {
-            let v = deserializer.deserialize::<u64>().map_err(|err| zerror!(err))?;
+            let v = deserializer
+                .deserialize::<u64>()
+                .map_err(|err| zerror!(err))?;
             let obj = env
                 .new_object("kotlin/ULong", "(J)V", &[JValue::Long(v as i64)])
                 .map_err(|err| zerror!(err))?;
