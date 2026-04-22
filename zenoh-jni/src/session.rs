@@ -281,23 +281,24 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_deleteViaJNI(
         let congestion_control = decode_congestion_control(congestion_control)?;
         let priority = decode_priority(priority)?;
         let reliability = decode_reliability(reliability)?;
+        let key_expr_string = key_expr.to_string();
 
-        let mut delete_builder = session
-            .delete(&key_expr)
-            .congestion_control(congestion_control)
-            .express(is_express != 0)
-            .priority(priority)
-            .reliability(reliability);
+        let attachment = if !attachment.is_null() {
+            Some(decode_byte_array(&env, attachment)?)
+        } else {
+            None
+        };
 
-        if !attachment.is_null() {
-            let attachment = decode_byte_array(&env, attachment)?;
-            delete_builder = delete_builder.attachment(attachment)
-        }
-
-        delete_builder
-            .wait()
-            .map(|_| tracing::trace!("Delete on '{key_expr}'"))
-            .map_err(|err| zerror!(err))
+        zenoh_flat::session::delete(
+            &session,
+            key_expr,
+            congestion_control,
+            priority,
+            is_express != 0,
+            reliability,
+            attachment,
+        )
+        .map(|_| tracing::trace!("Delete on '{}'", key_expr_string))
     }()
     .map_err(|err| throw_exception!(env, err));
 }

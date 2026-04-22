@@ -75,6 +75,30 @@ pub fn put(
     put_builder.wait().map_err(|err| zerror!(err)).map(|_| ())
 }
 
+/// Perform a delete operation through an existing Zenoh session.
+pub fn delete(
+    session: &Session,
+    key_expr: KeyExpr<'static>,
+    congestion_control: CongestionControl,
+    priority: Priority,
+    express: bool,
+    reliability: Reliability,
+    attachment: Option<Vec<u8>>,
+) -> ZResult<()> {
+    let mut delete_builder = session
+        .delete(&key_expr)
+        .congestion_control(congestion_control)
+        .express(express)
+        .priority(priority)
+        .reliability(reliability);
+
+    if let Some(attachment) = attachment {
+        delete_builder = delete_builder.attachment(attachment);
+    }
+
+    delete_builder.wait().map_err(|err| zerror!(err)).map(|_| ())
+}
+
 /// Close a Zenoh session using a reference to the session.
 pub fn close_session(session: &Session) -> ZResult<()> {
     session.close().wait().map_err(|err| zerror!(err))
