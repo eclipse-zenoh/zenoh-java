@@ -12,7 +12,7 @@
 //
 
 use crate::{errors::ZResult, zerror};
-use tracing::trace;
+use tracing::{error, trace};
 use zenoh::{
     bytes::Encoding,
     config::Config,
@@ -27,7 +27,14 @@ use zenoh::{
 pub fn open_session(config: &Config) -> ZResult<Session> {
     zenoh::open(config.clone())
         .wait()
-        .map_err(|err| zerror!(err))
+        .map(|session| {
+            trace!("Opened Zenoh session.");
+            session
+        })
+        .map_err(|err| {
+            error!("Unable to open session: {}", err);
+            zerror!(err)
+        })
 }
 
 /// Declare a publisher through an existing Zenoh session.
@@ -40,20 +47,21 @@ pub fn declare_publisher(
     reliability: Reliability,
 ) -> ZResult<Publisher<'static>> {
     let key_expr_string = key_expr.to_string();
-    let result = session
+    session
         .declare_publisher(key_expr)
         .congestion_control(congestion_control)
         .priority(priority)
         .express(express)
         .reliability(reliability)
         .wait()
-        .map_err(|err| zerror!(err));
-
-    if result.is_ok() {
-        trace!("Declared publisher on '{}'.", key_expr_string);
-    }
-
-    result
+        .map(|publisher| {
+            trace!("Declared publisher on '{}'.", key_expr_string);
+            publisher
+        })
+        .map_err(|err| {
+            error!("Unable to declare publisher on '{}': {}", key_expr_string, err);
+            zerror!(err)
+        })
 }
 
 /// Perform a put operation through an existing Zenoh session.
@@ -69,27 +77,27 @@ pub fn put(
     attachment: Option<Vec<u8>>,
 ) -> ZResult<()> {
     let key_expr_string = key_expr.to_string();
-    let result = {
-        let mut put_builder = session
-            .put(&key_expr, payload)
-            .congestion_control(congestion_control)
-            .encoding(encoding)
-            .express(express)
-            .priority(priority)
-            .reliability(reliability);
+    let mut put_builder = session
+        .put(&key_expr, payload)
+        .congestion_control(congestion_control)
+        .encoding(encoding)
+        .express(express)
+        .priority(priority)
+        .reliability(reliability);
 
-        if let Some(attachment) = attachment {
-            put_builder = put_builder.attachment(attachment);
-        }
-
-        put_builder.wait().map_err(|err| zerror!(err)).map(|_| ())
-    };
-
-    if result.is_ok() {
-        trace!("Put on '{}'.", key_expr_string);
+    if let Some(attachment) = attachment {
+        put_builder = put_builder.attachment(attachment);
     }
 
-    result
+    put_builder
+        .wait()
+        .map(|_| {
+            trace!("Put on '{}'.", key_expr_string);
+        })
+        .map_err(|err| {
+            error!("Unable to put on '{}': {}", key_expr_string, err);
+            zerror!(err)
+        })
 }
 
 /// Perform a delete operation through an existing Zenoh session.
@@ -103,29 +111,38 @@ pub fn delete(
     attachment: Option<Vec<u8>>,
 ) -> ZResult<()> {
     let key_expr_string = key_expr.to_string();
-    let result = {
-        let mut delete_builder = session
-            .delete(&key_expr)
-            .congestion_control(congestion_control)
-            .express(express)
-            .priority(priority)
-            .reliability(reliability);
+    let mut delete_builder = session
+        .delete(&key_expr)
+        .congestion_control(congestion_control)
+        .express(express)
+        .priority(priority)
+        .reliability(reliability);
 
-        if let Some(attachment) = attachment {
-            delete_builder = delete_builder.attachment(attachment);
-        }
-
-        delete_builder.wait().map_err(|err| zerror!(err)).map(|_| ())
-    };
-
-    if result.is_ok() {
-        trace!("Delete on '{}'.", key_expr_string);
+    if let Some(attachment) = attachment {
+        delete_builder = delete_builder.attachment(attachment);
     }
 
-    result
+    delete_builder
+        .wait()
+        .map(|_| {
+            trace!("Delete on '{}'.", key_expr_string);
+        })
+        .map_err(|err| {
+            error!("Unable to delete on '{}': {}", key_expr_string, err);
+            zerror!(err)
+        })
 }
 
 /// Close a Zenoh session using a reference to the session.
 pub fn close_session(session: &Session) -> ZResult<()> {
-    session.close().wait().map_err(|err| zerror!(err))
+    session
+        .close()
+        .wait()
+        .map(|_| {
+            trace!("Closed Zenoh session.");
+        })
+        .map_err(|err| {
+            error!("Unable to close session: {}", err);
+            zerror!(err)
+        })
 }
