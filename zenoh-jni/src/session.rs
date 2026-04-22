@@ -144,27 +144,32 @@ pub extern "C" fn Java_io_zenoh_jni_JNISession_openSessionWithYamlConfigViaJNI(
     _class: JClass,
     yaml_config: JString,
 ) -> *const Session {
-    let session = open_session_with_yaml_config(&mut env, yaml_config);
-    match session {
-        Ok(session) => Arc::into_raw(Arc::new(session)),
+    let yaml_config = match decode_string(&mut env, &yaml_config) {
+        Ok(config) => config,
+        Err(err) => {
+            throw_exception!(env, err);
+            return null();
+        }
+    };
+
+    let config = match zenoh_flat::config::create_config_from_yaml(&yaml_config) {
+        Ok(config) => config,
+        Err(err) => {
+            throw_exception!(env, err);
+            return null();
+        }
+    };
+
+    let session = match zenoh_flat::session::open_session(&config) {
+        Ok(session) => session,
         Err(err) => {
             tracing::error!("Unable to open session: {}", err);
             throw_exception!(env, zerror!(err));
-            null()
+            return null();
         }
-    }
-}
+    };
 
-/// Open a Zenoh session with the provided yaml configuration.
-///
-fn open_session_with_yaml_config(env: &mut JNIEnv, yaml_config: JString) -> ZResult<Session> {
-    let yaml_config = decode_string(env, &yaml_config)?;
-    let deserializer = serde_yaml::Deserializer::from_str(&yaml_config);
-    let config = Config::from_deserializer(deserializer).map_err(|err| match err {
-        Ok(c) => zerror!("Invalid configuration: {}", c),
-        Err(e) => zerror!("YAML error: {}", e),
-    })?;
-    zenoh::open(config).wait().map_err(|err| zerror!(err))
+    Arc::into_raw(Arc::new(session))
 }
 
 /// Closes a Zenoh session via JNI.

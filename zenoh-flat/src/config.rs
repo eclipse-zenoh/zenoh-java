@@ -22,3 +22,12 @@ pub fn create_config_from_json(json: &str) -> crate::errors::ZResult<Config> {
         Err(e) => zerror!("JSON error: {}", e),
     })
 }
+
+/// Create a Zenoh configuration from a YAML string.
+pub fn create_config_from_yaml(yaml: &str) -> crate::errors::ZResult<Config> {
+    let deserializer = serde_yaml::Deserializer::from_str(yaml);
+    Config::from_deserializer(deserializer).map_err(|err| match err {
+        Ok(c) => zerror!("Invalid configuration: {}", c),
+        Err(e) => zerror!("YAML error: {}", e),
+    })
+}
