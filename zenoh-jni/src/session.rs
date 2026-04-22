@@ -338,15 +338,15 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareSubscriberViaJNI(
     let session = OwnedObject::from_raw(session_ptr);
     || -> ZResult<*const Subscriber<()>> {
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
-        tracing::debug!("Declaring subscriber on '{}'...", key_expr);
+        let callback = process_kotlin_sample_callback(&mut env, callback, on_close)?;
 
-        let subscriber = session
-            .declare_subscriber(key_expr.to_owned())
-            .callback(process_kotlin_sample_callback(&mut env, callback, on_close)?)
-            .wait()
-            .map_err(|err| zerror!("Unable to declare subscriber: {}", err))?;
+        let subscriber = zenoh_flat::session::declare_subscriber(
+            &session,
+            key_expr,
+            callback,
+        )
+        .map_err(|err| zerror!("Unable to declare subscriber: {}", err))?;
 
-        tracing::debug!("Subscriber declared on '{}'.", key_expr);
         Ok(Arc::into_raw(Arc::new(subscriber)))
     }()
     .unwrap_or_else(|err| {
