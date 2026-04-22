@@ -17,7 +17,8 @@ use zenoh::{
     bytes::Encoding,
     config::Config,
     key_expr::KeyExpr,
-    pubsub::Publisher,
+    pubsub::{Publisher, Subscriber},
+    sample::Sample,
     qos::{CongestionControl, Priority, Reliability},
     session::Session,
     Wait,
@@ -60,6 +61,30 @@ pub fn declare_publisher(
         })
         .map_err(|err| {
             error!("Unable to declare publisher on '{}': {}", key_expr_string, err);
+            zerror!(err)
+        })
+}
+
+/// Declare a subscriber through an existing Zenoh session.
+pub fn declare_subscriber<F>(
+    session: &Session,
+    key_expr: KeyExpr<'static>,
+    callback: F,
+) -> ZResult<Subscriber<()>>
+where
+    F: Fn(Sample) + Send + Sync + 'static,
+{
+    let key_expr_string = key_expr.to_string();
+    session
+        .declare_subscriber(key_expr)
+        .callback(callback)
+        .wait()
+        .map(|subscriber| {
+            trace!("Declared subscriber on '{}'.", key_expr_string);
+            subscriber
+        })
+        .map_err(|err| {
+            error!("Unable to declare subscriber on '{}': {}", key_expr_string, err);
             zerror!(err)
         })
 }
