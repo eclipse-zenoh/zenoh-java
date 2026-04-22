@@ -76,102 +76,30 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_openSessionViaJNI(
     }
 }
 
-/// Open a Zenoh session with a JSON configuration.
+/// Create a Zenoh configuration from a JSON string.
 ///
-/// It returns an [Arc] raw pointer to the Zenoh Session, which should be stored as a private read-only attribute
-/// of the session object in the Java/Kotlin code. Subsequent calls to other session functions will require
-/// this raw pointer to retrieve the [Session] using `Arc::from_raw`.
+/// It returns an [Arc] raw pointer to the Zenoh [Config] object, which should be passed
+/// to `openSessionViaJNI`.
 ///
-/// If opening the session fails, an exception is thrown on the JVM, and a null pointer is returned.
+/// If creation fails, an exception is thrown on the JVM and a null pointer is returned.
 ///
 /// # Parameters:
 /// - `env`: The JNI environment.
 /// - `_class`: The JNI class (parameter required by the JNI interface but unused).
 /// - `json_config`: Configuration as a JSON string.
 ///
-#[no_mangle]
-#[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNISession_openSessionWithJsonConfigViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    json_config: JString,
-) -> *const Session {
-    let json_config = match decode_string(&mut env, &json_config) {
-        Ok(config) => config,
-        Err(err) => {
-            throw_exception!(env, err);
-            return null();
-        }
-    };
-
-    let config = match zenoh_flat::config::create_config_from_json(&json_config) {
-        Ok(config) => config,
-        Err(err) => {
-            throw_exception!(env, err);
-            return null();
-        }
-    };
-
-    let session = match zenoh_flat::session::open_session(&config) {
-        Ok(session) => session,
-        Err(err) => {
-            tracing::error!("Unable to open session: {}", err);
-            throw_exception!(env, zerror!(err));
-            return null();
-        }
-    };
-
-    Arc::into_raw(Arc::new(session))
-}
-
-/// Open a Zenoh session with a YAML configuration.
+/// Create a Zenoh configuration from a YAML string.
 ///
-/// It returns an [Arc] raw pointer to the Zenoh Session, which should be stored as a private read-only attribute
-/// of the session object in the Java/Kotlin code. Subsequent calls to other session functions will require
-/// this raw pointer to retrieve the [Session] using `Arc::from_raw`.
+/// It returns an [Arc] raw pointer to the Zenoh [Config] object, which should be passed
+/// to `openSessionViaJNI`.
 ///
-/// If opening the session fails, an exception is thrown on the JVM, and a null pointer is returned.
+/// If creation fails, an exception is thrown on the JVM and a null pointer is returned.
 ///
 /// # Parameters:
 /// - `env`: The JNI environment.
 /// - `_class`: The JNI class (parameter required by the JNI interface but unused).
 /// - `yaml_config`: Configuration as a YAML string.
 ///
-#[no_mangle]
-#[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNISession_openSessionWithYamlConfigViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    yaml_config: JString,
-) -> *const Session {
-    let yaml_config = match decode_string(&mut env, &yaml_config) {
-        Ok(config) => config,
-        Err(err) => {
-            throw_exception!(env, err);
-            return null();
-        }
-    };
-
-    let config = match zenoh_flat::config::create_config_from_yaml(&yaml_config) {
-        Ok(config) => config,
-        Err(err) => {
-            throw_exception!(env, err);
-            return null();
-        }
-    };
-
-    let session = match zenoh_flat::session::open_session(&config) {
-        Ok(session) => session,
-        Err(err) => {
-            tracing::error!("Unable to open session: {}", err);
-            throw_exception!(env, zerror!(err));
-            return null();
-        }
-    };
-
-    Arc::into_raw(Arc::new(session))
-}
-
 /// Closes a Zenoh session via JNI.
 ///
 /// # Parameters:

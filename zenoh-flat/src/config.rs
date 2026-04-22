@@ -14,8 +14,8 @@
 use crate::zerror;
 use zenoh::config::Config;
 
-/// Create a Zenoh configuration from a JSON string.
-pub fn create_config_from_json(json: &str) -> crate::errors::ZResult<Config> {
+/// Load a Zenoh configuration from a JSON string.
+pub fn load_json_config(json: &str) -> crate::errors::ZResult<Config> {
     let mut deserializer = json5::Deserializer::from_str(json).map_err(|err| zerror!(err))?;
     Config::from_deserializer(&mut deserializer).map_err(|err| match err {
         Ok(c) => zerror!("Invalid configuration: {}", c),
@@ -23,8 +23,8 @@ pub fn create_config_from_json(json: &str) -> crate::errors::ZResult<Config> {
     })
 }
 
-/// Create a Zenoh configuration from a YAML string.
-pub fn create_config_from_yaml(yaml: &str) -> crate::errors::ZResult<Config> {
+/// Load a Zenoh configuration from a YAML string.
+pub fn load_yaml_config(yaml: &str) -> crate::errors::ZResult<Config> {
     let deserializer = serde_yaml::Deserializer::from_str(yaml);
     Config::from_deserializer(deserializer).map_err(|err| match err {
         Ok(c) => zerror!("Invalid configuration: {}", c),

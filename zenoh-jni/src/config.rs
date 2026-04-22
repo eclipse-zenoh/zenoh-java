@@ -79,12 +79,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadJsonConfigViaJN
 ) -> *const Config {
     || -> ZResult<*const Config> {
         let json_config = decode_string(&mut env, &json_config)?;
-        let mut deserializer =
-            json5::Deserializer::from_str(&json_config).map_err(|err| zerror!(err))?;
-        let config = Config::from_deserializer(&mut deserializer).map_err(|err| match err {
-            Ok(c) => zerror!("Invalid configuration: {}", c),
-            Err(e) => zerror!("JSON error: {}", e),
-        })?;
+        let config = zenoh_flat::config::load_json_config(&json_config)?;
         Ok(Arc::into_raw(Arc::new(config)))
     }()
     .unwrap_or_else(|err| {
@@ -108,11 +103,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadYamlConfigViaJN
 ) -> *const Config {
     || -> ZResult<*const Config> {
         let yaml_config = decode_string(&mut env, &yaml_config)?;
-        let deserializer = serde_yaml::Deserializer::from_str(&yaml_config);
-        let config = Config::from_deserializer(deserializer).map_err(|err| match err {
-            Ok(c) => zerror!("Invalid configuration: {}", c),
-            Err(e) => zerror!("YAML error: {}", e),
-        })?;
+        let config = zenoh_flat::config::load_yaml_config(&yaml_config)?;
         Ok(Arc::into_raw(Arc::new(config)))
     }()
     .unwrap_or_else(|err| {
