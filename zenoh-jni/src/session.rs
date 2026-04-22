@@ -64,7 +64,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_openSessionViaJNI(
     _class: JClass,
     config_ptr: *const Config,
 ) -> *const Session {
-    let session = open_session(config_ptr);
+    let config = unsafe { OwnedObject::from_raw(config_ptr) };
+    let session = zenoh_flat::session::open_session(&config);
     match session {
         Ok(session) => Arc::into_raw(Arc::new(session)),
         Err(err) => {
@@ -73,15 +74,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_openSessionViaJNI(
             null()
         }
     }
-}
-
-/// Open a Zenoh session with the configuration pointed out by `config_path`.
-///
-/// If the config path provided is null then the default configuration is loaded.
-///
-fn open_session(config_ptr: *const Config) -> ZResult<Session> {
-    let config = unsafe { OwnedObject::from_raw(config_ptr) };
-    zenoh_flat::session::open_session(&config)
 }
 
 /// Open a Zenoh session with a JSON configuration.
