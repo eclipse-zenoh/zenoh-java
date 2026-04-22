@@ -3945,6 +3945,9 @@ dependencies = [
 [[package]]
 name = "zenoh-flat"
 version = "1.9.0"
+dependencies = [
+ "zenoh",
+]
 
 [[package]]
 name = "zenoh-keyexpr"

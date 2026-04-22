@@ -7,3 +7,4 @@ description = "Zenoh flat data interchange support."
 repository = "https://github.com/eclipse-zenoh/zenoh"
 
 [dependencies]
+zenoh = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["unstable", "internal"], default-features = false }

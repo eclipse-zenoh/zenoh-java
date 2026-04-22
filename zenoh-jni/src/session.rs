@@ -79,11 +79,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_openSessionViaJNI(
 ///
 /// If the config path provided is null then the default configuration is loaded.
 ///
-unsafe fn open_session(config_ptr: *const Config) -> ZResult<Session> {
-    let config = OwnedObject::from_raw(config_ptr);
-    zenoh::open((*config).clone())
-        .wait()
-        .map_err(|err: zenoh::Error| zerror!(err))
+fn open_session(config_ptr: *const Config) -> ZResult<Session> {
+    let config = unsafe { OwnedObject::from_raw(config_ptr) };
+    zenoh_flat::session::open_session(&config).map_err(|err| zerror!(err))
 }
 
 /// Open a Zenoh session with a JSON configuration.
