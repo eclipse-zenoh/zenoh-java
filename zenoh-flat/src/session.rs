@@ -66,14 +66,11 @@ pub fn declare_publisher(
 }
 
 /// Declare a subscriber through an existing Zenoh session.
-pub fn declare_subscriber<F>(
+pub fn declare_subscriber(
     session: &Session,
     key_expr: KeyExpr<'static>,
-    callback: F,
-) -> ZResult<Subscriber<()>>
-where
-    F: Fn(Sample) + Send + Sync + 'static,
-{
+    callback: impl Fn(Sample) + Send + Sync + 'static,
+) -> ZResult<Subscriber<()>> {
     let key_expr_string = key_expr.to_string();
     session
         .declare_subscriber(key_expr)
