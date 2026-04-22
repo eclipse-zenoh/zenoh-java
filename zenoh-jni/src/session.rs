@@ -397,21 +397,20 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
         let timeout = Duration::from_millis(timeout_ms as u64);
         let priority = decode_priority(priority)?;
         let reply_key_expr = decode_reply_key_expr(accept_replies)?;
-        tracing::debug!("Declaring querier on '{}'...", key_expr);
 
-        let querier = session
-            .declare_querier(key_expr.to_owned())
-            .congestion_control(congestion_control)
-            .consolidation(consolidation)
-            .express(is_express != 0)
-            .target(query_target)
-            .priority(priority)
-            .timeout(timeout)
-            .accept_replies(reply_key_expr)
-            .wait()
-            .map_err(|err| zerror!(err))?;
+        let querier = zenoh_flat::session::declare_querier(
+            &session,
+            key_expr,
+            query_target,
+            consolidation,
+            congestion_control,
+            is_express != 0,
+            priority,
+            timeout,
+            reply_key_expr,
+        )
+        .map_err(|err| zerror!("Unable to declare querier: {}", err))?;
 
-        tracing::debug!("Querier declared on '{}'.", key_expr);
         Ok(Arc::into_raw(Arc::new(querier)))
     }()
     .unwrap_or_else(|err| {

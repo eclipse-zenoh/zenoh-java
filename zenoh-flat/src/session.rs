@@ -13,11 +13,14 @@
 
 use crate::{errors::ZResult, zerror};
 use tracing::{error, trace};
+use std::time::Duration;
+
 use zenoh::{
     bytes::Encoding,
     config::Config,
     key_expr::KeyExpr,
     pubsub::{Publisher, Subscriber},
+    query::{ConsolidationMode, QueryTarget, Querier, ReplyKeyExpr},
     sample::Sample,
     qos::{CongestionControl, Priority, Reliability},
     session::Session,
@@ -82,6 +85,39 @@ pub fn declare_subscriber(
         })
         .map_err(|err| {
             error!("Unable to declare subscriber on '{}': {}", key_expr_string, err);
+            zerror!(err)
+        })
+}
+
+/// Declare a querier through an existing Zenoh session.
+pub fn declare_querier(
+    session: &Session,
+    key_expr: KeyExpr<'static>,
+    query_target: QueryTarget,
+    consolidation: ConsolidationMode,
+    congestion_control: CongestionControl,
+    express: bool,
+    priority: Priority,
+    timeout: Duration,
+    reply_key_expr: ReplyKeyExpr,
+) -> ZResult<Querier<'static>> {
+    let key_expr_string = key_expr.to_string();
+    session
+        .declare_querier(key_expr)
+        .congestion_control(congestion_control)
+        .consolidation(consolidation)
+        .express(express)
+        .target(query_target)
+        .priority(priority)
+        .timeout(timeout)
+        .accept_replies(reply_key_expr)
+        .wait()
+        .map(|querier| {
+            trace!("Declared querier on '{}'.", key_expr_string);
+            querier
+        })
+        .map_err(|err| {
+            error!("Unable to declare querier on '{}': {}", key_expr_string, err);
             zerror!(err)
         })
 }
