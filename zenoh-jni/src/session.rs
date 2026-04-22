@@ -30,7 +30,7 @@ use zenoh::{
 };
 
 use crate::owned_object::OwnedObject;
-use crate::sample_callback::SetJniSampleCallback;
+use crate::sample_callback::{process_kotlin_sample_callback, SetJniSampleCallback};
 #[cfg(feature = "zenoh-ext")]
 use jni::sys::jdouble;
 #[cfg(feature = "zenoh-ext")]
@@ -342,7 +342,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareSubscriberViaJNI(
 
         let subscriber = session
             .declare_subscriber(key_expr.to_owned())
-            .set_jni_sample_callback(&mut env, callback, on_close)?
+            .callback(process_kotlin_sample_callback(&mut env, callback, on_close)?)
             .wait()
             .map_err(|err| zerror!("Unable to declare subscriber: {}", err))?;
 
