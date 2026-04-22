@@ -11,8 +11,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::sync::Arc;
-
 use crate::zerror;
 use zenoh::{config::Config, session::Session, Wait};
 
@@ -23,7 +21,7 @@ pub fn open_session(config: &Config) -> crate::errors::ZResult<Session> {
         .map_err(|err| zerror!(err))
 }
 
-/// Close a Zenoh session taking ownership of the session object.
-pub fn close_session(session: Arc<Session>) {
-    drop(session);
+/// Close a Zenoh session using a reference to the session.
+pub fn close_session(session: &Session) -> crate::errors::ZResult<()> {
+    session.close().wait().map_err(|err| zerror!(err))
 }

@@ -97,7 +97,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_closeSessionViaJNI(
     session_ptr: *const Session,
 ) {
     let session = Arc::from_raw(session_ptr);
-    zenoh_flat::session::close_session(session);
+    if let Err(err) = zenoh_flat::session::close_session(&session) {
+        throw_exception!(env, err);
+    }
 }
 
 /// Declare a Zenoh publisher via JNI.
