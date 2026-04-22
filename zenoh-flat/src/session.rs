@@ -13,6 +13,7 @@
 
 use crate::{errors::ZResult, zerror};
 use zenoh::{
+    bytes::Encoding,
     config::Config,
     key_expr::KeyExpr,
     pubsub::Publisher,
@@ -45,6 +46,33 @@ pub fn declare_publisher(
         .reliability(reliability)
         .wait()
         .map_err(|err| zerror!(err))
+}
+
+/// Perform a put operation through an existing Zenoh session.
+pub fn put(
+    session: &Session,
+    key_expr: KeyExpr<'static>,
+    payload: Vec<u8>,
+    encoding: Encoding,
+    congestion_control: CongestionControl,
+    priority: Priority,
+    express: bool,
+    reliability: Reliability,
+    attachment: Option<Vec<u8>>,
+) -> ZResult<()> {
+    let mut put_builder = session
+        .put(&key_expr, payload)
+        .congestion_control(congestion_control)
+        .encoding(encoding)
+        .express(express)
+        .priority(priority)
+        .reliability(reliability);
+
+    if let Some(attachment) = attachment {
+        put_builder = put_builder.attachment(attachment);
+    }
+
+    put_builder.wait().map_err(|err| zerror!(err)).map(|_| ())
 }
 
 /// Close a Zenoh session using a reference to the session.

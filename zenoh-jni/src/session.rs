@@ -213,24 +213,26 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
         let congestion_control = decode_congestion_control(congestion_control)?;
         let priority = decode_priority(priority)?;
         let reliability = decode_reliability(reliability)?;
+        let key_expr_string = key_expr.to_string();
 
-        let mut put_builder = session
-            .put(&key_expr, payload)
-            .congestion_control(congestion_control)
-            .encoding(encoding)
-            .express(is_express != 0)
-            .priority(priority)
-            .reliability(reliability);
+        let attachment = if !attachment.is_null() {
+            Some(decode_byte_array(&env, attachment)?)
+        } else {
+            None
+        };
 
-        if !attachment.is_null() {
-            let attachment = decode_byte_array(&env, attachment)?;
-            put_builder = put_builder.attachment(attachment)
-        }
-
-        put_builder
-            .wait()
-            .map(|_| tracing::trace!("Put on '{key_expr}'"))
-            .map_err(|err| zerror!(err))
+        zenoh_flat::session::put(
+            &session,
+            key_expr,
+            payload,
+            encoding,
+            congestion_control,
+            priority,
+            is_express != 0,
+            reliability,
+            attachment,
+        )
+        .map(|_| tracing::trace!("Put on '{}'", key_expr_string))
     }()
     .map_err(|err| throw_exception!(env, err));
 }
