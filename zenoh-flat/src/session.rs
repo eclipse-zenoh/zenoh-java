@@ -11,17 +11,17 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use crate::zerror;
+use crate::{errors::ZResult, zerror};
 use zenoh::{config::Config, session::Session, Wait};
 
 /// Open a Zenoh session using a borrowed configuration.
-pub fn open_session(config: &Config) -> crate::errors::ZResult<Session> {
+pub fn open_session(config: &Config) -> ZResult<Session> {
     zenoh::open(config.clone())
         .wait()
         .map_err(|err| zerror!(err))
 }
 
 /// Close a Zenoh session using a reference to the session.
-pub fn close_session(session: &Session) -> crate::errors::ZResult<()> {
+pub fn close_session(session: &Session) -> ZResult<()> {
     session.close().wait().map_err(|err| zerror!(err))
 }
