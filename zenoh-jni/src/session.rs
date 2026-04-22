@@ -95,11 +95,15 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_closeSessionViaJNI(
     _class: JClass,
     session_ptr: *const Session,
 ) {
-    let session = Arc::from_raw(session_ptr);
-    let _ = || -> ZResult<()> {
-        zenoh_flat::session::close_session(&session)
+    || -> ZResult<()> {
+        let session = Arc::from_raw(session_ptr);
+        zenoh_flat::session::close_session(&session)?;
+        Ok(())
     }()
-    .map_err(|err| throw_exception!(env, err));
+    .unwrap_or_else(|err| {
+        throw_exception!(env, err);
+        ()
+    });
 }
 
 /// Declare a Zenoh publisher via JNI.
@@ -140,8 +144,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declarePublisherViaJNI(
     is_express: jboolean,
     reliability: jint,
 ) -> *const Publisher<'static> {
-    let session = OwnedObject::from_raw(session_ptr);
     || -> ZResult<*const Publisher<'static>> {
+        let session = OwnedObject::from_raw(session_ptr);
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let congestion_control = decode_congestion_control(congestion_control)?;
         let priority = decode_priority(priority)?;
@@ -206,8 +210,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
     attachment: JByteArray,
     reliability: jint,
 ) {
-    let session = OwnedObject::from_raw(session_ptr);
-    let _ = || -> ZResult<()> {
+    || -> ZResult<()> {
+        let session = OwnedObject::from_raw(session_ptr);
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let payload = decode_byte_array(&env, payload)?;
         let encoding = decode_encoding(&mut env, encoding_id, &encoding_schema)?;
@@ -231,9 +235,13 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
             is_express,
             attachment,
             reliability,
-        )
+        )?;
+        Ok(())
     }()
-    .map_err(|err| throw_exception!(env, err));
+    .unwrap_or_else(|err| {
+        throw_exception!(env, err);
+        ()
+    });
 }
 
 /// Performs a `delete` operation in the Zenoh session via JNI.
@@ -274,8 +282,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_deleteViaJNI(
     attachment: JByteArray,
     reliability: jint,
 ) {
-    let session = OwnedObject::from_raw(session_ptr);
-    let _ = || -> ZResult<()> {
+    || -> ZResult<()> {
+        let session = OwnedObject::from_raw(session_ptr);
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let congestion_control = decode_congestion_control(congestion_control)?;
         let priority = decode_priority(priority)?;
@@ -295,9 +303,13 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_deleteViaJNI(
             is_express,
             attachment,
             reliability,
-        )
+        )?;
+        Ok(())
     }()
-    .map_err(|err| throw_exception!(env, err));
+    .unwrap_or_else(|err| {
+        throw_exception!(env, err);
+        ()
+    });
 }
 
 /// Declare a Zenoh subscriber via JNI.
@@ -336,8 +348,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareSubscriberViaJNI(
     callback: JObject,
     on_close: JObject,
 ) -> *const Subscriber<()> {
-    let session = OwnedObject::from_raw(session_ptr);
     || -> ZResult<*const Subscriber<()>> {
+        let session = OwnedObject::from_raw(session_ptr);
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let callback = process_kotlin_sample_callback(&mut env, callback, on_close)?;
 
@@ -346,7 +358,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareSubscriberViaJNI(
             key_expr,
             callback,
         )?;
-
         Ok(Arc::into_raw(Arc::new(subscriber)))
     }()
     .unwrap_or_else(|err| {
@@ -388,8 +399,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
     timeout_ms: jlong,
     accept_replies: jint,
 ) -> *const Querier<'static> {
-    let session = OwnedObject::from_raw(session_ptr);
     || -> ZResult<*const Querier<'static>> {
+        let session = OwnedObject::from_raw(session_ptr);
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let query_target = decode_query_target(target)?;
         let consolidation = decode_consolidation(consolidation)?;
@@ -398,7 +409,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
         let is_express = is_express != 0;
         let timeout = Duration::from_millis(timeout_ms as u64);
         let reply_key_expr = decode_reply_key_expr(accept_replies)?;
-
         let querier = zenoh_flat::session::declare_querier(
             &session,
             key_expr,
@@ -410,7 +420,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
             timeout,
             reply_key_expr,
         )?;
-
         Ok(Arc::into_raw(Arc::new(querier)))
     }()
     .unwrap_or_else(|err| {
@@ -459,14 +468,12 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQueryableViaJNI(
     on_close: JObject,
     complete: jboolean,
 ) -> *const Queryable<()> {
-    let session = OwnedObject::from_raw(session_ptr);
     || -> ZResult<*const Queryable<()>> {
+        let session = OwnedObject::from_raw(session_ptr);
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let callback = process_kotlin_query_callback(&mut env, callback, on_close)?;
         let complete = complete != 0;
-
         let queryable = zenoh_flat::session::declare_queryable(&session, key_expr, callback, complete)?;
-
         Ok(Arc::into_raw(Arc::new(queryable)))
     }()
     .unwrap_or_else(|err| {
@@ -501,8 +508,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareKeyExprViaJNI(
     session_ptr: *const Session,
     key_expr_str: JString,
 ) -> *const KeyExpr<'static> {
-    let session = OwnedObject::from_raw(session_ptr);
     || -> ZResult<*const KeyExpr<'static>> {
+        let session = OwnedObject::from_raw(session_ptr);
         let key_expr_str = decode_string(&mut env, &key_expr_str)?;
         let key_expr = session
             .declare_keyexpr(key_expr_str.to_owned())
