@@ -64,16 +64,15 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_openSessionViaJNI(
     _class: JClass,
     config_ptr: *const Config,
 ) -> *const Session {
-    let config = unsafe { OwnedObject::from_raw(config_ptr) };
-    let session = zenoh_flat::session::open_session(&config);
-    match session {
-        Ok(session) => Arc::into_raw(Arc::new(session)),
-        Err(err) => {
-            tracing::error!("Unable to open session: {}", err);
-            throw_exception!(env, zerror!(err));
-            null()
-        }
-    }
+    let config = OwnedObject::from_raw(config_ptr);
+    || -> ZResult<*const Session> {
+        let session = zenoh_flat::session::open_session(&config)?;
+        Ok(Arc::into_raw(Arc::new(session)))
+    }()
+    .unwrap_or_else(|err| {
+        throw_exception!(env, err);
+        null()
+    })
 }
 
 /// Closes a Zenoh session via JNI.
@@ -97,9 +96,10 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_closeSessionViaJNI(
     session_ptr: *const Session,
 ) {
     let session = Arc::from_raw(session_ptr);
-    if let Err(err) = zenoh_flat::session::close_session(&session) {
-        throw_exception!(env, err);
-    }
+    let _ = || -> ZResult<()> {
+        zenoh_flat::session::close_session(&session)
+    }()
+    .map_err(|err| throw_exception!(env, err));
 }
 
 /// Declare a Zenoh publisher via JNI.
@@ -145,13 +145,14 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declarePublisherViaJNI(
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let congestion_control = decode_congestion_control(congestion_control)?;
         let priority = decode_priority(priority)?;
+        let is_express = is_express != 0;
         let reliability = decode_reliability(reliability)?;
         let publisher = zenoh_flat::session::declare_publisher(
             &session,
             key_expr,
             congestion_control,
             priority,
-            is_express != 0,
+            is_express,
             reliability,
         )?;
         Ok(Arc::into_raw(Arc::new(publisher)))
@@ -212,13 +213,13 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
         let encoding = decode_encoding(&mut env, encoding_id, &encoding_schema)?;
         let congestion_control = decode_congestion_control(congestion_control)?;
         let priority = decode_priority(priority)?;
-        let reliability = decode_reliability(reliability)?;
-
+        let is_express = is_express != 0;
         let attachment = if !attachment.is_null() {
             Some(decode_byte_array(&env, attachment)?)
         } else {
             None
         };
+        let reliability = decode_reliability(reliability)?;
 
         zenoh_flat::session::put(
             &session,
@@ -227,9 +228,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
             encoding,
             congestion_control,
             priority,
-            is_express != 0,
-            reliability,
+            is_express,
             attachment,
+            reliability,
         )
     }()
     .map_err(|err| throw_exception!(env, err));
@@ -278,22 +279,22 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_deleteViaJNI(
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let congestion_control = decode_congestion_control(congestion_control)?;
         let priority = decode_priority(priority)?;
-        let reliability = decode_reliability(reliability)?;
-
+        let is_express = is_express != 0;
         let attachment = if !attachment.is_null() {
             Some(decode_byte_array(&env, attachment)?)
         } else {
             None
         };
+        let reliability = decode_reliability(reliability)?;
 
         zenoh_flat::session::delete(
             &session,
             key_expr,
             congestion_control,
             priority,
-            is_express != 0,
-            reliability,
+            is_express,
             attachment,
+            reliability,
         )
     }()
     .map_err(|err| throw_exception!(env, err));
@@ -344,8 +345,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareSubscriberViaJNI(
             &session,
             key_expr,
             callback,
-        )
-        .map_err(|err| zerror!("Unable to declare subscriber: {}", err))?;
+        )?;
 
         Ok(Arc::into_raw(Arc::new(subscriber)))
     }()
@@ -394,8 +394,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
         let query_target = decode_query_target(target)?;
         let consolidation = decode_consolidation(consolidation)?;
         let congestion_control = decode_congestion_control(congestion_control)?;
-        let timeout = Duration::from_millis(timeout_ms as u64);
         let priority = decode_priority(priority)?;
+        let is_express = is_express != 0;
+        let timeout = Duration::from_millis(timeout_ms as u64);
         let reply_key_expr = decode_reply_key_expr(accept_replies)?;
 
         let querier = zenoh_flat::session::declare_querier(
@@ -404,12 +405,11 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
             query_target,
             consolidation,
             congestion_control,
-            is_express != 0,
             priority,
+            is_express,
             timeout,
             reply_key_expr,
-        )
-        .map_err(|err| zerror!("Unable to declare querier: {}", err))?;
+        )?;
 
         Ok(Arc::into_raw(Arc::new(querier)))
     }()
@@ -462,11 +462,10 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQueryableViaJNI(
     let session = OwnedObject::from_raw(session_ptr);
     || -> ZResult<*const Queryable<()>> {
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
-        let complete = complete != 0;
         let callback = process_kotlin_query_callback(&mut env, callback, on_close)?;
+        let complete = complete != 0;
 
-        let queryable = zenoh_flat::session::declare_queryable(&session, key_expr, callback, complete)
-            .map_err(|err| zerror!("Unable to declare queryable: {}", err))?;
+        let queryable = zenoh_flat::session::declare_queryable(&session, key_expr, callback, complete)?;
 
         Ok(Arc::into_raw(Arc::new(queryable)))
     }()

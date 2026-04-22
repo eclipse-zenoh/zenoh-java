@@ -96,8 +96,8 @@ pub fn declare_querier(
     query_target: QueryTarget,
     consolidation: ConsolidationMode,
     congestion_control: CongestionControl,
-    express: bool,
     priority: Priority,
+    express: bool,
     timeout: Duration,
     reply_key_expr: ReplyKeyExpr,
 ) -> ZResult<Querier<'static>> {
@@ -154,8 +154,8 @@ pub fn put(
     congestion_control: CongestionControl,
     priority: Priority,
     express: bool,
-    reliability: Reliability,
     attachment: Option<Vec<u8>>,
+    reliability: Reliability,
 ) -> ZResult<()> {
     let key_expr_string = key_expr.to_string();
     let mut put_builder = session
@@ -188,8 +188,8 @@ pub fn delete(
     congestion_control: CongestionControl,
     priority: Priority,
     express: bool,
-    reliability: Reliability,
     attachment: Option<Vec<u8>>,
+    reliability: Reliability,
 ) -> ZResult<()> {
     let key_expr_string = key_expr.to_string();
     let mut delete_builder = session
