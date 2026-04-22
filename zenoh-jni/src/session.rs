@@ -213,7 +213,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
         let congestion_control = decode_congestion_control(congestion_control)?;
         let priority = decode_priority(priority)?;
         let reliability = decode_reliability(reliability)?;
-        let key_expr_string = key_expr.to_string();
 
         let attachment = if !attachment.is_null() {
             Some(decode_byte_array(&env, attachment)?)
@@ -232,7 +231,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
             reliability,
             attachment,
         )
-        .map(|_| tracing::trace!("Put on '{}'", key_expr_string))
     }()
     .map_err(|err| throw_exception!(env, err));
 }
@@ -281,7 +279,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_deleteViaJNI(
         let congestion_control = decode_congestion_control(congestion_control)?;
         let priority = decode_priority(priority)?;
         let reliability = decode_reliability(reliability)?;
-        let key_expr_string = key_expr.to_string();
 
         let attachment = if !attachment.is_null() {
             Some(decode_byte_array(&env, attachment)?)
@@ -298,7 +295,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_deleteViaJNI(
             reliability,
             attachment,
         )
-        .map(|_| tracing::trace!("Delete on '{}'", key_expr_string))
     }()
     .map_err(|err| throw_exception!(env, err));
 }

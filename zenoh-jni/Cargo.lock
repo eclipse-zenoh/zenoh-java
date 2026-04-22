@@ -3948,6 +3948,7 @@ version = "1.9.0"
 dependencies = [
  "json5",
  "serde_yaml",
+ "tracing",
  "zenoh",
 ]
 

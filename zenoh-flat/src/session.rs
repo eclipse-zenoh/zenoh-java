@@ -12,6 +12,7 @@
 //
 
 use crate::{errors::ZResult, zerror};
+use tracing::trace;
 use zenoh::{
     bytes::Encoding,
     config::Config,
@@ -38,14 +39,21 @@ pub fn declare_publisher(
     express: bool,
     reliability: Reliability,
 ) -> ZResult<Publisher<'static>> {
-    session
+    let key_expr_string = key_expr.to_string();
+    let result = session
         .declare_publisher(key_expr)
         .congestion_control(congestion_control)
         .priority(priority)
         .express(express)
         .reliability(reliability)
         .wait()
-        .map_err(|err| zerror!(err))
+        .map_err(|err| zerror!(err));
+
+    if result.is_ok() {
+        trace!("Declared publisher on '{}'.", key_expr_string);
+    }
+
+    result
 }
 
 /// Perform a put operation through an existing Zenoh session.
@@ -60,19 +68,28 @@ pub fn put(
     reliability: Reliability,
     attachment: Option<Vec<u8>>,
 ) -> ZResult<()> {
-    let mut put_builder = session
-        .put(&key_expr, payload)
-        .congestion_control(congestion_control)
-        .encoding(encoding)
-        .express(express)
-        .priority(priority)
-        .reliability(reliability);
+    let key_expr_string = key_expr.to_string();
+    let result = {
+        let mut put_builder = session
+            .put(&key_expr, payload)
+            .congestion_control(congestion_control)
+            .encoding(encoding)
+            .express(express)
+            .priority(priority)
+            .reliability(reliability);
 
-    if let Some(attachment) = attachment {
-        put_builder = put_builder.attachment(attachment);
+        if let Some(attachment) = attachment {
+            put_builder = put_builder.attachment(attachment);
+        }
+
+        put_builder.wait().map_err(|err| zerror!(err)).map(|_| ())
+    };
+
+    if result.is_ok() {
+        trace!("Put on '{}'.", key_expr_string);
     }
 
-    put_builder.wait().map_err(|err| zerror!(err)).map(|_| ())
+    result
 }
 
 /// Perform a delete operation through an existing Zenoh session.
@@ -85,18 +102,27 @@ pub fn delete(
     reliability: Reliability,
     attachment: Option<Vec<u8>>,
 ) -> ZResult<()> {
-    let mut delete_builder = session
-        .delete(&key_expr)
-        .congestion_control(congestion_control)
-        .express(express)
-        .priority(priority)
-        .reliability(reliability);
+    let key_expr_string = key_expr.to_string();
+    let result = {
+        let mut delete_builder = session
+            .delete(&key_expr)
+            .congestion_control(congestion_control)
+            .express(express)
+            .priority(priority)
+            .reliability(reliability);
 
-    if let Some(attachment) = attachment {
-        delete_builder = delete_builder.attachment(attachment);
+        if let Some(attachment) = attachment {
+            delete_builder = delete_builder.attachment(attachment);
+        }
+
+        delete_builder.wait().map_err(|err| zerror!(err)).map(|_| ())
+    };
+
+    if result.is_ok() {
+        trace!("Delete on '{}'.", key_expr_string);
     }
 
-    delete_builder.wait().map_err(|err| zerror!(err)).map(|_| ())
+    result
 }
 
 /// Close a Zenoh session using a reference to the session.
