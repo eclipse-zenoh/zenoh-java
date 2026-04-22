@@ -76,30 +76,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_openSessionViaJNI(
     }
 }
 
-/// Create a Zenoh configuration from a JSON string.
-///
-/// It returns an [Arc] raw pointer to the Zenoh [Config] object, which should be passed
-/// to `openSessionViaJNI`.
-///
-/// If creation fails, an exception is thrown on the JVM and a null pointer is returned.
-///
-/// # Parameters:
-/// - `env`: The JNI environment.
-/// - `_class`: The JNI class (parameter required by the JNI interface but unused).
-/// - `json_config`: Configuration as a JSON string.
-///
-/// Create a Zenoh configuration from a YAML string.
-///
-/// It returns an [Arc] raw pointer to the Zenoh [Config] object, which should be passed
-/// to `openSessionViaJNI`.
-///
-/// If creation fails, an exception is thrown on the JVM and a null pointer is returned.
-///
-/// # Parameters:
-/// - `env`: The JNI environment.
-/// - `_class`: The JNI class (parameter required by the JNI interface but unused).
-/// - `yaml_config`: Configuration as a YAML string.
-///
 /// Closes a Zenoh session via JNI.
 ///
 /// # Parameters:
