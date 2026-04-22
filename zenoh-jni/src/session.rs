@@ -111,13 +111,8 @@ pub extern "C" fn Java_io_zenoh_jni_JNISession_openSessionWithJsonConfigViaJNI(
 ///
 fn open_session_with_json_config(env: &mut JNIEnv, json_config: JString) -> ZResult<Session> {
     let json_config = decode_string(env, &json_config)?;
-    let mut deserializer =
-        json5::Deserializer::from_str(&json_config).map_err(|err| zerror!(err))?;
-    let config = Config::from_deserializer(&mut deserializer).map_err(|err| match err {
-        Ok(c) => zerror!("Invalid configuration: {}", c),
-        Err(e) => zerror!("JSON error: {}", e),
-    })?;
-    zenoh::open(config).wait().map_err(|err| zerror!(err))
+    let config = zenoh_flat::config::create_config_from_json(&json_config)?;
+    zenoh_flat::session::open_session(&config)
 }
 
 /// Open a Zenoh session with a YAML configuration.

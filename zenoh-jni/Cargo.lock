@@ -3946,6 +3946,7 @@ dependencies = [
 name = "zenoh-flat"
 version = "1.9.0"
 dependencies = [
+ "json5",
  "zenoh",
 ]
 
