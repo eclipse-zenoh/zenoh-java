@@ -15,11 +15,11 @@
 use std::sync::Arc;
 
 use jni::{
-    objects::{JByteArray, JObject, JString, JValue},
-    sys::jint,
+    objects::{GlobalRef, JByteArray, JObject, JString, JValue},
+    sys::{jint, jlong},
     JNIEnv,
 };
-use zenoh::sample::Sample;
+use zenoh::{query::{Query, ReplyKeyExpr}, sample::Sample};
 
 use crate::{errors::ZResult, utils::*};
 
@@ -94,6 +94,118 @@ pub(crate) unsafe fn process_kotlin_sample_callback(
         }()
         .map_err(|err| tracing::error!("On sample callback error: {err}"));
     })
+}
+
+pub(crate) unsafe fn process_kotlin_query_callback(
+    env: &mut JNIEnv,
+    callback: JObject,
+    on_close: JObject,
+) -> ZResult<impl Fn(Query) + Send + Sync + 'static> {
+    let java_vm = Arc::new(get_java_vm(env)?);
+    let callback_global_ref = get_callback_global_ref(env, callback)?;
+    let on_close_global_ref = get_callback_global_ref(env, on_close)?;
+    let on_close = load_on_close(&java_vm, on_close_global_ref);
+
+    Ok(move |query: Query| {
+        on_close.noop();
+        let env = match java_vm.attach_current_thread_as_daemon() {
+            Ok(env) => env,
+            Err(err) => {
+                tracing::error!("Unable to attach thread for queryable callback: {}", err);
+                return;
+            }
+        };
+
+        tracing::debug!("Receiving query through JNI: {}", query.to_string());
+        match on_query(env, query, &callback_global_ref) {
+            Ok(_) => tracing::debug!("Queryable callback called successfully."),
+            Err(err) => tracing::error!("Error calling queryable callback: {}", err),
+        }
+    })
+}
+
+fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> ZResult<()> {
+    let selector_params_jstr = env
+        .new_string(query.parameters().to_string())
+        .map(|value| env.auto_local(value))
+        .map_err(|err| {
+            zerror!(
+                "Could not create a JString through JNI for the Query key expression. {}",
+                err
+            )
+        })?;
+
+    let (payload, encoding_id, encoding_schema) = if let Some(payload) = query.payload() {
+        let encoding = query.encoding().unwrap(); //If there is payload, there is encoding.
+        let encoding_id = encoding.id() as jint;
+        let encoding_schema = encoding
+            .schema()
+            .map_or_else(
+                || Ok(JString::default()),
+                |schema| slice_to_java_string(&env, schema),
+            )
+            .map(|value| env.auto_local(value))?;
+        let byte_array = bytes_to_java_array(&env, payload).map(|value| env.auto_local(value))?;
+        (byte_array, encoding_id, encoding_schema)
+    } else {
+        (
+            env.auto_local(JByteArray::default()),
+            0,
+            env.auto_local(JString::default()),
+        )
+    };
+
+    let attachment_bytes = query
+        .attachment()
+        .map_or_else(
+            || Ok(JByteArray::default()),
+            |attachment| bytes_to_java_array(&env, attachment),
+        )
+        .map(|value| env.auto_local(value))
+        .map_err(|err| zerror!("Error processing attachment of reply: {}.", err))?;
+
+    let key_expr_str = env
+        .new_string(query.key_expr().to_string())
+        .map(|key_expr| env.auto_local(key_expr))
+        .map_err(|err| {
+            zerror!(
+                "Could not create a JString through JNI for the Query key expression: {}.",
+                err
+            )
+        })?;
+
+    let accepts_replies: jint = match query.accepts_replies() {
+        ReplyKeyExpr::MatchingQuery => 0,
+        ReplyKeyExpr::Any => 1,
+    };
+
+    let query_ptr = Arc::into_raw(Arc::new(query));
+
+    let result = env
+        .call_method(
+            callback_global_ref,
+            "run",
+            "(Ljava/lang/String;Ljava/lang/String;[BILjava/lang/String;[BJI)V",
+            &[
+                JValue::from(&key_expr_str),
+                JValue::from(&selector_params_jstr),
+                JValue::from(&payload),
+                JValue::from(encoding_id),
+                JValue::from(&encoding_schema),
+                JValue::from(&attachment_bytes),
+                JValue::from(query_ptr as jlong),
+                JValue::from(accepts_replies),
+            ],
+        )
+        .map(|_| ())
+        .map_err(|err| {
+            unsafe {
+                Arc::from_raw(query_ptr);
+            };
+            _ = env.exception_describe();
+            zerror!(err)
+        });
+    result
 }
 
 

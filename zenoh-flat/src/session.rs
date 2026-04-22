@@ -20,7 +20,7 @@ use zenoh::{
     config::Config,
     key_expr::KeyExpr,
     pubsub::{Publisher, Subscriber},
-    query::{ConsolidationMode, QueryTarget, Querier, ReplyKeyExpr},
+    query::{ConsolidationMode, Query, QueryTarget, Queryable, Querier, ReplyKeyExpr},
     sample::Sample,
     qos::{CongestionControl, Priority, Reliability},
     session::Session,
@@ -118,6 +118,29 @@ pub fn declare_querier(
         })
         .map_err(|err| {
             error!("Unable to declare querier on '{}': {}", key_expr_string, err);
+            zerror!(err)
+        })
+}
+
+/// Declare a queryable through an existing Zenoh session.
+pub fn declare_queryable(
+    session: &Session,
+    key_expr: KeyExpr<'static>,
+    callback: impl Fn(Query) + Send + Sync + 'static,
+    complete: bool,
+) -> ZResult<Queryable<()>> {
+    let key_expr_string = key_expr.to_string();
+    session
+        .declare_queryable(key_expr)
+        .callback(callback)
+        .complete(complete)
+        .wait()
+        .map(|queryable| {
+            trace!("Declared queryable on '{}'.", key_expr_string);
+            queryable
+        })
+        .map_err(|err| {
+            error!("Unable to declare queryable on '{}': {}", key_expr_string, err);
             zerror!(err)
         })
 }

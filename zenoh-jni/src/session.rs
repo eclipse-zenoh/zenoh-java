@@ -23,14 +23,14 @@ use zenoh::{
     config::Config,
     key_expr::KeyExpr,
     pubsub::{Publisher, Subscriber},
-    query::{Querier, Query, Queryable, ReplyError, ReplyKeyExpr, Selector},
+    query::{Querier, Queryable, ReplyError, Selector},
     sample::Sample,
     session::{EntityGlobalId, Session, ZenohId},
     Wait,
 };
 
 use crate::owned_object::OwnedObject;
-use crate::sample_callback::process_kotlin_sample_callback;
+use crate::sample_callback::{process_kotlin_query_callback, process_kotlin_sample_callback};
 #[cfg(feature = "zenoh-ext")]
 use jni::sys::jdouble;
 #[cfg(feature = "zenoh-ext")]
@@ -461,130 +461,19 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQueryableViaJNI(
 ) -> *const Queryable<()> {
     let session = OwnedObject::from_raw(session_ptr);
     || -> ZResult<*const Queryable<()>> {
-        let java_vm = Arc::new(get_java_vm(&mut env)?);
-        let callback_global_ref = get_callback_global_ref(&mut env, callback)?;
-        let on_close_global_ref = get_callback_global_ref(&mut env, on_close)?;
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let complete = complete != 0;
-        let on_close = load_on_close(&java_vm, on_close_global_ref);
-        tracing::debug!("Declaring queryable through JNI on {}", key_expr);
-        let builder = session
-            .declare_queryable(key_expr)
-            .callback(move |query: Query| {
-                on_close.noop(); // Does nothing, but moves `on_close` inside the closure so it gets destroyed with the closure
-                let env = match java_vm.attach_current_thread_as_daemon() {
-                    Ok(env) => env,
-                    Err(err) => {
-                        tracing::error!("Unable to attach thread for queryable callback: {}", err);
-                        return;
-                    }
-                };
+        let callback = process_kotlin_query_callback(&mut env, callback, on_close)?;
 
-                tracing::debug!("Receiving query through JNI: {}", query.to_string());
-                match on_query(env, query, &callback_global_ref) {
-                    Ok(_) => tracing::debug!("Queryable callback called successfully."),
-                    Err(err) => tracing::error!("Error calling queryable callback: {}", err),
-                }
-            })
-            .complete(complete);
+        let queryable = zenoh_flat::session::declare_queryable(&session, key_expr, callback, complete)
+            .map_err(|err| zerror!("Unable to declare queryable: {}", err))?;
 
-        let queryable = builder
-            .wait()
-            .map_err(|err| zerror!("Error declaring queryable: {}", err))?;
         Ok(Arc::into_raw(Arc::new(queryable)))
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
         null()
     })
-}
-
-fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> ZResult<()> {
-    let selector_params_jstr = env
-        .new_string(query.parameters().to_string())
-        .map(|value| env.auto_local(value))
-        .map_err(|err| {
-            zerror!(
-                "Could not create a JString through JNI for the Query key expression. {}",
-                err
-            )
-        })?;
-
-    let (payload, encoding_id, encoding_schema) = if let Some(payload) = query.payload() {
-        let encoding = query.encoding().unwrap(); //If there is payload, there is encoding.
-        let encoding_id = encoding.id() as jint;
-        let encoding_schema = encoding
-            .schema()
-            .map_or_else(
-                || Ok(JString::default()),
-                |schema| slice_to_java_string(&env, schema),
-            )
-            .map(|value| env.auto_local(value))?;
-        let byte_array = bytes_to_java_array(&env, payload).map(|value| env.auto_local(value))?;
-        (byte_array, encoding_id, encoding_schema)
-    } else {
-        (
-            env.auto_local(JByteArray::default()),
-            0,
-            env.auto_local(JString::default()),
-        )
-    };
-
-    let attachment_bytes = query
-        .attachment()
-        .map_or_else(
-            || Ok(JByteArray::default()),
-            |attachment| bytes_to_java_array(&env, attachment),
-        )
-        .map(|value| env.auto_local(value))
-        .map_err(|err| zerror!("Error processing attachment of reply: {}.", err))?;
-
-    let key_expr_str = env
-        .new_string(query.key_expr().to_string())
-        .map(|key_expr| env.auto_local(key_expr))
-        .map_err(|err| {
-            zerror!(
-                "Could not create a JString through JNI for the Query key expression: {}.",
-                err
-            )
-        })?;
-
-    let accepts_replies: jint = match query.accepts_replies() {
-        ReplyKeyExpr::MatchingQuery => 0,
-        ReplyKeyExpr::Any => 1,
-    };
-
-    let query_ptr = Arc::into_raw(Arc::new(query));
-
-    let result = env
-        .call_method(
-            callback_global_ref,
-            "run",
-            "(Ljava/lang/String;Ljava/lang/String;[BILjava/lang/String;[BJI)V",
-            &[
-                JValue::from(&key_expr_str),
-                JValue::from(&selector_params_jstr),
-                JValue::from(&payload),
-                JValue::from(encoding_id),
-                JValue::from(&encoding_schema),
-                JValue::from(&attachment_bytes),
-                JValue::from(query_ptr as jlong),
-                JValue::from(accepts_replies),
-            ],
-        )
-        .map(|_| ())
-        .map_err(|err| {
-            // The callback could not be invoked, therefore the created kotlin query object won't be
-            // used. Since `query_ptr` as well as `key_expr_ptr` was created within this function
-            // and remains unaltered, it is safe to reclaim ownership of the memory by converting
-            // the raw pointers back into an `Arc` and freeing the memory.
-            unsafe {
-                Arc::from_raw(query_ptr);
-            };
-            _ = env.exception_describe();
-            zerror!(err)
-        });
-    result
 }
 
 /// Declare a [KeyExpr] through a [Session] via JNI.
