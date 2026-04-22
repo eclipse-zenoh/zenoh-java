@@ -96,23 +96,32 @@ pub extern "C" fn Java_io_zenoh_jni_JNISession_openSessionWithJsonConfigViaJNI(
     _class: JClass,
     json_config: JString,
 ) -> *const Session {
-    let session = open_session_with_json_config(&mut env, json_config);
-    match session {
-        Ok(session) => Arc::into_raw(Arc::new(session)),
+    let json_config = match decode_string(&mut env, &json_config) {
+        Ok(config) => config,
+        Err(err) => {
+            throw_exception!(env, err);
+            return null();
+        }
+    };
+
+    let config = match zenoh_flat::config::create_config_from_json(&json_config) {
+        Ok(config) => config,
+        Err(err) => {
+            throw_exception!(env, err);
+            return null();
+        }
+    };
+
+    let session = match zenoh_flat::session::open_session(&config) {
+        Ok(session) => session,
         Err(err) => {
             tracing::error!("Unable to open session: {}", err);
             throw_exception!(env, zerror!(err));
-            null()
+            return null();
         }
-    }
-}
+    };
 
-/// Open a Zenoh session with the provided json configuration.
-///
-fn open_session_with_json_config(env: &mut JNIEnv, json_config: JString) -> ZResult<Session> {
-    let json_config = decode_string(env, &json_config)?;
-    let config = zenoh_flat::config::create_config_from_json(&json_config)?;
-    zenoh_flat::session::open_session(&config)
+    Arc::into_raw(Arc::new(session))
 }
 
 /// Open a Zenoh session with a YAML configuration.
