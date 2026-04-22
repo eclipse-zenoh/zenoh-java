@@ -1,0 +1,9 @@
+[package]
+name = "zenoh-flat"
+version = "1.9.0"
+edition = "2021"
+license = "EPL-2.0 OR Apache-2.0"
+description = "Zenoh flat data interchange support."
+repository = "https://github.com/eclipse-zenoh/zenoh"
+
+[dependencies]

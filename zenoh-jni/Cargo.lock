@@ -3943,6 +3943,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "zenoh-flat"
+version = "1.9.0"
+
+[[package]]
 name = "zenoh-keyexpr"
 version = "1.9.0"
 source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#ec8b19786aced876d9dd64891359d6b2500d9a9b"
@@ -4317,6 +4321,7 @@ dependencies = [
  "uhlc",
  "zenoh",
  "zenoh-ext",
+ "zenoh-flat",
 ]
 
 [[package]]

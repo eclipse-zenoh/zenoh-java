@@ -39,6 +39,7 @@ serde_yaml = "0.9.19"
 zenoh = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["unstable", "internal"], default-features = false }
 zenoh-ext = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["unstable", "internal"], default-features = false, optional = true }
 tracing = { version = "0.1" , features = ["log"] }
+zenoh-flat = { path = "../zenoh-flat" }
 [lib]
 name = "zenoh_jni"
 crate_type = ["staticlib", "dylib"]
