@@ -12,11 +12,37 @@
 //
 
 use crate::{errors::ZResult, zerror};
-use zenoh::{config::Config, session::Session, Wait};
+use zenoh::{
+    config::Config,
+    key_expr::KeyExpr,
+    pubsub::Publisher,
+    qos::{CongestionControl, Priority, Reliability},
+    session::Session,
+    Wait,
+};
 
 /// Open a Zenoh session using a borrowed configuration.
 pub fn open_session(config: &Config) -> ZResult<Session> {
     zenoh::open(config.clone())
+        .wait()
+        .map_err(|err| zerror!(err))
+}
+
+/// Declare a publisher through an existing Zenoh session.
+pub fn declare_publisher(
+    session: &Session,
+    key_expr: KeyExpr<'static>,
+    congestion_control: CongestionControl,
+    priority: Priority,
+    express: bool,
+    reliability: Reliability,
+) -> ZResult<Publisher<'static>> {
+    session
+        .declare_publisher(key_expr)
+        .congestion_control(congestion_control)
+        .priority(priority)
+        .express(express)
+        .reliability(reliability)
         .wait()
         .map_err(|err| zerror!(err))
 }

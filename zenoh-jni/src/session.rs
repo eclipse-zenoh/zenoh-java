@@ -146,17 +146,15 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declarePublisherViaJNI(
         let congestion_control = decode_congestion_control(congestion_control)?;
         let priority = decode_priority(priority)?;
         let reliability = decode_reliability(reliability)?;
-        let result = session
-            .declare_publisher(key_expr)
-            .congestion_control(congestion_control)
-            .priority(priority)
-            .express(is_express != 0)
-            .reliability(reliability)
-            .wait();
-        match result {
-            Ok(publisher) => Ok(Arc::into_raw(Arc::new(publisher))),
-            Err(err) => Err(zerror!(err)),
-        }
+        let publisher = zenoh_flat::session::declare_publisher(
+            &session,
+            key_expr,
+            congestion_control,
+            priority,
+            is_express != 0,
+            reliability,
+        )?;
+        Ok(Arc::into_raw(Arc::new(publisher)))
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
