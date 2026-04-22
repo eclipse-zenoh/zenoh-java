@@ -30,7 +30,7 @@ use zenoh::{
 };
 
 use crate::owned_object::OwnedObject;
-use crate::sample_callback::{process_kotlin_sample_callback, SetJniSampleCallback};
+use crate::sample_callback::process_kotlin_sample_callback;
 #[cfg(feature = "zenoh-ext")]
 use jni::sys::jdouble;
 #[cfg(feature = "zenoh-ext")]
@@ -1083,7 +1083,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedSubscriberV
         tracing::debug!("Declaring advanced subscriber on '{}'...", key_expr);
         let mut builder = session
             .declare_subscriber(key_expr.to_owned())
-            .set_jni_sample_callback(&mut env, callback, on_close)?
+            .callback(process_kotlin_sample_callback(&mut env, callback, on_close)?)
             .advanced();
         tracing::debug!("Advanced subscriber declared on '{}'.", key_expr);
 

@@ -21,7 +21,7 @@ use zenoh::pubsub::Subscriber;
 use zenoh_ext::SampleMissListener;
 use zenoh_ext::{AdvancedSubscriber, Miss, SampleMissListenerBuilder};
 
-use crate::sample_callback::SetJniSampleCallback;
+use crate::sample_callback::process_kotlin_sample_callback;
 use jni::objects::JObject;
 
 use crate::errors::ZResult;
@@ -141,7 +141,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareDetectPu
         let detect_publishers_subscriber = advanced_subscriber
             .detect_publishers()
             .history(history != 0)
-            .set_jni_sample_callback(&mut env, callback, on_close)?
+            .callback(process_kotlin_sample_callback(&mut env, callback, on_close)?)
             .wait()
             .map_err(|err| zerror!("Unable to declare detect publishers subscriber: {}", err))?;
 
@@ -197,7 +197,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareBackgrou
         advanced_subscriber
             .detect_publishers()
             .history(history != 0)
-            .set_jni_sample_callback(&mut env, callback, on_close)?
+            .callback(process_kotlin_sample_callback(&mut env, callback, on_close)?)
             .background()
             .wait()
             .map_err(|err| {
