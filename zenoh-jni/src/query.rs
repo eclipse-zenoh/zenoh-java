@@ -15,7 +15,6 @@
 use std::sync::Arc;
 
 use crate::utils::{decode_byte_array, decode_encoding};
-use crate::zerror;
 use crate::{errors::ZResult, key_expr::process_kotlin_key_expr, throw_exception};
 use jni::{
     objects::{JByteArray, JClass, JString},

@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use crate::{errors::ZResult, throw_exception, zerror};
+use crate::{errors::ZResult, throw_exception};
 use jni::{
     objects::{JByteArray, JObject, JString},
     sys::jint,

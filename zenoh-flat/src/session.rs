@@ -11,9 +11,12 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+use crate::zerror;
 use zenoh::{config::Config, session::Session, Wait};
 
 /// Open a Zenoh session using a borrowed configuration.
-pub fn open_session(config: &Config) -> Result<Session, zenoh::Error> {
-    zenoh::open(config.clone()).wait()
+pub fn open_session(config: &Config) -> crate::errors::ZResult<Session> {
+    zenoh::open(config.clone())
+        .wait()
+        .map_err(|err| zerror!(err))
 }

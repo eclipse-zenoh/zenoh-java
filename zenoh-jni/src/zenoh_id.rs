@@ -12,7 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use crate::{errors::ZResult, throw_exception, utils::decode_byte_array, zerror};
+use crate::{errors::ZResult, throw_exception, utils::decode_byte_array};
 use jni::{
     objects::{JByteArray, JClass, JString},
     sys::jstring,

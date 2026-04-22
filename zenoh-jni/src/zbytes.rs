@@ -24,7 +24,6 @@ use crate::{
     errors::ZResult,
     throw_exception,
     utils::{bytes_to_java_array, decode_byte_array},
-    zerror,
 };
 
 enum JavaType {

@@ -24,7 +24,7 @@ use zenoh::{scouting::Scout, Config};
 
 use crate::owned_object::OwnedObject;
 use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close};
-use crate::{errors::ZResult, throw_exception, zerror};
+use crate::{errors::ZResult, throw_exception};
 
 /// Start a scout.
 ///

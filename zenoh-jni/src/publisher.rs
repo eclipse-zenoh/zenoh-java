@@ -26,7 +26,6 @@ use crate::throw_exception;
 use crate::{
     errors::ZResult,
     utils::{decode_byte_array, decode_encoding},
-    zerror,
 };
 
 /// Performs a PUT operation on a Zenoh publisher via JNI.

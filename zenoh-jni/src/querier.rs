@@ -31,7 +31,6 @@ use crate::{
         decode_byte_array, decode_encoding, decode_string, get_callback_global_ref, get_java_vm,
         load_on_close,
     },
-    zerror,
 };
 
 /// Perform a Zenoh GET through a querier.

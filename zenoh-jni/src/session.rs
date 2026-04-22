@@ -41,7 +41,7 @@ use zenoh_ext::{
 };
 
 use crate::{
-    errors::ZResult, key_expr::process_kotlin_key_expr, throw_exception, utils::*, zerror,
+    errors::ZResult, key_expr::process_kotlin_key_expr, throw_exception, utils::*,
 };
 
 /// Open a Zenoh session via JNI.
@@ -81,7 +81,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_openSessionViaJNI(
 ///
 fn open_session(config_ptr: *const Config) -> ZResult<Session> {
     let config = unsafe { OwnedObject::from_raw(config_ptr) };
-    zenoh_flat::session::open_session(&config).map_err(|err| zerror!(err))
+    zenoh_flat::session::open_session(&config)
 }
 
 /// Open a Zenoh session with a JSON configuration.

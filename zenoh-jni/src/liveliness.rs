@@ -33,7 +33,6 @@ use crate::{
     session::{on_reply_error, on_reply_success},
     throw_exception,
     utils::{get_callback_global_ref, get_java_vm, load_on_close},
-    zerror,
 };
 
 #[no_mangle]

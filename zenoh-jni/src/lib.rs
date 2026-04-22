@@ -12,6 +12,9 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+#[macro_use]
+extern crate zenoh_flat;
+
 mod config;
 mod errors;
 #[cfg(feature = "zenoh-ext")]

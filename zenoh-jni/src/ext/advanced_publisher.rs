@@ -31,7 +31,6 @@ use crate::throw_exception;
 use crate::{
     errors::ZResult,
     utils::{decode_byte_array, decode_encoding},
-    zerror,
 };
 use jni::sys::jboolean;
 use std::ptr::null;

@@ -31,7 +31,6 @@ use zenoh::Wait;
 use crate::owned_object::OwnedObject;
 
 use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close};
-use crate::zerror;
 use std::ptr::null;
 
 use crate::throw_exception;

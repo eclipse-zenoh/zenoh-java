@@ -26,7 +26,7 @@ use zenoh::{
     sample::Sample,
 };
 
-use crate::{errors::ZResult, utils::*, zerror};
+use crate::{errors::ZResult, utils::*};
 
 pub(crate) trait SetJniSampleCallback: Sized + HasSampleCallbackSetter {
     unsafe fn set_jni_sample_callback(
