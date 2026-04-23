@@ -4068,6 +4068,7 @@ dependencies = [
  "syn 2.0.117",
  "tracing",
  "zenoh",
+ "zenoh-ext",
 ]
 
 [[package]]

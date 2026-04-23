@@ -34,9 +34,8 @@ use crate::sample_callback::process_kotlin_sample_callback;
 use jni::sys::jdouble;
 #[cfg(feature = "zenoh-ext")]
 use zenoh_ext::{
-    AdvancedPublisher, AdvancedPublisherBuilderExt, AdvancedSubscriber,
-    AdvancedSubscriberBuilderExt, CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig,
-    RepliesConfig,
+    AdvancedPublisher, AdvancedPublisherBuilderExt, AdvancedSubscriber, CacheConfig, HistoryConfig,
+    MissDetectionConfig, RecoveryConfig, RepliesConfig,
 };
 
 use crate::{errors::ZResult, key_expr::process_kotlin_key_expr, throw_exception, utils::*};
@@ -95,21 +94,14 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedSubscriberV
     let session = OwnedObject::from_raw(session_ptr);
     || -> ZResult<*const AdvancedSubscriber<()>> {
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
-        tracing::debug!("Declaring advanced subscriber on '{}'...", key_expr);
-        let mut builder = session
-            .declare_subscriber(key_expr.to_owned())
-            .callback(process_kotlin_sample_callback(
-                &mut env, callback, on_close,
-            )?)
-            .advanced();
-        tracing::debug!("Advanced subscriber declared on '{}'.", key_expr);
+        let callback = process_kotlin_sample_callback(&mut env, callback, on_close)?;
 
-        if history_config_enabled != 0 {
-            let mut history = match history_detect_late_publishers != 0 {
-                true => HistoryConfig::default().detect_late_publishers(),
-                false => HistoryConfig::default(),
+        let history = if history_config_enabled != 0 {
+            let mut history = if history_detect_late_publishers != 0 {
+                HistoryConfig::default().detect_late_publishers()
+            } else {
+                HistoryConfig::default()
             };
-
             if history_max_samples > 0 {
                 history = history.max_samples(
                     history_max_samples
@@ -117,36 +109,38 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedSubscriberV
                         .map_err(|e: std::num::TryFromIntError| zerror!(e.to_string()))?,
                 );
             }
-
             if history_max_age_seconds > 0.0 {
                 history = history.max_age(history_max_age_seconds);
             }
+            Some(history)
+        } else {
+            None
+        };
 
-            builder = builder.history(history);
-        }
-
-        if recovery_config_enabled != 0 {
-            let recovery = if recovery_config_is_heartbeat != 0 {
-                RecoveryConfig::default().heartbeat()
+        let recovery = if recovery_config_enabled != 0 {
+            if recovery_config_is_heartbeat != 0 {
+                Some(RecoveryConfig::default().heartbeat())
             } else {
                 let dur = Duration::from_millis(
                     recovery_query_period_ms
                         .try_into()
                         .map_err(|e: std::num::TryFromIntError| zerror!(e.to_string()))?,
                 );
-                RecoveryConfig::default().periodic_queries(dur)
-            };
-            builder = builder.recovery(recovery);
-        }
+                Some(RecoveryConfig::default().periodic_queries(dur))
+            }
+        } else {
+            None
+        };
 
-        if subscriber_detection != 0 {
-            builder = builder.subscriber_detection();
-        }
-
-        builder
-            .wait()
-            .map(|s| Arc::into_raw(Arc::new(s)))
-            .map_err(|err| zerror!("Unable to declare advanced subscriber: {}", err))
+        let subscriber = zenoh_flat::session::declare_advanced_subscriber(
+            &session,
+            key_expr,
+            callback,
+            history,
+            recovery,
+            subscriber_detection != 0,
+        )?;
+        Ok(Arc::into_raw(Arc::new(subscriber)))
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);

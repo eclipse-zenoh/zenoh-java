@@ -27,6 +27,11 @@ use zenoh::{
     Wait,
 };
 
+#[cfg(feature = "zenoh-ext")]
+use zenoh_ext::{
+    AdvancedSubscriber, AdvancedSubscriberBuilderExt, HistoryConfig, RecoveryConfig,
+};
+
 /// Open a Zenoh session using a borrowed configuration.
 #[prebindgen_proc_macro::prebindgen("jni")]
 pub fn open_session(config: &Config) -> ZResult<Session> {
@@ -362,6 +367,50 @@ pub fn close_session(session: &Session) -> ZResult<()> {
         })
         .map_err(|err| {
             error!("Unable to close session: {}", err);
+            zerror!(err)
+        })
+}
+
+/// Declare an advanced subscriber through an existing Zenoh session.
+///
+/// Builds on top of the regular subscriber chain and applies the supplied
+/// advanced configuration. The JNI wrapper is expected to assemble the
+/// `HistoryConfig` / `RecoveryConfig` from primitive arguments and pass them
+/// here.
+#[cfg(feature = "zenoh-ext")]
+pub fn declare_advanced_subscriber(
+    session: &Session,
+    key_expr: KeyExpr<'static>,
+    callback: impl Fn(Sample) + Send + Sync + 'static,
+    history: Option<HistoryConfig>,
+    recovery: Option<RecoveryConfig>,
+    subscriber_detection: bool,
+) -> ZResult<AdvancedSubscriber<()>> {
+    let key_expr_string = key_expr.to_string();
+    let mut builder = session
+        .declare_subscriber(key_expr)
+        .callback(callback)
+        .advanced();
+    if let Some(history) = history {
+        builder = builder.history(history);
+    }
+    if let Some(recovery) = recovery {
+        builder = builder.recovery(recovery);
+    }
+    if subscriber_detection {
+        builder = builder.subscriber_detection();
+    }
+    builder
+        .wait()
+        .map(|subscriber| {
+            trace!("Declared advanced subscriber on '{}'.", key_expr_string);
+            subscriber
+        })
+        .map_err(|err| {
+            error!(
+                "Unable to declare advanced subscriber on '{}': {}",
+                key_expr_string, err
+            );
             zerror!(err)
         })
 }
