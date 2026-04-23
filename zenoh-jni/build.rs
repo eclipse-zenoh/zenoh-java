@@ -38,10 +38,10 @@ fn convert_fn(func: syn::ItemFn, loc: &prebindgen::SourceLocation) -> syn::ItemF
             panic!("non-ident param pattern at {loc}");
         };
         let name = &pat_ident.ident;
+        let ty = &*pat_type.ty;
 
-        match &*pat_type.ty {
-            syn::Type::Reference(r) if r.mutability.is_none() => {
-                let elem = &*r.elem;
+        match classify_arg(ty) {
+            ArgKind::OpaqueRef(elem) => {
                 let ptr_ident = format_ident!("{}_ptr", name);
                 jni_params.push(quote! { #ptr_ident: *const #elem });
                 prelude.push(quote! {
@@ -49,9 +49,35 @@ fn convert_fn(func: syn::ItemFn, loc: &prebindgen::SourceLocation) -> syn::ItemF
                 });
                 call_args.push(quote! { &#name });
             }
-            other => panic!(
+            ArgKind::KeyExpr => {
+                let ptr_ident = format_ident!("{}_ptr", name);
+                let str_ident = format_ident!("{}_str", name);
+                jni_params.push(quote! {
+                    #ptr_ident: *const zenoh::key_expr::KeyExpr<'static>
+                });
+                jni_params.push(quote! { #str_ident: jni::objects::JString });
+                prelude.push(quote! {
+                    let #name = crate::key_expr::process_kotlin_key_expr(
+                        &mut env, &#str_ident, #ptr_ident,
+                    )?;
+                });
+                call_args.push(quote! { #name });
+            }
+            ArgKind::Enum(decoder) => {
+                jni_params.push(quote! { #name: jni::sys::jint });
+                prelude.push(quote! {
+                    let #name = crate::utils::#decoder(#name)?;
+                });
+                call_args.push(quote! { #name });
+            }
+            ArgKind::Bool => {
+                jni_params.push(quote! { #name: jni::sys::jboolean });
+                prelude.push(quote! { let #name = #name != 0; });
+                call_args.push(quote! { #name });
+            }
+            ArgKind::Unsupported => panic!(
                 "unsupported parameter type `{}` for `{}` at {loc}",
-                other.to_token_stream(),
+                ty.to_token_stream(),
                 name
             ),
         }
@@ -66,12 +92,21 @@ fn convert_fn(func: syn::ItemFn, loc: &prebindgen::SourceLocation) -> syn::ItemF
         syn::ReturnType::Type(_, ty) => {
             let inner = extract_zresult_inner(ty)
                 .unwrap_or_else(|| panic!("return must be ZResult<T> for `{original_name}`"));
-            (
-                quote! { *const #inner },
-                quote! { Ok(std::sync::Arc::into_raw(std::sync::Arc::new(__result))) },
-                quote! { std::ptr::null() },
-                quote! { crate::errors::ZResult<*const #inner> },
-            )
+            if is_unit(&inner) {
+                (
+                    quote! { () },
+                    quote! { Ok(()) },
+                    quote! { () },
+                    quote! { crate::errors::ZResult<()> },
+                )
+            } else {
+                (
+                    quote! { *const #inner },
+                    quote! { Ok(std::sync::Arc::into_raw(std::sync::Arc::new(__result))) },
+                    quote! { std::ptr::null() },
+                    quote! { crate::errors::ZResult<*const #inner> },
+                )
+            }
         }
         syn::ReturnType::Default => (
             quote! { () },
@@ -83,8 +118,8 @@ fn convert_fn(func: syn::ItemFn, loc: &prebindgen::SourceLocation) -> syn::ItemF
 
     let body = quote! {
         {
-            #(#prelude)*
             (|| -> #closure_ret {
+                #(#prelude)*
                 let __result = zenoh_flat::session::#orig_ident( #(#call_args),* )?;
                 #wrap_ok
             })()
@@ -97,7 +132,7 @@ fn convert_fn(func: syn::ItemFn, loc: &prebindgen::SourceLocation) -> syn::ItemF
 
     let tokens = quote! {
         #[no_mangle]
-        #[allow(non_snake_case)]
+        #[allow(non_snake_case, unused_mut, unused_variables)]
         pub unsafe extern "C" fn #jni_name(
             mut env: jni::JNIEnv,
             _class: jni::objects::JClass,
@@ -106,6 +141,68 @@ fn convert_fn(func: syn::ItemFn, loc: &prebindgen::SourceLocation) -> syn::ItemF
     };
 
     syn::parse2(tokens).expect("generated JNI wrapper must parse")
+}
+
+enum ArgKind {
+    /// `&T` (excluding `&KeyExpr`) — handle arg via `OwnedObject::from_raw`.
+    OpaqueRef(syn::Type),
+    /// `KeyExpr<'static>` — two JNI args (ptr + JString) via `process_kotlin_key_expr`.
+    KeyExpr,
+    /// Enum type passed as `jint` ordinal, with matching `decode_*` helper.
+    Enum(syn::Ident),
+    /// `bool` → `jboolean`.
+    Bool,
+    Unsupported,
+}
+
+fn classify_arg(ty: &syn::Type) -> ArgKind {
+    match ty {
+        syn::Type::Reference(r) if r.mutability.is_none() => {
+            if type_last_segment(&r.elem).map(|s| s == "KeyExpr").unwrap_or(false) {
+                ArgKind::KeyExpr
+            } else {
+                ArgKind::OpaqueRef((*r.elem).clone())
+            }
+        }
+        syn::Type::Path(tp) => {
+            let Some(last) = tp.path.segments.last() else {
+                return ArgKind::Unsupported;
+            };
+            let name = last.ident.to_string();
+            if name == "bool" {
+                return ArgKind::Bool;
+            }
+            if name == "KeyExpr" {
+                return ArgKind::KeyExpr;
+            }
+            if let Some(decoder) = enum_decoder(&name) {
+                return ArgKind::Enum(format_ident!("{}", decoder));
+            }
+            ArgKind::Unsupported
+        }
+        _ => ArgKind::Unsupported,
+    }
+}
+
+fn enum_decoder(type_name: &str) -> Option<&'static str> {
+    Some(match type_name {
+        "CongestionControl" => "decode_congestion_control",
+        "Priority" => "decode_priority",
+        "Reliability" => "decode_reliability",
+        "QueryTarget" => "decode_query_target",
+        "ConsolidationMode" => "decode_consolidation",
+        "ReplyKeyExpr" => "decode_reply_key_expr",
+        _ => return None,
+    })
+}
+
+fn type_last_segment(ty: &syn::Type) -> Option<String> {
+    let syn::Type::Path(tp) = ty else { return None };
+    tp.path.segments.last().map(|s| s.ident.to_string())
+}
+
+fn is_unit(ty: &syn::Type) -> bool {
+    matches!(ty, syn::Type::Tuple(t) if t.elems.is_empty())
 }
 
 fn extract_zresult_inner(ty: &syn::Type) -> Option<syn::Type> {

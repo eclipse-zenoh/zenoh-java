@@ -77,67 +77,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_closeSessionViaJNI(
     });
 }
 
-/// Declare a Zenoh publisher via JNI.
-///
-/// # Parameters:
-/// - `env`: The JNI environment.
-/// - `_class`: The JNI class.
-/// - `key_expr_ptr`: Raw pointer to the [KeyExpr] to be used for the publisher, may be null.
-/// - `key_expr_str`: String representation of the [KeyExpr] to be used for the publisher.
-///   It is only considered when the key_expr_ptr parameter is null, meaning the function is
-///   receiving a key expression that was not declared.
-/// - `session_ptr`: Raw pointer to the Zenoh [Session] to be used for the publisher.
-/// - `congestion_control`: The [zenoh::publisher::CongestionControl] configuration as an ordinal.
-/// - `priority`: The [zenoh::core::Priority] configuration as an ordinal.
-/// - `is_express`: The express config of the publisher (see [zenoh::prelude::QoSBuilderTrait]).
-/// - `reliability`: The reliability value as an ordinal.
-///
-/// # Returns:
-/// - A raw pointer to the declared Zenoh publisher or null in case of failure.
-///
-/// # Safety:
-/// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
-/// - It assumes that the provided session pointer is valid and has not been modified or freed.
-/// - The ownership of the session is not transferred, and the session pointer remains valid
-///   after this function call so it is safe to use it after this call.
-/// - The function may throw an exception in case of failure, which should be handled by the caller.
-///
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declarePublisherViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    session_ptr: *const Session,
-    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
-    key_expr_str: JString,
-    congestion_control: jint,
-    priority: jint,
-    is_express: jboolean,
-    reliability: jint,
-) -> *const Publisher<'static> {
-    || -> ZResult<*const Publisher<'static>> {
-        let session = OwnedObject::from_raw(session_ptr);
-        let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
-        let congestion_control = decode_congestion_control(congestion_control)?;
-        let priority = decode_priority(priority)?;
-        let is_express = is_express != 0;
-        let reliability = decode_reliability(reliability)?;
-        let publisher = zenoh_flat::session::declare_publisher(
-            &session,
-            key_expr,
-            congestion_control,
-            priority,
-            is_express,
-            reliability,
-        )?;
-        Ok(Arc::into_raw(Arc::new(publisher)))
-    }()
-    .unwrap_or_else(|err| {
-        throw_exception!(env, err);
-        null()
-    })
-}
-
 /// Performs a `put` operation in the Zenoh session via JNI.
 ///
 /// Parameters:

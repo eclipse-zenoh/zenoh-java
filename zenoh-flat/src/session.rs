@@ -43,6 +43,7 @@ pub fn open_session(config: &Config) -> ZResult<Session> {
 }
 
 /// Declare a publisher through an existing Zenoh session.
+#[prebindgen_proc_macro::prebindgen("jni")]
 pub fn declare_publisher(
     session: &Session,
     key_expr: KeyExpr<'static>,
