@@ -51,6 +51,10 @@ pub struct Builder {
     byte_array_decoder: Option<syn::Path>,
     encoding_decoder: Option<syn::Path>,
     enum_decoders: HashMap<String, syn::Path>,
+    /// Map from callback element type name (e.g. `"Sample"`) to the decoder
+    /// that builds an `impl Fn(T) + Send + Sync + 'static` closure from a
+    /// `(callback: JObject, on_close: JObject)` pair.
+    callback_decoders: HashMap<String, syn::Path>,
     /// Names of source functions whose first `&T` argument must be consumed
     /// (transferred out) via `Arc::from_raw` instead of borrowed via
     /// `OwnedObject::from_raw`. Typically used for `close_*` functions.
@@ -70,6 +74,7 @@ impl Default for Builder {
             byte_array_decoder: None,
             encoding_decoder: None,
             enum_decoders: HashMap::new(),
+            callback_decoders: HashMap::new(),
             consume_fns: HashSet::new(),
         }
     }
@@ -152,6 +157,24 @@ impl Builder {
         let path: syn::Path =
             syn::parse_str(decoder.as_ref()).expect("invalid enum_decoder path");
         self.enum_decoders.insert(type_name.into(), path);
+        self
+    }
+
+    /// Register a decoder for an `impl Fn(T) + Send + Sync + 'static` callback
+    /// parameter. `element_type_name` is the last path segment of `T`
+    /// (e.g. `"Sample"`, `"Query"`, `"Reply"`). The decoder must have the
+    /// signature
+    /// `fn(&mut JNIEnv, JObject, JObject) -> ZResult<impl Fn(T) + Send + Sync + 'static>`.
+    /// The generated JNI signature expands the single callback parameter into
+    /// two JNI args: `<name>: JObject, <name>_on_close: JObject`.
+    pub fn callback_decoder(
+        mut self,
+        element_type_name: impl Into<String>,
+        decoder: impl AsRef<str>,
+    ) -> Self {
+        let path: syn::Path =
+            syn::parse_str(decoder.as_ref()).expect("invalid callback_decoder path");
+        self.callback_decoders.insert(element_type_name.into(), path);
         self
     }
 
@@ -330,6 +353,15 @@ impl JniConverter {
                     });
                     call_args.push(quote! { #name });
                 }
+                ArgKind::Callback(decoder) => {
+                    let on_close_ident = format_ident!("{}_on_close", name);
+                    jni_params.push(quote! { #name: jni::objects::JObject });
+                    jni_params.push(quote! { #on_close_ident: jni::objects::JObject });
+                    prelude.push(quote! {
+                        let #name = #decoder(&mut env, #name, #on_close_ident)?;
+                    });
+                    call_args.push(quote! { #name });
+                }
                 ArgKind::Encoding => {
                     let decoder = self
                         .cfg
@@ -423,6 +455,14 @@ impl JniConverter {
                     ArgKind::OpaqueRef((*r.elem).clone())
                 }
             }
+            syn::Type::ImplTrait(it) => {
+                if let Some(elem) = extract_fn_single_arg_type_name(&it.bounds) {
+                    if let Some(decoder) = self.cfg.callback_decoders.get(&elem) {
+                        return ArgKind::Callback(decoder.clone());
+                    }
+                }
+                ArgKind::Unsupported
+            }
             syn::Type::Path(tp) => {
                 let Some(last) = tp.path.segments.last() else {
                     return ArgKind::Unsupported;
@@ -468,12 +508,33 @@ enum ArgKind {
     VecU8,
     /// `Encoding` → `(jint id, JString schema)` pair via `encoding_decoder`.
     Encoding,
+    /// `impl Fn(T) + Send + Sync + 'static` → `(JObject callback, JObject on_close)`
+    /// pair decoded via a callback decoder registered for `T`.
+    Callback(syn::Path),
     Unsupported,
 }
 
 fn type_last_segment(ty: &syn::Type) -> Option<String> {
     let syn::Type::Path(tp) = ty else { return None };
     tp.path.segments.last().map(|s| s.ident.to_string())
+}
+
+/// Look through the trait bounds of an `impl Fn(T) + ...` for a `Fn`-family
+/// trait and return the last-segment name of its single argument type `T`.
+fn extract_fn_single_arg_type_name(
+    bounds: &syn::punctuated::Punctuated<syn::TypeParamBound, syn::Token![+]>,
+) -> Option<String> {
+    for bound in bounds {
+        let syn::TypeParamBound::Trait(tb) = bound else { continue };
+        let seg = tb.path.segments.last()?;
+        if !matches!(seg.ident.to_string().as_str(), "Fn" | "FnMut" | "FnOnce") {
+            continue;
+        }
+        let syn::PathArguments::Parenthesized(p) = &seg.arguments else { continue };
+        let first = p.inputs.first()?;
+        return type_last_segment(first);
+    }
+    None
 }
 
 /// Check whether an `Option<...>` path segment wraps exactly `Vec<u8>`.

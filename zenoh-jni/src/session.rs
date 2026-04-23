@@ -51,59 +51,6 @@ include!(concat!(env!("OUT_DIR"), "/zenoh_flat_jni.rs"));
 
 
 
-/// Declare a Zenoh subscriber via JNI.
-///
-/// Parameters:
-/// - `env`: The JNI environment.
-/// - `_class`: The JNI class.
-/// - `key_expr_ptr`: The key expression pointer for the subscriber. May be null in case of using an
-///   undeclared key expression.
-/// - `key_expr_str`: String representation of the key expression to be used to declare the subscriber.
-///   It won't be considered in case a key_expr_ptr to a declared key expression is provided.
-/// - `session_ptr`: The raw pointer to the Zenoh session.
-/// - `callback`: The callback function as an instance of the `JNISubscriberCallback` interface in Java/Kotlin.
-/// - `on_close`: A Java/Kotlin `JNIOnCloseCallback` function interface to be called upon closing the subscriber.
-///
-/// Returns:
-/// - A raw pointer to the declared Zenoh subscriber. In case of failure, an exception is thrown and null is returned.
-///
-/// Safety:
-/// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
-/// - It assumes that the provided session pointer is valid and has not been modified or freed.
-/// - The session pointer remains valid and the ownership of the session is not transferred,
-///   allowing safe usage of the session after this function call.
-/// - The callback function passed as `callback` must be a valid instance of the `JNISubscriberCallback` interface
-///   in Java/Kotlin, matching the specified signature.
-/// - The function may throw a JNI exception in case of failure, which should be handled by the caller.
-///
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareSubscriberViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    session_ptr: *const Session,
-    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
-    key_expr_str: JString,
-    callback: JObject,
-    on_close: JObject,
-) -> *const Subscriber<()> {
-    || -> ZResult<*const Subscriber<()>> {
-        let session = OwnedObject::from_raw(session_ptr);
-        let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
-        let callback = process_kotlin_sample_callback(&mut env, callback, on_close)?;
-
-        let subscriber = zenoh_flat::session::declare_subscriber(
-            &session,
-            key_expr,
-            callback,
-        )?;
-        Ok(Arc::into_raw(Arc::new(subscriber)))
-    }()
-    .unwrap_or_else(|err| {
-        throw_exception!(env, err);
-        null()
-    })
-}
 
 /// Declare a Zenoh queryable via JNI.
 ///

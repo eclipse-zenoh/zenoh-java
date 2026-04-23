@@ -19,6 +19,9 @@ fn main() {
         .enum_decoder("QueryTarget", "crate::utils::decode_query_target")
         .enum_decoder("ConsolidationMode", "crate::utils::decode_consolidation")
         .enum_decoder("ReplyKeyExpr", "crate::utils::decode_reply_key_expr")
+        .callback_decoder("Sample", "crate::sample_callback::process_kotlin_sample_callback")
+        .callback_decoder("Query", "crate::sample_callback::process_kotlin_query_callback")
+        .callback_decoder("Reply", "crate::sample_callback::process_kotlin_reply_callback")
         .consume_fn("close_session")
         .build();
 

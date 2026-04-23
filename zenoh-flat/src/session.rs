@@ -71,6 +71,7 @@ pub fn declare_publisher(
 }
 
 /// Declare a subscriber through an existing Zenoh session.
+#[prebindgen_proc_macro::prebindgen("jni")]
 pub fn declare_subscriber(
     session: &Session,
     key_expr: KeyExpr<'static>,
