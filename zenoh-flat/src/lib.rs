@@ -5,5 +5,6 @@ pub const FEATURES: &str = prebindgen_proc_macro::features!();
 
 pub mod config;
 pub mod errors;
+pub mod jni_converter;
 pub mod session;
 

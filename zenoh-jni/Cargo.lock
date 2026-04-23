@@ -1152,6 +1152,15 @@ dependencies = [
 
 [[package]]
 name = "itertools"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
@@ -1839,7 +1848,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b005ec2d8a59f83ecc1b63ef25ab4d42fa33d9642e24d5d8dab5e750d5f6f46"
 dependencies = [
  "if_rust_version",
- "itertools",
+ "itertools 0.14.0",
  "konst",
  "prettyplease",
  "proc-macro2",
@@ -3914,7 +3923,7 @@ dependencies = [
  "flume 0.11.1",
  "futures",
  "git-version",
- "itertools",
+ "itertools 0.14.0",
  "json5",
  "lazy_static",
  "nonempty-collections",
@@ -4049,10 +4058,14 @@ dependencies = [
 name = "zenoh-flat"
 version = "1.9.0"
 dependencies = [
+ "itertools 0.12.1",
  "json5",
  "prebindgen",
  "prebindgen-proc-macro",
+ "proc-macro2",
+ "quote",
  "serde_yaml",
+ "syn 2.0.117",
  "tracing",
  "zenoh",
 ]
@@ -4424,15 +4437,13 @@ dependencies = [
  "async-std",
  "clap",
  "flume 0.10.14",
+ "itertools 0.12.1",
  "jni",
  "json5",
  "konst",
  "prebindgen",
- "proc-macro2",
- "quote",
  "rustc_version",
  "serde_yaml",
- "syn 2.0.117",
  "tracing",
  "uhlc",
  "zenoh",

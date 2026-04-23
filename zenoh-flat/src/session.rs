@@ -92,6 +92,7 @@ pub fn declare_subscriber(
 }
 
 /// Declare a querier through an existing Zenoh session.
+#[prebindgen_proc_macro::prebindgen("jni")]
 pub fn declare_querier(
     session: &Session,
     key_expr: KeyExpr<'static>,

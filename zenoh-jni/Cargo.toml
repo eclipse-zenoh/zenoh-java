@@ -49,9 +49,7 @@ crate_type = ["staticlib", "dylib"]
 rustc_version = "0.4.0"
 prebindgen = "0.4.1"
 zenoh-flat = { path = "../zenoh-flat" }
-syn = { version = "2", features = ["full", "extra-traits"] }
-quote = "1"
-proc-macro2 = "1"
+itertools = "0.12"
 
 [profile.release]
 debug = false     # If you want debug symbol in release mode, set the env variable: RUSTFLAGS=-g

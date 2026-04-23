@@ -276,68 +276,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareSubscriberViaJNI(
     })
 }
 
-/// Declare a Zenoh querier via JNI.
-///
-/// This function is meant to be called from Java/Kotlin code through JNI.
-///
-/// Parameters:
-/// - `env`: The JNI environment.
-/// - `_class`: The JNI class.
-/// - `key_expr_ptr`: A raw pointer to the [KeyExpr] to be used for the querier. May be null in case of using an
-///   undeclared key expression.
-/// - `key_expr_str`: String representation of the key expression to be used to declare the querier.
-///   It won't be considered in case a key_expr_ptr to a declared key expression is provided.
-/// - `target`: The ordinal value of the query target enum value.
-/// - `consolidation`: The ordinal value of the consolidation enum value.
-/// - `congestion_control`: The ordinal value of the congestion control enum value.
-/// - `priority`: The ordinal value of the priority enum value.
-/// - `is_express`: The boolean express value of the QoS provided.
-/// - `timeout_ms`: The timeout in milliseconds.
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    session_ptr: *const Session,
-    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
-    key_expr_str: JString,
-    target: jint,
-    consolidation: jint,
-    congestion_control: jint,
-    priority: jint,
-    is_express: jboolean,
-    timeout_ms: jlong,
-    accept_replies: jint,
-) -> *const Querier<'static> {
-    || -> ZResult<*const Querier<'static>> {
-        let session = OwnedObject::from_raw(session_ptr);
-        let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
-        let query_target = decode_query_target(target)?;
-        let consolidation = decode_consolidation(consolidation)?;
-        let congestion_control = decode_congestion_control(congestion_control)?;
-        let priority = decode_priority(priority)?;
-        let is_express = is_express != 0;
-        let timeout = Duration::from_millis(timeout_ms as u64);
-        let reply_key_expr = decode_reply_key_expr(accept_replies)?;
-        let querier = zenoh_flat::session::declare_querier(
-            &session,
-            key_expr,
-            query_target,
-            consolidation,
-            congestion_control,
-            priority,
-            is_express,
-            timeout,
-            reply_key_expr,
-        )?;
-        Ok(Arc::into_raw(Arc::new(querier)))
-    }()
-    .unwrap_or_else(|err| {
-        throw_exception!(env, err);
-        null()
-    })
-}
-
 /// Declare a Zenoh queryable via JNI.
 ///
 /// This function is meant to be called from Java/Kotlin code through JNI.
