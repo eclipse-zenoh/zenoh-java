@@ -25,7 +25,7 @@ use crate::{
     errors::ZResult,
     key_expr::process_kotlin_key_expr,
     owned_object::OwnedObject,
-    session::{on_reply_error, on_reply_success},
+    sample_callback::{on_reply_error, on_reply_success},
     throw_exception,
     utils::{
         decode_byte_array, decode_encoding, decode_string, get_callback_global_ref, get_java_vm,

@@ -15,7 +15,7 @@
 use std::{ptr::null, sync::Arc, time::Duration};
 
 use jni::{
-    objects::{GlobalRef, JByteArray, JClass, JObject, JString, JValue},
+    objects::{JClass, JObject, JString},
     sys::{jboolean, jint, jlong},
     JNIEnv,
 };
@@ -23,9 +23,8 @@ use zenoh::{
     config::Config,
     key_expr::KeyExpr,
     pubsub::{Publisher, Subscriber},
-    query::{Querier, Queryable, ReplyError},
-    sample::Sample,
-    session::{EntityGlobalId, Session},
+    query::{Querier, Queryable},
+    session::Session,
     Wait,
 };
 
@@ -52,154 +51,6 @@ include!(concat!(env!("OUT_DIR"), "/zenoh_flat_jni.rs"));
 
 
 
-
-
-pub(crate) fn on_reply_success(
-    env: &mut JNIEnv,
-    replier_id: Option<EntityGlobalId>,
-    sample: &Sample,
-    callback_global_ref: &GlobalRef,
-) -> ZResult<()> {
-    let zenoh_id = replier_id
-        .map_or_else(
-            || Ok(JByteArray::default()),
-            |replier_id| {
-                env.byte_array_from_slice(&replier_id.zid().to_le_bytes())
-                    .map_err(|err| zerror!(err))
-            },
-        )
-        .map(|value| env.auto_local(value))?;
-    let eid = replier_id.map_or_else(|| 0, |replier_id| replier_id.eid() as jint);
-
-    let byte_array =
-        bytes_to_java_array(env, sample.payload()).map(|value| env.auto_local(value))?;
-    let encoding: jint = sample.encoding().id() as jint;
-    let encoding_schema = sample
-        .encoding()
-        .schema()
-        .map_or_else(
-            || Ok(JString::default()),
-            |schema| slice_to_java_string(env, schema),
-        )
-        .map(|value| env.auto_local(value))?;
-    let kind = sample.kind() as jint;
-
-    let (timestamp, is_valid) = sample
-        .timestamp()
-        .map(|timestamp| (timestamp.get_time().as_u64(), true))
-        .unwrap_or((0, false));
-
-    let attachment_bytes = sample
-        .attachment()
-        .map_or_else(
-            || Ok(JByteArray::default()),
-            |attachment| bytes_to_java_array(env, attachment),
-        )
-        .map(|value| env.auto_local(value))
-        .map_err(|err| zerror!("Error processing attachment of reply: {}.", err))?;
-
-    let key_expr_str = env
-        .new_string(sample.key_expr().to_string())
-        .map(|value| env.auto_local(value))
-        .map_err(|err| {
-            zerror!(
-                "Could not create a JString through JNI for the Sample key expression. {}",
-                err
-            )
-        })?;
-
-    let express = sample.express();
-    let priority = sample.priority() as jint;
-    let cc = sample.congestion_control() as jint;
-
-    let result = match env.call_method(
-        callback_global_ref,
-        "run",
-        "([BIZLjava/lang/String;[BILjava/lang/String;IJZ[BZII)V",
-        &[
-            JValue::from(&zenoh_id),
-            JValue::from(eid),
-            JValue::from(true),
-            JValue::from(&key_expr_str),
-            JValue::from(&byte_array),
-            JValue::from(encoding),
-            JValue::from(&encoding_schema),
-            JValue::from(kind),
-            JValue::from(timestamp as i64),
-            JValue::from(is_valid),
-            JValue::from(&attachment_bytes),
-            JValue::from(express),
-            JValue::from(priority),
-            JValue::from(cc),
-        ],
-    ) {
-        Ok(_) => Ok(()),
-        Err(err) => {
-            _ = env.exception_describe();
-            Err(zerror!("On GET callback error: {}", err))
-        }
-    };
-    result
-}
-
-pub(crate) fn on_reply_error(
-    env: &mut JNIEnv,
-    replier_id: Option<EntityGlobalId>,
-    reply_error: &ReplyError,
-    callback_global_ref: &GlobalRef,
-) -> ZResult<()> {
-    let zenoh_id = replier_id
-        .map_or_else(
-            || Ok(JByteArray::default()),
-            |replier_id| {
-                env.byte_array_from_slice(&replier_id.zid().to_le_bytes())
-                    .map_err(|err| zerror!(err))
-            },
-        )
-        .map(|value| env.auto_local(value))?;
-    let eid = replier_id.map_or_else(|| 0, |replier_id| replier_id.eid() as jint);
-
-    let payload =
-        bytes_to_java_array(env, reply_error.payload()).map(|value| env.auto_local(value))?;
-    let encoding_id: jint = reply_error.encoding().id() as jint;
-    let encoding_schema = reply_error
-        .encoding()
-        .schema()
-        .map_or_else(
-            || Ok(JString::default()),
-            |schema| slice_to_java_string(env, schema),
-        )
-        .map(|value| env.auto_local(value))?;
-    let result = match env.call_method(
-        callback_global_ref,
-        "run",
-        "([BIZLjava/lang/String;[BILjava/lang/String;IJZ[BZII)V",
-        &[
-            JValue::from(&zenoh_id),
-            JValue::from(eid),
-            JValue::from(false),
-            JValue::from(&JString::default()),
-            JValue::from(&payload),
-            JValue::from(encoding_id),
-            JValue::from(&encoding_schema),
-            // The remaining parameters aren't used in case of replying error, so we set them to default.
-            JValue::from(0 as jint),
-            JValue::from(0_i64),
-            JValue::from(false),
-            JValue::from(&JByteArray::default()),
-            JValue::from(false),
-            JValue::from(0 as jint),
-            JValue::from(0 as jint),
-        ],
-    ) {
-        Ok(_) => Ok(()),
-        Err(err) => {
-            _ = env.exception_describe();
-            Err(zerror!("On GET callback error: {}", err))
-        }
-    };
-    result
-}
 
 
 /// Declare an advanced Zenoh subscriber via JNI.
