@@ -12,7 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-mod advanced_publisher;
+pub(crate) mod advanced_publisher;
 pub(crate) mod advanced_subscriber;
 mod matching_listener;
 mod sample_miss_listener;

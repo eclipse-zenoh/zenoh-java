@@ -20,7 +20,9 @@ import io.zenoh.jni.callbacks.JNIGetCallback
 import io.zenoh.jni.callbacks.JNIOnCloseCallback
 import io.zenoh.jni.callbacks.JNIQueryableCallback
 import io.zenoh.jni.callbacks.JNISubscriberCallback
+import io.zenoh.jni.ext.CacheConfig
 import io.zenoh.jni.ext.HistoryConfig
+import io.zenoh.jni.ext.MissDetectionConfig
 import io.zenoh.jni.ext.RecoveryConfig
 
 /** Adapter class to handle communication with the Zenoh JNI code for a Session. */
@@ -294,17 +296,23 @@ public class JNISession(internal val sessionPtr: Long) {
         priority: Int,
         isExpress: Boolean,
         reliability: Int,
-        cacheEnabled: Boolean,
-        cacheMaxSamples: Long,
-        cacheRepliesPriority: Int,
-        cacheRepliesCongestionControl: Int,
-        cacheRepliesIsExpress: Boolean,
-        sampleMissDetectionEnabled: Boolean,
-        sampleMissDetectionEnableHeartbeat: Boolean,
-        sampleMissDetectionHeartbeatMs: Long,
-        sampleMissDetectionHeartbeatIsSporadic: Boolean,
+        cache: CacheConfig?,
+        sampleMissDetection: MissDetectionConfig?,
         publisherDetection: Boolean,
-    ): JNIAdvancedPublisher = JNIAdvancedPublisher(declareAdvancedPublisherViaJNI(sessionPtr, jniKeyExpr?.ptr ?: 0, keyExprStr, congestionControl, priority, isExpress, reliability, cacheEnabled, cacheMaxSamples, cacheRepliesPriority, cacheRepliesCongestionControl, cacheRepliesIsExpress, sampleMissDetectionEnabled, sampleMissDetectionEnableHeartbeat, sampleMissDetectionHeartbeatMs, sampleMissDetectionHeartbeatIsSporadic, publisherDetection))
+    ): JNIAdvancedPublisher = JNIAdvancedPublisher(
+        declareAdvancedPublisherViaJNI(
+            sessionPtr,
+            jniKeyExpr?.ptr ?: 0,
+            keyExprStr,
+            congestionControl,
+            priority,
+            isExpress,
+            reliability,
+            cache,
+            sampleMissDetection,
+            publisherDetection,
+        )
+    )
 
     @Throws(ZError::class)
     private external fun declareAdvancedPublisherViaJNI(
@@ -315,15 +323,8 @@ public class JNISession(internal val sessionPtr: Long) {
         priority: Int,
         isExpress: Boolean,
         reliability: Int,
-        cacheEnabled: Boolean,
-        cacheMaxSamples: Long,
-        cacheRepliesPriority: Int,
-        cacheRepliesCongestionControl: Int,
-        cacheRepliesIsExpress: Boolean,
-        sampleMissDetectionEnabled: Boolean,
-        sampleMissDetectionEnableHeartbeat: Boolean,
-        sampleMissDetectionHeartbeatMs: Long,
-        sampleMissDetectionHeartbeatIsSporadic: Boolean,
+        cache: CacheConfig?,
+        sampleMissDetection: MissDetectionConfig?,
         publisherDetection: Boolean,
     ): Long
 

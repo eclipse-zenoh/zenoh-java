@@ -13,6 +13,7 @@
 //
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use jni::objects::JValue;
 use jni::{
@@ -22,12 +23,90 @@ use jni::{
 };
 use zenoh::handlers::{Callback, DefaultHandler};
 use zenoh::Wait;
-use zenoh_ext::AdvancedPublisher;
+use zenoh_ext::{AdvancedPublisher, CacheConfig, MissDetectionConfig, RepliesConfig};
 
 use crate::owned_object::OwnedObject;
-use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close};
+use crate::utils::{
+    decode_congestion_control, decode_priority, get_callback_global_ref, get_java_vm, load_on_close,
+};
 
 use crate::throw_exception;
+
+/// Decode a Kotlin `io.zenoh.jni.ext.CacheConfig` data-class instance into a
+/// zenoh-ext [`CacheConfig`] (with nested [`RepliesConfig`] built from the
+/// flat `repliesPriority` / `repliesCongestionControl` / `repliesIsExpress`
+/// fields).
+pub(crate) fn decode_cache_config(env: &mut JNIEnv, obj: &JObject) -> ZResult<CacheConfig> {
+    let max_samples = env
+        .get_field(obj, "maxSamples", "J")
+        .and_then(|v| v.j())
+        .map_err(|err| zerror!("CacheConfig.maxSamples: {}", err))?;
+    let replies_priority = env
+        .get_field(obj, "repliesPriority", "I")
+        .and_then(|v| v.i())
+        .map_err(|err| zerror!("CacheConfig.repliesPriority: {}", err))?;
+    let replies_cc = env
+        .get_field(obj, "repliesCongestionControl", "I")
+        .and_then(|v| v.i())
+        .map_err(|err| zerror!("CacheConfig.repliesCongestionControl: {}", err))?;
+    let replies_express = env
+        .get_field(obj, "repliesIsExpress", "Z")
+        .and_then(|v| v.z())
+        .map_err(|err| zerror!("CacheConfig.repliesIsExpress: {}", err))?;
+
+    let replies = RepliesConfig::default()
+        .priority(decode_priority(replies_priority)?)
+        .congestion_control(decode_congestion_control(replies_cc)?)
+        .express(replies_express);
+    let cfg = CacheConfig::default()
+        .max_samples(
+            max_samples
+                .try_into()
+                .map_err(|e: std::num::TryFromIntError| zerror!(e.to_string()))?,
+        )
+        .replies_config(replies);
+    Ok(cfg)
+}
+
+/// Decode a Kotlin `io.zenoh.jni.ext.MissDetectionConfig` data-class instance
+/// into a zenoh-ext [`MissDetectionConfig`]. Field semantics:
+/// - `enableHeartbeat`: whether to call `.heartbeat(...)` or `.sporadic_heartbeat(...)`
+///   on the config (otherwise `MissDetectionConfig::default()` is left as-is).
+/// - `isSporadic`: picks between `sporadic_heartbeat` and `heartbeat`.
+/// - `periodMs`: heartbeat period in milliseconds (used only when
+///   `enableHeartbeat` is `true`).
+pub(crate) fn decode_miss_detection_config(
+    env: &mut JNIEnv,
+    obj: &JObject,
+) -> ZResult<MissDetectionConfig> {
+    let enable_heartbeat = env
+        .get_field(obj, "enableHeartbeat", "Z")
+        .and_then(|v| v.z())
+        .map_err(|err| zerror!("MissDetectionConfig.enableHeartbeat: {}", err))?;
+    let is_sporadic = env
+        .get_field(obj, "isSporadic", "Z")
+        .and_then(|v| v.z())
+        .map_err(|err| zerror!("MissDetectionConfig.isSporadic: {}", err))?;
+    let period_ms = env
+        .get_field(obj, "periodMs", "J")
+        .and_then(|v| v.j())
+        .map_err(|err| zerror!("MissDetectionConfig.periodMs: {}", err))?;
+
+    let mut cfg = MissDetectionConfig::default();
+    if enable_heartbeat {
+        let dur = Duration::from_millis(
+            period_ms
+                .try_into()
+                .map_err(|e: std::num::TryFromIntError| zerror!(e.to_string()))?,
+        );
+        cfg = if is_sporadic {
+            cfg.sporadic_heartbeat(dur)
+        } else {
+            cfg.heartbeat(dur)
+        };
+    }
+    Ok(cfg)
+}
 use crate::{
     errors::ZResult,
     utils::{decode_byte_array, decode_encoding},

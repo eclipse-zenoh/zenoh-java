@@ -43,6 +43,14 @@ fn main() {
             "RecoveryConfig",
             "crate::ext::advanced_subscriber::decode_recovery_config",
         )
+        .struct_decoder(
+            "CacheConfig",
+            "crate::ext::advanced_publisher::decode_cache_config",
+        )
+        .struct_decoder(
+            "MissDetectionConfig",
+            "crate::ext::advanced_publisher::decode_miss_detection_config",
+        )
         .consume_arg("close_session", "session")
         .consume_arg("undeclare_key_expr", "key_expr")
         .return_wrapper(

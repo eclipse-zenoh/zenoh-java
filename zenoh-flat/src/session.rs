@@ -29,7 +29,8 @@ use zenoh::{
 
 #[cfg(feature = "zenoh-ext")]
 use zenoh_ext::{
-    AdvancedSubscriber, AdvancedSubscriberBuilderExt, HistoryConfig, RecoveryConfig,
+    AdvancedPublisher, AdvancedPublisherBuilderExt, AdvancedSubscriber, AdvancedSubscriberBuilderExt,
+    CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig,
 };
 
 /// Open a Zenoh session using a borrowed configuration.
@@ -410,6 +411,57 @@ pub fn declare_advanced_subscriber(
         .map_err(|err| {
             error!(
                 "Unable to declare advanced subscriber on '{}': {}",
+                key_expr_string, err
+            );
+            zerror!(err)
+        })
+}
+
+/// Declare an advanced publisher through an existing Zenoh session.
+///
+/// Builds on top of the regular publisher chain and applies the supplied
+/// advanced configuration. The JNI wrapper is expected to assemble the
+/// `CacheConfig` / `MissDetectionConfig` from primitive arguments and pass
+/// them here.
+#[cfg(feature = "zenoh-ext")]
+#[prebindgen_proc_macro::prebindgen("jni")]
+pub fn declare_advanced_publisher(
+    session: &Session,
+    key_expr: KeyExpr<'static>,
+    congestion_control: CongestionControl,
+    priority: Priority,
+    express: bool,
+    reliability: Reliability,
+    cache: Option<CacheConfig>,
+    sample_miss_detection: Option<MissDetectionConfig>,
+    publisher_detection: bool,
+) -> ZResult<AdvancedPublisher<'static>> {
+    let key_expr_string = key_expr.to_string();
+    let mut builder = session
+        .declare_publisher(key_expr)
+        .congestion_control(congestion_control)
+        .priority(priority)
+        .express(express)
+        .reliability(reliability)
+        .advanced();
+    if let Some(cache) = cache {
+        builder = builder.cache(cache);
+    }
+    if let Some(miss_detection) = sample_miss_detection {
+        builder = builder.sample_miss_detection(miss_detection);
+    }
+    if publisher_detection {
+        builder = builder.publisher_detection();
+    }
+    builder
+        .wait()
+        .map(|publisher| {
+            trace!("Declared advanced publisher on '{}'.", key_expr_string);
+            publisher
+        })
+        .map_err(|err| {
+            error!(
+                "Unable to declare advanced publisher on '{}': {}",
                 key_expr_string, err
             );
             zerror!(err)
