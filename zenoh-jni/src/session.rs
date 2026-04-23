@@ -23,7 +23,7 @@ use zenoh::{
     config::Config,
     key_expr::KeyExpr,
     pubsub::{Publisher, Subscriber},
-    query::{Querier, Queryable, ReplyError, Selector},
+    query::{Querier, Queryable, ReplyError},
     sample::Sample,
     session::{EntityGlobalId, Session, ZenohId},
     Wait,
@@ -322,57 +322,64 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getViaJNI(
         } else {
             decode_string(&mut env, &selector_params)?
         };
-        let selector = Selector::owned(&key_expr, selector_params);
-        let mut get_builder = session
-            .get(selector)
-            .congestion_control(congestion_control)
-            .priority(priority)
-            .express(is_express != 0)
-            .callback(move |reply| {
-                || -> ZResult<()> {
-                    on_close.noop(); // Does nothing, but moves `on_close` inside the closure so it gets destroyed with the closure
-                    tracing::debug!("Receiving reply through JNI: {:?}", reply);
-                    let mut env = java_vm.attach_current_thread_as_daemon().map_err(|err| {
-                        zerror!("Unable to attach thread for GET query callback: {}.", err)
-                    })?;
 
-                    match reply.result() {
-                        Ok(sample) => on_reply_success(
-                            &mut env,
-                            reply.replier_id(),
-                            sample,
-                            &callback_global_ref,
-                        ),
-                        Err(error) => on_reply_error(
-                            &mut env,
-                            reply.replier_id(),
-                            error,
-                            &callback_global_ref,
-                        ),
-                    }
-                }()
-                .unwrap_or_else(|err| tracing::error!("Error on get callback: {err}"));
-            })
-            .target(query_target)
-            .timeout(timeout)
-            .consolidation(consolidation)
-            .accept_replies(reply_key_expr);
+        let reply_callback = move |reply: zenoh::query::Reply| {
+            || -> ZResult<()> {
+                on_close.noop(); // Does nothing, but moves `on_close` inside the closure so it gets destroyed with the closure
+                tracing::debug!("Receiving reply through JNI: {:?}", reply);
+                let mut env = java_vm.attach_current_thread_as_daemon().map_err(|err| {
+                    zerror!("Unable to attach thread for GET query callback: {}.", err)
+                })?;
+                match reply.result() {
+                    Ok(sample) => on_reply_success(
+                        &mut env,
+                        reply.replier_id(),
+                        sample,
+                        &callback_global_ref,
+                    ),
+                    Err(error) => on_reply_error(
+                        &mut env,
+                        reply.replier_id(),
+                        error,
+                        &callback_global_ref,
+                    ),
+                }
+            }()
+            .unwrap_or_else(|err| tracing::error!("Error on get callback: {err}"));
+        };
 
-        if !payload.is_null() {
-            let encoding = decode_encoding(&mut env, encoding_id, &encoding_schema)?;
-            get_builder = get_builder.encoding(encoding);
-            get_builder = get_builder.payload(decode_byte_array(&env, payload)?);
-        }
+        let payload = if !payload.is_null() {
+            Some(decode_byte_array(&env, payload)?)
+        } else {
+            None
+        };
+        let encoding = if payload.is_some() {
+            Some(decode_encoding(&mut env, encoding_id, &encoding_schema)?)
+        } else {
+            None
+        };
+        let attachment = if !attachment.is_null() {
+            Some(decode_byte_array(&env, attachment)?)
+        } else {
+            None
+        };
 
-        if !attachment.is_null() {
-            let attachment = decode_byte_array(&env, attachment)?;
-            get_builder = get_builder.attachment::<Vec<u8>>(attachment);
-        }
-
-        get_builder
-            .wait()
-            .map(|_| tracing::trace!("Performing get on '{key_expr}'.",))
-            .map_err(|err| zerror!(err))
+        zenoh_flat::session::get(
+            &session,
+            key_expr,
+            selector_params,
+            reply_callback,
+            query_target,
+            consolidation,
+            congestion_control,
+            priority,
+            is_express != 0,
+            timeout,
+            reply_key_expr,
+            payload,
+            encoding,
+            attachment,
+        )
     }()
     .map_err(|err| throw_exception!(env, err));
 }

@@ -20,7 +20,7 @@ use zenoh::{
     config::Config,
     key_expr::KeyExpr,
     pubsub::{Publisher, Subscriber},
-    query::{ConsolidationMode, Query, QueryTarget, Queryable, Querier, ReplyKeyExpr},
+    query::{ConsolidationMode, Query, QueryTarget, Queryable, Querier, Reply, ReplyKeyExpr, Selector},
     sample::Sample,
     qos::{CongestionControl, Priority, Reliability},
     session::Session,
@@ -144,6 +144,64 @@ pub fn declare_queryable(
         })
         .map_err(|err| {
             error!("Unable to declare queryable on '{}': {}", key_expr_string, err);
+            zerror!(err)
+        })
+}
+
+/// Perform a get (query) through an existing Zenoh session.
+///
+/// Each [`Reply`] received from the network is delivered to the `callback`.
+/// `selector_params` is appended to the `key_expr` to form the query selector
+/// (pass `String::new()` for no parameters). `payload` and `encoding` are
+/// coupled: if a payload is given, encoding is attached; if no payload is
+/// given, encoding is ignored.
+pub fn get(
+    session: &Session,
+    key_expr: KeyExpr<'static>,
+    selector_params: String,
+    callback: impl Fn(Reply) + Send + Sync + 'static,
+    query_target: QueryTarget,
+    consolidation: ConsolidationMode,
+    congestion_control: CongestionControl,
+    priority: Priority,
+    express: bool,
+    timeout: Duration,
+    reply_key_expr: ReplyKeyExpr,
+    payload: Option<Vec<u8>>,
+    encoding: Option<Encoding>,
+    attachment: Option<Vec<u8>>,
+) -> ZResult<()> {
+    let key_expr_string = key_expr.to_string();
+    let selector = Selector::owned(&key_expr, selector_params);
+    let mut get_builder = session
+        .get(selector)
+        .callback(callback)
+        .target(query_target)
+        .consolidation(consolidation)
+        .congestion_control(congestion_control)
+        .priority(priority)
+        .express(express)
+        .timeout(timeout)
+        .accept_replies(reply_key_expr);
+
+    if let Some(payload) = payload {
+        if let Some(encoding) = encoding {
+            get_builder = get_builder.encoding(encoding);
+        }
+        get_builder = get_builder.payload(payload);
+    }
+
+    if let Some(attachment) = attachment {
+        get_builder = get_builder.attachment::<Vec<u8>>(attachment);
+    }
+
+    get_builder
+        .wait()
+        .map(|_| {
+            trace!("Performing get on '{}'.", key_expr_string);
+        })
+        .map_err(|err| {
+            error!("Unable to perform get on '{}': {}", key_expr_string, err);
             zerror!(err)
         })
 }
