@@ -48,6 +48,7 @@ pub struct Builder {
     zresult: syn::Path,
     throw_exception: syn::Path,
     key_expr_decoder: Option<syn::Path>,
+    byte_array_decoder: Option<syn::Path>,
     enum_decoders: HashMap<String, syn::Path>,
 }
 
@@ -61,6 +62,7 @@ impl Default for Builder {
             zresult: syn::parse_str("ZResult").unwrap(),
             throw_exception: syn::parse_str("throw_exception").unwrap(),
             key_expr_decoder: None,
+            byte_array_decoder: None,
             enum_decoders: HashMap::new(),
         }
     }
@@ -111,6 +113,15 @@ impl Builder {
     pub fn key_expr_decoder(mut self, path: impl AsRef<str>) -> Self {
         self.key_expr_decoder =
             Some(syn::parse_str(path.as_ref()).expect("invalid key_expr_decoder path"));
+        self
+    }
+
+    /// Path of the function that decodes a `JByteArray` into `Vec<u8>`, e.g.
+    /// `"crate::utils::decode_byte_array"`. Used for both `Vec<u8>` and
+    /// `Option<Vec<u8>>` parameters.
+    pub fn byte_array_decoder(mut self, path: impl AsRef<str>) -> Self {
+        self.byte_array_decoder =
+            Some(syn::parse_str(path.as_ref()).expect("invalid byte_array_decoder path"));
         self
     }
 
@@ -253,6 +264,22 @@ impl JniConverter {
                     });
                     call_args.push(quote! { #name });
                 }
+                ArgKind::OptionVecU8 => {
+                    let decoder = self
+                        .cfg
+                        .byte_array_decoder
+                        .as_ref()
+                        .expect("byte_array_decoder not configured");
+                    jni_params.push(quote! { #name: jni::objects::JByteArray });
+                    prelude.push(quote! {
+                        let #name = if !#name.is_null() {
+                            Some(#decoder(&env, #name)?)
+                        } else {
+                            None
+                        };
+                    });
+                    call_args.push(quote! { #name });
+                }
                 ArgKind::Unsupported => panic!(
                     "unsupported parameter type `{}` for `{}` at {loc}",
                     ty.to_token_stream(),
@@ -345,6 +372,9 @@ impl JniConverter {
                 if name == "Duration" {
                     return ArgKind::Duration;
                 }
+                if name == "Option" && is_option_of_vec_u8(last) {
+                    return ArgKind::OptionVecU8;
+                }
                 if let Some(decoder) = self.cfg.enum_decoders.get(&name) {
                     return ArgKind::Enum(decoder.clone());
                 }
@@ -361,12 +391,43 @@ enum ArgKind {
     Enum(syn::Path),
     Bool,
     Duration,
+    /// `Option<Vec<u8>>` → `JByteArray` decoded via `byte_array_decoder`.
+    OptionVecU8,
     Unsupported,
 }
 
 fn type_last_segment(ty: &syn::Type) -> Option<String> {
     let syn::Type::Path(tp) = ty else { return None };
     tp.path.segments.last().map(|s| s.ident.to_string())
+}
+
+/// Check whether an `Option<...>` path segment wraps exactly `Vec<u8>`.
+fn is_option_of_vec_u8(seg: &syn::PathSegment) -> bool {
+    let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
+        return false;
+    };
+    let Some(syn::GenericArgument::Type(inner)) = args.args.first() else {
+        return false;
+    };
+    let syn::Type::Path(inner_path) = inner else {
+        return false;
+    };
+    let Some(inner_seg) = inner_path.path.segments.last() else {
+        return false;
+    };
+    if inner_seg.ident != "Vec" {
+        return false;
+    }
+    let syn::PathArguments::AngleBracketed(vec_args) = &inner_seg.arguments else {
+        return false;
+    };
+    let Some(syn::GenericArgument::Type(elem)) = vec_args.args.first() else {
+        return false;
+    };
+    matches!(
+        elem,
+        syn::Type::Path(tp) if tp.path.is_ident("u8")
+    )
 }
 
 fn is_unit(ty: &syn::Type) -> bool {

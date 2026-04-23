@@ -185,6 +185,7 @@ pub fn put(
 }
 
 /// Perform a delete operation through an existing Zenoh session.
+#[prebindgen_proc_macro::prebindgen("jni")]
 pub fn delete(
     session: &Session,
     key_expr: KeyExpr<'static>,
