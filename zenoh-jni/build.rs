@@ -11,6 +11,7 @@ fn main() {
         .zresult("crate::errors::ZResult")
         .throw_exception("crate::throw_exception")
         .key_expr_decoder("crate::key_expr::process_kotlin_key_expr")
+        .string_decoder("crate::utils::decode_string")
         .byte_array_decoder("crate::utils::decode_byte_array")
         .encoding_decoder("crate::utils::decode_encoding")
         .enum_decoder("CongestionControl", "crate::utils::decode_congestion_control")

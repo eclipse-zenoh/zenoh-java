@@ -106,52 +106,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQueryableViaJNI(
     })
 }
 
-/// Declare a [KeyExpr] through a [Session] via JNI.
-///
-/// # Parameters:
-/// - `env`: The JNI environment.
-/// - `_class`: The JNI class.
-/// - `session_ptr`: A raw pointer to the Zenoh [Session] from which to declare the key expression.
-/// - `key_expr_str`: A Java String with the intended key expression.
-///
-/// # Returns:
-/// - A raw pointer to the declared key expression. In case of failure, an exception is thrown and null is returned.
-///
-/// # Safety:
-/// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
-/// - It assumes that the provided session pointer is valid and has not been modified or freed.
-/// - The session pointer remains valid and the ownership of the session is not transferred,
-///   allowing safe usage of the session after this function call.
-/// - The function may throw an exception in case of failure, which should be handled by the caller.
-///
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareKeyExprViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    session_ptr: *const Session,
-    key_expr_str: JString,
-) -> *const KeyExpr<'static> {
-    || -> ZResult<*const KeyExpr<'static>> {
-        let session = OwnedObject::from_raw(session_ptr);
-        let key_expr_str = decode_string(&mut env, &key_expr_str)?;
-        let key_expr = session
-            .declare_keyexpr(key_expr_str.to_owned())
-            .wait()
-            .map_err(|err| {
-                zerror!(
-                    "Unable to declare key expression '{}': {}",
-                    key_expr_str,
-                    err
-                )
-            })?;
-        Ok(Arc::into_raw(Arc::new(key_expr)))
-    }()
-    .unwrap_or_else(|err| {
-        throw_exception!(env, err);
-        null()
-    })
-}
 
 /// Undeclare a [KeyExpr] through a [Session] via JNI.
 ///

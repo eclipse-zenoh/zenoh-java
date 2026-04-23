@@ -48,6 +48,7 @@ pub struct Builder {
     zresult: syn::Path,
     throw_exception: syn::Path,
     key_expr_decoder: Option<syn::Path>,
+    string_decoder: Option<syn::Path>,
     byte_array_decoder: Option<syn::Path>,
     encoding_decoder: Option<syn::Path>,
     enum_decoders: HashMap<String, syn::Path>,
@@ -71,6 +72,7 @@ impl Default for Builder {
             zresult: syn::parse_str("ZResult").unwrap(),
             throw_exception: syn::parse_str("throw_exception").unwrap(),
             key_expr_decoder: None,
+            string_decoder: None,
             byte_array_decoder: None,
             encoding_decoder: None,
             enum_decoders: HashMap::new(),
@@ -125,6 +127,14 @@ impl Builder {
     pub fn key_expr_decoder(mut self, path: impl AsRef<str>) -> Self {
         self.key_expr_decoder =
             Some(syn::parse_str(path.as_ref()).expect("invalid key_expr_decoder path"));
+        self
+    }
+
+    /// Path of the function that decodes a `JString` into `String`, e.g.
+    /// `"crate::utils::decode_string"`.
+    pub fn string_decoder(mut self, path: impl AsRef<str>) -> Self {
+        self.string_decoder =
+            Some(syn::parse_str(path.as_ref()).expect("invalid string_decoder path"));
         self
     }
 
@@ -306,6 +316,18 @@ impl JniConverter {
                     });
                     call_args.push(quote! { #name });
                 }
+                ArgKind::String => {
+                    let decoder = self
+                        .cfg
+                        .string_decoder
+                        .as_ref()
+                        .expect("string_decoder not configured");
+                    jni_params.push(quote! { #name: jni::objects::JString });
+                    prelude.push(quote! {
+                        let #name = #decoder(&mut env, &#name)?;
+                    });
+                    call_args.push(quote! { #name });
+                }
                 ArgKind::Enum(decoder) => {
                     jni_params.push(quote! { #name: jni::sys::jint });
                     prelude.push(quote! {
@@ -471,6 +493,9 @@ impl JniConverter {
                 if name == "bool" {
                     return ArgKind::Bool;
                 }
+                if name == "String" {
+                    return ArgKind::String;
+                }
                 if name == "KeyExpr" {
                     return ArgKind::KeyExpr;
                 }
@@ -499,6 +524,8 @@ impl JniConverter {
 enum ArgKind {
     OpaqueRef(syn::Type),
     KeyExpr,
+    /// `String` → `JString` decoded via `string_decoder`.
+    String,
     Enum(syn::Path),
     Bool,
     Duration,

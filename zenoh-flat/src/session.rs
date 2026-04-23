@@ -70,6 +70,30 @@ pub fn declare_publisher(
         })
 }
 
+/// Declare a key expression through an existing Zenoh session.
+#[prebindgen_proc_macro::prebindgen("jni")]
+pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<KeyExpr<'static>> {
+    let key_expr_clone = key_expr.clone();
+    session
+        .declare_keyexpr(key_expr)
+        .wait()
+        .map(|ke| {
+            trace!("Declared key expression '{}'.", key_expr_clone);
+            ke
+        })
+        .map_err(|err| {
+            error!(
+                "Unable to declare key expression '{}': {}",
+                key_expr_clone, err
+            );
+            zerror!(
+                "Unable to declare key expression '{}': {}",
+                key_expr_clone,
+                err
+            )
+        })
+}
+
 /// Declare a subscriber through an existing Zenoh session.
 #[prebindgen_proc_macro::prebindgen("jni")]
 pub fn declare_subscriber(
