@@ -30,9 +30,7 @@ use zenoh::{
 };
 
 use crate::owned_object::OwnedObject;
-use crate::sample_callback::{
-    process_kotlin_query_callback, process_kotlin_reply_callback, process_kotlin_sample_callback,
-};
+use crate::sample_callback::{process_kotlin_reply_callback, process_kotlin_sample_callback};
 #[cfg(feature = "zenoh-ext")]
 use jni::sys::jdouble;
 #[cfg(feature = "zenoh-ext")]
@@ -52,59 +50,6 @@ include!(concat!(env!("OUT_DIR"), "/zenoh_flat_jni.rs"));
 
 
 
-/// Declare a Zenoh queryable via JNI.
-///
-/// This function is meant to be called from Java/Kotlin code through JNI.
-///
-/// Parameters:
-/// - `env`: The JNI environment.
-/// - `_class`: The JNI class.
-/// - `key_expr_ptr`: A raw pointer to the [KeyExpr] to be used for the queryable. May be null in case of using an
-///   undeclared key expression.
-/// - `key_expr_str`: String representation of the key expression to be used to declare the queryable.
-///   It won't be considered in case a key_expr_ptr to a declared key expression is provided.
-/// - `session_ptr`: A raw pointer to the Zenoh [Session] to be used to declare the queryable.
-/// - `callback`: The callback function as an instance of the `JNIQueryableCallback` interface in Java/Kotlin.
-/// - `on_close`: A Java/Kotlin `JNIOnCloseCallback` function interface to be called upon closing the queryable.
-/// - `complete`: The completeness of the queryable.
-///
-/// Returns:
-/// - A raw pointer to the declared Zenoh queryable. In case of failure, an exception is thrown and null is returned.
-///
-/// Safety:
-/// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
-/// - It assumes that the provided session pointer is valid and has not been modified or freed.
-/// - The session pointer remains valid and the ownership of the session is not transferred,
-///   allowing safe usage of the session after this function call.
-/// - The callback function passed as `callback` must be a valid instance of the `JNIQueryableCallback` interface
-///   in Java/Kotlin, matching the specified signature.
-/// - The function may throw a JNI exception in case of failure, which should be handled by the caller.
-///
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQueryableViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    session_ptr: *const Session,
-    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
-    key_expr_str: JString,
-    callback: JObject,
-    on_close: JObject,
-    complete: jboolean,
-) -> *const Queryable<()> {
-    || -> ZResult<*const Queryable<()>> {
-        let session = OwnedObject::from_raw(session_ptr);
-        let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
-        let callback = process_kotlin_query_callback(&mut env, callback, on_close)?;
-        let complete = complete != 0;
-        let queryable = zenoh_flat::session::declare_queryable(&session, key_expr, callback, complete)?;
-        Ok(Arc::into_raw(Arc::new(queryable)))
-    }()
-    .unwrap_or_else(|err| {
-        throw_exception!(env, err);
-        null()
-    })
-}
 
 
 /// Undeclare a [KeyExpr] through a [Session] via JNI.

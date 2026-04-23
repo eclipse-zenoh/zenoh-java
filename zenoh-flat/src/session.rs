@@ -151,6 +151,7 @@ pub fn declare_querier(
 }
 
 /// Declare a queryable through an existing Zenoh session.
+#[prebindgen_proc_macro::prebindgen("jni")]
 pub fn declare_queryable(
     session: &Session,
     key_expr: KeyExpr<'static>,
