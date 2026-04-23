@@ -30,7 +30,9 @@ use zenoh::{
 };
 
 use crate::owned_object::OwnedObject;
-use crate::sample_callback::{process_kotlin_query_callback, process_kotlin_sample_callback};
+use crate::sample_callback::{
+    process_kotlin_query_callback, process_kotlin_reply_callback, process_kotlin_sample_callback,
+};
 #[cfg(feature = "zenoh-ext")]
 use jni::sys::jdouble;
 #[cfg(feature = "zenoh-ext")]
@@ -307,45 +309,17 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getViaJNI(
     let session = OwnedObject::from_raw(session_ptr);
     let _ = || -> ZResult<()> {
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
-        let java_vm = Arc::new(get_java_vm(&mut env)?);
-        let callback_global_ref = get_callback_global_ref(&mut env, callback)?;
-        let on_close_global_ref = get_callback_global_ref(&mut env, on_close)?;
+        let reply_callback = process_kotlin_reply_callback(&mut env, callback, on_close)?;
         let query_target = decode_query_target(target)?;
         let consolidation = decode_consolidation(consolidation)?;
         let timeout = Duration::from_millis(timeout_ms as u64);
         let congestion_control = decode_congestion_control(congestion_control)?;
         let priority = decode_priority(priority)?;
         let reply_key_expr = decode_reply_key_expr(accept_replies)?;
-        let on_close = load_on_close(&java_vm, on_close_global_ref);
         let selector_params = if selector_params.is_null() {
             String::new()
         } else {
             decode_string(&mut env, &selector_params)?
-        };
-
-        let reply_callback = move |reply: zenoh::query::Reply| {
-            || -> ZResult<()> {
-                on_close.noop(); // Does nothing, but moves `on_close` inside the closure so it gets destroyed with the closure
-                tracing::debug!("Receiving reply through JNI: {:?}", reply);
-                let mut env = java_vm.attach_current_thread_as_daemon().map_err(|err| {
-                    zerror!("Unable to attach thread for GET query callback: {}.", err)
-                })?;
-                match reply.result() {
-                    Ok(sample) => on_reply_success(
-                        &mut env,
-                        reply.replier_id(),
-                        sample,
-                        &callback_global_ref,
-                    ),
-                    Err(error) => on_reply_error(
-                        &mut env,
-                        reply.replier_id(),
-                        error,
-                        &callback_global_ref,
-                    ),
-                }
-            }()
-            .unwrap_or_else(|err| tracing::error!("Error on get callback: {err}"));
         };
 
         let payload = if !payload.is_null() {

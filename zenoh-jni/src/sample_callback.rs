@@ -19,7 +19,7 @@ use jni::{
     sys::{jint, jlong},
     JNIEnv,
 };
-use zenoh::{query::{Query, ReplyKeyExpr}, sample::Sample};
+use zenoh::{query::{Query, Reply, ReplyKeyExpr}, sample::Sample};
 
 use crate::{errors::ZResult, utils::*};
 
@@ -93,6 +93,42 @@ pub(crate) unsafe fn process_kotlin_sample_callback(
             Ok(())
         }()
         .map_err(|err| tracing::error!("On sample callback error: {err}"));
+    })
+}
+
+pub(crate) unsafe fn process_kotlin_reply_callback(
+    env: &mut JNIEnv,
+    callback: JObject,
+    on_close: JObject,
+) -> ZResult<impl Fn(Reply) + Send + Sync + 'static> {
+    let java_vm = Arc::new(get_java_vm(env)?);
+    let callback_global_ref = get_callback_global_ref(env, callback)?;
+    let on_close_global_ref = get_callback_global_ref(env, on_close)?;
+    let on_close = load_on_close(&java_vm, on_close_global_ref);
+
+    Ok(move |reply: Reply| {
+        || -> ZResult<()> {
+            on_close.noop();
+            tracing::debug!("Receiving reply through JNI: {:?}", reply);
+            let mut env = java_vm
+                .attach_current_thread_as_daemon()
+                .map_err(|err| zerror!("Unable to attach thread for GET query callback: {}", err))?;
+            match reply.result() {
+                Ok(sample) => crate::session::on_reply_success(
+                    &mut env,
+                    reply.replier_id(),
+                    sample,
+                    &callback_global_ref,
+                ),
+                Err(error) => crate::session::on_reply_error(
+                    &mut env,
+                    reply.replier_id(),
+                    error,
+                    &callback_global_ref,
+                ),
+            }
+        }()
+        .unwrap_or_else(|err| tracing::error!("Error on get callback: {err}"));
     })
 }
 
