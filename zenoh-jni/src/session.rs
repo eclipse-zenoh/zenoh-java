@@ -12,7 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::{ops::Deref, ptr::null, sync::Arc, time::Duration};
+use std::{ptr::null, sync::Arc, time::Duration};
 
 use jni::{
     objects::{GlobalRef, JByteArray, JClass, JList, JObject, JString, JValue},
@@ -52,48 +52,6 @@ include!(concat!(env!("OUT_DIR"), "/zenoh_flat_jni.rs"));
 
 
 
-/// Undeclare a [KeyExpr] through a [Session] via JNI.
-///
-/// The key expression must have been previously declared on the specified session, otherwise an
-/// exception is thrown.
-///
-/// This functions frees the key expression pointer provided.
-///
-/// # Parameters:
-/// - `env`: The JNI environment.
-/// - `_class`: The JNI class.
-/// - `session_ptr`: A raw pointer to the Zenoh [Session] from which to undeclare the key expression.
-/// - `key_expr_ptr`: A raw pointer to the [KeyExpr] to undeclare.
-///
-/// # Safety:
-/// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
-/// - It assumes that the provided session and keyexpr pointers are valid and have not been modified or freed.
-/// - The session pointer remains valid after this function call.
-/// - The key expression pointer is voided after this function call.
-/// - The function may throw an exception in case of failure, which should be handled by the caller.
-///
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_undeclareKeyExprViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    session_ptr: *const Session,
-    key_expr_ptr: *const KeyExpr<'static>,
-) {
-    let session = OwnedObject::from_raw(session_ptr);
-    let key_expr = Arc::from_raw(key_expr_ptr);
-    let key_expr_clone = key_expr.deref().clone();
-    match session.undeclare(key_expr_clone).wait() {
-        Ok(_) => {}
-        Err(err) => {
-            throw_exception!(
-                env,
-                zerror!("Unable to declare key expression '{}': {}", key_expr, err)
-            );
-        }
-    }
-    // `key_expr` is intentionally left to be freed by Rust
-}
 
 /// Performs a `get` operation in the Zenoh session via JNI with Value.
 ///

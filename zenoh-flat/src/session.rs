@@ -94,6 +94,32 @@ pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<KeyExpr<
         })
 }
 
+/// Undeclare a previously-declared key expression on a Zenoh session.
+///
+/// Takes the `KeyExpr` by value so the caller can relinquish ownership. After
+/// this call the original JNI-side raw pointer is invalid.
+#[prebindgen_proc_macro::prebindgen("jni")]
+pub fn undeclare_key_expr(session: &Session, key_expr: KeyExpr<'static>) -> ZResult<()> {
+    let key_expr_string = key_expr.to_string();
+    session
+        .undeclare(key_expr)
+        .wait()
+        .map(|_| {
+            trace!("Undeclared key expression '{}'.", key_expr_string);
+        })
+        .map_err(|err| {
+            error!(
+                "Unable to undeclare key expression '{}': {}",
+                key_expr_string, err
+            );
+            zerror!(
+                "Unable to undeclare key expression '{}': {}",
+                key_expr_string,
+                err
+            )
+        })
+}
+
 /// Declare a subscriber through an existing Zenoh session.
 #[prebindgen_proc_macro::prebindgen("jni")]
 pub fn declare_subscriber(

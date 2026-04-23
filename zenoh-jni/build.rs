@@ -23,7 +23,8 @@ fn main() {
         .callback_decoder("Sample", "crate::sample_callback::process_kotlin_sample_callback")
         .callback_decoder("Query", "crate::sample_callback::process_kotlin_query_callback")
         .callback_decoder("Reply", "crate::sample_callback::process_kotlin_reply_callback")
-        .consume_fn("close_session")
+        .consume_arg("close_session", "session")
+        .consume_arg("undeclare_key_expr", "key_expr")
         .build();
 
     source
