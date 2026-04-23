@@ -1835,24 +1835,6 @@ dependencies = [
 [[package]]
 name = "prebindgen"
 version = "0.4.1"
-dependencies = [
- "if_rust_version",
- "itertools",
- "konst",
- "prettyplease",
- "proc-macro2",
- "quote",
- "regex",
- "roxygen",
- "serde",
- "serde_json",
- "syn 2.0.117",
- "toml",
-]
-
-[[package]]
-name = "prebindgen"
-version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b005ec2d8a59f83ecc1b63ef25ab4d42fa33d9642e24d5d8dab5e750d5f6f46"
 dependencies = [
@@ -1873,8 +1855,10 @@ dependencies = [
 [[package]]
 name = "prebindgen-proc-macro"
 version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47a68d8870ef9ba6f8abbe9d4bca5775e1d854d5fa6dac8c27dd1c79ecebe398"
 dependencies = [
- "prebindgen 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "prebindgen",
  "proc-macro2",
  "quote",
  "rand 0.9.2",
@@ -4066,7 +4050,7 @@ name = "zenoh-flat"
 version = "1.9.0"
 dependencies = [
  "json5",
- "prebindgen 0.4.1",
+ "prebindgen",
  "prebindgen-proc-macro",
  "serde_yaml",
  "tracing",
@@ -4443,7 +4427,7 @@ dependencies = [
  "jni",
  "json5",
  "konst",
- "prebindgen 0.4.1",
+ "prebindgen",
  "proc-macro2",
  "quote",
  "rustc_version",
