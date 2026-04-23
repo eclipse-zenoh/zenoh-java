@@ -49,6 +49,7 @@ pub struct Builder {
     throw_exception: syn::Path,
     key_expr_decoder: Option<syn::Path>,
     byte_array_decoder: Option<syn::Path>,
+    encoding_decoder: Option<syn::Path>,
     enum_decoders: HashMap<String, syn::Path>,
 }
 
@@ -63,6 +64,7 @@ impl Default for Builder {
             throw_exception: syn::parse_str("throw_exception").unwrap(),
             key_expr_decoder: None,
             byte_array_decoder: None,
+            encoding_decoder: None,
             enum_decoders: HashMap::new(),
         }
     }
@@ -122,6 +124,16 @@ impl Builder {
     pub fn byte_array_decoder(mut self, path: impl AsRef<str>) -> Self {
         self.byte_array_decoder =
             Some(syn::parse_str(path.as_ref()).expect("invalid byte_array_decoder path"));
+        self
+    }
+
+    /// Path of the function that decodes an `Encoding` from a `(jint id,
+    /// &JString schema)` pair, e.g. `"crate::utils::decode_encoding"`.
+    /// The generated JNI signature splits the single `Encoding` parameter
+    /// into `<name>_id: jint` + `<name>_schema: JString`.
+    pub fn encoding_decoder(mut self, path: impl AsRef<str>) -> Self {
+        self.encoding_decoder =
+            Some(syn::parse_str(path.as_ref()).expect("invalid encoding_decoder path"));
         self
     }
 
@@ -280,6 +292,33 @@ impl JniConverter {
                     });
                     call_args.push(quote! { #name });
                 }
+                ArgKind::VecU8 => {
+                    let decoder = self
+                        .cfg
+                        .byte_array_decoder
+                        .as_ref()
+                        .expect("byte_array_decoder not configured");
+                    jni_params.push(quote! { #name: jni::objects::JByteArray });
+                    prelude.push(quote! {
+                        let #name = #decoder(&env, #name)?;
+                    });
+                    call_args.push(quote! { #name });
+                }
+                ArgKind::Encoding => {
+                    let decoder = self
+                        .cfg
+                        .encoding_decoder
+                        .as_ref()
+                        .expect("encoding_decoder not configured");
+                    let id_ident = format_ident!("{}_id", name);
+                    let schema_ident = format_ident!("{}_schema", name);
+                    jni_params.push(quote! { #id_ident: jni::sys::jint });
+                    jni_params.push(quote! { #schema_ident: jni::objects::JString });
+                    prelude.push(quote! {
+                        let #name = #decoder(&mut env, #id_ident, &#schema_ident)?;
+                    });
+                    call_args.push(quote! { #name });
+                }
                 ArgKind::Unsupported => panic!(
                     "unsupported parameter type `{}` for `{}` at {loc}",
                     ty.to_token_stream(),
@@ -372,8 +411,14 @@ impl JniConverter {
                 if name == "Duration" {
                     return ArgKind::Duration;
                 }
+                if name == "Encoding" {
+                    return ArgKind::Encoding;
+                }
                 if name == "Option" && is_option_of_vec_u8(last) {
                     return ArgKind::OptionVecU8;
+                }
+                if name == "Vec" && is_vec_of_u8(last) {
+                    return ArgKind::VecU8;
                 }
                 if let Some(decoder) = self.cfg.enum_decoders.get(&name) {
                     return ArgKind::Enum(decoder.clone());
@@ -393,6 +438,10 @@ enum ArgKind {
     Duration,
     /// `Option<Vec<u8>>` → `JByteArray` decoded via `byte_array_decoder`.
     OptionVecU8,
+    /// `Vec<u8>` → `JByteArray` decoded via `byte_array_decoder`.
+    VecU8,
+    /// `Encoding` → `(jint id, JString schema)` pair via `encoding_decoder`.
+    Encoding,
     Unsupported,
 }
 
@@ -418,10 +467,15 @@ fn is_option_of_vec_u8(seg: &syn::PathSegment) -> bool {
     if inner_seg.ident != "Vec" {
         return false;
     }
-    let syn::PathArguments::AngleBracketed(vec_args) = &inner_seg.arguments else {
+    is_vec_of_u8(inner_seg)
+}
+
+/// Check whether a `Vec<...>` path segment has element type `u8`.
+fn is_vec_of_u8(seg: &syn::PathSegment) -> bool {
+    let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
         return false;
     };
-    let Some(syn::GenericArgument::Type(elem)) = vec_args.args.first() else {
+    let Some(syn::GenericArgument::Type(elem)) = args.args.first() else {
         return false;
     };
     matches!(

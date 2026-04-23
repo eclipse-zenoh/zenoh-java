@@ -149,6 +149,7 @@ pub fn declare_queryable(
 }
 
 /// Perform a put operation through an existing Zenoh session.
+#[prebindgen_proc_macro::prebindgen("jni")]
 pub fn put(
     session: &Session,
     key_expr: KeyExpr<'static>,
