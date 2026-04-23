@@ -32,7 +32,7 @@
 //! decoder helpers, `OwnedObject`) — those couplings are configurable through
 //! the [`Builder`] so the converter itself stays data-driven.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
@@ -51,6 +51,10 @@ pub struct Builder {
     byte_array_decoder: Option<syn::Path>,
     encoding_decoder: Option<syn::Path>,
     enum_decoders: HashMap<String, syn::Path>,
+    /// Names of source functions whose first `&T` argument must be consumed
+    /// (transferred out) via `Arc::from_raw` instead of borrowed via
+    /// `OwnedObject::from_raw`. Typically used for `close_*` functions.
+    consume_fns: HashSet<String>,
 }
 
 impl Default for Builder {
@@ -66,6 +70,7 @@ impl Default for Builder {
             byte_array_decoder: None,
             encoding_decoder: None,
             enum_decoders: HashMap::new(),
+            consume_fns: HashSet::new(),
         }
     }
 }
@@ -150,6 +155,17 @@ impl Builder {
         self
     }
 
+    /// Mark a source function as consuming its first `&T` argument: the
+    /// generated wrapper will take ownership of the pointer via
+    /// `Arc::from_raw` (dropping the Arc at end of scope), rather than
+    /// borrowing it through `OwnedObject::from_raw`.
+    ///
+    /// Typically used for `close_*` functions that invalidate the handle.
+    pub fn consume_fn(mut self, fn_name: impl Into<String>) -> Self {
+        self.consume_fns.insert(fn_name.into());
+        self
+    }
+
     pub fn build(self) -> JniConverter {
         JniConverter {
             cfg: self,
@@ -216,10 +232,12 @@ impl JniConverter {
         let owned_object = &self.cfg.owned_object;
         let zresult = &self.cfg.zresult;
         let throw_exception = &self.cfg.throw_exception;
+        let consume_first = self.cfg.consume_fns.contains(&original_name);
 
         let mut prelude: Vec<TokenStream> = Vec::new();
         let mut jni_params: Vec<TokenStream> = Vec::new();
         let mut call_args: Vec<TokenStream> = Vec::new();
+        let mut seen_first_opaque = false;
 
         for input in &func.sig.inputs {
             let syn::FnArg::Typed(pat_type) = input else {
@@ -235,9 +253,17 @@ impl JniConverter {
                 ArgKind::OpaqueRef(elem) => {
                     let ptr_ident = format_ident!("{}_ptr", name);
                     jni_params.push(quote! { #ptr_ident: *const #elem });
-                    prelude.push(quote! {
-                        let #name = #owned_object::from_raw(#ptr_ident);
-                    });
+                    let is_first_opaque = !seen_first_opaque;
+                    seen_first_opaque = true;
+                    if consume_first && is_first_opaque {
+                        prelude.push(quote! {
+                            let #name = std::sync::Arc::from_raw(#ptr_ident);
+                        });
+                    } else {
+                        prelude.push(quote! {
+                            let #name = #owned_object::from_raw(#ptr_ident);
+                        });
+                    }
                     call_args.push(quote! { &#name });
                 }
                 ArgKind::KeyExpr => {

@@ -220,6 +220,7 @@ pub fn delete(
 }
 
 /// Close a Zenoh session using a reference to the session.
+#[prebindgen_proc_macro::prebindgen("jni")]
 pub fn close_session(session: &Session) -> ZResult<()> {
     session
         .close()

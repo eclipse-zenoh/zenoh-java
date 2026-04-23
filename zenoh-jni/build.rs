@@ -19,6 +19,7 @@ fn main() {
         .enum_decoder("QueryTarget", "crate::utils::decode_query_target")
         .enum_decoder("ConsolidationMode", "crate::utils::decode_consolidation")
         .enum_decoder("ReplyKeyExpr", "crate::utils::decode_reply_key_expr")
+        .consume_fn("close_session")
         .build();
 
     source

@@ -46,36 +46,6 @@ use crate::{
 
 include!(concat!(env!("OUT_DIR"), "/zenoh_flat_jni.rs"));
 
-/// Closes a Zenoh session via JNI.
-///
-/// # Parameters:
-/// - `env`: The JNI environment.
-/// - `_class`: The JNI class.
-/// - `session_ptr`: The raw pointer to the Zenoh session.
-///
-/// # Safety:
-/// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
-/// - It assumes that the provided session pointer is valid and has not been modified or freed.
-/// - The function may throw a JNI exception in case of failure, which should be handled by the caller.
-/// - After the session is closed, the provided pointer is no more valid.
-///
-#[no_mangle]
-#[allow(non_snake_case, unused)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_closeSessionViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    session_ptr: *const Session,
-) {
-    || -> ZResult<()> {
-        let session = Arc::from_raw(session_ptr);
-        zenoh_flat::session::close_session(&session)?;
-        Ok(())
-    }()
-    .unwrap_or_else(|err| {
-        throw_exception!(env, err);
-        ()
-    });
-}
 
 
 
