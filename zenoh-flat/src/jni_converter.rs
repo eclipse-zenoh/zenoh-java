@@ -60,6 +60,22 @@ pub struct Builder {
     /// the raw pointer via `Arc::from_raw`) instead of borrowed. Used for
     /// close/undeclare-style functions that invalidate their handle.
     consume_args: HashMap<String, HashSet<String>>,
+    /// Return-type wrappers keyed by the last-segment name of `T` in
+    /// `ZResult<T>`. Applies when `T` is a plain (non-`Vec`) type.
+    return_wrappers: HashMap<String, ReturnWrapper>,
+    /// Return-type wrappers keyed by the element type name of `Vec<T>` in
+    /// `ZResult<Vec<T>>`.
+    return_wrappers_vec: HashMap<String, ReturnWrapper>,
+}
+
+/// Describes how to render a `ZResult<T>` return value into a JNI-compatible
+/// output value. Registered via [`Builder::return_wrapper`] /
+/// [`Builder::return_wrapper_vec`].
+#[derive(Clone)]
+pub(crate) struct ReturnWrapper {
+    jni_type: syn::Type,
+    wrap_fn: syn::Path,
+    default_expr: syn::Expr,
 }
 
 impl Default for Builder {
@@ -78,6 +94,8 @@ impl Default for Builder {
             enum_decoders: HashMap::new(),
             callback_decoders: HashMap::new(),
             consume_args: HashMap::new(),
+            return_wrappers: HashMap::new(),
+            return_wrappers_vec: HashMap::new(),
         }
     }
 }
@@ -185,6 +203,37 @@ impl Builder {
         let path: syn::Path =
             syn::parse_str(decoder.as_ref()).expect("invalid callback_decoder path");
         self.callback_decoders.insert(element_type_name.into(), path);
+        self
+    }
+
+    /// Register a return-type wrapper for `ZResult<T>` where `T`'s
+    /// last-segment name equals `type_name`. `jni_type` is the generated
+    /// `extern "C"` return type. `wrap_fn` must have signature
+    /// `fn(&mut JNIEnv, T) -> ZResult<jni_type>`. `default_expr` is the value
+    /// returned on error (before the exception is thrown on the JVM side).
+    pub fn return_wrapper(
+        mut self,
+        type_name: impl Into<String>,
+        jni_type: impl AsRef<str>,
+        wrap_fn: impl AsRef<str>,
+        default_expr: impl AsRef<str>,
+    ) -> Self {
+        self.return_wrappers
+            .insert(type_name.into(), parse_return_wrapper(jni_type, wrap_fn, default_expr));
+        self
+    }
+
+    /// Like [`Builder::return_wrapper`] but applies when `T` is `Vec<E>`
+    /// with `E`'s last-segment name equal to `element_type_name`.
+    pub fn return_wrapper_vec(
+        mut self,
+        element_type_name: impl Into<String>,
+        jni_type: impl AsRef<str>,
+        wrap_fn: impl AsRef<str>,
+        default_expr: impl AsRef<str>,
+    ) -> Self {
+        self.return_wrappers_vec
+            .insert(element_type_name.into(), parse_return_wrapper(jni_type, wrap_fn, default_expr));
         self
     }
 
@@ -428,6 +477,37 @@ impl JniConverter {
                     });
                     call_args.push(quote! { #name });
                 }
+                ArgKind::OptionEncoding => {
+                    let decoder = self
+                        .cfg
+                        .encoding_decoder
+                        .as_ref()
+                        .expect("encoding_decoder not configured");
+                    let id_ident = format_ident!("{}_id", name);
+                    let schema_ident = format_ident!("{}_schema", name);
+                    jni_params.push(quote! { #id_ident: jni::sys::jint });
+                    jni_params.push(quote! { #schema_ident: jni::objects::JString });
+                    prelude.push(quote! {
+                        let #name = Some(#decoder(&mut env, #id_ident, &#schema_ident)?);
+                    });
+                    call_args.push(quote! { #name });
+                }
+                ArgKind::OptionString => {
+                    let decoder = self
+                        .cfg
+                        .string_decoder
+                        .as_ref()
+                        .expect("string_decoder not configured");
+                    jni_params.push(quote! { #name: jni::objects::JString });
+                    prelude.push(quote! {
+                        let #name = if !#name.is_null() {
+                            Some(#decoder(&mut env, &#name)?)
+                        } else {
+                            None
+                        };
+                    });
+                    call_args.push(quote! { #name });
+                }
                 ArgKind::Unsupported => panic!(
                     "unsupported parameter type `{}` for `{}` at {loc}",
                     ty.to_token_stream(),
@@ -452,6 +532,18 @@ impl JniConverter {
                         quote! { Ok(()) },
                         quote! { () },
                         quote! { #zresult<()> },
+                    )
+                } else if let Some(wrapper) = self.lookup_return_wrapper(&inner) {
+                    let ReturnWrapper {
+                        jni_type,
+                        wrap_fn,
+                        default_expr,
+                    } = wrapper;
+                    (
+                        quote! { #jni_type },
+                        quote! { #wrap_fn(&mut env, __result) },
+                        quote! { #default_expr },
+                        quote! { #zresult<#jni_type> },
                     )
                 } else {
                     (
@@ -497,6 +589,23 @@ impl JniConverter {
         syn::parse2(tokens).expect("generated JNI wrapper must parse")
     }
 
+    fn lookup_return_wrapper(&self, ty: &syn::Type) -> Option<ReturnWrapper> {
+        let syn::Type::Path(tp) = ty else { return None };
+        let seg = tp.path.segments.last()?;
+        let name = seg.ident.to_string();
+        if name == "Vec" {
+            let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
+                return None;
+            };
+            let syn::GenericArgument::Type(elem) = args.args.first()? else {
+                return None;
+            };
+            let elem_name = type_last_segment(elem)?;
+            return self.cfg.return_wrappers_vec.get(&elem_name).cloned();
+        }
+        self.cfg.return_wrappers.get(&name).cloned()
+    }
+
     fn classify_arg(&self, ty: &syn::Type) -> ArgKind {
         match ty {
             syn::Type::Reference(r) if r.mutability.is_none() => {
@@ -537,6 +646,16 @@ impl JniConverter {
                 if name == "Option" && is_option_of_vec_u8(last) {
                     return ArgKind::OptionVecU8;
                 }
+                if name == "Option" {
+                    if let Some(inner) = option_inner_type_name(last) {
+                        if inner == "String" {
+                            return ArgKind::OptionString;
+                        }
+                        if inner == "Encoding" {
+                            return ArgKind::OptionEncoding;
+                        }
+                    }
+                }
                 if name == "Vec" && is_vec_of_u8(last) {
                     return ArgKind::VecU8;
                 }
@@ -564,10 +683,29 @@ enum ArgKind {
     VecU8,
     /// `Encoding` → `(jint id, JString schema)` pair via `encoding_decoder`.
     Encoding,
+    /// `Option<Encoding>` → `(jint id, JString schema)` pair via `encoding_decoder`,
+    /// wrapped in `Some(_)`. Semantic gating on payload presence is the
+    /// callee's responsibility.
+    OptionEncoding,
+    /// `Option<String>` → nullable `JString`.
+    OptionString,
     /// `impl Fn(T) + Send + Sync + 'static` → `(JObject callback, JObject on_close)`
     /// pair decoded via a callback decoder registered for `T`.
     Callback(syn::Path),
     Unsupported,
+}
+
+fn parse_return_wrapper(
+    jni_type: impl AsRef<str>,
+    wrap_fn: impl AsRef<str>,
+    default_expr: impl AsRef<str>,
+) -> ReturnWrapper {
+    ReturnWrapper {
+        jni_type: syn::parse_str(jni_type.as_ref()).expect("invalid return wrapper jni_type"),
+        wrap_fn: syn::parse_str(wrap_fn.as_ref()).expect("invalid return wrapper wrap_fn path"),
+        default_expr: syn::parse_str(default_expr.as_ref())
+            .expect("invalid return wrapper default_expr"),
+    }
 }
 
 fn type_last_segment(ty: &syn::Type) -> Option<String> {
@@ -591,6 +729,18 @@ fn extract_fn_single_arg_type_name(
         return type_last_segment(first);
     }
     None
+}
+
+/// Return the last-segment name of the single generic argument of an
+/// `Option<...>` path segment, if any (e.g. `Option<String>` → `Some("String")`).
+fn option_inner_type_name(seg: &syn::PathSegment) -> Option<String> {
+    let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
+        return None;
+    };
+    let syn::GenericArgument::Type(inner) = args.args.first()? else {
+        return None;
+    };
+    type_last_segment(inner)
 }
 
 /// Check whether an `Option<...>` path segment wraps exactly `Vec<u8>`.

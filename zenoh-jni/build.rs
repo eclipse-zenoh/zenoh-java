@@ -25,6 +25,18 @@ fn main() {
         .callback_decoder("Reply", "crate::sample_callback::process_kotlin_reply_callback")
         .consume_arg("close_session", "session")
         .consume_arg("undeclare_key_expr", "key_expr")
+        .return_wrapper(
+            "ZenohId",
+            "jni::sys::jbyteArray",
+            "crate::zenoh_id::zenoh_id_to_byte_array",
+            "jni::objects::JByteArray::default().as_raw()",
+        )
+        .return_wrapper_vec(
+            "ZenohId",
+            "jni::sys::jobject",
+            "crate::zenoh_id::zenoh_ids_to_java_list",
+            "jni::objects::JObject::default().as_raw()",
+        )
         .build();
 
     source

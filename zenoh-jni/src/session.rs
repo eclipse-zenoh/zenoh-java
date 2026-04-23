@@ -15,8 +15,8 @@
 use std::{ptr::null, sync::Arc, time::Duration};
 
 use jni::{
-    objects::{GlobalRef, JByteArray, JClass, JList, JObject, JString, JValue},
-    sys::{jboolean, jbyteArray, jint, jlong, jobject},
+    objects::{GlobalRef, JByteArray, JClass, JObject, JString, JValue},
+    sys::{jboolean, jint, jlong},
     JNIEnv,
 };
 use zenoh::{
@@ -25,12 +25,12 @@ use zenoh::{
     pubsub::{Publisher, Subscriber},
     query::{Querier, Queryable, ReplyError},
     sample::Sample,
-    session::{EntityGlobalId, Session, ZenohId},
+    session::{EntityGlobalId, Session},
     Wait,
 };
 
 use crate::owned_object::OwnedObject;
-use crate::sample_callback::{process_kotlin_reply_callback, process_kotlin_sample_callback};
+use crate::sample_callback::process_kotlin_sample_callback;
 #[cfg(feature = "zenoh-ext")]
 use jni::sys::jdouble;
 #[cfg(feature = "zenoh-ext")]
@@ -53,114 +53,6 @@ include!(concat!(env!("OUT_DIR"), "/zenoh_flat_jni.rs"));
 
 
 
-/// Performs a `get` operation in the Zenoh session via JNI with Value.
-///
-/// # Parameters:
-/// - `env`: The JNI environment.
-/// - `_class`: The JNI class.
-/// - `key_expr_ptr`: Raw pointer to a declared [KeyExpr] to be used for the query. May be null in case
-///   of using a non declared key expression, in which case the `key_expr_str` parameter will be used instead.
-/// - `key_expr_str`: String representation of the key expression to be used to declare the query. It is not
-///   considered if a `key_expr_ptr` is provided.
-/// - `selector_params`: Optional parameters of the selector.
-/// - `session_ptr`: A raw pointer to the Zenoh [Session].
-/// - `callback`: A Java/Kotlin callback to be called upon receiving a reply.
-/// - `on_close`: A Java/Kotlin `JNIOnCloseCallback` function interface to be called when no more replies will be received.
-/// - `timeout_ms`: The timeout in milliseconds.
-/// - `target`: The query target as the ordinal of the enum.
-/// - `consolidation`: The consolidation mode as the ordinal of the enum.
-/// - `attachment`: An optional attachment encoded into a byte array.
-/// - `payload`: Optional payload for the query.
-/// - `encoding_id`: The encoding of the payload.
-/// - `encoding_schema`: The encoding schema of the payload, may be null.
-/// - `congestion_control`: The ordinal value of the congestion control enum value.
-/// - `priority`: The ordinal value of the priority enum value.
-/// - `is_express`: The boolean express value of the QoS provided.
-///
-/// Safety:
-/// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
-/// - It assumes that the provided session pointer is valid and has not been modified or freed.
-/// - The session pointer remains valid and the ownership of the session is not transferred,
-///   allowing safe usage of the session after this function call.
-/// - The function may throw a JNI exception in case of failure, which should be handled by the caller.
-///
-/// Throws:
-/// - An exception in case of failure handling the query.
-///
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    session_ptr: *const Session,
-    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
-    key_expr_str: JString,
-    selector_params: /*nullable*/ JString,
-    callback: JObject,
-    on_close: JObject,
-    timeout_ms: jlong,
-    target: jint,
-    consolidation: jint,
-    attachment: /*nullable*/ JByteArray,
-    payload: /*nullable*/ JByteArray,
-    encoding_id: jint,
-    encoding_schema: /*nullable*/ JString,
-    congestion_control: jint,
-    priority: jint,
-    is_express: jboolean,
-    accept_replies: jint,
-) {
-    let session = OwnedObject::from_raw(session_ptr);
-    let _ = || -> ZResult<()> {
-        let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
-        let reply_callback = process_kotlin_reply_callback(&mut env, callback, on_close)?;
-        let query_target = decode_query_target(target)?;
-        let consolidation = decode_consolidation(consolidation)?;
-        let timeout = Duration::from_millis(timeout_ms as u64);
-        let congestion_control = decode_congestion_control(congestion_control)?;
-        let priority = decode_priority(priority)?;
-        let reply_key_expr = decode_reply_key_expr(accept_replies)?;
-        let selector_params = if selector_params.is_null() {
-            String::new()
-        } else {
-            decode_string(&mut env, &selector_params)?
-        };
-
-        let payload = if !payload.is_null() {
-            Some(decode_byte_array(&env, payload)?)
-        } else {
-            None
-        };
-        let encoding = if payload.is_some() {
-            Some(decode_encoding(&mut env, encoding_id, &encoding_schema)?)
-        } else {
-            None
-        };
-        let attachment = if !attachment.is_null() {
-            Some(decode_byte_array(&env, attachment)?)
-        } else {
-            None
-        };
-
-        zenoh_flat::session::get(
-            &session,
-            key_expr,
-            selector_params,
-            reply_callback,
-            query_target,
-            consolidation,
-            congestion_control,
-            priority,
-            is_express != 0,
-            timeout,
-            reply_key_expr,
-            payload,
-            encoding,
-            attachment,
-        )
-    }()
-    .map_err(|err| throw_exception!(env, err));
-}
 
 pub(crate) fn on_reply_success(
     env: &mut JNIEnv,
@@ -309,78 +201,6 @@ pub(crate) fn on_reply_error(
     result
 }
 
-/// Returns a list of zenoh ids as byte arrays corresponding to the peers connected to the session provided.
-///
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getPeersZidViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    session_ptr: *const Session,
-) -> jobject {
-    let session = OwnedObject::from_raw(session_ptr);
-    {
-        let peers_zid = session.info().peers_zid().wait();
-        let ids = peers_zid.collect::<Vec<ZenohId>>();
-        ids_to_java_list(&mut env, ids).map_err(|err| zerror!(err))
-    }
-    .unwrap_or_else(|err| {
-        throw_exception!(env, err);
-        JObject::default().as_raw()
-    })
-}
-
-/// Returns a list of zenoh ids as byte arrays corresponding to the routers connected to the session provided.
-///
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getRoutersZidViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    session_ptr: *const Session,
-) -> jobject {
-    let session = OwnedObject::from_raw(session_ptr);
-    {
-        let peers_zid = session.info().routers_zid().wait();
-        let ids = peers_zid.collect::<Vec<ZenohId>>();
-        ids_to_java_list(&mut env, ids).map_err(|err| zerror!(err))
-    }
-    .unwrap_or_else(|err| {
-        throw_exception!(env, err);
-        JObject::default().as_raw()
-    })
-}
-
-/// Returns the Zenoh ID as a byte array of the session.
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getZidViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    session_ptr: *const Session,
-) -> jbyteArray {
-    let session = OwnedObject::from_raw(session_ptr);
-    {
-        let zid = session.info().zid().wait();
-        env.byte_array_from_slice(&zid.to_le_bytes())
-            .map(|x| x.as_raw())
-            .map_err(|err| zerror!(err))
-    }
-    .unwrap_or_else(|err| {
-        throw_exception!(env, err);
-        JByteArray::default().as_raw()
-    })
-}
-
-fn ids_to_java_list(env: &mut JNIEnv, ids: Vec<ZenohId>) -> jni::errors::Result<jobject> {
-    let array_list = env.new_object("java/util/ArrayList", "()V", &[])?;
-    let jlist = JList::from_env(env, &array_list)?;
-    for id in ids {
-        let value = &mut env.byte_array_from_slice(&id.to_le_bytes())?;
-        jlist.add(env, value)?;
-    }
-    Ok(array_list.as_raw())
-}
 
 /// Declare an advanced Zenoh subscriber via JNI.
 ///
