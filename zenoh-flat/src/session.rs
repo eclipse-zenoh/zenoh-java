@@ -378,6 +378,7 @@ pub fn close_session(session: &Session) -> ZResult<()> {
 /// `HistoryConfig` / `RecoveryConfig` from primitive arguments and pass them
 /// here.
 #[cfg(feature = "zenoh-ext")]
+#[prebindgen_proc_macro::prebindgen("jni")]
 pub fn declare_advanced_subscriber(
     session: &Session,
     key_expr: KeyExpr<'static>,

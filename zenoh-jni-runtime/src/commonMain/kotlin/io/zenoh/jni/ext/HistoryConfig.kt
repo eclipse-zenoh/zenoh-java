@@ -12,7 +12,17 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-mod advanced_publisher;
-pub(crate) mod advanced_subscriber;
-mod matching_listener;
-mod sample_miss_listener;
+package io.zenoh.jni.ext
+
+/**
+ * History configuration for an advanced subscriber.
+ *
+ * Marshaled across JNI as a plain object; the native side reads fields by
+ * name via `env.get_field(...)`. `maxSamples <= 0` and `maxAgeSeconds <= 0.0`
+ * mean unlimited.
+ */
+data class HistoryConfig(
+    val detectLatePublishers: Boolean,
+    val maxSamples: Long,
+    val maxAgeSeconds: Double,
+)

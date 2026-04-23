@@ -12,7 +12,17 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-mod advanced_publisher;
-pub(crate) mod advanced_subscriber;
-mod matching_listener;
-mod sample_miss_listener;
+package io.zenoh.jni.ext
+
+/**
+ * Recovery configuration for an advanced subscriber.
+ *
+ * Marshaled across JNI as a plain object; the native side reads fields by
+ * name via `env.get_field(...)`. When [isHeartbeat] is `true`, [periodMs] is
+ * ignored; otherwise [periodMs] is the `periodic_queries` period in
+ * milliseconds.
+ */
+data class RecoveryConfig(
+    val isHeartbeat: Boolean,
+    val periodMs: Long,
+)

@@ -20,6 +20,8 @@ import io.zenoh.jni.callbacks.JNIGetCallback
 import io.zenoh.jni.callbacks.JNIOnCloseCallback
 import io.zenoh.jni.callbacks.JNIQueryableCallback
 import io.zenoh.jni.callbacks.JNISubscriberCallback
+import io.zenoh.jni.ext.HistoryConfig
+import io.zenoh.jni.ext.RecoveryConfig
 
 /** Adapter class to handle communication with the Zenoh JNI code for a Session. */
 public class JNISession(internal val sessionPtr: Long) {
@@ -254,33 +256,34 @@ public class JNISession(internal val sessionPtr: Long) {
     fun declareAdvancedSubscriber(
         jniKeyExpr: JNIKeyExpr?,
         keyExprStr: String,
-        historyConfigEnabled: Boolean,
-        historyDetectLatePublishers: Boolean,
-        historyMaxSamples: Long,
-        historyMaxAgeSeconds: Double,
-        recoveryConfigEnabled: Boolean,
-        recoveryConfigIsHeartbeat: Boolean,
-        recoveryQueryPeriodMs: Long,
-        subscriberDetection: Boolean,
         callback: JNISubscriberCallback,
         onClose: JNIOnCloseCallback,
-    ): JNIAdvancedSubscriber = JNIAdvancedSubscriber(declareAdvancedSubscriberViaJNI(sessionPtr, jniKeyExpr?.ptr ?: 0, keyExprStr, historyConfigEnabled, historyDetectLatePublishers, historyMaxSamples, historyMaxAgeSeconds, recoveryConfigEnabled, recoveryConfigIsHeartbeat, recoveryQueryPeriodMs, subscriberDetection, callback, onClose))
+        history: HistoryConfig?,
+        recovery: RecoveryConfig?,
+        subscriberDetection: Boolean,
+    ): JNIAdvancedSubscriber = JNIAdvancedSubscriber(
+        declareAdvancedSubscriberViaJNI(
+            sessionPtr,
+            jniKeyExpr?.ptr ?: 0,
+            keyExprStr,
+            callback,
+            onClose,
+            history,
+            recovery,
+            subscriberDetection,
+        )
+    )
 
     @Throws(ZError::class)
     private external fun declareAdvancedSubscriberViaJNI(
         sessionPtr: Long,
         keyExprPtr: Long,
         keyExprStr: String,
-        historyConfigEnabled: Boolean,
-        historyDetectLatePublishers: Boolean,
-        historyMaxSamples: Long,
-        historyMaxAgeSeconds: Double,
-        recoveryConfigEnabled: Boolean,
-        recoveryConfigIsHeartbeat: Boolean,
-        recoveryQueryPeriodMs: Long,
-        subscriberDetection: Boolean,
         callback: JNISubscriberCallback,
         onClose: JNIOnCloseCallback,
+        history: HistoryConfig?,
+        recovery: RecoveryConfig?,
+        subscriberDetection: Boolean,
     ): Long
 
     @Throws(ZError::class)

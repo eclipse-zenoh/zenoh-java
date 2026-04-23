@@ -56,6 +56,11 @@ pub struct Builder {
     /// that builds an `impl Fn(T) + Send + Sync + 'static` closure from a
     /// `(callback: JObject, on_close: JObject)` pair.
     callback_decoders: HashMap<String, syn::Path>,
+    /// Decoders for struct parameters passed across JNI as a plain `JObject`
+    /// (e.g. a Kotlin `data class`). Keyed by the last-segment name of the
+    /// parameter's type (e.g. `"HistoryConfig"`). The decoder must have
+    /// signature `fn(&mut JNIEnv, &JObject) -> ZResult<T>`.
+    struct_decoders: HashMap<String, syn::Path>,
     /// Per-function set of argument names that must be consumed (taken from
     /// the raw pointer via `Arc::from_raw`) instead of borrowed. Used for
     /// close/undeclare-style functions that invalidate their handle.
@@ -93,6 +98,7 @@ impl Default for Builder {
             encoding_decoder: None,
             enum_decoders: HashMap::new(),
             callback_decoders: HashMap::new(),
+            struct_decoders: HashMap::new(),
             consume_args: HashMap::new(),
             return_wrappers: HashMap::new(),
             return_wrappers_vec: HashMap::new(),
@@ -185,6 +191,23 @@ impl Builder {
         let path: syn::Path =
             syn::parse_str(decoder.as_ref()).expect("invalid enum_decoder path");
         self.enum_decoders.insert(type_name.into(), path);
+        self
+    }
+
+    /// Register a decoder for a struct parameter passed across JNI as a
+    /// plain `JObject` (typically a Kotlin data class). `type_name` matches
+    /// the last segment of the parameter's type path (e.g. `"HistoryConfig"`).
+    /// The decoder must have signature
+    /// `fn(&mut JNIEnv, &JObject) -> ZResult<T>`. Used both for the plain
+    /// form (`HistoryConfig`) and the `Option<T>` form (nullable JObject).
+    pub fn struct_decoder(
+        mut self,
+        type_name: impl Into<String>,
+        decoder: impl AsRef<str>,
+    ) -> Self {
+        let path: syn::Path =
+            syn::parse_str(decoder.as_ref()).expect("invalid struct_decoder path");
+        self.struct_decoders.insert(type_name.into(), path);
         self
     }
 
@@ -508,6 +531,24 @@ impl JniConverter {
                     });
                     call_args.push(quote! { #name });
                 }
+                ArgKind::StructFromJObject(decoder) => {
+                    jni_params.push(quote! { #name: jni::objects::JObject });
+                    prelude.push(quote! {
+                        let #name = #decoder(&mut env, &#name)?;
+                    });
+                    call_args.push(quote! { #name });
+                }
+                ArgKind::OptionStructFromJObject(decoder) => {
+                    jni_params.push(quote! { #name: jni::objects::JObject });
+                    prelude.push(quote! {
+                        let #name = if !#name.is_null() {
+                            Some(#decoder(&mut env, &#name)?)
+                        } else {
+                            None
+                        };
+                    });
+                    call_args.push(quote! { #name });
+                }
                 ArgKind::Unsupported => panic!(
                     "unsupported parameter type `{}` for `{}` at {loc}",
                     ty.to_token_stream(),
@@ -654,6 +695,9 @@ impl JniConverter {
                         if inner == "Encoding" {
                             return ArgKind::OptionEncoding;
                         }
+                        if let Some(decoder) = self.cfg.struct_decoders.get(&inner) {
+                            return ArgKind::OptionStructFromJObject(decoder.clone());
+                        }
                     }
                 }
                 if name == "Vec" && is_vec_of_u8(last) {
@@ -661,6 +705,9 @@ impl JniConverter {
                 }
                 if let Some(decoder) = self.cfg.enum_decoders.get(&name) {
                     return ArgKind::Enum(decoder.clone());
+                }
+                if let Some(decoder) = self.cfg.struct_decoders.get(&name) {
+                    return ArgKind::StructFromJObject(decoder.clone());
                 }
                 ArgKind::Unsupported
             }
@@ -689,6 +736,12 @@ enum ArgKind {
     OptionEncoding,
     /// `Option<String>` → nullable `JString`.
     OptionString,
+    /// Struct type registered via `struct_decoder` → single `JObject` arg
+    /// decoded via the registered decoder.
+    StructFromJObject(syn::Path),
+    /// `Option<T>` where `T` is registered via `struct_decoder` → nullable
+    /// `JObject`, `None` when the JObject is null.
+    OptionStructFromJObject(syn::Path),
     /// `impl Fn(T) + Send + Sync + 'static` → `(JObject callback, JObject on_close)`
     /// pair decoded via a callback decoder registered for `T`.
     Callback(syn::Path),

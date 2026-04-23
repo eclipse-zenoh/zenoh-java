@@ -15,7 +15,7 @@
 use std::{ptr::null, sync::Arc, time::Duration};
 
 use jni::{
-    objects::{JClass, JObject, JString},
+    objects::{JClass, JString},
     sys::{jboolean, jint, jlong},
     JNIEnv,
 };
@@ -29,124 +29,15 @@ use zenoh::{
 };
 
 use crate::owned_object::OwnedObject;
-use crate::sample_callback::process_kotlin_sample_callback;
-#[cfg(feature = "zenoh-ext")]
-use jni::sys::jdouble;
 #[cfg(feature = "zenoh-ext")]
 use zenoh_ext::{
-    AdvancedPublisher, AdvancedPublisherBuilderExt, AdvancedSubscriber, CacheConfig, HistoryConfig,
-    MissDetectionConfig, RecoveryConfig, RepliesConfig,
+    AdvancedPublisher, AdvancedPublisherBuilderExt, AdvancedSubscriber, CacheConfig,
+    MissDetectionConfig, RepliesConfig,
 };
 
 use crate::{errors::ZResult, key_expr::process_kotlin_key_expr, throw_exception, utils::*};
 
 include!(concat!(env!("OUT_DIR"), "/zenoh_flat_jni.rs"));
-
-/// Declare an advanced Zenoh subscriber via JNI.
-///
-/// # Parameters:
-/// - `env`: The JNI environment.
-/// - `_class`: The JNI class.
-/// - `key_expr_ptr`: Raw pointer to the [KeyExpr], may be null.
-/// - `key_expr_str`: String representation of the [KeyExpr].
-/// - `history_config_enabled`: Whether history config is enabled.
-/// - `history_detect_late_publishers`: Whether to detect late publishers in history.
-/// - `history_max_samples`: Max samples in history (<=0 means unlimited).
-/// - `history_max_age_seconds`: Max age in seconds for history (<=0.0 means unlimited).
-/// - `recovery_config_enabled`: Whether recovery config is enabled.
-/// - `recovery_config_is_heartbeat`: Whether to use heartbeat recovery.
-/// - `recovery_query_period_ms`: Query period for periodic recovery in milliseconds.
-/// - `subscriber_detection`: Allow this subscriber to be detected through liveliness.
-/// - `session_ptr`: The raw pointer to the Zenoh session.
-/// - `callback`: The callback function as an instance of the `JNISubscriberCallback` interface.
-/// - `on_close`: A `JNIOnCloseCallback` to be called upon closing the subscriber.
-///
-/// Returns:
-/// - A raw pointer to the declared [AdvancedSubscriber]. In case of failure, an exception is thrown and null is returned.
-///
-/// Safety:
-/// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
-///
-#[cfg(feature = "zenoh-ext")]
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedSubscriberViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    session_ptr: *const Session,
-    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
-    key_expr_str: JString,
-    // HistoryConfig
-    history_config_enabled: jboolean,
-    history_detect_late_publishers: jboolean,
-    history_max_samples: jlong,
-    history_max_age_seconds: jdouble,
-    // RecoveryConfig
-    recovery_config_enabled: jboolean,
-    recovery_config_is_heartbeat: jboolean,
-    recovery_query_period_ms: jlong,
-
-    subscriber_detection: jboolean,
-
-    callback: JObject,
-    on_close: JObject,
-) -> *const AdvancedSubscriber<()> {
-    let session = OwnedObject::from_raw(session_ptr);
-    || -> ZResult<*const AdvancedSubscriber<()>> {
-        let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
-        let callback = process_kotlin_sample_callback(&mut env, callback, on_close)?;
-
-        let history = if history_config_enabled != 0 {
-            let mut history = if history_detect_late_publishers != 0 {
-                HistoryConfig::default().detect_late_publishers()
-            } else {
-                HistoryConfig::default()
-            };
-            if history_max_samples > 0 {
-                history = history.max_samples(
-                    history_max_samples
-                        .try_into()
-                        .map_err(|e: std::num::TryFromIntError| zerror!(e.to_string()))?,
-                );
-            }
-            if history_max_age_seconds > 0.0 {
-                history = history.max_age(history_max_age_seconds);
-            }
-            Some(history)
-        } else {
-            None
-        };
-
-        let recovery = if recovery_config_enabled != 0 {
-            if recovery_config_is_heartbeat != 0 {
-                Some(RecoveryConfig::default().heartbeat())
-            } else {
-                let dur = Duration::from_millis(
-                    recovery_query_period_ms
-                        .try_into()
-                        .map_err(|e: std::num::TryFromIntError| zerror!(e.to_string()))?,
-                );
-                Some(RecoveryConfig::default().periodic_queries(dur))
-            }
-        } else {
-            None
-        };
-
-        let subscriber = zenoh_flat::session::declare_advanced_subscriber(
-            &session,
-            key_expr,
-            callback,
-            history,
-            recovery,
-            subscriber_detection != 0,
-        )?;
-        Ok(Arc::into_raw(Arc::new(subscriber)))
-    }()
-    .unwrap_or_else(|err| {
-        throw_exception!(env, err);
-        null()
-    })
-}
 
 /// Declare an advanced Zenoh publisher via JNI.
 ///

@@ -35,6 +35,14 @@ fn main() {
             "Reply",
             "crate::sample_callback::process_kotlin_reply_callback",
         )
+        .struct_decoder(
+            "HistoryConfig",
+            "crate::ext::advanced_subscriber::decode_history_config",
+        )
+        .struct_decoder(
+            "RecoveryConfig",
+            "crate::ext::advanced_subscriber::decode_recovery_config",
+        )
         .consume_arg("close_session", "session")
         .consume_arg("undeclare_key_expr", "key_expr")
         .return_wrapper(

@@ -49,7 +49,7 @@ crate_type = ["staticlib", "dylib"]
 [build-dependencies]
 rustc_version = "0.4.0"
 prebindgen = "0.4.1"
-zenoh-flat = { path = "../zenoh-flat" }
+zenoh-flat = { path = "../zenoh-flat", features = ["zenoh-ext"] }
 itertools = "0.12"
 
 [profile.release]

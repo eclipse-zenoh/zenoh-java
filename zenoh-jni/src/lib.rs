@@ -18,7 +18,7 @@ extern crate zenoh_flat;
 mod config;
 mod errors;
 #[cfg(feature = "zenoh-ext")]
-mod ext;
+pub(crate) mod ext;
 mod key_expr;
 mod liveliness;
 mod logger;
