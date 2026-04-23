@@ -21,8 +21,8 @@ use zenoh::key_expr::KeyExpr;
 
 use crate::errors::ZResult;
 use crate::owned_object::OwnedObject;
-use crate::utils::decode_string;
 use crate::throw_exception;
+use crate::utils::decode_string;
 
 /// Validates the provided `key_expr` to be a valid key expression, returning it back
 /// in case of success or throwing an exception in case of failure.

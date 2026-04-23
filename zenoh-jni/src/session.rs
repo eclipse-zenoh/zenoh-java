@@ -39,19 +39,9 @@ use zenoh_ext::{
     RepliesConfig,
 };
 
-use crate::{
-    errors::ZResult, key_expr::process_kotlin_key_expr, throw_exception, utils::*,
-};
+use crate::{errors::ZResult, key_expr::process_kotlin_key_expr, throw_exception, utils::*};
 
 include!(concat!(env!("OUT_DIR"), "/zenoh_flat_jni.rs"));
-
-
-
-
-
-
-
-
 
 /// Declare an advanced Zenoh subscriber via JNI.
 ///
@@ -108,7 +98,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareAdvancedSubscriberV
         tracing::debug!("Declaring advanced subscriber on '{}'...", key_expr);
         let mut builder = session
             .declare_subscriber(key_expr.to_owned())
-            .callback(process_kotlin_sample_callback(&mut env, callback, on_close)?)
+            .callback(process_kotlin_sample_callback(
+                &mut env, callback, on_close,
+            )?)
             .advanced();
         tracing::debug!("Advanced subscriber declared on '{}'.", key_expr);
 

@@ -154,7 +154,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareLivelinessSubscribe
             .liveliness()
             .declare_subscriber(key_expr.to_owned())
             .history(history != 0)
-            .callback(process_kotlin_sample_callback(&mut env, callback, on_close)?)
+            .callback(process_kotlin_sample_callback(
+                &mut env, callback, on_close,
+            )?)
             .wait()
             .map_err(|err| zerror!("Unable to declare liveliness subscriber: {}", err))?;
 

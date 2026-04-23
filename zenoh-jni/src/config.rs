@@ -21,8 +21,8 @@ use jni::{
 };
 use zenoh::Config;
 
-use crate::owned_object::OwnedObject;
 use crate::errors::ZResult;
+use crate::owned_object::OwnedObject;
 use crate::{throw_exception, utils::decode_string};
 
 /// Loads the default configuration, returning a raw pointer to it.

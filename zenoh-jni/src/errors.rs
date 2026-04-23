@@ -17,13 +17,11 @@ use jni::JNIEnv;
 #[macro_export]
 macro_rules! throw_exception {
     ($env:expr, $err:expr) => {{
-        let _ = <crate::errors::ZError as crate::errors::ThrowOnJvm>::throw_on_jvm(
-            &$err,
-            &mut $env,
-        )
-        .map_err(|err| {
-            tracing::error!("Unable to throw exception: {}", err);
-        });
+        let _ =
+            <crate::errors::ZError as crate::errors::ThrowOnJvm>::throw_on_jvm(&$err, &mut $env)
+                .map_err(|err| {
+                    tracing::error!("Unable to throw exception: {}", err);
+                });
     }};
 }
 

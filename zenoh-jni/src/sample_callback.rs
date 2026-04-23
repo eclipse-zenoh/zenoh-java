@@ -19,7 +19,11 @@ use jni::{
     sys::{jint, jlong},
     JNIEnv,
 };
-use zenoh::{query::{Query, Reply, ReplyError, ReplyKeyExpr}, sample::Sample, session::EntityGlobalId};
+use zenoh::{
+    query::{Query, Reply, ReplyError, ReplyKeyExpr},
+    sample::Sample,
+    session::EntityGlobalId,
+};
 
 use crate::{errors::ZResult, utils::*};
 
@@ -183,11 +187,11 @@ pub(crate) unsafe fn process_kotlin_sample_callback(
     Ok(move |sample: Sample| {
         on_close.noop();
         let _ = || -> ZResult<()> {
-            let mut env = java_vm.attach_current_thread_as_daemon().map_err(|err| {
-                zerror!("Unable to attach thread for sample callback: {}", err)
-            })?;
-            let byte_array = bytes_to_java_array(&env, sample.payload())
-                .map(|array| env.auto_local(array))?;
+            let mut env = java_vm
+                .attach_current_thread_as_daemon()
+                .map_err(|err| zerror!("Unable to attach thread for sample callback: {}", err))?;
+            let byte_array =
+                bytes_to_java_array(&env, sample.payload()).map(|array| env.auto_local(array))?;
 
             let encoding_id: jint = sample.encoding().id() as jint;
             let encoding_schema = match sample.encoding().schema() {
@@ -257,9 +261,9 @@ pub(crate) unsafe fn process_kotlin_reply_callback(
         || -> ZResult<()> {
             on_close.noop();
             tracing::debug!("Receiving reply through JNI: {:?}", reply);
-            let mut env = java_vm
-                .attach_current_thread_as_daemon()
-                .map_err(|err| zerror!("Unable to attach thread for GET query callback: {}", err))?;
+            let mut env = java_vm.attach_current_thread_as_daemon().map_err(|err| {
+                zerror!("Unable to attach thread for GET query callback: {}", err)
+            })?;
             match reply.result() {
                 Ok(sample) => crate::sample_callback::on_reply_success(
                     &mut env,
@@ -390,5 +394,3 @@ fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> Z
         });
     result
 }
-
-
