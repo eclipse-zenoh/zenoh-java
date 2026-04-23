@@ -44,36 +44,7 @@ use crate::{
     errors::ZResult, key_expr::process_kotlin_key_expr, throw_exception, utils::*,
 };
 
-/// Open a Zenoh session via JNI.
-///
-/// It returns an [Arc] raw pointer to the Zenoh Session, which should be stored as a private read-only attribute
-/// of the session object in the Java/Kotlin code. Subsequent calls to other session functions will require
-/// this raw pointer to retrieve the [Session] using `Arc::from_raw`.
-///
-/// If opening the session fails, an exception is thrown on the JVM, and a null pointer is returned.
-///
-/// # Parameters:
-/// - `env`: The JNI environment.
-/// - `_class`: The JNI class (parameter required by the JNI interface but unused).
-/// - `config_ptr`: Pointer to the Zenoh config. If null, the default configuration will be loaded.
-///
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_openSessionViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    config_ptr: *const Config,
-) -> *const Session {
-    let config = OwnedObject::from_raw(config_ptr);
-    || -> ZResult<*const Session> {
-        let session = zenoh_flat::session::open_session(&config)?;
-        Ok(Arc::into_raw(Arc::new(session)))
-    }()
-    .unwrap_or_else(|err| {
-        throw_exception!(env, err);
-        null()
-    })
-}
+include!(concat!(env!("OUT_DIR"), "/zenoh_flat_jni.rs"));
 
 /// Closes a Zenoh session via JNI.
 ///

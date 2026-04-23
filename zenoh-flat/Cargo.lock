@@ -184,7 +184,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4481a617ad9a412be3b97c5d403fef8ed023103368908b9c50af598ff467cc1e"
 dependencies = [
  "const_format_proc_macros",
- "konst",
+ "konst 0.2.20",
 ]
 
 [[package]]
@@ -196,6 +196,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-xid",
+]
+
+[[package]]
+name = "const_panic"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e262cdaac42494e3ae34c43969f9cdeb7da178bdb4b66fa6a1ea2edb4c8ae652"
+dependencies = [
+ "typewit",
 ]
 
 [[package]]
@@ -697,6 +706,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
+name = "if_rust_version"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46dbcb333e86939721589d25a3557e180b52778cb33c7fdfe9e0158ff790d5ec"
+
+[[package]]
 name = "indexmap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -801,10 +816,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "konst"
+version = "0.3.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97feab15b395d1860944abe6a8dd8ed9f8eadfae01750fada8427abda531d887"
+dependencies = [
+ "const_panic",
+ "konst_kernel",
+ "konst_proc_macros",
+ "typewit",
+]
+
+[[package]]
+name = "konst_kernel"
+version = "0.3.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4b1eb7788f3824c629b1116a7a9060d6e898c358ebff59070093d51103dcc3c"
+dependencies = [
+ "typewit",
+]
+
+[[package]]
 name = "konst_macro_rules"
 version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4933f3f57a8e9d9da04db23fb153356ecaf00cbd14aee46279c33dc80925c37"
+
+[[package]]
+name = "konst_proc_macros"
+version = "0.3.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00af7901ba50898c9e545c24d5c580c96a982298134e8037d8978b6594782c07"
 
 [[package]]
 name = "lazy_static"
@@ -1137,6 +1179,67 @@ dependencies = [
 ]
 
 [[package]]
+name = "prebindgen"
+version = "0.4.1"
+dependencies = [
+ "if_rust_version",
+ "itertools",
+ "konst 0.3.17",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "roxygen",
+ "serde",
+ "serde_json",
+ "syn 2.0.117",
+ "toml",
+]
+
+[[package]]
+name = "prebindgen"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b005ec2d8a59f83ecc1b63ef25ab4d42fa33d9642e24d5d8dab5e750d5f6f46"
+dependencies = [
+ "if_rust_version",
+ "itertools",
+ "konst 0.3.17",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "roxygen",
+ "serde",
+ "serde_json",
+ "syn 2.0.117",
+ "toml",
+]
+
+[[package]]
+name = "prebindgen-proc-macro"
+version = "0.4.1"
+dependencies = [
+ "prebindgen 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "proc-macro2",
+ "quote",
+ "rand 0.9.4",
+ "serde",
+ "serde_json",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "prettyplease"
+version = "0.2.37"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b"
+dependencies = [
+ "proc-macro2",
+ "syn 2.0.117",
+]
+
+[[package]]
 name = "proc-macro-crate"
 version = "3.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1176,8 +1279,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a"
 dependencies = [
  "libc",
- "rand_chacha",
- "rand_core",
+ "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
+]
+
+[[package]]
+name = "rand"
+version = "0.9.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44c5af06bb1b7d3216d91932aed5265164bf384dc89cd6ba05cf59a35f5f76ea"
+dependencies = [
+ "rand_chacha 0.9.0",
+ "rand_core 0.9.5",
 ]
 
 [[package]]
@@ -1187,7 +1300,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
 dependencies = [
  "ppv-lite86",
- "rand_core",
+ "rand_core 0.6.4",
+]
+
+[[package]]
+name = "rand_chacha"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb"
+dependencies = [
+ "ppv-lite86",
+ "rand_core 0.9.5",
 ]
 
 [[package]]
@@ -1197,6 +1320,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom 0.2.17",
+]
+
+[[package]]
+name = "rand_core"
+version = "0.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
+dependencies = [
+ "getrandom 0.3.4",
 ]
 
 [[package]]
@@ -1228,6 +1360,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "regex"
+version = "1.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e10754a14b9137dd7b1e3e5b0493cc9171fdd105e0ab477f51b72e7f3ac0e276"
+dependencies = [
+ "aho-corasick",
+ "memchr",
+ "regex-automata",
+ "regex-syntax",
 ]
 
 [[package]]
@@ -1269,6 +1413,17 @@ dependencies = [
  "serde_derive",
  "typeid",
  "unicode-ident",
+]
+
+[[package]]
+name = "roxygen"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa650dd372f29f0a6be64b2896707f9536962ba28915e3b39bcafd5a6221873b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1600,7 +1755,7 @@ dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "rand",
+ "rand 0.8.6",
  "syn 1.0.109",
 ]
 
@@ -1912,6 +2067,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40ce102ab67701b8526c123c1bab5cbe42d7040ccfd0f64af1a385808d2f43de"
 
 [[package]]
+name = "typewit"
+version = "1.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "214ca0b2191785cbc06209b9ca1861e048e39b5ba33574b3cedd58363d5bb5f6"
+dependencies = [
+ "typewit_proc_macros",
+]
+
+[[package]]
+name = "typewit_proc_macros"
+version = "1.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e36a83ea2b3c704935a01b4642946aadd445cea40b10935e3f8bd8052b8193d6"
+
+[[package]]
 name = "ucd-trie"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1926,7 +2096,7 @@ dependencies = [
  "humantime",
  "lazy_static",
  "log",
- "rand",
+ "rand 0.8.6",
  "serde",
  "spin 0.10.0",
 ]
@@ -2267,7 +2437,7 @@ dependencies = [
  "once_cell",
  "petgraph",
  "phf",
- "rand",
+ "rand 0.8.6",
  "rustc_version",
  "serde",
  "serde_json",
@@ -2366,8 +2536,8 @@ source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#fe7a78ebcfc
 dependencies = [
  "aes",
  "hmac",
- "rand",
- "rand_chacha",
+ "rand 0.8.6",
+ "rand_chacha 0.3.1",
  "sha3",
  "zenoh-result",
 ]
@@ -2377,6 +2547,8 @@ name = "zenoh-flat"
 version = "1.9.0"
 dependencies = [
  "json5",
+ "prebindgen 0.4.1",
+ "prebindgen-proc-macro",
  "serde_yaml",
  "tracing",
  "zenoh",
@@ -2390,7 +2562,7 @@ dependencies = [
  "getrandom 0.2.17",
  "hashbrown 0.16.1",
  "keyed-set",
- "rand",
+ "rand 0.8.6",
  "schemars 1.2.1",
  "serde",
  "token-cell",
@@ -2465,7 +2637,7 @@ version = "1.9.0"
 source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#fe7a78ebcfcb0e2c57c5d00a89082a1a9c730869"
 dependencies = [
  "const_format",
- "rand",
+ "rand 0.8.6",
  "serde",
  "uhlc",
  "zenoh-buffers",
@@ -2534,7 +2706,7 @@ dependencies = [
  "futures",
  "lazy_static",
  "lz4_flex",
- "rand",
+ "rand 0.8.6",
  "ringbuffer-spsc",
  "serde",
  "sha3",

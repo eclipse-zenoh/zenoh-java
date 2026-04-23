@@ -28,6 +28,7 @@ use zenoh::{
 };
 
 /// Open a Zenoh session using a borrowed configuration.
+#[prebindgen_proc_macro::prebindgen("jni")]
 pub fn open_session(config: &Config) -> ZResult<Session> {
     zenoh::open(config.clone())
         .wait()
