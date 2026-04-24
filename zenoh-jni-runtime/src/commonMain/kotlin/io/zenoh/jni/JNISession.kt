@@ -36,10 +36,6 @@ import io.zenoh.jni.callbacks.JNIGetCallback
 import io.zenoh.jni.callbacks.JNIOnCloseCallback
 import io.zenoh.jni.callbacks.JNIQueryableCallback
 import io.zenoh.jni.callbacks.JNISubscriberCallback
-import io.zenoh.jni.ext.CacheConfig
-import io.zenoh.jni.ext.HistoryConfig
-import io.zenoh.jni.ext.MissDetectionConfig
-import io.zenoh.jni.ext.RecoveryConfig
 
 /** Adapter class to handle communication with the Zenoh JNI code for a Session. */
 public class JNISession(internal val sessionPtr: Long) {

@@ -5,6 +5,8 @@ pub const FEATURES: &str = prebindgen_proc_macro::features!();
 
 pub mod config;
 pub mod errors;
+#[cfg(feature = "zenoh-ext")]
+pub mod ext;
 pub mod jni_converter;
 pub mod session;
 

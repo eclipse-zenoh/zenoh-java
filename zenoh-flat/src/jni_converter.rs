@@ -45,6 +45,10 @@ pub struct Builder {
     class_prefix: String,
     function_suffix: String,
     source_module: syn::Path,
+    /// Module path where `#[prebindgen]` struct types are declared. Used to
+    /// fully-qualify the struct name in the auto-generated decoder's return
+    /// type and constructor. Defaults to `source_module` when unset.
+    struct_source_module: Option<syn::Path>,
     owned_object: syn::Path,
     zresult: syn::Path,
     throw_exception: syn::Path,
@@ -121,6 +125,7 @@ impl Default for Builder {
             class_prefix: String::new(),
             function_suffix: String::new(),
             source_module: syn::parse_str("crate").unwrap(),
+            struct_source_module: None,
             owned_object: syn::parse_str("OwnedObject").unwrap(),
             zresult: syn::parse_str("ZResult").unwrap(),
             throw_exception: syn::parse_str("throw_exception").unwrap(),
@@ -155,6 +160,16 @@ impl Builder {
     /// functions being wrapped, e.g. `"zenoh_flat::session"`.
     pub fn source_module(mut self, path: impl AsRef<str>) -> Self {
         self.source_module = syn::parse_str(path.as_ref()).expect("invalid source_module path");
+        self
+    }
+
+    /// Fully-qualified path of the module that contains the `#[prebindgen]`
+    /// struct types (e.g. `"zenoh_flat::ext"`). When unset, defaults to
+    /// [`Builder::source_module`]. Used to qualify the struct type in
+    /// auto-generated decoders.
+    pub fn struct_source_module(mut self, path: impl AsRef<str>) -> Self {
+        self.struct_source_module =
+            Some(syn::parse_str(path.as_ref()).expect("invalid struct_source_module path"));
         self
     }
 
@@ -377,7 +392,9 @@ impl Builder {
         JniConverter {
             cfg: self,
             pending: VecDeque::new(),
+            buffered: false,
             kotlin_funs: Vec::new(),
+            kotlin_data_classes: Vec::new(),
             kotlin_used_fqns: BTreeSet::new(),
         }
     }
@@ -411,10 +428,19 @@ impl Default for KotlinConfig {
 pub struct JniConverter {
     cfg: Builder,
     pending: VecDeque<(syn::Item, SourceLocation)>,
+    /// `true` once the source iterator has been drained and sorted (structs
+    /// before functions) so that function-arg classification can see every
+    /// struct decoder the converter is going to auto-register.
+    buffered: bool,
     /// Accumulated Kotlin `external fun ...` blocks, one per wrapped function.
     /// Populated by `convert_fn` when Kotlin output is enabled, consumed by
     /// [`JniConverter::write_kotlin`].
     kotlin_funs: Vec<String>,
+    /// Accumulated Kotlin `data class ...` blocks, one per `#[prebindgen]`
+    /// struct seen in the source stream. Emitted by `write_kotlin` BEFORE the
+    /// `internal object { ... }` block so call sites in the same package can
+    /// see the types.
+    kotlin_data_classes: Vec<String>,
     /// Set of Kotlin FQNs referenced by the emitted externals. Used to derive
     /// the final `import` block (same-package and bare names are filtered
     /// out).
@@ -426,18 +452,26 @@ impl JniConverter {
         Builder::default()
     }
 
-    /// Pull one item from `iter`, convert it, and return it. Non-function
-    /// items are passed through unchanged. Returns `None` once `iter` is
-    /// exhausted and no buffered items remain.
+    /// Drain `iter` on the first call, sort so `#[prebindgen]` struct items
+    /// are processed before functions (so function-arg classification can see
+    /// every auto-registered struct decoder), then return converted items one
+    /// at a time from the buffer. Returns `None` once the buffer is drained.
     pub fn call<I>(&mut self, iter: &mut I) -> Option<(syn::Item, SourceLocation)>
     where
         I: Iterator<Item = (syn::Item, SourceLocation)>,
     {
-        if let Some(buf) = self.pending.pop_front() {
-            return Some(buf);
+        if !self.buffered {
+            self.buffered = true;
+            let mut all: Vec<(syn::Item, SourceLocation)> = iter.by_ref().collect();
+            // Stable sort: structs first (`false` < `true`), original order
+            // preserved within each group.
+            all.sort_by_key(|(it, _)| !matches!(it, syn::Item::Struct(_)));
+            for (item, loc) in all {
+                let converted = self.convert(item, &loc);
+                self.pending.push_back((converted, loc));
+            }
         }
-        let (item, loc) = iter.next()?;
-        Some((self.convert(item, &loc), loc))
+        self.pending.pop_front()
     }
 
     /// Closure suitable for `itertools::batching`.
@@ -512,6 +546,10 @@ impl JniConverter {
         if !imports.is_empty() {
             out.push('\n');
         }
+        for block in &self.kotlin_data_classes {
+            out.push_str(block);
+            out.push_str("\n\n");
+        }
         out.push_str(&format!("internal object {} {{\n", kt.class_name));
         if let Some(fqn) = kt.init_load_fqn.as_ref() {
             let short = fqn.rsplit('.').next().unwrap_or(fqn);
@@ -531,6 +569,7 @@ impl JniConverter {
     fn convert(&mut self, item: syn::Item, loc: &SourceLocation) -> syn::Item {
         match item {
             syn::Item::Fn(func) => syn::Item::Fn(self.convert_fn(func, loc)),
+            syn::Item::Struct(s) => self.convert_struct(s, loc),
             other => other,
         }
     }
@@ -976,6 +1015,155 @@ impl JniConverter {
         syn::parse2(tokens).expect("generated JNI wrapper must parse")
     }
 
+    /// Emit a JNI decoder for a `#[prebindgen]` struct and a matching Kotlin
+    /// `data class`. The struct item itself is NOT re-emitted into the output
+    /// stream — only the decoder function is — so the original type stays
+    /// solely in its home module (e.g. `zenoh_flat::ext`) and is referenced
+    /// from generated code by its fully-qualified path.
+    fn convert_struct(&mut self, s: syn::ItemStruct, loc: &SourceLocation) -> syn::Item {
+        let struct_name = s.ident.to_string();
+        let struct_ident = s.ident.clone();
+        let decoder_ident = format_ident!("decode_{}", struct_ident);
+        let zresult = self.cfg.zresult.clone();
+        let struct_module = self
+            .cfg
+            .struct_source_module
+            .clone()
+            .unwrap_or_else(|| self.cfg.source_module.clone());
+
+        let syn::Fields::Named(named) = &s.fields else {
+            panic!("tuple / unit structs are not supported at {loc}");
+        };
+
+        let mut field_preludes: Vec<TokenStream> = Vec::new();
+        let mut field_init: Vec<TokenStream> = Vec::new();
+        let mut kotlin_field_lines: Vec<String> = Vec::new();
+
+        for field in &named.named {
+            let fname_ident = field
+                .ident
+                .as_ref()
+                .unwrap_or_else(|| panic!("unnamed field in struct `{struct_name}` at {loc}"))
+                .clone();
+            let fname = fname_ident.to_string();
+            let kotlin_fname = snake_to_camel(&fname);
+            let err_prefix = format!("{struct_name}.{kotlin_fname}: {{}}");
+
+            let kind = self.classify_struct_field(&field.ty);
+            match kind {
+                StructFieldKind::Bool => {
+                    field_preludes.push(quote! {
+                        let #fname_ident = env.get_field(obj, #kotlin_fname, "Z")
+                            .and_then(|v| v.z())
+                            .map_err(|err| zerror!(#err_prefix, err))?;
+                    });
+                    field_init.push(quote! { #fname_ident });
+                    kotlin_field_lines
+                        .push(format!("    val {}: Boolean,", kotlin_fname));
+                }
+                StructFieldKind::I64 => {
+                    field_preludes.push(quote! {
+                        let #fname_ident = env.get_field(obj, #kotlin_fname, "J")
+                            .and_then(|v| v.j())
+                            .map_err(|err| zerror!(#err_prefix, err))?;
+                    });
+                    field_init.push(quote! { #fname_ident });
+                    kotlin_field_lines.push(format!("    val {}: Long,", kotlin_fname));
+                }
+                StructFieldKind::F64 => {
+                    field_preludes.push(quote! {
+                        let #fname_ident = env.get_field(obj, #kotlin_fname, "D")
+                            .and_then(|v| v.d())
+                            .map_err(|err| zerror!(#err_prefix, err))?;
+                    });
+                    field_init.push(quote! { #fname_ident });
+                    kotlin_field_lines.push(format!("    val {}: Double,", kotlin_fname));
+                }
+                StructFieldKind::Enum(decoder) => {
+                    let raw_ident = format_ident!("__{}_raw", fname_ident);
+                    field_preludes.push(quote! {
+                        let #raw_ident = env.get_field(obj, #kotlin_fname, "I")
+                            .and_then(|v| v.i())
+                            .map_err(|err| zerror!(#err_prefix, err))?;
+                        let #fname_ident = #decoder(#raw_ident)?;
+                    });
+                    field_init.push(quote! { #fname_ident });
+                    kotlin_field_lines.push(format!("    val {}: Int,", kotlin_fname));
+                }
+                StructFieldKind::Unsupported => panic!(
+                    "unsupported field type `{}` for `{}.{}` at {loc}",
+                    field.ty.to_token_stream(),
+                    struct_name,
+                    fname
+                ),
+            }
+        }
+
+        let tokens = quote! {
+            #[allow(non_snake_case, unused_mut, unused_variables)]
+            pub(crate) fn #decoder_ident(
+                env: &mut jni::JNIEnv,
+                obj: &jni::objects::JObject,
+            ) -> #zresult<#struct_module::#struct_ident> {
+                #(#field_preludes)*
+                Ok(#struct_module::#struct_ident {
+                    #(#field_init),*
+                })
+            }
+        };
+
+        // Auto-register the decoder for future function-arg classification.
+        // The decoder lives in the same module as the generated wrappers, so a
+        // bare `syn::Path` resolves correctly at the wrapper call sites.
+        let decoder_path: syn::Path = syn::parse_str(&format!("decode_{struct_name}"))
+            .expect("generated decoder ident must parse as path");
+        self.cfg
+            .struct_decoders
+            .insert(struct_name.clone(), decoder_path);
+        if let Some(kt) = self.cfg.kotlin.as_mut() {
+            // Same package as the generated Kotlin file → bare name, no FQN.
+            kt.struct_kotlin_types
+                .insert(struct_name.clone(), struct_name.clone());
+        }
+
+        // Accumulate the Kotlin data class for emission by write_kotlin.
+        if self.cfg.kotlin.is_some() {
+            let block = format!(
+                "data class {}(\n{}\n)",
+                struct_name,
+                kotlin_field_lines.join("\n")
+            );
+            self.kotlin_data_classes.push(block);
+        }
+
+        syn::parse2(tokens).expect("generated struct decoder must parse")
+    }
+
+    /// Classify a `#[prebindgen]` struct field's type for JNI round-tripping.
+    /// Scope is deliberately narrow (only what the current four configs need)
+    /// — an unsupported type panics so we notice new cases at codegen time.
+    fn classify_struct_field(&self, ty: &syn::Type) -> StructFieldKind {
+        let syn::Type::Path(tp) = ty else {
+            return StructFieldKind::Unsupported;
+        };
+        let Some(last) = tp.path.segments.last() else {
+            return StructFieldKind::Unsupported;
+        };
+        let name = last.ident.to_string();
+        match name.as_str() {
+            "bool" => StructFieldKind::Bool,
+            "i64" => StructFieldKind::I64,
+            "f64" => StructFieldKind::F64,
+            _ => {
+                if let Some(decoder) = self.cfg.enum_decoders.get(&name) {
+                    StructFieldKind::Enum(decoder.clone())
+                } else {
+                    StructFieldKind::Unsupported
+                }
+            }
+        }
+    }
+
     /// Resolve the Kotlin return-type FQN for a `ZResult<T>` inner type `T`.
     fn lookup_kotlin_return_type(&self, inner: &syn::Type, kt: &KotlinConfig) -> Option<String> {
         let syn::Type::Path(tp) = inner else { return None };
@@ -1081,6 +1269,17 @@ impl JniConverter {
             _ => ArgKind::Unsupported,
         }
     }
+}
+
+/// Field-type classification for `#[prebindgen]` struct fields — narrower
+/// than [`ArgKind`] because structs only need a round-trippable primitive /
+/// enum representation (no refs, no callbacks, no `Option<...>`).
+enum StructFieldKind {
+    Bool,
+    I64,
+    F64,
+    Enum(syn::Path),
+    Unsupported,
 }
 
 enum ArgKind {

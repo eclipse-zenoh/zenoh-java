@@ -28,9 +28,11 @@ use zenoh::{
 };
 
 #[cfg(feature = "zenoh-ext")]
+use crate::ext::{CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig};
+#[cfg(feature = "zenoh-ext")]
 use zenoh_ext::{
-    AdvancedPublisher, AdvancedPublisherBuilderExt, AdvancedSubscriber, AdvancedSubscriberBuilderExt,
-    CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig,
+    AdvancedPublisher, AdvancedPublisherBuilderExt, AdvancedSubscriber,
+    AdvancedSubscriberBuilderExt,
 };
 
 /// Open a Zenoh session using a borrowed configuration.
@@ -394,10 +396,10 @@ pub fn declare_advanced_subscriber(
         .callback(callback)
         .advanced();
     if let Some(history) = history {
-        builder = builder.history(history);
+        builder = builder.history(history.try_into()?);
     }
     if let Some(recovery) = recovery {
-        builder = builder.recovery(recovery);
+        builder = builder.recovery(recovery.try_into()?);
     }
     if subscriber_detection {
         builder = builder.subscriber_detection();
@@ -445,10 +447,10 @@ pub fn declare_advanced_publisher(
         .reliability(reliability)
         .advanced();
     if let Some(cache) = cache {
-        builder = builder.cache(cache);
+        builder = builder.cache(cache.try_into()?);
     }
     if let Some(miss_detection) = sample_miss_detection {
-        builder = builder.sample_miss_detection(miss_detection);
+        builder = builder.sample_miss_detection(miss_detection.try_into()?);
     }
     if publisher_detection {
         builder = builder.publisher_detection();

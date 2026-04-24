@@ -13,75 +13,13 @@
 //
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use jni::sys::jboolean;
 use jni::{objects::JClass, JNIEnv};
 use zenoh::handlers::{Callback, DefaultHandler};
 use zenoh::pubsub::Subscriber;
 use zenoh_ext::SampleMissListener;
-use zenoh_ext::{
-    AdvancedSubscriber, HistoryConfig, Miss, RecoveryConfig, SampleMissListenerBuilder,
-};
-
-/// Decode a Kotlin `io.zenoh.jni.ext.HistoryConfig` data-class instance into
-/// a zenoh-ext [`HistoryConfig`]. Matches field names `detectLatePublishers`,
-/// `maxSamples`, `maxAgeSeconds`.
-pub(crate) fn decode_history_config(env: &mut JNIEnv, obj: &JObject) -> ZResult<HistoryConfig> {
-    let detect_late_publishers = env
-        .get_field(obj, "detectLatePublishers", "Z")
-        .and_then(|v| v.z())
-        .map_err(|err| zerror!("HistoryConfig.detectLatePublishers: {}", err))?;
-    let max_samples = env
-        .get_field(obj, "maxSamples", "J")
-        .and_then(|v| v.j())
-        .map_err(|err| zerror!("HistoryConfig.maxSamples: {}", err))?;
-    let max_age_seconds = env
-        .get_field(obj, "maxAgeSeconds", "D")
-        .and_then(|v| v.d())
-        .map_err(|err| zerror!("HistoryConfig.maxAgeSeconds: {}", err))?;
-
-    let mut cfg = HistoryConfig::default();
-    if detect_late_publishers {
-        cfg = cfg.detect_late_publishers();
-    }
-    if max_samples > 0 {
-        let n: usize = max_samples
-            .try_into()
-            .map_err(|e: std::num::TryFromIntError| zerror!(e.to_string()))?;
-        cfg = cfg.max_samples(n);
-    }
-    if max_age_seconds > 0.0 {
-        cfg = cfg.max_age(max_age_seconds);
-    }
-    Ok(cfg)
-}
-
-/// Decode a Kotlin `io.zenoh.jni.ext.RecoveryConfig` data-class instance into
-/// a zenoh-ext [`RecoveryConfig`]. Matches field names `isHeartbeat`,
-/// `periodMs`. When `isHeartbeat` is `false`, `periodMs` is the
-/// `periodic_queries` period in milliseconds.
-pub(crate) fn decode_recovery_config(env: &mut JNIEnv, obj: &JObject) -> ZResult<RecoveryConfig> {
-    let is_heartbeat = env
-        .get_field(obj, "isHeartbeat", "Z")
-        .and_then(|v| v.z())
-        .map_err(|err| zerror!("RecoveryConfig.isHeartbeat: {}", err))?;
-    let period_ms = env
-        .get_field(obj, "periodMs", "J")
-        .and_then(|v| v.j())
-        .map_err(|err| zerror!("RecoveryConfig.periodMs: {}", err))?;
-
-    if is_heartbeat {
-        Ok(RecoveryConfig::default().heartbeat())
-    } else {
-        let dur = Duration::from_millis(
-            period_ms
-                .try_into()
-                .map_err(|e: std::num::TryFromIntError| zerror!(e.to_string()))?,
-        );
-        Ok(RecoveryConfig::default().periodic_queries(dur))
-    }
-}
+use zenoh_ext::{AdvancedSubscriber, Miss, SampleMissListenerBuilder};
 
 use crate::sample_callback::process_kotlin_sample_callback;
 use jni::objects::JObject;

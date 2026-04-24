@@ -7,6 +7,7 @@ fn main() {
         .class_prefix("Java_io_zenoh_jni_JNISessionNative_")
         .function_suffix("ViaJNI")
         .source_module("zenoh_flat::session")
+        .struct_source_module("zenoh_flat::ext")
         .owned_object("crate::owned_object::OwnedObject")
         .zresult("crate::errors::ZResult")
         .throw_exception("crate::throw_exception")
@@ -51,26 +52,6 @@ fn main() {
             "Encoding",
             "crate::utils::decode_jni_encoding",
             "JNIEncoding",
-        )
-        .struct_decoder(
-            "HistoryConfig",
-            "crate::ext::advanced_subscriber::decode_history_config",
-            "io.zenoh.jni.ext.HistoryConfig",
-        )
-        .struct_decoder(
-            "RecoveryConfig",
-            "crate::ext::advanced_subscriber::decode_recovery_config",
-            "io.zenoh.jni.ext.RecoveryConfig",
-        )
-        .struct_decoder(
-            "CacheConfig",
-            "crate::ext::advanced_publisher::decode_cache_config",
-            "io.zenoh.jni.ext.CacheConfig",
-        )
-        .struct_decoder(
-            "MissDetectionConfig",
-            "crate::ext::advanced_publisher::decode_miss_detection_config",
-            "io.zenoh.jni.ext.MissDetectionConfig",
         )
         .consume_arg("close_session", "session")
         .consume_arg("undeclare_key_expr", "key_expr")
