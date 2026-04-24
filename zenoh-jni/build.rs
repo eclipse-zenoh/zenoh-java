@@ -3,8 +3,8 @@ use itertools::Itertools;
 fn main() {
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
 
-    let converter = zenoh_flat::jni_converter::JniConverter::builder()
-        .class_prefix("Java_io_zenoh_jni_JNISession_")
+    let mut converter = zenoh_flat::jni_converter::JniConverter::builder()
+        .class_prefix("Java_io_zenoh_jni_JNISessionNative_")
         .function_suffix("ViaJNI")
         .source_module("zenoh_flat::session")
         .owned_object("crate::owned_object::OwnedObject")
@@ -12,6 +12,12 @@ fn main() {
         .throw_exception("crate::throw_exception")
         .string_decoder("crate::utils::decode_string")
         .byte_array_decoder("crate::utils::decode_byte_array")
+        .kotlin_output("../zenoh-jni/generated-kotlin/io/zenoh/jni/JNISessionNative.kt")
+        .kotlin_package("io.zenoh.jni")
+        .kotlin_class("JNISessionNative")
+        .kotlin_throws("io.zenoh.exceptions.ZError")
+        .kotlin_init("io.zenoh.ZenohLoad")
+        .kotlin_on_close("io.zenoh.jni.callbacks.JNIOnCloseCallback")
         .enum_decoder(
             "CongestionControl",
             "crate::utils::decode_congestion_control",
@@ -24,32 +30,47 @@ fn main() {
         .callback_decoder(
             "Sample",
             "crate::sample_callback::process_kotlin_sample_callback",
+            "io.zenoh.jni.callbacks.JNISubscriberCallback",
         )
         .callback_decoder(
             "Query",
             "crate::sample_callback::process_kotlin_query_callback",
+            "io.zenoh.jni.callbacks.JNIQueryableCallback",
         )
         .callback_decoder(
             "Reply",
             "crate::sample_callback::process_kotlin_reply_callback",
+            "io.zenoh.jni.callbacks.JNIGetCallback",
         )
-        .struct_decoder("KeyExpr", "crate::key_expr::decode_jni_key_expr")
-        .struct_decoder("Encoding", "crate::utils::decode_jni_encoding")
+        .struct_decoder(
+            "KeyExpr",
+            "crate::key_expr::decode_jni_key_expr",
+            "JNIKeyExpr",
+        )
+        .struct_decoder(
+            "Encoding",
+            "crate::utils::decode_jni_encoding",
+            "JNIEncoding",
+        )
         .struct_decoder(
             "HistoryConfig",
             "crate::ext::advanced_subscriber::decode_history_config",
+            "io.zenoh.jni.ext.HistoryConfig",
         )
         .struct_decoder(
             "RecoveryConfig",
             "crate::ext::advanced_subscriber::decode_recovery_config",
+            "io.zenoh.jni.ext.RecoveryConfig",
         )
         .struct_decoder(
             "CacheConfig",
             "crate::ext::advanced_publisher::decode_cache_config",
+            "io.zenoh.jni.ext.CacheConfig",
         )
         .struct_decoder(
             "MissDetectionConfig",
             "crate::ext::advanced_publisher::decode_miss_detection_config",
+            "io.zenoh.jni.ext.MissDetectionConfig",
         )
         .consume_arg("close_session", "session")
         .consume_arg("undeclare_key_expr", "key_expr")
@@ -58,18 +79,24 @@ fn main() {
             "jni::sys::jbyteArray",
             "crate::zenoh_id::zenoh_id_to_byte_array",
             "jni::objects::JByteArray::default().as_raw()",
+            "ByteArray",
         )
         .return_wrapper_vec(
             "ZenohId",
             "jni::sys::jobject",
             "crate::zenoh_id::zenoh_ids_to_java_list",
             "jni::objects::JObject::default().as_raw()",
+            "List<ByteArray>",
         )
         .build();
 
     source
         .items_all()
-        .batching(converter.into_closure())
+        .batching(converter.as_closure())
         .collect::<prebindgen::collect::Destination>()
         .write("zenoh_flat_jni.rs");
+
+    converter
+        .write_kotlin()
+        .expect("failed to write generated Kotlin file");
 }

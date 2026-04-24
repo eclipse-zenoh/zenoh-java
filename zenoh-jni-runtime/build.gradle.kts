@@ -59,7 +59,9 @@ kotlin {
 
     @Suppress("Unused")
     sourceSets {
-        val commonMain by getting {}
+        val commonMain by getting {
+            kotlin.srcDir("$rootDir/zenoh-jni/generated-kotlin")
+        }
         // jvmAndAndroidMain is an intermediate source set between commonMain and both jvmMain/androidMain.
         // It holds code that uses java.lang.reflect.Type — available on JVM and Android (ART),
         // but absent on Kotlin/Native and Kotlin/JS targets. Placing such code here (rather than
