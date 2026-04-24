@@ -30,24 +30,21 @@ public class JNIQuerier(private val ptr: Long) {
         onClose: JNIOnCloseCallback,
         attachmentBytes: ByteArray?,
         payload: ByteArray?,
-        encodingId: Int,
-        encodingSchema: String?,
+        encoding: JNIEncoding?,
     ) {
-        getViaJNI(ptr, jniKeyExpr?.ptr ?: 0, keyExprString, parameters, callback, onClose, attachmentBytes, payload, encodingId, encodingSchema)
+        getViaJNI(ptr, JNIKeyExpr.of(jniKeyExpr, keyExprString), parameters, callback, onClose, attachmentBytes, payload, encoding)
     }
 
     @Throws(ZError::class)
     private external fun getViaJNI(
         querierPtr: Long,
-        keyExprPtr: Long,
-        keyExprString: String,
+        keyExpr: JNIKeyExpr,
         parameters: String?,
         callback: JNIGetCallback,
         onClose: JNIOnCloseCallback,
         attachmentBytes: ByteArray?,
         payload: ByteArray?,
-        encodingId: Int,
-        encodingSchema: String?,
+        encoding: JNIEncoding?,
     )
 
     private external fun freePtrViaJNI(ptr: Long)

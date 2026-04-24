@@ -26,8 +26,8 @@ import io.zenoh.jni.callbacks.JNIOnCloseCallback
 public class JNIAdvancedPublisher(private val ptr: Long) {
 
     @Throws(ZError::class)
-    fun put(payload: ByteArray, encodingId: Int, encodingSchema: String?, attachment: ByteArray?) {
-        putViaJNI(ptr, payload, encodingId, encodingSchema, attachment)
+    fun put(payload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?) {
+        putViaJNI(ptr, payload, encoding, attachment)
     }
 
     @Throws(ZError::class)
@@ -52,7 +52,7 @@ public class JNIAdvancedPublisher(private val ptr: Long) {
 
     @Throws(ZError::class)
     private external fun putViaJNI(
-        ptr: Long, payload: ByteArray, encodingId: Int, encodingSchema: String?, attachment: ByteArray?
+        ptr: Long, payload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?
     )
 
     @Throws(ZError::class)

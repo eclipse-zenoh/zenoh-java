@@ -28,19 +28,18 @@ public class JNIQuery(private val ptr: Long) {
         jniKeyExpr: JNIKeyExpr?,
         keyExprString: String,
         payload: ByteArray,
-        encodingId: Int,
-        encodingSchema: String?,
+        encoding: JNIEncoding,
         timestampEnabled: Boolean,
         timestampNtp64: Long,
         attachment: ByteArray?,
         qosExpress: Boolean,
     ) {
-        replySuccessViaJNI(ptr, jniKeyExpr?.ptr ?: 0, keyExprString, payload, encodingId, encodingSchema, timestampEnabled, timestampNtp64, attachment, qosExpress)
+        replySuccessViaJNI(ptr, JNIKeyExpr.of(jniKeyExpr, keyExprString), payload, encoding, timestampEnabled, timestampNtp64, attachment, qosExpress)
     }
 
     @Throws(ZError::class)
-    fun replyError(errorPayload: ByteArray, encodingId: Int, encodingSchema: String?) {
-        replyErrorViaJNI(ptr, errorPayload, encodingId, encodingSchema)
+    fun replyError(errorPayload: ByteArray, encoding: JNIEncoding) {
+        replyErrorViaJNI(ptr, errorPayload, encoding)
     }
 
     @Throws(ZError::class)
@@ -52,7 +51,7 @@ public class JNIQuery(private val ptr: Long) {
         attachment: ByteArray?,
         qosExpress: Boolean,
     ) {
-        replyDeleteViaJNI(ptr, jniKeyExpr?.ptr ?: 0, keyExprString, timestampEnabled, timestampNtp64, attachment, qosExpress)
+        replyDeleteViaJNI(ptr, JNIKeyExpr.of(jniKeyExpr, keyExprString), timestampEnabled, timestampNtp64, attachment, qosExpress)
     }
 
     fun close() {
@@ -62,11 +61,9 @@ public class JNIQuery(private val ptr: Long) {
     @Throws(ZError::class)
     private external fun replySuccessViaJNI(
         queryPtr: Long,
-        keyExprPtr: Long,
-        keyExprString: String,
+        keyExpr: JNIKeyExpr,
         valuePayload: ByteArray,
-        valueEncodingId: Int,
-        valueEncodingSchema: String?,
+        valueEncoding: JNIEncoding,
         timestampEnabled: Boolean,
         timestampNtp64: Long,
         attachment: ByteArray?,
@@ -77,15 +74,13 @@ public class JNIQuery(private val ptr: Long) {
     private external fun replyErrorViaJNI(
         queryPtr: Long,
         errorValuePayload: ByteArray,
-        errorValueEncoding: Int,
-        encodingSchema: String?,
+        errorValueEncoding: JNIEncoding,
     )
 
     @Throws(ZError::class)
     private external fun replyDeleteViaJNI(
         queryPtr: Long,
-        keyExprPtr: Long,
-        keyExprString: String,
+        keyExpr: JNIKeyExpr,
         timestampEnabled: Boolean,
         timestampNtp64: Long,
         attachment: ByteArray?,

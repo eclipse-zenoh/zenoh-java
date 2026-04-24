@@ -329,3 +329,24 @@ pub(crate) unsafe fn process_kotlin_key_expr(
         Ok((*key_expr).clone())
     }
 }
+
+/// Decode a Kotlin `io.zenoh.jni.JNIKeyExpr` holder into a
+/// [`KeyExpr<'static>`]. The holder carries `ptr: Long` and `str: String`;
+/// `ptr != 0` means the KeyExpr was declared on a session and the pointer is
+/// an `Arc::into_raw(Arc::new(KeyExpr))`; `ptr == 0` means to build the
+/// expression from the string.
+pub(crate) unsafe fn decode_jni_key_expr(
+    env: &mut JNIEnv,
+    obj: &jni::objects::JObject,
+) -> ZResult<KeyExpr<'static>> {
+    let ptr = env
+        .get_field(obj, "ptr", "J")
+        .and_then(|v| v.j())
+        .map_err(|err| zerror!("JNIKeyExpr.ptr: {}", err))?;
+    let str_obj = env
+        .get_field(obj, "str", "Ljava/lang/String;")
+        .and_then(|v| v.l())
+        .map_err(|err| zerror!("JNIKeyExpr.str: {}", err))?;
+    let str_js: JString = str_obj.into();
+    process_kotlin_key_expr(env, &str_js, ptr as *const KeyExpr<'static>)
+}

@@ -16,19 +16,18 @@ use std::sync::Arc;
 
 use jni::{
     objects::{JByteArray, JClass, JObject, JString},
-    sys::jint,
     JNIEnv,
 };
-use zenoh::{key_expr::KeyExpr, query::Querier, Wait};
+use zenoh::{query::Querier, Wait};
 
 use crate::{
     errors::ZResult,
-    key_expr::process_kotlin_key_expr,
+    key_expr::decode_jni_key_expr,
     owned_object::OwnedObject,
     sample_callback::{on_reply_error, on_reply_success},
     throw_exception,
     utils::{
-        decode_byte_array, decode_encoding, decode_string, get_callback_global_ref, get_java_vm,
+        decode_byte_array, decode_jni_encoding, decode_string, get_callback_global_ref, get_java_vm,
         load_on_close,
     },
 };
@@ -59,19 +58,17 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_getViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     querier_ptr: *const Querier,
-    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
-    key_expr_str: JString,
+    key_expr: JObject,
     selector_params: /*nullable*/ JString,
     callback: JObject,
     on_close: JObject,
     attachment: /*nullable*/ JByteArray,
     payload: /*nullable*/ JByteArray,
-    encoding_id: jint,
-    encoding_schema: /*nullable*/ JString,
+    encoding: JObject,
 ) {
     let querier = OwnedObject::from_raw(querier_ptr);
     let _ = || -> ZResult<()> {
-        let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
+        let key_expr = decode_jni_key_expr(&mut env, &key_expr)?;
         let java_vm = Arc::new(get_java_vm(&mut env)?);
         let callback_global_ref = get_callback_global_ref(&mut env, callback)?;
         let on_close_global_ref = get_callback_global_ref(&mut env, on_close)?;
@@ -102,8 +99,10 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_getViaJNI(
         };
 
         if !payload.is_null() {
-            let encoding = decode_encoding(&mut env, encoding_id, &encoding_schema)?;
-            get_builder = get_builder.encoding(encoding);
+            if !encoding.is_null() {
+                let encoding = decode_jni_encoding(&mut env, &encoding)?;
+                get_builder = get_builder.encoding(encoding);
+            }
             get_builder = get_builder.payload(decode_byte_array(&env, payload)?);
         }
 

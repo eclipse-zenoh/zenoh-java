@@ -788,8 +788,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.consolidation.ordinal,
                 options.attachment?.into()?.bytes,
                 options.payload?.into()?.bytes,
-                options.encoding?.id ?: Encoding.defaultEncoding().id,
-                options.encoding?.schema,
+                options.encoding?.toJni(),
                 options.qos.congestionControl.value,
                 options.qos.priority.value,
                 options.qos.express,
@@ -838,8 +837,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.consolidation.ordinal,
                 options.attachment?.into()?.bytes,
                 options.payload?.into()?.bytes,
-                options.encoding?.id ?: Encoding.defaultEncoding().id,
-                options.encoding?.schema,
+                options.encoding?.toJni(),
                 options.qos.congestionControl.value,
                 options.qos.priority.value,
                 options.qos.express,
@@ -851,13 +849,12 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     internal fun resolvePut(keyExpr: KeyExpr, payload: IntoZBytes, putOptions: PutOptions) {
         jniSession?.run {
-            val encoding = putOptions.encoding ?: Encoding.defaultEncoding()
+            val encoding = (putOptions.encoding ?: Encoding.defaultEncoding()).toJni()
             put(
                 keyExpr.jniKeyExpr,
                 keyExpr.keyExpr,
                 payload.into().bytes,
-                encoding.id,
-                encoding.schema,
+                encoding,
                 putOptions.congestionControl.value,
                 putOptions.priority.value,
                 putOptions.express,

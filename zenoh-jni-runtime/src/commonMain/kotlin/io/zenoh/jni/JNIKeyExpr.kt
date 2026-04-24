@@ -17,13 +17,36 @@ package io.zenoh.jni
 import io.zenoh.ZenohLoad
 import io.zenoh.exceptions.ZError
 
-/** Adapter for native Zenoh key expressions. */
-public class JNIKeyExpr(internal val ptr: Long) {
+/**
+ * Adapter for native Zenoh key expressions.
+ *
+ * Carries both the native-handle pointer and the source string so it can be
+ * passed across JNI as a single `JObject`. `ptr == 0L` means "not declared on
+ * a session — use [str] at the native side"; `ptr != 0L` means "declared —
+ * use the pointer and ignore [str]".
+ */
+public class JNIKeyExpr(internal val ptr: Long, internal val str: String) {
 
     companion object {
         init {
             ZenohLoad
         }
+
+        /**
+         * Build a JNI holder for an undeclared key expression (string-only).
+         * Used at JNI call boundaries where the caller may not have a
+         * declared [JNIKeyExpr] and needs to pass the raw string instead.
+         */
+        fun undeclared(keyExpr: String): JNIKeyExpr = JNIKeyExpr(0L, keyExpr)
+
+        /**
+         * Build a JNI holder from an optional declared expression and a
+         * source string. If [declared] is non-null its pointer is preserved
+         * (and the string is passed along for diagnostics / fallback);
+         * otherwise the result represents the undeclared [keyExpr].
+         */
+        fun of(declared: JNIKeyExpr?, keyExpr: String): JNIKeyExpr =
+            declared ?: JNIKeyExpr(0L, keyExpr)
 
         @Throws(ZError::class)
         fun tryFrom(keyExpr: String): String = tryFromViaJNI(keyExpr)

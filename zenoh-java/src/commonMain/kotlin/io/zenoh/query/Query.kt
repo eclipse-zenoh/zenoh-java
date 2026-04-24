@@ -71,8 +71,7 @@ class Query internal constructor(
                 keyExpr.jniKeyExpr,
                 keyExpr.keyExpr,
                 zbytes.bytes,
-                encoding?.id ?: Encoding.defaultEncoding().id,
-                encoding?.schema,
+                (encoding ?: Encoding.defaultEncoding()).toJni(),
                 timestampEnabled,
                 if (timestampEnabled) timestamp!!.ntpValue() else 0,
                 options.attachment?.into()?.bytes,
@@ -130,7 +129,7 @@ class Query internal constructor(
     fun replyErr(message: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
         val encoding = options.encoding
         jniQuery?.apply {
-            replyError(message.into().bytes, encoding?.id ?: Encoding.defaultEncoding().id, encoding?.schema)
+            replyError(message.into().bytes, (encoding ?: Encoding.defaultEncoding()).toJni())
             jniQuery = null
         } ?: throw (ZError("Query is invalid"))
     }

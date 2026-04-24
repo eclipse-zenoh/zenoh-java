@@ -15,8 +15,7 @@
 use std::sync::Arc;
 
 use jni::{
-    objects::{JByteArray, JClass, JString},
-    sys::jint,
+    objects::{JByteArray, JClass, JObject},
     JNIEnv,
 };
 use zenoh::{pubsub::Publisher, Wait};
@@ -25,7 +24,7 @@ use crate::owned_object::OwnedObject;
 use crate::throw_exception;
 use crate::{
     errors::ZResult,
-    utils::{decode_byte_array, decode_encoding},
+    utils::{decode_byte_array, decode_jni_encoding},
 };
 
 /// Performs a PUT operation on a Zenoh publisher via JNI.
@@ -52,15 +51,14 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_putViaJNI(
     _class: JClass,
     publisher_ptr: *const Publisher<'static>,
     payload: JByteArray,
-    encoding_id: jint,
-    encoding_schema: /*nullable*/ JString,
+    encoding: JObject,
     attachment: /*nullable*/ JByteArray,
 ) {
     let publisher = OwnedObject::from_raw(publisher_ptr);
     let _ = || -> ZResult<()> {
         let payload = decode_byte_array(&env, payload)?;
         let mut publication = publisher.put(payload);
-        let encoding = decode_encoding(&mut env, encoding_id, &encoding_schema)?;
+        let encoding = decode_jni_encoding(&mut env, &encoding)?;
         publication = publication.encoding(encoding);
         if !attachment.is_null() {
             let attachment = decode_byte_array(&env, attachment)?;

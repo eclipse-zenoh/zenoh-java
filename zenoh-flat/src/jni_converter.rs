@@ -50,7 +50,6 @@ pub struct Builder {
     key_expr_decoder: Option<syn::Path>,
     string_decoder: Option<syn::Path>,
     byte_array_decoder: Option<syn::Path>,
-    encoding_decoder: Option<syn::Path>,
     enum_decoders: HashMap<String, syn::Path>,
     /// Map from callback element type name (e.g. `"Sample"`) to the decoder
     /// that builds an `impl Fn(T) + Send + Sync + 'static` closure from a
@@ -95,7 +94,6 @@ impl Default for Builder {
             key_expr_decoder: None,
             string_decoder: None,
             byte_array_decoder: None,
-            encoding_decoder: None,
             enum_decoders: HashMap::new(),
             callback_decoders: HashMap::new(),
             struct_decoders: HashMap::new(),
@@ -168,16 +166,6 @@ impl Builder {
     pub fn byte_array_decoder(mut self, path: impl AsRef<str>) -> Self {
         self.byte_array_decoder =
             Some(syn::parse_str(path.as_ref()).expect("invalid byte_array_decoder path"));
-        self
-    }
-
-    /// Path of the function that decodes an `Encoding` from a `(jint id,
-    /// &JString schema)` pair, e.g. `"crate::utils::decode_encoding"`.
-    /// The generated JNI signature splits the single `Encoding` parameter
-    /// into `<name>_id: jint` + `<name>_schema: JString`.
-    pub fn encoding_decoder(mut self, path: impl AsRef<str>) -> Self {
-        self.encoding_decoder =
-            Some(syn::parse_str(path.as_ref()).expect("invalid encoding_decoder path"));
         self
     }
 
@@ -384,13 +372,13 @@ impl JniConverter {
                     call_args.push(quote! { &#name });
                 }
                 ArgKind::KeyExpr => {
-                    let ptr_ident = format_ident!("{}_ptr", name);
                     if consume_set.contains(&name.to_string()) {
                         // Consume path: the declared KeyExpr is required (no
                         // string fallback). Arc::from_raw decrements the
                         // refcount at end of scope, freeing the handle once
                         // no other references remain. A cloned inner KeyExpr
                         // is passed to the callee by value.
+                        let ptr_ident = format_ident!("{}_ptr", name);
                         let arc_ident = format_ident!("__{}_arc", name);
                         jni_params.push(quote! {
                             #ptr_ident: *const zenoh::key_expr::KeyExpr<'static>
@@ -401,18 +389,17 @@ impl JniConverter {
                         });
                         call_args.push(quote! { #name });
                     } else {
+                        // Non-consume path: single `JObject` holder
+                        // (io.zenoh.jni.JNIKeyExpr) decoded via the
+                        // configured `key_expr_decoder`.
                         let decoder = self
                             .cfg
                             .key_expr_decoder
                             .as_ref()
                             .expect("key_expr_decoder not configured");
-                        let str_ident = format_ident!("{}_str", name);
-                        jni_params.push(quote! {
-                            #ptr_ident: *const zenoh::key_expr::KeyExpr<'static>
-                        });
-                        jni_params.push(quote! { #str_ident: jni::objects::JString });
+                        jni_params.push(quote! { #name: jni::objects::JObject });
                         prelude.push(quote! {
-                            let #name = #decoder(&mut env, &#str_ident, #ptr_ident)?;
+                            let #name = #decoder(&mut env, &#name)?;
                         });
                         call_args.push(quote! { #name });
                     }
@@ -482,36 +469,6 @@ impl JniConverter {
                     jni_params.push(quote! { #on_close_ident: jni::objects::JObject });
                     prelude.push(quote! {
                         let #name = #decoder(&mut env, #name, #on_close_ident)?;
-                    });
-                    call_args.push(quote! { #name });
-                }
-                ArgKind::Encoding => {
-                    let decoder = self
-                        .cfg
-                        .encoding_decoder
-                        .as_ref()
-                        .expect("encoding_decoder not configured");
-                    let id_ident = format_ident!("{}_id", name);
-                    let schema_ident = format_ident!("{}_schema", name);
-                    jni_params.push(quote! { #id_ident: jni::sys::jint });
-                    jni_params.push(quote! { #schema_ident: jni::objects::JString });
-                    prelude.push(quote! {
-                        let #name = #decoder(&mut env, #id_ident, &#schema_ident)?;
-                    });
-                    call_args.push(quote! { #name });
-                }
-                ArgKind::OptionEncoding => {
-                    let decoder = self
-                        .cfg
-                        .encoding_decoder
-                        .as_ref()
-                        .expect("encoding_decoder not configured");
-                    let id_ident = format_ident!("{}_id", name);
-                    let schema_ident = format_ident!("{}_schema", name);
-                    jni_params.push(quote! { #id_ident: jni::sys::jint });
-                    jni_params.push(quote! { #schema_ident: jni::objects::JString });
-                    prelude.push(quote! {
-                        let #name = Some(#decoder(&mut env, #id_ident, &#schema_ident)?);
                     });
                     call_args.push(quote! { #name });
                 }
@@ -681,9 +638,6 @@ impl JniConverter {
                 if name == "Duration" {
                     return ArgKind::Duration;
                 }
-                if name == "Encoding" {
-                    return ArgKind::Encoding;
-                }
                 if name == "Option" && is_option_of_vec_u8(last) {
                     return ArgKind::OptionVecU8;
                 }
@@ -691,9 +645,6 @@ impl JniConverter {
                     if let Some(inner) = option_inner_type_name(last) {
                         if inner == "String" {
                             return ArgKind::OptionString;
-                        }
-                        if inner == "Encoding" {
-                            return ArgKind::OptionEncoding;
                         }
                         if let Some(decoder) = self.cfg.struct_decoders.get(&inner) {
                             return ArgKind::OptionStructFromJObject(decoder.clone());
@@ -728,12 +679,6 @@ enum ArgKind {
     OptionVecU8,
     /// `Vec<u8>` → `JByteArray` decoded via `byte_array_decoder`.
     VecU8,
-    /// `Encoding` → `(jint id, JString schema)` pair via `encoding_decoder`.
-    Encoding,
-    /// `Option<Encoding>` → `(jint id, JString schema)` pair via `encoding_decoder`,
-    /// wrapped in `Some(_)`. Semantic gating on payload presence is the
-    /// callee's responsibility.
-    OptionEncoding,
     /// `Option<String>` → nullable `JString`.
     OptionString,
     /// Struct type registered via `struct_decoder` → single `JObject` arg

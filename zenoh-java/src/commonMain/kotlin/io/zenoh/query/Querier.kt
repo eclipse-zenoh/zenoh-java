@@ -179,8 +179,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
             fun() {},
             options.attachment?.into()?.bytes,
             options.payload?.into()?.bytes,
-            options.encoding?.id ?: Encoding.defaultEncoding().id,
-            options.encoding?.schema
+            options.encoding?.toJni()
         )
     }
 
@@ -214,8 +213,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
             handler::onClose,
             options.attachment?.into()?.bytes,
             options.payload?.into()?.bytes,
-            options.encoding?.id ?: Encoding.defaultEncoding().id,
-            options.encoding?.schema
+            options.encoding?.toJni()
         )
         return handler.receiver()
     }

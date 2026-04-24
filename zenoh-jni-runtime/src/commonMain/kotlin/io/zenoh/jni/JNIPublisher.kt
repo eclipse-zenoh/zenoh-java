@@ -24,8 +24,8 @@ import io.zenoh.exceptions.ZError
 public class JNIPublisher(private val ptr: Long) {
 
     @Throws(ZError::class)
-    fun put(payload: ByteArray, encodingId: Int, encodingSchema: String?, attachment: ByteArray?) {
-        putViaJNI(ptr, payload, encodingId, encodingSchema, attachment)
+    fun put(payload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?) {
+        putViaJNI(ptr, payload, encoding, attachment)
     }
 
     @Throws(ZError::class)
@@ -39,7 +39,7 @@ public class JNIPublisher(private val ptr: Long) {
 
     @Throws(ZError::class)
     private external fun putViaJNI(
-        ptr: Long, valuePayload: ByteArray, encodingId: Int, encodingSchema: String?, attachment: ByteArray?
+        ptr: Long, valuePayload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?
     )
 
     @Throws(ZError::class)

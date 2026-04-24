@@ -14,6 +14,8 @@
 
 package io.zenoh.bytes
 
+import io.zenoh.jni.JNIEncoding
+
 /**
  * Default encoding values used by Zenoh.
  *
@@ -499,4 +501,7 @@ class Encoding private constructor(
     override fun hashCode(): Int {
         return id.hashCode()
     }
+
+    /** Project this public [Encoding] into a JNI-boundary holder. */
+    internal fun toJni(): JNIEncoding = JNIEncoding(id, schema)
 }

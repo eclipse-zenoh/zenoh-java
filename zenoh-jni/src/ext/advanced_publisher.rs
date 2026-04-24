@@ -17,8 +17,7 @@ use std::time::Duration;
 
 use jni::objects::JValue;
 use jni::{
-    objects::{JByteArray, JClass, JString},
-    sys::jint,
+    objects::{JByteArray, JClass},
     JNIEnv,
 };
 use zenoh::handlers::{Callback, DefaultHandler};
@@ -109,7 +108,7 @@ pub(crate) fn decode_miss_detection_config(
 }
 use crate::{
     errors::ZResult,
-    utils::{decode_byte_array, decode_encoding},
+    utils::{decode_byte_array, decode_jni_encoding},
 };
 use jni::sys::jboolean;
 use std::ptr::null;
@@ -341,15 +340,14 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_putViaJNI(
     _class: JClass,
     publisher_ptr: *const AdvancedPublisher<'static>,
     payload: JByteArray,
-    encoding_id: jint,
-    encoding_schema: /*nullable*/ JString,
+    encoding: JObject,
     attachment: /*nullable*/ JByteArray,
 ) {
     let publisher = OwnedObject::from_raw(publisher_ptr);
     let _ = || -> ZResult<()> {
         let payload = decode_byte_array(&env, payload)?;
         let mut publication = publisher.put(payload);
-        let encoding = decode_encoding(&mut env, encoding_id, &encoding_schema)?;
+        let encoding = decode_jni_encoding(&mut env, &encoding)?;
         publication = publication.encoding(encoding);
         if !attachment.is_null() {
             let attachment = decode_byte_array(&env, attachment)?;

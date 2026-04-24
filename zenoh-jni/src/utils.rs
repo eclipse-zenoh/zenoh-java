@@ -53,6 +53,21 @@ pub(crate) fn decode_encoding(
     Ok(Encoding::new(encoding_id, schema))
 }
 
+/// Decode a Kotlin `io.zenoh.jni.JNIEncoding` holder into a zenoh [`Encoding`].
+/// Fields: `id: Int`, `schema: String?`.
+pub(crate) fn decode_jni_encoding(env: &mut JNIEnv, obj: &JObject) -> ZResult<Encoding> {
+    let id = env
+        .get_field(obj, "id", "I")
+        .and_then(|v| v.i())
+        .map_err(|err| zerror!("JNIEncoding.id: {}", err))?;
+    let schema_obj = env
+        .get_field(obj, "schema", "Ljava/lang/String;")
+        .and_then(|v| v.l())
+        .map_err(|err| zerror!("JNIEncoding.schema: {}", err))?;
+    let schema_js: JString = schema_obj.into();
+    decode_encoding(env, id, &schema_js)
+}
+
 pub(crate) fn get_java_vm(env: &mut JNIEnv) -> ZResult<JavaVM> {
     env.get_java_vm()
         .map_err(|err| zerror!("Unable to retrieve JVM reference: {}", err))

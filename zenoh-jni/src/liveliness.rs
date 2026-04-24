@@ -15,19 +15,18 @@
 use std::{ptr::null, sync::Arc, time::Duration};
 
 use jni::{
-    objects::{JClass, JObject, JString},
+    objects::{JClass, JObject},
     sys::{jboolean, jlong},
     JNIEnv,
 };
 
 use zenoh::{
-    internal::runtime::ZRuntime, key_expr::KeyExpr, liveliness::LivelinessToken,
-    pubsub::Subscriber, Session, Wait,
+    internal::runtime::ZRuntime, liveliness::LivelinessToken, pubsub::Subscriber, Session, Wait,
 };
 
 use crate::{
     errors::ZResult,
-    key_expr::process_kotlin_key_expr,
+    key_expr::decode_jni_key_expr,
     owned_object::OwnedObject,
     sample_callback::{on_reply_error, on_reply_success, process_kotlin_sample_callback},
     throw_exception,
@@ -40,15 +39,14 @@ pub extern "C" fn Java_io_zenoh_jni_JNISession_livelinessGetViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     session_ptr: *const Session,
-    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
-    key_expr_str: JString,
+    key_expr: JObject,
     callback: JObject,
     timeout_ms: jlong,
     on_close: JObject,
 ) {
     let session = unsafe { OwnedObject::from_raw(session_ptr) };
     let _ = || -> ZResult<()> {
-        let key_expr = unsafe { process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr) }?;
+        let key_expr = unsafe { decode_jni_key_expr(&mut env, &key_expr) }?;
         let java_vm = Arc::new(get_java_vm(&mut env)?);
         let callback_global_ref = get_callback_global_ref(&mut env, callback)?;
         let on_close_global_ref = get_callback_global_ref(&mut env, on_close)?;
@@ -103,12 +101,11 @@ pub extern "C" fn Java_io_zenoh_jni_JNISession_declareLivelinessTokenViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     session_ptr: *const Session,
-    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
-    key_expr_str: JString,
+    key_expr: JObject,
 ) -> *const LivelinessToken {
     let session = unsafe { OwnedObject::from_raw(session_ptr) };
     || -> ZResult<*const LivelinessToken> {
-        let key_expr = unsafe { process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr) }?;
+        let key_expr = unsafe { decode_jni_key_expr(&mut env, &key_expr) }?;
         tracing::trace!("Declaring liveliness token on '{key_expr}'.");
         let token = session
             .liveliness()
@@ -139,15 +136,14 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareLivelinessSubscribe
     mut env: JNIEnv,
     _class: JClass,
     session_ptr: *const Session,
-    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
-    key_expr_str: JString,
+    key_expr: JObject,
     callback: JObject,
     history: jboolean,
     on_close: JObject,
 ) -> *const Subscriber<()> {
     let session = OwnedObject::from_raw(session_ptr);
     || -> ZResult<*const Subscriber<()>> {
-        let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
+        let key_expr = decode_jni_key_expr(&mut env, &key_expr)?;
         tracing::debug!("Declaring liveliness subscriber on '{}'...", key_expr);
 
         let subscriber = session
