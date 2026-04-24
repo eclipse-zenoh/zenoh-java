@@ -12,7 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::ops::Deref;
 use std::sync::Arc;
 
 use jni::objects::JClass;
@@ -21,6 +20,7 @@ use jni::{objects::JString, JNIEnv};
 use zenoh::key_expr::KeyExpr;
 
 use crate::errors::ZResult;
+use crate::owned_object::OwnedObject;
 use crate::utils::decode_string;
 use crate::{throw_exception, zerror};
 
@@ -325,9 +325,7 @@ pub(crate) unsafe fn process_kotlin_key_expr(
             .map_err(|err| zerror!("Unable to get key expression string value: '{}'.", err))?;
         Ok(KeyExpr::from_string_unchecked(key_expr))
     } else {
-        let key_expr = Arc::from_raw(key_expr_ptr);
-        let key_expr_clone = key_expr.deref().clone();
-        std::mem::forget(key_expr);
-        Ok(key_expr_clone)
+        let key_expr = OwnedObject::from_raw(key_expr_ptr);
+        Ok((*key_expr).clone())
     }
 }

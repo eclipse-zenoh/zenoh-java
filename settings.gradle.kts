@@ -22,6 +22,7 @@ pluginManagement {
 rootProject.name = "zenoh-java"
 
 include(":zenoh-java")
+include(":zenoh-jni-runtime")
 include(":examples")
 include(":zenoh-jni")
 

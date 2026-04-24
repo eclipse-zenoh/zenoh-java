@@ -46,7 +46,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         fun loadDefault(): Config {
-            return JNIConfig.loadDefaultConfig()
+            return Config(JNIConfig.loadDefault())
         }
 
         /**
@@ -59,7 +59,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromFile(file: File): Config {
-            return JNIConfig.loadConfigFile(file)
+            return Config(JNIConfig.loadFromFile(file.toString()))
         }
 
         /**
@@ -72,7 +72,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromFile(path: Path): Config {
-            return JNIConfig.loadConfigFile(path)
+            return Config(JNIConfig.loadFromFile(path.toString()))
         }
 
         /**
@@ -87,7 +87,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromJson(config: String): Config {
-            return JNIConfig.loadJsonConfig(config)
+            return Config(JNIConfig.loadFromJson(config))
         }
 
         /**
@@ -102,7 +102,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromJson5(config: String): Config {
-            return JNIConfig.loadJson5Config(config)
+            return Config(JNIConfig.loadFromJson(config))
         }
 
         /**
@@ -117,7 +117,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromYaml(config: String): Config {
-            return JNIConfig.loadYamlConfig(config)
+            return Config(JNIConfig.loadFromYaml(config))
         }
 
         /**

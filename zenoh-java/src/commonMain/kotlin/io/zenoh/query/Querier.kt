@@ -18,16 +18,23 @@ import io.zenoh.annotations.Unstable
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
+import io.zenoh.bytes.into
+import io.zenoh.config.EntityGlobalId
+import io.zenoh.config.ZenohId
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
 import io.zenoh.jni.JNIQuerier
+import io.zenoh.jni.callbacks.JNIGetCallback
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
+import io.zenoh.sample.Sample
+import io.zenoh.sample.SampleKind
 import io.zenoh.session.SessionDeclaration
+import org.apache.commons.net.ntp.TimeStamp
 import java.time.Duration
 import java.util.Optional
 import java.util.concurrent.BlockingQueue
@@ -143,11 +150,74 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
     }
 
     private fun resolveGetWithCallback(keyExpr: KeyExpr, callback: Callback<Reply>, options: GetOptions) {
-        jniQuerier?.performGetWithCallback(keyExpr, callback, options) ?: throw ZError("Querier is not valid.")
+        val jni = jniQuerier ?: throw ZError("Querier is not valid.")
+        val getCallback = JNIGetCallback { replierZid, replierEid, success, keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
+            val reply: Reply = if (success) {
+                val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
+                Reply.Success(
+                    replierZid?.let { EntityGlobalId(ZenohId(it), replierEid.toUInt()) },
+                    Sample(
+                        KeyExpr(keyExpr2!!, null),
+                        payload.into(),
+                        Encoding(encodingId, schema = encodingSchema),
+                        SampleKind.fromInt(kind),
+                        timestamp,
+                        QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
+                        attachmentBytes?.into()
+                    )
+                )
+            } else {
+                Reply.Error(replierZid?.let { EntityGlobalId(ZenohId(it), replierEid.toUInt()) }, payload.into(), Encoding(encodingId, schema = encodingSchema))
+            }
+            callback.run(reply)
+        }
+        jni.get(
+            keyExpr.jniKeyExpr,
+            keyExpr.keyExpr,
+            options.parameters?.toString(),
+            getCallback,
+            fun() {},
+            options.attachment?.into()?.bytes,
+            options.payload?.into()?.bytes,
+            options.encoding?.id ?: Encoding.defaultEncoding().id,
+            options.encoding?.schema
+        )
     }
 
     private fun <R> resolveGetWithHandler(keyExpr: KeyExpr, handler: Handler<Reply, R>, options: GetOptions): R {
-        return jniQuerier?.performGetWithHandler(keyExpr, handler, options) ?: throw ZError("Querier is not valid.")
+        val jni = jniQuerier ?: throw ZError("Querier is not valid.")
+        val getCallback = JNIGetCallback { replierZid, replierEid, success, keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
+            val reply: Reply = if (success) {
+                val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
+                Reply.Success(
+                    replierZid?.let { EntityGlobalId(ZenohId(it), replierEid.toUInt()) },
+                    Sample(
+                        KeyExpr(keyExpr2!!, null),
+                        payload.into(),
+                        Encoding(encodingId, schema = encodingSchema),
+                        SampleKind.fromInt(kind),
+                        timestamp,
+                        QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
+                        attachmentBytes?.into()
+                    )
+                )
+            } else {
+                Reply.Error(replierZid?.let { EntityGlobalId(ZenohId(it), replierEid.toUInt()) }, payload.into(), Encoding(encodingId, schema = encodingSchema))
+            }
+            handler.handle(reply)
+        }
+        jni.get(
+            keyExpr.jniKeyExpr,
+            keyExpr.keyExpr,
+            options.parameters?.toString(),
+            getCallback,
+            handler::onClose,
+            options.attachment?.into()?.bytes,
+            options.payload?.into()?.bytes,
+            options.encoding?.id ?: Encoding.defaultEncoding().id,
+            options.encoding?.schema
+        )
+        return handler.receiver()
     }
 }
 

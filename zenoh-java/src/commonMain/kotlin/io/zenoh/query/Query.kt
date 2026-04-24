@@ -24,6 +24,7 @@ import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.QoS
 import io.zenoh.sample.Sample
 import io.zenoh.sample.SampleKind
+import org.apache.commons.net.ntp.TimeStamp
 
 /**
  * Represents a Zenoh Query in Kotlin.
@@ -61,17 +62,22 @@ class Query internal constructor(
     @Throws(ZError::class)
     @JvmOverloads
     fun reply(keyExpr: KeyExpr, payload: IntoZBytes, options: ReplyOptions = ReplyOptions()) {
-        val sample = Sample(
-            keyExpr,
-            payload.into(),
-            options.encoding,
-            SampleKind.PUT,
-            options.timeStamp,
-            QoS(options.congestionControl, options.priority, options.express),
-            options.attachment?.into()
-        )
+        val zbytes = payload.into()
+        val encoding = options.encoding
+        val timestamp = options.timeStamp
+        val timestampEnabled = timestamp != null
         jniQuery?.apply {
-            replySuccess(sample)
+            replySuccess(
+                keyExpr.jniKeyExpr,
+                keyExpr.keyExpr,
+                zbytes.bytes,
+                encoding?.id ?: Encoding.defaultEncoding().id,
+                encoding?.schema,
+                timestampEnabled,
+                if (timestampEnabled) timestamp!!.ntpValue() else 0,
+                options.attachment?.into()?.bytes,
+                QoS(options.congestionControl, options.priority, options.express).express
+            )
             jniQuery = null
         } ?: throw (ZError("Query is invalid"))
     }
@@ -98,12 +104,16 @@ class Query internal constructor(
     @JvmOverloads
     @Throws(ZError::class)
     fun replyDel(keyExpr: KeyExpr, options: ReplyDelOptions = ReplyDelOptions()) {
+        val timestamp = options.timeStamp
+        val timestampEnabled = timestamp != null
         jniQuery?.apply {
             replyDelete(
-                keyExpr,
-                options.timeStamp,
-                options.attachment,
-                QoS(options.congestionControl, options.priority, options.express),
+                keyExpr.jniKeyExpr,
+                keyExpr.keyExpr,
+                timestampEnabled,
+                if (timestampEnabled) timestamp!!.ntpValue() else 0,
+                options.attachment?.into()?.bytes,
+                QoS(options.congestionControl, options.priority, options.express).express
             )
             jniQuery = null
         } ?: throw (ZError("Query is invalid"))
@@ -118,8 +128,9 @@ class Query internal constructor(
     @JvmOverloads
     @Throws(ZError::class)
     fun replyErr(message: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
+        val encoding = options.encoding
         jniQuery?.apply {
-            replyError(message.into(), options.encoding)
+            replyError(message.into().bytes, encoding?.id ?: Encoding.defaultEncoding().id, encoding?.schema)
             jniQuery = null
         } ?: throw (ZError("Query is invalid"))
     }

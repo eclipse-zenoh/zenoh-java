@@ -79,13 +79,14 @@ class Publisher internal constructor(
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
     @Throws(ZError::class)
     fun put(payload: IntoZBytes) {
-        jniPublisher?.put(payload, encoding, null) ?: throw publisherNotValid
+        jniPublisher?.put(payload.into().bytes, encoding.id, encoding.schema, null) ?: throw publisherNotValid
     }
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
     @Throws(ZError::class)
     fun put(payload: IntoZBytes, options: PutOptions) {
-        jniPublisher?.put(payload, options.encoding ?: this.encoding, options.attachment) ?: throw publisherNotValid
+        val enc = options.encoding ?: this.encoding
+        jniPublisher?.put(payload.into().bytes, enc.id, enc.schema, options.attachment?.into()?.bytes) ?: throw publisherNotValid
     }
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
@@ -102,7 +103,7 @@ class Publisher internal constructor(
     @JvmOverloads
     @Throws(ZError::class)
     fun delete(options: DeleteOptions = DeleteOptions()) {
-        jniPublisher?.delete(options.attachment) ?: throw(publisherNotValid)
+        jniPublisher?.delete(options.attachment?.into()?.bytes) ?: throw(publisherNotValid)
     }
 
     /**
