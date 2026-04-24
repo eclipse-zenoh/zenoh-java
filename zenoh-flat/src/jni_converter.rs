@@ -18,7 +18,7 @@
 //!     .owned_object("crate::owned_object::OwnedObject")
 //!     .zresult("crate::errors::ZResult")
 //!     .throw_exception("crate::throw_exception")
-//!     .key_expr_decoder("crate::key_expr::process_kotlin_key_expr")
+//!     .struct_decoder("KeyExpr", "crate::key_expr::decode_jni_key_expr")
 //!     .enum_decoder("CongestionControl", "crate::utils::decode_congestion_control")
 //!     .build();
 //! source
@@ -47,7 +47,6 @@ pub struct Builder {
     owned_object: syn::Path,
     zresult: syn::Path,
     throw_exception: syn::Path,
-    key_expr_decoder: Option<syn::Path>,
     string_decoder: Option<syn::Path>,
     byte_array_decoder: Option<syn::Path>,
     enum_decoders: HashMap<String, syn::Path>,
@@ -91,7 +90,6 @@ impl Default for Builder {
             owned_object: syn::parse_str("OwnedObject").unwrap(),
             zresult: syn::parse_str("ZResult").unwrap(),
             throw_exception: syn::parse_str("throw_exception").unwrap(),
-            key_expr_decoder: None,
             string_decoder: None,
             byte_array_decoder: None,
             enum_decoders: HashMap::new(),
@@ -141,14 +139,6 @@ impl Builder {
     pub fn throw_exception(mut self, path: impl AsRef<str>) -> Self {
         self.throw_exception =
             syn::parse_str(path.as_ref()).expect("invalid throw_exception path");
-        self
-    }
-
-    /// Path of the function that decodes a `KeyExpr` from a `(ptr, JString)`
-    /// pair, e.g. `"crate::key_expr::process_kotlin_key_expr"`.
-    pub fn key_expr_decoder(mut self, path: impl AsRef<str>) -> Self {
-        self.key_expr_decoder =
-            Some(syn::parse_str(path.as_ref()).expect("invalid key_expr_decoder path"));
         self
     }
 
@@ -391,12 +381,12 @@ impl JniConverter {
                     } else {
                         // Non-consume path: single `JObject` holder
                         // (io.zenoh.jni.JNIKeyExpr) decoded via the
-                        // configured `key_expr_decoder`.
+                        // `KeyExpr` entry in `struct_decoders`.
                         let decoder = self
                             .cfg
-                            .key_expr_decoder
-                            .as_ref()
-                            .expect("key_expr_decoder not configured");
+                            .struct_decoders
+                            .get("KeyExpr")
+                            .expect("struct_decoder(\"KeyExpr\", ...) not configured");
                         jni_params.push(quote! { #name: jni::objects::JObject });
                         prelude.push(quote! {
                             let #name = #decoder(&mut env, &#name)?;

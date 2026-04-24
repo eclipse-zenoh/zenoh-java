@@ -10,7 +10,6 @@ fn main() {
         .owned_object("crate::owned_object::OwnedObject")
         .zresult("crate::errors::ZResult")
         .throw_exception("crate::throw_exception")
-        .key_expr_decoder("crate::key_expr::decode_jni_key_expr")
         .string_decoder("crate::utils::decode_string")
         .byte_array_decoder("crate::utils::decode_byte_array")
         .enum_decoder(
@@ -34,6 +33,7 @@ fn main() {
             "Reply",
             "crate::sample_callback::process_kotlin_reply_callback",
         )
+        .struct_decoder("KeyExpr", "crate::key_expr::decode_jni_key_expr")
         .struct_decoder("Encoding", "crate::utils::decode_jni_encoding")
         .struct_decoder(
             "HistoryConfig",
