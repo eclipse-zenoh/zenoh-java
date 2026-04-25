@@ -103,11 +103,11 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_getViaJNI(
                 let encoding = decode_jni_encoding(&mut env, &encoding)?;
                 get_builder = get_builder.encoding(encoding);
             }
-            get_builder = get_builder.payload(decode_byte_array(&env, payload)?);
+            get_builder = get_builder.payload(decode_byte_array(&mut env, &payload)?);
         }
 
         if !attachment.is_null() {
-            let attachment = decode_byte_array(&env, attachment)?;
+            let attachment = decode_byte_array(&mut env, &attachment)?;
             get_builder = get_builder.attachment::<Vec<u8>>(attachment);
         }
 

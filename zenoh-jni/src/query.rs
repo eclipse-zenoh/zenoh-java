@@ -70,7 +70,7 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replySuccessViaJNI(
     let _ = || -> ZResult<()> {
         let query = Arc::from_raw(query_ptr);
         let key_expr = decode_jni_key_expr(&mut env, &key_expr)?;
-        let payload = decode_byte_array(&env, payload)?;
+        let payload = decode_byte_array(&mut env, &payload)?;
         let mut reply_builder = query.reply(key_expr, payload);
         let encoding = decode_jni_encoding(&mut env, &encoding)?;
         reply_builder = reply_builder.encoding(encoding);
@@ -79,7 +79,7 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replySuccessViaJNI(
             reply_builder = reply_builder.timestamp(ts)
         }
         if !attachment.is_null() {
-            reply_builder = reply_builder.attachment(decode_byte_array(&env, attachment)?);
+            reply_builder = reply_builder.attachment(decode_byte_array(&mut env, &attachment)?);
         }
         reply_builder = reply_builder.express(qos_express != 0);
         reply_builder.wait().map_err(|err| zerror!(err))
@@ -117,7 +117,7 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replyErrorViaJNI(
         let query = Arc::from_raw(query_ptr);
         let encoding = decode_jni_encoding(&mut env, &encoding)?;
         query
-            .reply_err(decode_byte_array(&env, payload)?)
+            .reply_err(decode_byte_array(&mut env, &payload)?)
             .encoding(encoding)
             .wait()
             .map_err(|err| zerror!(err))
@@ -168,7 +168,7 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replyDeleteViaJNI(
             reply_builder = reply_builder.timestamp(ts)
         }
         if !attachment.is_null() {
-            reply_builder = reply_builder.attachment(decode_byte_array(&env, attachment)?);
+            reply_builder = reply_builder.attachment(decode_byte_array(&mut env, &attachment)?);
         }
         reply_builder = reply_builder.express(qos_express != 0);
         reply_builder.wait().map_err(|err| zerror!(err))

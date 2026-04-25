@@ -141,10 +141,15 @@ impl JniTypeBinding {
         self
     }
 
-    /// Pre-register built-in language types (`bool`, `Duration`) plus the
-    /// scaffolding for `String` / `Vec<u8>` (whose decoders are filled in by
-    /// `JniMethodsConverter::Builder::string_decoder` /
-    /// `JniMethodsConverter::Builder::byte_array_decoder`).
+    /// Pre-register built-in language types whose JNI form is fully described
+    /// without any project-specific decoder path: `bool` (inline `x != 0`)
+    /// and `Duration` (inline `Duration::from_millis(x as u64)`).
+    ///
+    /// Types whose decoder lives outside this crate — `String`, `Vec<u8>`,
+    /// callbacks, enums, opaque handles — are registered by the caller via
+    /// the universal [`JniTypeBinding::type_binding`] entry point. `Vec<u8>`
+    /// is keyed under the synthetic name `"VecU8"` (looked up explicitly by
+    /// the methods-phase classifier when it sees `Vec<u8>`).
     pub fn with_builtins(mut self) -> Self {
         // bool — jboolean, inline `x != 0`.
         self.types.insert(
@@ -166,14 +171,6 @@ impl JniTypeBinding {
                 })),
             )),
         );
-        // String — JString, decoder filled by string_decoder().
-        self.types
-            .insert("String".to_string(), TypeBinding::new("String"));
-        // Vec<u8> — keyed under the synthetic name "VecU8" (looked up
-        // explicitly by classify_arg when it sees `Vec<u8>`). Decoder filled
-        // by byte_array_decoder().
-        self.types
-            .insert("VecU8".to_string(), TypeBinding::new("VecU8"));
         self
     }
 }

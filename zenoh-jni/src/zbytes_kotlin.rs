@@ -261,7 +261,7 @@ fn serialize(
         }
         KotlinType::ByteArray => {
             let bytes =
-                decode_byte_array(env, JByteArray::from(any)).map_err(|err| zerror!(err))?;
+                decode_byte_array(env, &JByteArray::from(any)).map_err(|err| zerror!(err))?;
             serializer.serialize(bytes);
         }
         KotlinType::UByte => {
@@ -366,7 +366,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIZBytesKotlin_deserializeViaJNI(
     ktype: JObject,
 ) -> jobject {
     || -> ZResult<jobject> {
-        let raw = decode_byte_array(&env, bytes)?;
+        let raw = decode_byte_array(&mut env, &bytes)?;
         let zbytes = ZBytes::from(raw);
         let mut deserializer = ZDeserializer::new(&zbytes);
         let kotlin_type = decode_ktype(&mut env, ktype)?;

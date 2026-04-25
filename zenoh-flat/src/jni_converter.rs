@@ -53,9 +53,6 @@ pub use crate::jni_type_binding::TypeBinding;
 pub enum ArgDecode {
     /// `let <name> = <path>(&mut env, &<input>)?;`
     EnvRefMut(syn::Path),
-    /// `let <name> = <path>(&env, <input>)?;` — used by the legacy
-    /// `byte_array_decoder` calling convention.
-    EnvByVal(syn::Path),
     /// `let <name> = <path>(<input>)?;` — pure conversion (e.g. enum decoders).
     Pure(syn::Path),
     /// `let <name> = <expr>;` — inline transformation built from the input
@@ -81,13 +78,6 @@ impl ArgDecode {
     pub fn env_ref_mut(path: impl AsRef<str>) -> Self {
         ArgDecode::EnvRefMut(
             syn::parse_str(path.as_ref()).expect("invalid ArgDecode::env_ref_mut path"),
-        )
-    }
-
-    /// `ArgDecode::EnvByVal` from a path string.
-    pub fn env_by_val(path: impl AsRef<str>) -> Self {
-        ArgDecode::EnvByVal(
-            syn::parse_str(path.as_ref()).expect("invalid ArgDecode::env_by_val path"),
         )
     }
 }
@@ -221,12 +211,9 @@ impl Default for StructBuilder {
         Self {
             source_module: syn::parse_str("crate").unwrap(),
             zresult: syn::parse_str("ZResult").unwrap(),
-            // No `with_builtins` here: classify_struct_field only handles
-            // bool/i64/f64 (hardcoded) and enums (looked up from the user's
-            // shared bindings). Pre-registering String/VecU8/bool/Duration
-            // would also leak empty entries into the JniTypeBinding handed
-            // off to the methods phase, which would clobber the methods
-            // builder's `string_decoder` / `byte_array_decoder` config.
+            // No `with_builtins` here: `classify_struct_field` handles
+            // bool/i64/f64 directly and resolves enums from the shared
+            // bindings the caller merges in.
             types: JniTypeBinding::new(),
         }
     }
@@ -577,41 +564,6 @@ impl MethodsBuilder {
         self.types
             .kotlin_data_classes
             .extend(bindings.kotlin_data_classes);
-        self
-    }
-
-    /// Path of the function that decodes a `JString` into `String`. Used by
-    /// the built-in `String` binding.
-    pub fn string_decoder(mut self, path: impl AsRef<str>) -> Self {
-        let p: syn::Path = syn::parse_str(path.as_ref()).expect("invalid string_decoder path");
-        let entry = self
-            .types
-            .types
-            .get_mut("String")
-            .expect("built-in `String` binding missing");
-        entry.consume = Some(JniForm::new(
-            "jni::objects::JString",
-            "String",
-            ArgDecode::EnvRefMut(p),
-        ));
-        self
-    }
-
-    /// Path of the function that decodes a `JByteArray` into `Vec<u8>`. Used
-    /// by the built-in `Vec<u8>` binding (under the internal name `"VecU8"`).
-    pub fn byte_array_decoder(mut self, path: impl AsRef<str>) -> Self {
-        let p: syn::Path =
-            syn::parse_str(path.as_ref()).expect("invalid byte_array_decoder path");
-        let entry = self
-            .types
-            .types
-            .get_mut("VecU8")
-            .expect("built-in `VecU8` binding missing");
-        entry.consume = Some(JniForm::new(
-            "jni::objects::JByteArray",
-            "ByteArray",
-            ArgDecode::EnvByVal(p),
-        ));
         self
     }
 
@@ -1233,9 +1185,6 @@ impl JniMethodsConverter {
             ArgDecode::EnvRefMut(path) => {
                 prelude.push(quote! { let #name = #path(&mut env, &#pat)?; });
             }
-            ArgDecode::EnvByVal(path) => {
-                prelude.push(quote! { let #name = #path(&env, #pat)?; });
-            }
             ArgDecode::Pure(path) => {
                 prelude.push(quote! { let #name = #path(#pat)?; });
             }
@@ -1277,7 +1226,6 @@ impl JniMethodsConverter {
     fn decode_expr(&self, decode: &ArgDecode, input: &syn::Ident) -> TokenStream {
         match decode {
             ArgDecode::EnvRefMut(path) => quote! { #path(&mut env, &#input)? },
-            ArgDecode::EnvByVal(path) => quote! { #path(&env, #input)? },
             ArgDecode::Pure(path) => quote! { #path(#input)? },
             ArgDecode::Inline(f) => f.call(input),
             ArgDecode::OwnedRef => {

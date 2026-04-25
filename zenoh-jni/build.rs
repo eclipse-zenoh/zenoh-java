@@ -23,6 +23,23 @@ fn jobject_consume(name: &str, decoder: &str, kotlin: &str) -> TypeBinding {
 /// auto-registered struct bindings — into the methods-phase converter.
 fn shared_bindings() -> JniTypeBinding {
     JniTypeBinding::new()
+        .type_binding(
+            TypeBinding::new("String").consume(JniForm::new(
+                "jni::objects::JString",
+                "String",
+                ArgDecode::env_ref_mut("crate::utils::decode_string"),
+            )),
+        )
+        // `Vec<u8>` is keyed under the synthetic name "VecU8" — the
+        // methods-phase classifier looks it up explicitly when it sees
+        // `Vec<u8>`.
+        .type_binding(
+            TypeBinding::new("VecU8").consume(JniForm::new(
+                "jni::objects::JByteArray",
+                "ByteArray",
+                ArgDecode::env_ref_mut("crate::utils::decode_byte_array"),
+            )),
+        )
         .type_binding(jobject_consume(
             "impl Fn(Sample) + Send + Sync + 'static",
             "crate::sample_callback::process_kotlin_sample_callback",
@@ -132,8 +149,6 @@ fn main() {
         .owned_object("crate::owned_object::OwnedObject")
         .zresult("crate::errors::ZResult")
         .throw_exception("crate::throw_exception")
-        .string_decoder("crate::utils::decode_string")
-        .byte_array_decoder("crate::utils::decode_byte_array")
         .kotlin_output("../zenoh-jni/generated-kotlin/io/zenoh/jni/JNISessionNative.kt")
         .kotlin_package("io.zenoh.jni")
         .kotlin_class("JNISessionNative")

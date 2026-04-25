@@ -248,7 +248,7 @@ fn serialize(
         }
         JavaType::ByteArray => {
             let jbyte_array = JByteArray::from(any);
-            let bytes = decode_byte_array(env, jbyte_array).map_err(|err| zerror!(err))?;
+            let bytes = decode_byte_array(env, &jbyte_array).map_err(|err| zerror!(err))?;
             serializer.serialize(bytes);
         }
         JavaType::List(kotlin_type) => {
@@ -291,7 +291,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIZBytes_deserializeViaJNI(
     jtype: JObject,
 ) -> jobject {
     || -> ZResult<jobject> {
-        let decoded_bytes: Vec<u8> = decode_byte_array(&env, bytes)?;
+        let decoded_bytes: Vec<u8> = decode_byte_array(&mut env, &bytes)?;
         let zbytes = ZBytes::from(decoded_bytes);
         let mut deserializer = ZDeserializer::new(&zbytes);
         let jtype = decode_token_type(&mut env, jtype)?;
