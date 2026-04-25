@@ -1,5 +1,8 @@
 use itertools::Itertools;
-use zenoh_flat::jni_converter::{ArgDecode, JniForm, ReturnEncode, ReturnForm, TypeBinding};
+use zenoh_flat::jni_converter::{
+    ArgDecode, JniForm, JniMethodsConverter, JniStructConverter, ReturnEncode, ReturnForm,
+    TypeBinding,
+};
 use zenoh_flat::jni_type_binding::JniTypeBinding;
 
 fn enum_binding(name: &str, decoder: &str) -> TypeBinding {
@@ -14,10 +17,10 @@ fn jobject_consume(name: &str, decoder: &str, kotlin: &str) -> TypeBinding {
     ))
 }
 
-/// Type vocabulary shared across every `JniConverter` build in this crate.
-/// Defined once and ingested via `Builder::jni_type_binding(...)` so each
-/// generated JNI surface (session, publisher, subscriber, ...) sees the same
-/// types without duplicating registrations.
+/// Type vocabulary shared across every JNI surface generated in this crate.
+/// Defined once, threaded into the struct-phase converter (so struct field
+/// decoders can resolve enum types), then forwarded — together with the
+/// auto-registered struct bindings — into the methods-phase converter.
 fn shared_bindings() -> JniTypeBinding {
     JniTypeBinding::new()
         .type_binding(jobject_consume(
@@ -101,11 +104,31 @@ fn shared_bindings() -> JniTypeBinding {
 fn main() {
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
 
-    let mut converter = zenoh_flat::jni_converter::JniConverter::builder()
+    // Phase 1: process #[prebindgen] structs from zenoh_flat::ext.
+    // Each struct adds a TypeBinding (and a Kotlin data class) to the
+    // shared JniTypeBinding that we forward to the methods converter.
+    let mut struct_conv = JniStructConverter::builder()
+        .source_module("zenoh_flat::ext")
+        .zresult("crate::errors::ZResult")
+        .jni_type_binding(shared_bindings())
+        .build();
+
+    let struct_items: Vec<_> = source
+        .items_all()
+        .filter(|(item, loc)| {
+            matches!(item, syn::Item::Struct(_)) && loc.file.ends_with("/ext.rs")
+        })
+        .batching(struct_conv.as_closure())
+        .collect();
+
+    let types = struct_conv.into_jni_type_binding();
+
+    // Phase 2: process #[prebindgen] fns from zenoh_flat::session against
+    // the now fully-populated type registry.
+    let mut method_conv = JniMethodsConverter::builder()
         .class_prefix("Java_io_zenoh_jni_JNISessionNative_")
         .function_suffix("ViaJNI")
         .source_module("zenoh_flat::session")
-        .struct_source_module("zenoh_flat::ext")
         .owned_object("crate::owned_object::OwnedObject")
         .zresult("crate::errors::ZResult")
         .throw_exception("crate::throw_exception")
@@ -116,12 +139,29 @@ fn main() {
         .kotlin_class("JNISessionNative")
         .kotlin_throws("io.zenoh.exceptions.ZError")
         .kotlin_init("io.zenoh.ZenohLoad")
-        .jni_type_binding(shared_bindings())
+        .jni_type_binding(types)
         .build();
 
-    let bindings_file =source
+    let method_items: Vec<_> = source
         .items_all()
-        .batching(converter.as_closure())
+        .filter(|(item, loc)| {
+            matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/session.rs")
+        })
+        .batching(method_conv.as_closure())
+        .collect();
+
+    // Pass-through: items that are neither `#[prebindgen]` structs nor fns
+    // (e.g. the prebindgen feature-mismatch assertion `const _: () = { ... };`).
+    // The two converters intentionally panic on the wrong item kind, so any
+    // such items must bypass them and land directly in the destination.
+    let passthrough = source
+        .items_all()
+        .filter(|(item, _)| !matches!(item, syn::Item::Fn(_) | syn::Item::Struct(_)));
+
+    let bindings_file = struct_items
+        .into_iter()
+        .chain(method_items)
+        .chain(passthrough)
         .collect::<prebindgen::collect::Destination>()
         .write("zenoh_flat_jni.rs");
 
@@ -130,7 +170,7 @@ fn main() {
         bindings_file.display()
     );
 
-    converter
+    method_conv
         .write_kotlin()
         .expect("failed to write generated Kotlin file");
 }

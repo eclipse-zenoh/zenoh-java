@@ -4445,6 +4445,7 @@ dependencies = [
  "prebindgen",
  "rustc_version",
  "serde_yaml",
+ "syn 2.0.117",
  "tracing",
  "uhlc",
  "zenoh",

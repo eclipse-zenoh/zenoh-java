@@ -51,6 +51,7 @@ rustc_version = "0.4.0"
 prebindgen = "0.4.1"
 zenoh-flat = { path = "../zenoh-flat", features = ["zenoh-ext"] }
 itertools = "0.12"
+syn = "2"
 
 [profile.release]
 debug = false     # If you want debug symbol in release mode, set the env variable: RUSTFLAGS=-g

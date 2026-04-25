@@ -1,14 +1,14 @@
 //! Reusable collection of JNI type bindings.
 //!
 //! [`JniTypeBinding`] aggregates a set of [`TypeBinding`]s — including
-//! callback registrations, which live as [`crate::jni_converter::CallbackForm`]
-//! slots on the element type's binding — into a single value that can be
-//! defined once and ingested into many [`crate::jni_converter::Builder`]
-//! instances. Useful when a project emits several `JniConverter` outputs
-//! (e.g. one per JNI class) that share a common vocabulary of types.
+//! callback registrations, which live as `consume` slots on the element
+//! type's binding — into a single value that can be defined once and
+//! threaded through both phases of the JNI binding pipeline (a
+//! [`crate::jni_converter::JniStructConverter`] mutates it; a
+//! [`crate::jni_converter::JniMethodsConverter`] reads it).
 //!
 //! ```ignore
-//! use zenoh_flat::jni_converter::{ArgDecode, JniConverter, JniForm, TypeBinding};
+//! use zenoh_flat::jni_converter::{ArgDecode, JniForm, TypeBinding};
 //! use zenoh_flat::jni_type_binding::JniTypeBinding;
 //!
 //! let common = JniTypeBinding::new()
@@ -22,24 +22,13 @@
 //!             .pointer_param(true),
 //!         ),
 //!     );
-//!
-//! let session_converter = JniConverter::builder()
-//!     .class_prefix("Java_io_zenoh_jni_JNISessionNative_")
-//!     .jni_type_binding(common.clone())
-//!     // ...other builder calls...
-//!     .build();
-//!
-//! let publisher_converter = JniConverter::builder()
-//!     .class_prefix("Java_io_zenoh_jni_JNIPublisherNative_")
-//!     .jni_type_binding(common)
-//!     // ...other builder calls...
-//!     .build();
 //! ```
 
 use std::collections::HashMap;
 
-use quote::ToTokens;
-use crate::jni_converter::{JniForm, ReturnForm};
+use quote::{quote, ToTokens};
+
+use crate::jni_converter::{ArgDecode, InlineFn, JniForm, ReturnForm};
 
 /// Per-type description of how a Rust type is represented across the JNI
 /// boundary. A type may declare up to four forms:
@@ -117,14 +106,19 @@ impl TypeBinding {
     }
 }
 
-/// Reusable collection of [`TypeBinding`]s.
+/// Reusable collection of [`TypeBinding`]s plus the Kotlin `data class`
+/// strings produced by struct processing.
 ///
-/// Built fluently and consumed by
-/// [`crate::jni_converter::Builder::jni_type_binding`]. `Clone` so the same
-/// set can be ingested into multiple builders.
+/// The same value flows through both pipeline phases: the
+/// [`crate::jni_converter::JniStructConverter`] inserts an auto-generated
+/// `TypeBinding` plus a `data class` block for each `#[prebindgen]` struct
+/// it sees; the [`crate::jni_converter::JniMethodsConverter`] then reads the
+/// type registry to classify args/returns and reads the data-class strings
+/// when emitting the final Kotlin file.
 #[derive(Default, Clone)]
 pub struct JniTypeBinding {
     pub(crate) types: HashMap<String, TypeBinding>,
+    pub(crate) kotlin_data_classes: Vec<String>,
 }
 
 impl JniTypeBinding {
@@ -138,10 +132,48 @@ impl JniTypeBinding {
         self
     }
 
-    /// Merge another [`JniTypeBinding`] into this one. Entries in `other`
-    /// override entries with the same key in `self`.
+    /// Merge another [`JniTypeBinding`] into this one. Type entries in
+    /// `other` override entries with the same key in `self`; data-class
+    /// blocks are appended in order.
     pub fn merge(mut self, other: JniTypeBinding) -> Self {
         self.types.extend(other.types);
+        self.kotlin_data_classes.extend(other.kotlin_data_classes);
+        self
+    }
+
+    /// Pre-register built-in language types (`bool`, `Duration`) plus the
+    /// scaffolding for `String` / `Vec<u8>` (whose decoders are filled in by
+    /// `JniMethodsConverter::Builder::string_decoder` /
+    /// `JniMethodsConverter::Builder::byte_array_decoder`).
+    pub fn with_builtins(mut self) -> Self {
+        // bool — jboolean, inline `x != 0`.
+        self.types.insert(
+            "bool".to_string(),
+            TypeBinding::new("bool").consume(JniForm::new(
+                "jni::sys::jboolean",
+                "Boolean",
+                ArgDecode::Inline(InlineFn::new(|input| quote! { #input != 0 })),
+            )),
+        );
+        // Duration — jlong, inline `Duration::from_millis(x as u64)`.
+        self.types.insert(
+            "Duration".to_string(),
+            TypeBinding::new("Duration").consume(JniForm::new(
+                "jni::sys::jlong",
+                "Long",
+                ArgDecode::Inline(InlineFn::new(|input| {
+                    quote! { std::time::Duration::from_millis(#input as u64) }
+                })),
+            )),
+        );
+        // String — JString, decoder filled by string_decoder().
+        self.types
+            .insert("String".to_string(), TypeBinding::new("String"));
+        // Vec<u8> — keyed under the synthetic name "VecU8" (looked up
+        // explicitly by classify_arg when it sees `Vec<u8>`). Decoder filled
+        // by byte_array_decoder().
+        self.types
+            .insert("VecU8".to_string(), TypeBinding::new("VecU8"));
         self
     }
 }
