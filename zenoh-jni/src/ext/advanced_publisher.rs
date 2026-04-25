@@ -59,8 +59,8 @@ impl<'a> SetJniMatchingStatusCallback for MatchingListenerBuilder<'a, DefaultHan
         on_close: JObject,
     ) -> ZResult<Self::WithCallback> {
         let java_vm = Arc::new(get_java_vm(env)?);
-        let callback_global_ref = get_callback_global_ref(env, callback)?;
-        let on_close_global_ref = get_callback_global_ref(env, on_close)?;
+        let callback_global_ref = get_callback_global_ref(env, &callback)?;
+        let on_close_global_ref = get_callback_global_ref(env, &on_close)?;
         let on_close = load_on_close(&java_vm, on_close_global_ref);
 
         let builder = self.callback(move |matching_status| {

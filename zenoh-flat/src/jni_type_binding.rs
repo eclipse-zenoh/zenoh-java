@@ -43,7 +43,9 @@
 
 use std::collections::HashMap;
 
-use crate::jni_converter::{CallbackForm, TypeBinding};
+use crate::jni_converter::{
+    callback_binding_key, ArgDecode, JniForm, TypeBinding,
+};
 
 /// Reusable collection of [`TypeBinding`]s.
 ///
@@ -69,20 +71,26 @@ impl JniTypeBinding {
     /// Register a callback decoder. `element_type_name` is the last path
     /// segment of the callback's argument type (e.g. `"Sample"`); use
     /// `"()"` for zero-arg callbacks. The decoder must have signature
-    /// `fn(&mut JNIEnv, JObject) -> ZResult<impl Fn(T) + Send + Sync + 'static>`.
-    /// Sugar over [`JniTypeBinding::type_binding`] that fills in the
-    /// binding's [`CallbackForm`].
+    /// `fn(&mut JNIEnv, &JObject) -> ZResult<impl Fn(T) + Send + Sync + 'static>`.
+    ///
+    /// Sugar over [`JniTypeBinding::type_binding`] that builds an ordinary
+    /// [`TypeBinding`] keyed under `"impl Fn(<element>)"` with a `JObject`
+    /// `EnvRefMut` consume form — callbacks need no special-case classifier
+    /// or codegen path.
     pub fn callback_decoder(
         self,
-        element_type_name: impl Into<String>,
+        element_type_name: impl AsRef<str>,
         decoder: impl AsRef<str>,
         kotlin_type: impl Into<String>,
     ) -> Self {
-        let name = element_type_name.into();
-        let existing = self.types.get(&name).cloned();
-        let binding = existing
-            .unwrap_or_else(|| TypeBinding::new(name.clone()))
-            .callback(CallbackForm::new(decoder, kotlin_type));
+        let key = callback_binding_key(element_type_name.as_ref());
+        let binding = TypeBinding::new(key)
+            .kotlin(kotlin_type)
+            .consume(JniForm::new(
+                "jni::objects::JObject",
+                "JObject",
+                ArgDecode::env_ref_mut(decoder),
+            ));
         self.type_binding(binding)
     }
 

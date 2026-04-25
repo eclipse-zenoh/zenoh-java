@@ -48,8 +48,8 @@ pub extern "C" fn Java_io_zenoh_jni_JNISession_livelinessGetViaJNI(
     let _ = || -> ZResult<()> {
         let key_expr = unsafe { decode_jni_key_expr(&mut env, &key_expr) }?;
         let java_vm = Arc::new(get_java_vm(&mut env)?);
-        let callback_global_ref = get_callback_global_ref(&mut env, callback)?;
-        let on_close_global_ref = get_callback_global_ref(&mut env, on_close)?;
+        let callback_global_ref = get_callback_global_ref(&mut env, &callback)?;
+        let on_close_global_ref = get_callback_global_ref(&mut env, &on_close)?;
         let on_close = load_on_close(&java_vm, on_close_global_ref);
         let timeout = Duration::from_millis(timeout_ms as u64);
         let replies = session
@@ -146,7 +146,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareLivelinessSubscribe
         let key_expr = decode_jni_key_expr(&mut env, &key_expr)?;
         tracing::debug!("Declaring liveliness subscriber on '{}'...", key_expr);
 
-        let cb = process_kotlin_sample_callback(&mut env, callback)?;
+        let cb = process_kotlin_sample_callback(&mut env, &callback)?;
         let cb = wrap_with_on_close(&mut env, on_close, cb)?;
         let subscriber = session
             .liveliness()

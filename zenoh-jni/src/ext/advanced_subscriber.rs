@@ -56,8 +56,8 @@ impl<'a> SetJniSampleMissListenerCallback for SampleMissListenerBuilder<'a, Defa
         on_close: JObject,
     ) -> ZResult<Self::WithCallback> {
         let java_vm = Arc::new(get_java_vm(env)?);
-        let callback_global_ref = get_callback_global_ref(env, callback)?;
-        let on_close_global_ref = get_callback_global_ref(env, on_close)?;
+        let callback_global_ref = get_callback_global_ref(env, &callback)?;
+        let on_close_global_ref = get_callback_global_ref(env, &on_close)?;
         let on_close = load_on_close(&java_vm, on_close_global_ref);
 
         let builder = self.callback(move |miss| {
@@ -138,7 +138,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareDetectPu
             advanced_subscriber.key_expr()
         );
 
-        let cb = process_kotlin_sample_callback(&mut env, callback)?;
+        let cb = process_kotlin_sample_callback(&mut env, &callback)?;
         let cb = wrap_with_on_close(&mut env, on_close, cb)?;
         let detect_publishers_subscriber = advanced_subscriber
             .detect_publishers()
@@ -196,7 +196,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareBackgrou
             advanced_subscriber.key_expr()
         );
 
-        let cb = process_kotlin_sample_callback(&mut env, callback)?;
+        let cb = process_kotlin_sample_callback(&mut env, &callback)?;
         let cb = wrap_with_on_close(&mut env, on_close, cb)?;
         advanced_subscriber
             .detect_publishers()

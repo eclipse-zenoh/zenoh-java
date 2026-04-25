@@ -70,8 +70,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_getViaJNI(
     let _ = || -> ZResult<()> {
         let key_expr = decode_jni_key_expr(&mut env, &key_expr)?;
         let java_vm = Arc::new(get_java_vm(&mut env)?);
-        let callback_global_ref = get_callback_global_ref(&mut env, callback)?;
-        let on_close_global_ref = get_callback_global_ref(&mut env, on_close)?;
+        let callback_global_ref = get_callback_global_ref(&mut env, &callback)?;
+        let on_close_global_ref = get_callback_global_ref(&mut env, &on_close)?;
         let on_close = load_on_close(&java_vm, on_close_global_ref);
         let mut get_builder = querier.get().callback(move |reply| {
             || -> ZResult<()> {

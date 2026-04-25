@@ -75,7 +75,7 @@ pub(crate) fn get_java_vm(env: &mut JNIEnv) -> ZResult<JavaVM> {
 
 pub(crate) fn get_callback_global_ref(
     env: &mut JNIEnv,
-    callback: JObject,
+    callback: &JObject,
 ) -> crate::errors::ZResult<jni::objects::GlobalRef> {
     env.new_global_ref(callback)
         .map_err(|err| zerror!("Unable to get reference to the provided callback: {}", err))
@@ -190,7 +190,7 @@ where
     F: Fn(T) + Send + Sync + 'static,
 {
     let java_vm = Arc::new(get_java_vm(env)?);
-    let on_close_global_ref = get_callback_global_ref(env, on_close)?;
+    let on_close_global_ref = get_callback_global_ref(env, &on_close)?;
     let guard = load_on_close(&java_vm, on_close_global_ref);
     Ok(move |t| {
         guard.noop();

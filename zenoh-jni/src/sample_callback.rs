@@ -176,7 +176,7 @@ pub(crate) fn on_reply_error(
 
 pub(crate) unsafe fn process_kotlin_sample_callback(
     env: &mut JNIEnv,
-    callback: JObject,
+    callback: &JObject,
 ) -> ZResult<impl Fn(Sample) + Send + Sync + 'static> {
     let java_vm = Arc::new(get_java_vm(env)?);
     let callback_global_ref = get_callback_global_ref(env, callback)?;
@@ -245,7 +245,7 @@ pub(crate) unsafe fn process_kotlin_sample_callback(
 
 pub(crate) unsafe fn process_kotlin_reply_callback(
     env: &mut JNIEnv,
-    callback: JObject,
+    callback: &JObject,
 ) -> ZResult<impl Fn(Reply) + Send + Sync + 'static> {
     let java_vm = Arc::new(get_java_vm(env)?);
     let callback_global_ref = get_callback_global_ref(env, callback)?;
@@ -277,7 +277,7 @@ pub(crate) unsafe fn process_kotlin_reply_callback(
 
 pub(crate) unsafe fn process_kotlin_query_callback(
     env: &mut JNIEnv,
-    callback: JObject,
+    callback: &JObject,
 ) -> ZResult<impl Fn(Query) + Send + Sync + 'static> {
     let java_vm = Arc::new(get_java_vm(env)?);
     let callback_global_ref = get_callback_global_ref(env, callback)?;
@@ -306,7 +306,7 @@ pub(crate) unsafe fn process_kotlin_query_callback(
 /// `CallOnDrop` so the on-close fires when the subscription/query is dropped.
 pub(crate) unsafe fn process_kotlin_on_close_callback(
     env: &mut JNIEnv,
-    on_close: JObject,
+    on_close: &JObject,
 ) -> ZResult<impl Fn() + Send + Sync + 'static> {
     let java_vm = Arc::new(get_java_vm(env)?);
     let on_close_global_ref = get_callback_global_ref(env, on_close)?;

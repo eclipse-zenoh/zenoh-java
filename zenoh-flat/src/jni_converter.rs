@@ -11,14 +11,15 @@
 //! The converter is fully data-driven: every Rust type that can appear in a
 //! `#[prebindgen]` function's signature is described by a [`TypeBinding`]
 //! registered up-front via [`Builder::type_binding`]. A binding declares up to
-//! five forms:
+//! four forms:
 //!
 //! * `consume` — used when the type appears by value as a parameter (`T`);
 //! * `borrow`  — used when the type appears as a shared reference (`&T`);
-//! * `callback` — used when the type appears as the element of an
-//!   `impl Fn(T) + Send + Sync + 'static` parameter;
 //! * `returns` — used when the type appears in `ZResult<T>` as a return value;
 //! * `returns_vec` — used when the type appears as `ZResult<Vec<T>>`.
+//!
+//! `impl Fn(T) + Send + Sync + 'static` callback parameters reuse the
+//! `consume` form on a binding keyed under `"impl Fn(<element>)"`.
 //!
 //! Each form carries a JNI on-the-wire type (e.g. `jni::sys::jlong`,
 //! `jni::objects::JObject`, `*const Foo`), the Kotlin-side declaration, and a
@@ -76,10 +77,14 @@ use prebindgen::SourceLocation;
 // =====================================================================
 
 /// Per-type description of how a Rust type is represented across the JNI
-/// boundary. A type may declare up to five forms:
-/// `consume` (`T` parameter), `borrow` (`&T` parameter), `callback`
-/// (`impl Fn(T) + Send + Sync + 'static` parameter), `returns`
+/// boundary. A type may declare up to four forms:
+/// `consume` (`T` parameter), `borrow` (`&T` parameter), `returns`
 /// (`ZResult<T>` return), and `returns_vec` (`ZResult<Vec<T>>` return).
+///
+/// Callback parameters (`impl Fn(T) + Send + Sync + 'static`) are described
+/// by an ordinary `consume` form on a binding keyed under
+/// `"impl Fn(<element>)"` (e.g. `"impl Fn(Sample)"`, `"impl Fn()"`). The
+/// classifier synthesizes that key when it sees an `impl Fn(...)` parameter.
 #[derive(Clone)]
 pub struct TypeBinding {
     name: String,
@@ -91,7 +96,6 @@ pub struct TypeBinding {
     kotlin_type: Option<String>,
     consume: Option<JniForm>,
     borrow: Option<JniForm>,
-    callback: Option<CallbackForm>,
     returns: Option<ReturnForm>,
     returns_vec: Option<ReturnForm>,
 }
@@ -207,28 +211,6 @@ impl JniForm {
     }
 }
 
-/// Describes how an `impl Fn(T) + Send + Sync + 'static` callback parameter
-/// (keyed under the element type `T`) is decoded. The decoder must have
-/// signature
-/// `fn(&mut JNIEnv, JObject) -> ZResult<impl Fn(T) + Send + Sync + 'static>`.
-#[derive(Clone)]
-pub struct CallbackForm {
-    pub(crate) decoder: syn::Path,
-    /// Kotlin FQN of the callback interface, e.g.
-    /// `"io.zenoh.jni.callbacks.JNISubscriberCallback"`.
-    pub(crate) kotlin_type: String,
-}
-
-impl CallbackForm {
-    pub fn new(decoder: impl AsRef<str>, kotlin_type: impl Into<String>) -> Self {
-        Self {
-            decoder: syn::parse_str(decoder.as_ref())
-                .expect("invalid CallbackForm decoder path"),
-            kotlin_type: kotlin_type.into(),
-        }
-    }
-}
-
 #[derive(Clone)]
 pub enum ReturnEncode {
     /// `Ok(<path>(&mut env, __result)?)` — wrapping function returns
@@ -280,7 +262,6 @@ impl TypeBinding {
             kotlin_type: None,
             consume: None,
             borrow: None,
-            callback: None,
             returns: None,
             returns_vec: None,
         }
@@ -298,11 +279,6 @@ impl TypeBinding {
 
     pub fn borrow(mut self, form: JniForm) -> Self {
         self.borrow = Some(form);
-        self
-    }
-
-    pub fn callback(mut self, form: CallbackForm) -> Self {
-        self.callback = Some(form);
         self
     }
 
@@ -516,24 +492,6 @@ impl Builder {
             ArgDecode::EnvByVal(p),
         ));
         self
-    }
-
-    /// Register a decoder for an `impl Fn(T) + Send + Sync + 'static` callback
-    /// parameter. `element_type_name` is the last path segment of `T`
-    /// (e.g. `"Sample"`, `"Query"`, `"Reply"`, `"()"`). Sugar over
-    /// [`Builder::type_binding`] that fills in the binding's [`CallbackForm`].
-    pub fn callback_decoder(
-        self,
-        element_type_name: impl Into<String>,
-        decoder: impl AsRef<str>,
-        kotlin_type: impl Into<String>,
-    ) -> Self {
-        let name = element_type_name.into();
-        let existing = self.types.get(&name).cloned();
-        let binding = existing
-            .unwrap_or_else(|| TypeBinding::new(name.clone()))
-            .callback(CallbackForm::new(decoder, kotlin_type));
-        self.type_binding(binding)
     }
 
     /// Enable Kotlin-side prototype generation. `path` is where the `.kt`
@@ -1124,11 +1082,12 @@ impl JniConverter {
             }
             syn::Type::ImplTrait(it) => {
                 if let Some(elem) = extract_fn_arg_type_name(&it.bounds) {
-                    if let Some(binding) = self.cfg.types.get(&elem) {
-                        if let Some(form) = binding.callback.as_ref() {
-                            return ArgKind::Callback {
-                                decoder: form.decoder.clone(),
-                                kotlin_type: form.kotlin_type.clone(),
+                    let key = callback_binding_key(&elem);
+                    if let Some(binding) = self.cfg.types.get(&key) {
+                        if let Some(form) = binding.consume.as_ref() {
+                            return ArgKind::Consume {
+                                form: form.clone(),
+                                kotlin_override: binding.kotlin_type.clone(),
                             };
                         }
                     }
@@ -1275,24 +1234,6 @@ impl JniConverter {
                     ));
                 }
             }
-            ArgKind::Callback {
-                decoder,
-                kotlin_type,
-            } => {
-                jni_params.push(quote! { #name: jni::objects::JObject });
-                prelude.push(quote! {
-                    let #name = #decoder(&mut env, #name)?;
-                });
-                call_args.push(quote! { #name });
-                if kt_enabled {
-                    let cb_short = kotlin_register_fqn(&kotlin_type, local_kotlin_fqns);
-                    kotlin_params.push(format!(
-                        "{}: {}",
-                        kotlin_param_name(&name.to_string(), false),
-                        cb_short
-                    ));
-                }
-            }
             ArgKind::Unsupported => panic!(
                 "unsupported parameter type `{}` for `{}` at {loc}",
                 ty.to_token_stream(),
@@ -1417,10 +1358,6 @@ enum ArgKind {
         form: JniForm,
         kotlin_override: Option<String>,
     },
-    Callback {
-        decoder: syn::Path,
-        kotlin_type: String,
-    },
     Unsupported,
 }
 
@@ -1452,6 +1389,18 @@ fn jni_object_kind(ty: &syn::Type) -> Option<JniObjectKind> {
         "JString" => Some(JniObjectKind::JString),
         "JByteArray" => Some(JniObjectKind::JByteArray),
         _ => None,
+    }
+}
+
+/// Synthesize the type-registry key for an `impl Fn(<element>)` parameter.
+/// `"Sample"` → `"impl Fn(Sample)"`; `"()"` → `"impl Fn()"`. Used by
+/// `classify_arg` and by `JniTypeBinding::callback_decoder` so both ends
+/// agree on the lookup name.
+pub fn callback_binding_key(element_type_name: &str) -> String {
+    if element_type_name == "()" {
+        "impl Fn()".to_string()
+    } else {
+        format!("impl Fn({})", element_type_name)
     }
 }
 
