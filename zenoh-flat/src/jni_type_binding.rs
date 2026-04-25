@@ -21,11 +21,6 @@
 //!             )
 //!             .pointer_param(true),
 //!         ),
-//!     )
-//!     .callback_decoder(
-//!         "Sample",
-//!         "crate::sample_callback::process_kotlin_sample_callback",
-//!         "io.zenoh.jni.callbacks.JNISubscriberCallback",
 //!     );
 //!
 //! let session_converter = JniConverter::builder()
@@ -43,9 +38,7 @@
 
 use std::collections::HashMap;
 
-use crate::jni_converter::{
-    callback_binding_key, ArgDecode, JniForm, TypeBinding,
-};
+use crate::jni_converter::TypeBinding;
 
 /// Reusable collection of [`TypeBinding`]s.
 ///
@@ -66,32 +59,6 @@ impl JniTypeBinding {
     pub fn type_binding(mut self, binding: TypeBinding) -> Self {
         self.types.insert(binding.name().to_string(), binding);
         self
-    }
-
-    /// Register a callback decoder. `element_type_name` is the last path
-    /// segment of the callback's argument type (e.g. `"Sample"`); use
-    /// `"()"` for zero-arg callbacks. The decoder must have signature
-    /// `fn(&mut JNIEnv, &JObject) -> ZResult<impl Fn(T) + Send + Sync + 'static>`.
-    ///
-    /// Sugar over [`JniTypeBinding::type_binding`] that builds an ordinary
-    /// [`TypeBinding`] keyed under `"impl Fn(<element>)"` with a `JObject`
-    /// `EnvRefMut` consume form — callbacks need no special-case classifier
-    /// or codegen path.
-    pub fn callback_decoder(
-        self,
-        element_type_name: impl AsRef<str>,
-        decoder: impl AsRef<str>,
-        kotlin_type: impl Into<String>,
-    ) -> Self {
-        let key = callback_binding_key(element_type_name.as_ref());
-        let binding = TypeBinding::new(key)
-            .kotlin(kotlin_type)
-            .consume(JniForm::new(
-                "jni::objects::JObject",
-                "JObject",
-                ArgDecode::env_ref_mut(decoder),
-            ));
-        self.type_binding(binding)
     }
 
     /// Merge another [`JniTypeBinding`] into this one. Entries in `other`

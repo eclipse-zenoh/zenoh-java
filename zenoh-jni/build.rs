@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use zenoh_flat::jni_converter::{ArgDecode, JniForm, ReturnEncode, ReturnForm, TypeBinding};
+use zenoh_flat::jni_converter::{callback_binding_key, ArgDecode, JniForm, ReturnEncode, ReturnForm, TypeBinding};
 use zenoh_flat::jni_type_binding::JniTypeBinding;
 
 fn enum_binding(name: &str, decoder: &str) -> TypeBinding {
@@ -14,32 +14,42 @@ fn jobject_consume(name: &str, decoder: &str, kotlin: &str) -> TypeBinding {
     ))
 }
 
+fn callback_binding(name: &str, decoder: &str, kotlin: &str) -> TypeBinding {
+    TypeBinding::new(callback_binding_key(name))
+        .kotlin(kotlin)
+        .consume(JniForm::new(
+            "jni::objects::JObject",
+            "JObject",
+            ArgDecode::env_ref_mut(decoder),
+        ))
+}
+
 /// Type vocabulary shared across every `JniConverter` build in this crate.
 /// Defined once and ingested via `Builder::jni_type_binding(...)` so each
 /// generated JNI surface (session, publisher, subscriber, ...) sees the same
 /// types without duplicating registrations.
 fn shared_bindings() -> JniTypeBinding {
     JniTypeBinding::new()
-        .callback_decoder(
+        .type_binding(callback_binding(
             "Sample",
             "crate::sample_callback::process_kotlin_sample_callback",
             "io.zenoh.jni.callbacks.JNISubscriberCallback",
-        )
-        .callback_decoder(
+        ))
+        .type_binding(callback_binding(
             "Query",
             "crate::sample_callback::process_kotlin_query_callback",
             "io.zenoh.jni.callbacks.JNIQueryableCallback",
-        )
-        .callback_decoder(
+        ))
+        .type_binding(callback_binding(
             "Reply",
             "crate::sample_callback::process_kotlin_reply_callback",
             "io.zenoh.jni.callbacks.JNIGetCallback",
-        )
-        .callback_decoder(
+        ))
+        .type_binding(callback_binding(
             "()",
             "crate::sample_callback::process_kotlin_on_close_callback",
             "io.zenoh.jni.callbacks.JNIOnCloseCallback",
-        )
+        ))
         .type_binding(enum_binding(
             "CongestionControl",
             "crate::utils::decode_congestion_control",

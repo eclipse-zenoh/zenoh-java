@@ -1394,8 +1394,7 @@ fn jni_object_kind(ty: &syn::Type) -> Option<JniObjectKind> {
 
 /// Synthesize the type-registry key for an `impl Fn(<element>)` parameter.
 /// `"Sample"` → `"impl Fn(Sample)"`; `"()"` → `"impl Fn()"`. Used by
-/// `classify_arg` and by `JniTypeBinding::callback_decoder` so both ends
-/// agree on the lookup name.
+/// `classify_arg` and by callback bindings so both ends agree on the lookup name.
 pub fn callback_binding_key(element_type_name: &str) -> String {
     if element_type_name == "()" {
         "impl Fn()".to_string()
