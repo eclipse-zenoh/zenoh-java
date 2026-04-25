@@ -93,10 +93,6 @@ pub(crate) struct KotlinConfig {
     /// FQN of a singleton referenced inside the generated `init { ... }` block
     /// to force native-library loading — `None` disables the `init`.
     init_load_fqn: Option<String>,
-    /// FQN of the on-close callback type (typically
-    /// `io.zenoh.jni.callbacks.JNIOnCloseCallback`). Used for the synthetic
-    /// `<name>OnClose` parameter injected for every callback arg.
-    on_close_callback_fqn: String,
     /// Per-source-type Kotlin names (FQN or bare) for struct-decoded args.
     struct_kotlin_types: HashMap<String, String>,
     /// Per-element-type Kotlin names for callback args (e.g. `Sample` →
@@ -381,13 +377,6 @@ impl Builder {
         self
     }
 
-    /// FQN of the Kotlin on-close callback type used for the synthetic
-    /// `<name>OnClose` parameter injected for each callback argument.
-    pub fn kotlin_on_close(mut self, fqn: impl Into<String>) -> Self {
-        self.kotlin.get_or_insert_with(KotlinConfig::default).on_close_callback_fqn = fqn.into();
-        self
-    }
-
     pub fn build(self) -> JniConverter {
         JniConverter {
             cfg: self,
@@ -408,7 +397,6 @@ impl Default for KotlinConfig {
             class_name: String::new(),
             throws_class_fqn: None,
             init_load_fqn: None,
-            on_close_callback_fqn: String::new(),
             struct_kotlin_types: HashMap::new(),
             callback_kotlin_types: HashMap::new(),
             return_kotlin_types: HashMap::new(),
@@ -778,11 +766,9 @@ impl JniConverter {
                     }
                 }
                 ArgKind::Callback { decoder, element_type_name } => {
-                    let on_close_ident = format_ident!("{}_on_close", name);
                     jni_params.push(quote! { #name: jni::objects::JObject });
-                    jni_params.push(quote! { #on_close_ident: jni::objects::JObject });
                     prelude.push(quote! {
-                        let #name = #decoder(&mut env, #name, #on_close_ident)?;
+                        let #name = #decoder(&mut env, #name)?;
                     });
                     call_args.push(quote! { #name });
                     if let Some(kt) = kt_cfg {
@@ -792,16 +778,10 @@ impl JniConverter {
                                 element_type_name
                             ));
                         let cb_short = kotlin_register_fqn(&cb_fqn, &mut local_kotlin_fqns);
-                        let oc_short = kotlin_register_fqn(&kt.on_close_callback_fqn, &mut local_kotlin_fqns);
                         kotlin_params.push(format!(
                             "{}: {}",
                             kotlin_param_name(&name.to_string(), false),
                             cb_short
-                        ));
-                        kotlin_params.push(format!(
-                            "{}OnClose: {}",
-                            kotlin_param_name(&name.to_string(), false),
-                            oc_short
                         ));
                     }
                 }
@@ -1209,7 +1189,7 @@ impl JniConverter {
                 }
             }
             syn::Type::ImplTrait(it) => {
-                if let Some(elem) = extract_fn_single_arg_type_name(&it.bounds) {
+                if let Some(elem) = extract_fn_arg_type_name(&it.bounds) {
                     if let Some(decoder) = self.cfg.callback_decoders.get(&elem) {
                         return ArgKind::Callback {
                             decoder: decoder.clone(),
@@ -1308,8 +1288,9 @@ enum ArgKind {
         decoder: syn::Path,
         type_name: String,
     },
-    /// `impl Fn(T) + Send + Sync + 'static` → `(JObject callback, JObject on_close)`
-    /// pair decoded via a callback decoder registered for `T`.
+    /// `impl Fn(T) + Send + Sync + 'static` → single `JObject` decoded via the
+    /// callback decoder registered for `T`. Zero-arg `impl Fn() + Send + Sync`
+    /// callbacks are looked up under the key `"()"`.
     Callback {
         decoder: syn::Path,
         element_type_name: String,
@@ -1335,9 +1316,11 @@ fn type_last_segment(ty: &syn::Type) -> Option<String> {
     tp.path.segments.last().map(|s| s.ident.to_string())
 }
 
-/// Look through the trait bounds of an `impl Fn(T) + ...` for a `Fn`-family
-/// trait and return the last-segment name of its single argument type `T`.
-fn extract_fn_single_arg_type_name(
+/// Look through the trait bounds of an `impl Fn(...) + ...` for a `Fn`-family
+/// trait and return the lookup key for its argument type:
+///   - `impl Fn(T)` → `Some("T")`
+///   - `impl Fn()`  → `Some("()")`  (zero-arg callbacks, e.g. on-close handlers)
+fn extract_fn_arg_type_name(
     bounds: &syn::punctuated::Punctuated<syn::TypeParamBound, syn::Token![+]>,
 ) -> Option<String> {
     for bound in bounds {
@@ -1347,8 +1330,10 @@ fn extract_fn_single_arg_type_name(
             continue;
         }
         let syn::PathArguments::Parenthesized(p) = &seg.arguments else { continue };
-        let first = p.inputs.first()?;
-        return type_last_segment(first);
+        return match p.inputs.first() {
+            Some(first) => type_last_segment(first),
+            None => Some("()".to_string()),
+        };
     }
     None
 }

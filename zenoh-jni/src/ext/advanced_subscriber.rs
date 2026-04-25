@@ -30,7 +30,7 @@ use zenoh::Wait;
 
 use crate::owned_object::OwnedObject;
 
-use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close};
+use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close, wrap_with_on_close};
 use std::ptr::null;
 
 use crate::throw_exception;
@@ -138,12 +138,12 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareDetectPu
             advanced_subscriber.key_expr()
         );
 
+        let cb = process_kotlin_sample_callback(&mut env, callback)?;
+        let cb = wrap_with_on_close(&mut env, on_close, cb)?;
         let detect_publishers_subscriber = advanced_subscriber
             .detect_publishers()
             .history(history != 0)
-            .callback(process_kotlin_sample_callback(
-                &mut env, callback, on_close,
-            )?)
+            .callback(cb)
             .wait()
             .map_err(|err| zerror!("Unable to declare detect publishers subscriber: {}", err))?;
 
@@ -196,12 +196,12 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareBackgrou
             advanced_subscriber.key_expr()
         );
 
+        let cb = process_kotlin_sample_callback(&mut env, callback)?;
+        let cb = wrap_with_on_close(&mut env, on_close, cb)?;
         advanced_subscriber
             .detect_publishers()
             .history(history != 0)
-            .callback(process_kotlin_sample_callback(
-                &mut env, callback, on_close,
-            )?)
+            .callback(cb)
             .background()
             .wait()
             .map_err(|err| {

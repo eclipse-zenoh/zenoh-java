@@ -35,6 +35,23 @@ use zenoh_ext::{
     AdvancedSubscriberBuilderExt,
 };
 
+/// Fires `f` exactly once when dropped. Used to bind an `on_close` callback
+/// to the lifetime of a data callback closure: when zenoh drops the data
+/// closure (subscription/queryable/get teardown), the guard's `Drop` runs
+/// `on_close`.
+struct CallOnDrop<F: FnOnce()>(core::mem::MaybeUninit<F>);
+impl<F: FnOnce()> CallOnDrop<F> {
+    fn new(f: F) -> Self {
+        Self(core::mem::MaybeUninit::new(f))
+    }
+}
+impl<F: FnOnce()> Drop for CallOnDrop<F> {
+    fn drop(&mut self) {
+        let f = unsafe { self.0.assume_init_read() };
+        f();
+    }
+}
+
 /// Open a Zenoh session using a borrowed configuration.
 #[prebindgen_proc_macro::prebindgen("jni")]
 pub fn open_session(config: &Config) -> ZResult<Session> {
@@ -134,11 +151,16 @@ pub fn declare_subscriber(
     session: &Session,
     key_expr: KeyExpr<'static>,
     callback: impl Fn(Sample) + Send + Sync + 'static,
+    on_close: impl Fn() + Send + Sync + 'static,
 ) -> ZResult<Subscriber<()>> {
     let key_expr_string = key_expr.to_string();
+    let guard = CallOnDrop::new(on_close);
     session
         .declare_subscriber(key_expr)
-        .callback(callback)
+        .callback(move |sample| {
+            let _ = &guard;
+            callback(sample);
+        })
         .wait()
         .map(|subscriber| {
             trace!("Declared subscriber on '{}'.", key_expr_string);
@@ -190,12 +212,17 @@ pub fn declare_queryable(
     session: &Session,
     key_expr: KeyExpr<'static>,
     callback: impl Fn(Query) + Send + Sync + 'static,
+    on_close: impl Fn() + Send + Sync + 'static,
     complete: bool,
 ) -> ZResult<Queryable<()>> {
     let key_expr_string = key_expr.to_string();
+    let guard = CallOnDrop::new(on_close);
     session
         .declare_queryable(key_expr)
-        .callback(callback)
+        .callback(move |query| {
+            let _ = &guard;
+            callback(query);
+        })
         .complete(complete)
         .wait()
         .map(|queryable| {
@@ -224,6 +251,7 @@ pub fn get(
     key_expr: KeyExpr<'static>,
     selector_params: Option<String>,
     callback: impl Fn(Reply) + Send + Sync + 'static,
+    on_close: impl Fn() + Send + Sync + 'static,
     timeout: Duration,
     query_target: QueryTarget,
     consolidation: ConsolidationMode,
@@ -237,9 +265,13 @@ pub fn get(
 ) -> ZResult<()> {
     let key_expr_string = key_expr.to_string();
     let selector = Selector::owned(&key_expr, selector_params.unwrap_or_default());
+    let guard = CallOnDrop::new(on_close);
     let mut get_builder = session
         .get(selector)
-        .callback(callback)
+        .callback(move |reply| {
+            let _ = &guard;
+            callback(reply);
+        })
         .target(query_target)
         .consolidation(consolidation)
         .congestion_control(congestion_control)
@@ -386,14 +418,19 @@ pub fn declare_advanced_subscriber(
     session: &Session,
     key_expr: KeyExpr<'static>,
     callback: impl Fn(Sample) + Send + Sync + 'static,
+    on_close: impl Fn() + Send + Sync + 'static,
     history: Option<HistoryConfig>,
     recovery: Option<RecoveryConfig>,
     subscriber_detection: bool,
 ) -> ZResult<AdvancedSubscriber<()>> {
     let key_expr_string = key_expr.to_string();
+    let guard = CallOnDrop::new(on_close);
     let mut builder = session
         .declare_subscriber(key_expr)
-        .callback(callback)
+        .callback(move |sample| {
+            let _ = &guard;
+            callback(sample);
+        })
         .advanced();
     if let Some(history) = history {
         builder = builder.history(history.try_into()?);

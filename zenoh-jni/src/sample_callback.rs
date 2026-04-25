@@ -177,15 +177,11 @@ pub(crate) fn on_reply_error(
 pub(crate) unsafe fn process_kotlin_sample_callback(
     env: &mut JNIEnv,
     callback: JObject,
-    on_close: JObject,
 ) -> ZResult<impl Fn(Sample) + Send + Sync + 'static> {
     let java_vm = Arc::new(get_java_vm(env)?);
     let callback_global_ref = get_callback_global_ref(env, callback)?;
-    let on_close_global_ref = get_callback_global_ref(env, on_close)?;
-    let on_close = load_on_close(&java_vm, on_close_global_ref);
 
     Ok(move |sample: Sample| {
-        on_close.noop();
         let _ = || -> ZResult<()> {
             let mut env = java_vm
                 .attach_current_thread_as_daemon()
@@ -250,16 +246,12 @@ pub(crate) unsafe fn process_kotlin_sample_callback(
 pub(crate) unsafe fn process_kotlin_reply_callback(
     env: &mut JNIEnv,
     callback: JObject,
-    on_close: JObject,
 ) -> ZResult<impl Fn(Reply) + Send + Sync + 'static> {
     let java_vm = Arc::new(get_java_vm(env)?);
     let callback_global_ref = get_callback_global_ref(env, callback)?;
-    let on_close_global_ref = get_callback_global_ref(env, on_close)?;
-    let on_close = load_on_close(&java_vm, on_close_global_ref);
 
     Ok(move |reply: Reply| {
         || -> ZResult<()> {
-            on_close.noop();
             tracing::debug!("Receiving reply through JNI: {:?}", reply);
             let mut env = java_vm.attach_current_thread_as_daemon().map_err(|err| {
                 zerror!("Unable to attach thread for GET query callback: {}", err)
@@ -286,15 +278,11 @@ pub(crate) unsafe fn process_kotlin_reply_callback(
 pub(crate) unsafe fn process_kotlin_query_callback(
     env: &mut JNIEnv,
     callback: JObject,
-    on_close: JObject,
 ) -> ZResult<impl Fn(Query) + Send + Sync + 'static> {
     let java_vm = Arc::new(get_java_vm(env)?);
     let callback_global_ref = get_callback_global_ref(env, callback)?;
-    let on_close_global_ref = get_callback_global_ref(env, on_close)?;
-    let on_close = load_on_close(&java_vm, on_close_global_ref);
 
     Ok(move |query: Query| {
-        on_close.noop();
         let env = match java_vm.attach_current_thread_as_daemon() {
             Ok(env) => env,
             Err(err) => {
@@ -307,6 +295,33 @@ pub(crate) unsafe fn process_kotlin_query_callback(
         match on_query(env, query, &callback_global_ref) {
             Ok(_) => tracing::debug!("Queryable callback called successfully."),
             Err(err) => tracing::error!("Error calling queryable callback: {}", err),
+        }
+    })
+}
+
+/// Decoder for the zero-arg `impl Fn() + Send + Sync + 'static` callback used
+/// by zenoh-flat for `on_close` parameters. The returned closure attaches the
+/// JVM and invokes `Runnable.run()` on the Kotlin object. zenoh-flat is
+/// responsible for binding it to the data closure's lifetime via its own
+/// `CallOnDrop` so the on-close fires when the subscription/query is dropped.
+pub(crate) unsafe fn process_kotlin_on_close_callback(
+    env: &mut JNIEnv,
+    on_close: JObject,
+) -> ZResult<impl Fn() + Send + Sync + 'static> {
+    let java_vm = Arc::new(get_java_vm(env)?);
+    let on_close_global_ref = get_callback_global_ref(env, on_close)?;
+
+    Ok(move || {
+        let mut env = match java_vm.attach_current_thread_as_daemon() {
+            Ok(env) => env,
+            Err(err) => {
+                tracing::error!("Unable to attach thread for 'onClose' callback: {}", err);
+                return;
+            }
+        };
+        if let Err(err) = env.call_method(&on_close_global_ref, "run", "()V", &[]) {
+            _ = env.exception_describe();
+            tracing::error!("Error while running 'onClose' callback: {}", err);
         }
     })
 }

@@ -30,7 +30,7 @@ use crate::{
     owned_object::OwnedObject,
     sample_callback::{on_reply_error, on_reply_success, process_kotlin_sample_callback},
     throw_exception,
-    utils::{get_callback_global_ref, get_java_vm, load_on_close},
+    utils::{get_callback_global_ref, get_java_vm, load_on_close, wrap_with_on_close},
 };
 
 #[no_mangle]
@@ -146,13 +146,13 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareLivelinessSubscribe
         let key_expr = decode_jni_key_expr(&mut env, &key_expr)?;
         tracing::debug!("Declaring liveliness subscriber on '{}'...", key_expr);
 
+        let cb = process_kotlin_sample_callback(&mut env, callback)?;
+        let cb = wrap_with_on_close(&mut env, on_close, cb)?;
         let subscriber = session
             .liveliness()
             .declare_subscriber(key_expr.to_owned())
             .history(history != 0)
-            .callback(process_kotlin_sample_callback(
-                &mut env, callback, on_close,
-            )?)
+            .callback(cb)
             .wait()
             .map_err(|err| zerror!("Unable to declare liveliness subscriber: {}", err))?;
 

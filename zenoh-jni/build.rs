@@ -18,7 +18,6 @@ fn main() {
         .kotlin_class("JNISessionNative")
         .kotlin_throws("io.zenoh.exceptions.ZError")
         .kotlin_init("io.zenoh.ZenohLoad")
-        .kotlin_on_close("io.zenoh.jni.callbacks.JNIOnCloseCallback")
         .enum_decoder(
             "CongestionControl",
             "crate::utils::decode_congestion_control",
@@ -42,6 +41,11 @@ fn main() {
             "Reply",
             "crate::sample_callback::process_kotlin_reply_callback",
             "io.zenoh.jni.callbacks.JNIGetCallback",
+        )
+        .callback_decoder(
+            "()",
+            "crate::sample_callback::process_kotlin_on_close_callback",
+            "io.zenoh.jni.callbacks.JNIOnCloseCallback",
         )
         .struct_decoder(
             "KeyExpr",
