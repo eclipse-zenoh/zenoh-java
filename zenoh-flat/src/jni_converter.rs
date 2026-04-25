@@ -43,10 +43,14 @@
 //!     .throw_exception("crate::throw_exception")
 //!     .string_decoder("crate::utils::decode_string")
 //!     .byte_array_decoder("crate::utils::decode_byte_array")
-//!     .struct_decoder(
-//!         "KeyExpr",
-//!         "crate::key_expr::decode_jni_key_expr",
-//!         "JNIKeyExpr",
+//!     .type_binding(
+//!         TypeBinding::new("KeyExpr").kotlin("JNIKeyExpr").consume(
+//!             JniForm::new(
+//!                 "jni::objects::JObject",
+//!                 "JObject",
+//!                 ArgDecode::env_ref_mut("crate::key_expr::decode_jni_key_expr"),
+//!             ),
+//!         ),
 //!     )
 //!     .build();
 //! source
@@ -109,6 +113,36 @@ pub enum ArgDecode {
     /// Consume an `Arc<T>` raw pointer: reconstructs the Arc, clones the
     /// inner value, and drops the Arc at end of scope.
     ConsumeArc,
+}
+
+impl ArgDecode {
+    /// `ArgDecode::Pure` from a path string (parsed lazily).
+    pub fn pure(path: impl AsRef<str>) -> Self {
+        ArgDecode::Pure(syn::parse_str(path.as_ref()).expect("invalid ArgDecode::pure path"))
+    }
+
+    /// `ArgDecode::EnvRefMut` from a path string.
+    pub fn env_ref_mut(path: impl AsRef<str>) -> Self {
+        ArgDecode::EnvRefMut(
+            syn::parse_str(path.as_ref()).expect("invalid ArgDecode::env_ref_mut path"),
+        )
+    }
+
+    /// `ArgDecode::EnvByVal` from a path string.
+    pub fn env_by_val(path: impl AsRef<str>) -> Self {
+        ArgDecode::EnvByVal(
+            syn::parse_str(path.as_ref()).expect("invalid ArgDecode::env_by_val path"),
+        )
+    }
+}
+
+impl ReturnEncode {
+    /// `ReturnEncode::Wrapper` from a path string.
+    pub fn wrapper(path: impl AsRef<str>) -> Self {
+        ReturnEncode::Wrapper(
+            syn::parse_str(path.as_ref()).expect("invalid ReturnEncode::wrapper path"),
+        )
+    }
 }
 
 /// Clonable closure that produces a TokenStream from the JNI input ident.
@@ -444,62 +478,13 @@ impl Builder {
         self
     }
 
-    /// Register a decoder for an enum type. Equivalent to:
-    /// ```ignore
-    /// .type_binding(TypeBinding::new(name)
-    ///     .consume(JniForm::new("jni::sys::jint", "Int", ArgDecode::Pure(<path>))))
-    /// ```
-    pub fn enum_decoder(
-        mut self,
-        type_name: impl Into<String>,
-        decoder: impl AsRef<str>,
-    ) -> Self {
-        let name = type_name.into();
-        let p: syn::Path =
-            syn::parse_str(decoder.as_ref()).expect("invalid enum_decoder path");
-        let binding = self
-            .types
-            .entry(name.clone())
-            .or_insert_with(|| TypeBinding::new(name));
-        binding.consume = Some(JniForm::new(
-            "jni::sys::jint",
-            "Int",
-            ArgDecode::Pure(p),
-        ));
-        self
-    }
-
-    /// Register a decoder for a struct parameter passed across JNI as a plain
-    /// `JObject` (typically a Kotlin data class). The decoder must have
-    /// signature `fn(&mut JNIEnv, &JObject) -> ZResult<T>`. `kotlin_type` is
-    /// the Kotlin type name (FQN if out-of-package, bare otherwise).
-    pub fn struct_decoder(
-        mut self,
-        type_name: impl Into<String>,
-        decoder: impl AsRef<str>,
-        kotlin_type: impl Into<String>,
-    ) -> Self {
-        let name = type_name.into();
-        let kt = kotlin_type.into();
-        let p: syn::Path =
-            syn::parse_str(decoder.as_ref()).expect("invalid struct_decoder path");
-        let binding = self
-            .types
-            .entry(name.clone())
-            .or_insert_with(|| TypeBinding::new(name));
-        binding.kotlin_type = Some(kt);
-        binding.consume = Some(JniForm::new(
-            "jni::objects::JObject",
-            "JObject",
-            ArgDecode::EnvRefMut(p),
-        ));
-        self
-    }
-
     /// Register a decoder for an `impl Fn(T) + Send + Sync + 'static` callback
     /// parameter. `element_type_name` is the last path segment of `T`
     /// (e.g. `"Sample"`, `"Query"`, `"Reply"`). The decoder must have
     /// signature `fn(&mut JNIEnv, JObject) -> ZResult<impl Fn(T) + Send + Sync + 'static>`.
+    /// Callbacks have a fundamentally different shape (a closure-builder, not
+    /// a value decoder) so they are registered separately from
+    /// [`Builder::type_binding`].
     pub fn callback_decoder(
         mut self,
         element_type_name: impl Into<String>,
@@ -512,56 +497,6 @@ impl Builder {
         let kt = kotlin_type.into();
         self.callback_decoders.insert(name.clone(), path);
         self.callback_kotlin_types.insert(name, kt);
-        self
-    }
-
-    /// Register a return-type wrapper for `ZResult<T>` where `T`'s
-    /// last-segment name equals `type_name`. `wrap_fn` must have signature
-    /// `fn(&mut JNIEnv, T) -> ZResult<jni_type>`. `default_expr` is the value
-    /// returned on error (before the exception is thrown on the JVM side).
-    pub fn return_wrapper(
-        mut self,
-        type_name: impl Into<String>,
-        jni_type: impl AsRef<str>,
-        wrap_fn: impl AsRef<str>,
-        default_expr: impl AsRef<str>,
-        kotlin_type: impl Into<String>,
-    ) -> Self {
-        let name = type_name.into();
-        let kt = kotlin_type.into();
-        let wrap: syn::Path =
-            syn::parse_str(wrap_fn.as_ref()).expect("invalid return_wrapper wrap_fn path");
-        let mut form = ReturnForm::new(jni_type, ReturnEncode::Wrapper(wrap), default_expr);
-        form.kotlin_jni_type = Some(kt);
-        let binding = self
-            .types
-            .entry(name.clone())
-            .or_insert_with(|| TypeBinding::new(name));
-        binding.returns = Some(form);
-        self
-    }
-
-    /// Like [`Builder::return_wrapper`] but applies when `T` is `Vec<E>`
-    /// with `E`'s last-segment name equal to `element_type_name`.
-    pub fn return_wrapper_vec(
-        mut self,
-        element_type_name: impl Into<String>,
-        jni_type: impl AsRef<str>,
-        wrap_fn: impl AsRef<str>,
-        default_expr: impl AsRef<str>,
-        kotlin_type: impl Into<String>,
-    ) -> Self {
-        let name = element_type_name.into();
-        let kt = kotlin_type.into();
-        let wrap: syn::Path =
-            syn::parse_str(wrap_fn.as_ref()).expect("invalid return_wrapper_vec wrap_fn path");
-        let mut form = ReturnForm::new(jni_type, ReturnEncode::Wrapper(wrap), default_expr);
-        form.kotlin_jni_type = Some(kt);
-        let binding = self
-            .types
-            .entry(name.clone())
-            .or_insert_with(|| TypeBinding::new(name));
-        binding.returns_vec = Some(form);
         self
     }
 

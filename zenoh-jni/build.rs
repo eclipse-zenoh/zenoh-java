@@ -1,5 +1,17 @@
 use itertools::Itertools;
-use zenoh_flat::jni_converter::{ArgDecode, JniForm, TypeBinding};
+use zenoh_flat::jni_converter::{ArgDecode, JniForm, ReturnEncode, ReturnForm, TypeBinding};
+
+fn enum_binding(name: &str, decoder: &str) -> TypeBinding {
+    TypeBinding::new(name).consume(JniForm::new("jni::sys::jint", "Int", ArgDecode::pure(decoder)))
+}
+
+fn jobject_consume(name: &str, decoder: &str, kotlin: &str) -> TypeBinding {
+    TypeBinding::new(name).kotlin(kotlin).consume(JniForm::new(
+        "jni::objects::JObject",
+        "JObject",
+        ArgDecode::env_ref_mut(decoder),
+    ))
+}
 
 fn main() {
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
@@ -19,15 +31,6 @@ fn main() {
         .kotlin_class("JNISessionNative")
         .kotlin_throws("io.zenoh.exceptions.ZError")
         .kotlin_init("io.zenoh.ZenohLoad")
-        .enum_decoder(
-            "CongestionControl",
-            "crate::utils::decode_congestion_control",
-        )
-        .enum_decoder("Priority", "crate::utils::decode_priority")
-        .enum_decoder("Reliability", "crate::utils::decode_reliability")
-        .enum_decoder("QueryTarget", "crate::utils::decode_query_target")
-        .enum_decoder("ConsolidationMode", "crate::utils::decode_consolidation")
-        .enum_decoder("ReplyKeyExpr", "crate::utils::decode_reply_key_expr")
         .callback_decoder(
             "Sample",
             "crate::sample_callback::process_kotlin_sample_callback",
@@ -48,6 +51,24 @@ fn main() {
             "crate::sample_callback::process_kotlin_on_close_callback",
             "io.zenoh.jni.callbacks.JNIOnCloseCallback",
         )
+        .type_binding(enum_binding(
+            "CongestionControl",
+            "crate::utils::decode_congestion_control",
+        ))
+        .type_binding(enum_binding("Priority", "crate::utils::decode_priority"))
+        .type_binding(enum_binding("Reliability", "crate::utils::decode_reliability"))
+        .type_binding(enum_binding(
+            "QueryTarget",
+            "crate::utils::decode_query_target",
+        ))
+        .type_binding(enum_binding(
+            "ConsolidationMode",
+            "crate::utils::decode_consolidation",
+        ))
+        .type_binding(enum_binding(
+            "ReplyKeyExpr",
+            "crate::utils::decode_reply_key_expr",
+        ))
         // KeyExpr by-value: the JNI side passes `Arc::into_raw(Arc::new(KeyExpr))`
         // as a raw pointer; the wrapper reconstructs the Arc, clones the inner
         // KeyExpr, and drops the Arc at end of scope. The full path is required
@@ -62,24 +83,29 @@ fn main() {
                 .pointer_param(true),
             ),
         )
-        .struct_decoder(
+        .type_binding(jobject_consume(
             "Encoding",
             "crate::utils::decode_jni_encoding",
             "JNIEncoding",
-        )
-        .return_wrapper(
-            "ZenohId",
-            "jni::sys::jbyteArray",
-            "crate::zenoh_id::zenoh_id_to_byte_array",
-            "jni::objects::JByteArray::default().as_raw()",
-            "ByteArray",
-        )
-        .return_wrapper_vec(
-            "ZenohId",
-            "jni::sys::jobject",
-            "crate::zenoh_id::zenoh_ids_to_java_list",
-            "jni::objects::JObject::default().as_raw()",
-            "List<ByteArray>",
+        ))
+        .type_binding(
+            TypeBinding::new("ZenohId")
+                .returns(
+                    ReturnForm::new(
+                        "jni::sys::jbyteArray",
+                        ReturnEncode::wrapper("crate::zenoh_id::zenoh_id_to_byte_array"),
+                        "jni::objects::JByteArray::default().as_raw()",
+                    )
+                    .kotlin("ByteArray"),
+                )
+                .returns_vec(
+                    ReturnForm::new(
+                        "jni::sys::jobject",
+                        ReturnEncode::wrapper("crate::zenoh_id::zenoh_ids_to_java_list"),
+                        "jni::objects::JObject::default().as_raw()",
+                    )
+                    .kotlin("List<ByteArray>"),
+                ),
         )
         .build();
 
