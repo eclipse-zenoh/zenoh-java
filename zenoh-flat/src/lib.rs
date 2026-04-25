@@ -8,5 +8,6 @@ pub mod errors;
 #[cfg(feature = "zenoh-ext")]
 pub mod ext;
 pub mod jni_converter;
+pub mod jni_type_binding;
 pub mod session;
 

@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use zenoh_flat::jni_converter::{ArgDecode, JniForm, ReturnEncode, ReturnForm, TypeBinding};
+use zenoh_flat::jni_type_binding::JniTypeBinding;
 
 fn enum_binding(name: &str, decoder: &str) -> TypeBinding {
     TypeBinding::new(name).consume(JniForm::new("jni::sys::jint", "Int", ArgDecode::pure(decoder)))
@@ -13,24 +14,12 @@ fn jobject_consume(name: &str, decoder: &str, kotlin: &str) -> TypeBinding {
     ))
 }
 
-fn main() {
-    let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
-
-    let mut converter = zenoh_flat::jni_converter::JniConverter::builder()
-        .class_prefix("Java_io_zenoh_jni_JNISessionNative_")
-        .function_suffix("ViaJNI")
-        .source_module("zenoh_flat::session")
-        .struct_source_module("zenoh_flat::ext")
-        .owned_object("crate::owned_object::OwnedObject")
-        .zresult("crate::errors::ZResult")
-        .throw_exception("crate::throw_exception")
-        .string_decoder("crate::utils::decode_string")
-        .byte_array_decoder("crate::utils::decode_byte_array")
-        .kotlin_output("../zenoh-jni/generated-kotlin/io/zenoh/jni/JNISessionNative.kt")
-        .kotlin_package("io.zenoh.jni")
-        .kotlin_class("JNISessionNative")
-        .kotlin_throws("io.zenoh.exceptions.ZError")
-        .kotlin_init("io.zenoh.ZenohLoad")
+/// Type vocabulary shared across every `JniConverter` build in this crate.
+/// Defined once and ingested via `Builder::jni_type_binding(...)` so each
+/// generated JNI surface (session, publisher, subscriber, ...) sees the same
+/// types without duplicating registrations.
+fn shared_bindings() -> JniTypeBinding {
+    JniTypeBinding::new()
         .callback_decoder(
             "Sample",
             "crate::sample_callback::process_kotlin_sample_callback",
@@ -107,6 +96,27 @@ fn main() {
                     .kotlin("List<ByteArray>"),
                 ),
         )
+}
+
+fn main() {
+    let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
+
+    let mut converter = zenoh_flat::jni_converter::JniConverter::builder()
+        .class_prefix("Java_io_zenoh_jni_JNISessionNative_")
+        .function_suffix("ViaJNI")
+        .source_module("zenoh_flat::session")
+        .struct_source_module("zenoh_flat::ext")
+        .owned_object("crate::owned_object::OwnedObject")
+        .zresult("crate::errors::ZResult")
+        .throw_exception("crate::throw_exception")
+        .string_decoder("crate::utils::decode_string")
+        .byte_array_decoder("crate::utils::decode_byte_array")
+        .kotlin_output("../zenoh-jni/generated-kotlin/io/zenoh/jni/JNISessionNative.kt")
+        .kotlin_package("io.zenoh.jni")
+        .kotlin_class("JNISessionNative")
+        .kotlin_throws("io.zenoh.exceptions.ZError")
+        .kotlin_init("io.zenoh.ZenohLoad")
+        .jni_type_binding(shared_bindings())
         .build();
 
     let bindings_file =source

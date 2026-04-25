@@ -243,6 +243,11 @@ impl ReturnForm {
 }
 
 impl TypeBinding {
+    /// Short type name this binding is keyed under (e.g. `"KeyExpr"`).
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -442,6 +447,20 @@ impl Builder {
     /// All sugar methods below delegate to this.
     pub fn type_binding(mut self, binding: TypeBinding) -> Self {
         self.types.insert(binding.name.clone(), binding);
+        self
+    }
+
+    /// Ingest a reusable [`crate::jni_type_binding::JniTypeBinding`]
+    /// collection. Type bindings, callback decoders, and Kotlin callback
+    /// names are all merged into the builder; entries in the collection
+    /// override entries already present in the builder with the same key.
+    pub fn jni_type_binding(
+        mut self,
+        bindings: crate::jni_type_binding::JniTypeBinding,
+    ) -> Self {
+        self.types.extend(bindings.types);
+        self.callback_decoders.extend(bindings.callback_decoders);
+        self.callback_kotlin_types.extend(bindings.callback_kotlin_types);
         self
     }
 
