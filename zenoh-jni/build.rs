@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use zenoh_flat::jni_converter::{callback_binding_key, ArgDecode, JniForm, ReturnEncode, ReturnForm, TypeBinding};
+use zenoh_flat::jni_converter::{ArgDecode, JniForm, ReturnEncode, ReturnForm, TypeBinding};
 use zenoh_flat::jni_type_binding::JniTypeBinding;
 
 fn enum_binding(name: &str, decoder: &str) -> TypeBinding {
@@ -14,8 +14,12 @@ fn jobject_consume(name: &str, decoder: &str, kotlin: &str) -> TypeBinding {
     ))
 }
 
+/// `name` must be the full callback type as it appears in `#[prebindgen]`
+/// signatures, e.g. `"impl Fn(Sample) + Send + Sync + 'static"`. Whitespace
+/// is normalized by `TypeBinding::new` so the lookup matches the AST form
+/// produced by the classifier.
 fn callback_binding(name: &str, decoder: &str, kotlin: &str) -> TypeBinding {
-    TypeBinding::new(callback_binding_key(name))
+    TypeBinding::new(name)
         .kotlin(kotlin)
         .consume(JniForm::new(
             "jni::objects::JObject",
@@ -31,22 +35,22 @@ fn callback_binding(name: &str, decoder: &str, kotlin: &str) -> TypeBinding {
 fn shared_bindings() -> JniTypeBinding {
     JniTypeBinding::new()
         .type_binding(callback_binding(
-            "Sample",
+            "impl Fn(Sample) + Send + Sync + 'static",
             "crate::sample_callback::process_kotlin_sample_callback",
             "io.zenoh.jni.callbacks.JNISubscriberCallback",
         ))
         .type_binding(callback_binding(
-            "Query",
+            "impl Fn(Query) + Send + Sync + 'static",
             "crate::sample_callback::process_kotlin_query_callback",
             "io.zenoh.jni.callbacks.JNIQueryableCallback",
         ))
         .type_binding(callback_binding(
-            "Reply",
+            "impl Fn(Reply) + Send + Sync + 'static",
             "crate::sample_callback::process_kotlin_reply_callback",
             "io.zenoh.jni.callbacks.JNIGetCallback",
         ))
         .type_binding(callback_binding(
-            "()",
+            "impl Fn() + Send + Sync + 'static",
             "crate::sample_callback::process_kotlin_on_close_callback",
             "io.zenoh.jni.callbacks.JNIOnCloseCallback",
         ))

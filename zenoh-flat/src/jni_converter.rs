@@ -256,9 +256,18 @@ impl TypeBinding {
         &self.name
     }
 
+    /// Construct a binding keyed by `name`. If `name` parses as a Rust type,
+    /// it is canonicalized through `quote::ToTokens` so whitespace variations
+    /// in user input match the form the classifier produces from AST nodes
+    /// (matters for `impl Fn(T) + Send + Sync + 'static`-style names). Falls
+    /// back to the literal string if parsing fails.
     pub fn new(name: impl Into<String>) -> Self {
+        let raw = name.into();
+        let canonical = syn::parse_str::<syn::Type>(&raw)
+            .map(|t| t.to_token_stream().to_string())
+            .unwrap_or_else(|_| raw);
         Self {
-            name: name.into(),
+            name: canonical,
             kotlin_type: None,
             consume: None,
             borrow: None,
@@ -1080,16 +1089,14 @@ impl JniConverter {
                     kotlin_override: None,
                 }
             }
-            syn::Type::ImplTrait(it) => {
-                if let Some(elem) = extract_fn_arg_type_name(&it.bounds) {
-                    let key = callback_binding_key(&elem);
-                    if let Some(binding) = self.cfg.types.get(&key) {
-                        if let Some(form) = binding.consume.as_ref() {
-                            return ArgKind::Consume {
-                                form: form.clone(),
-                                kotlin_override: binding.kotlin_type.clone(),
-                            };
-                        }
+            syn::Type::ImplTrait(_) => {
+                let key = ty.to_token_stream().to_string();
+                if let Some(binding) = self.cfg.types.get(&key) {
+                    if let Some(form) = binding.consume.as_ref() {
+                        return ArgKind::Consume {
+                            form: form.clone(),
+                            kotlin_override: binding.kotlin_type.clone(),
+                        };
                     }
                 }
                 ArgKind::Unsupported
@@ -1392,42 +1399,9 @@ fn jni_object_kind(ty: &syn::Type) -> Option<JniObjectKind> {
     }
 }
 
-/// Synthesize the type-registry key for an `impl Fn(<element>)` parameter.
-/// `"Sample"` → `"impl Fn(Sample)"`; `"()"` → `"impl Fn()"`. Used by
-/// `classify_arg` and by callback bindings so both ends agree on the lookup name.
-pub fn callback_binding_key(element_type_name: &str) -> String {
-    if element_type_name == "()" {
-        "impl Fn()".to_string()
-    } else {
-        format!("impl Fn({})", element_type_name)
-    }
-}
-
 fn type_last_segment(ty: &syn::Type) -> Option<String> {
     let syn::Type::Path(tp) = ty else { return None };
     tp.path.segments.last().map(|s| s.ident.to_string())
-}
-
-/// Look through the trait bounds of an `impl Fn(...) + ...` for a `Fn`-family
-/// trait and return the lookup key for its argument type:
-///   - `impl Fn(T)` → `Some("T")`
-///   - `impl Fn()`  → `Some("()")`
-fn extract_fn_arg_type_name(
-    bounds: &syn::punctuated::Punctuated<syn::TypeParamBound, syn::Token![+]>,
-) -> Option<String> {
-    for bound in bounds {
-        let syn::TypeParamBound::Trait(tb) = bound else { continue };
-        let seg = tb.path.segments.last()?;
-        if !matches!(seg.ident.to_string().as_str(), "Fn" | "FnMut" | "FnOnce") {
-            continue;
-        }
-        let syn::PathArguments::Parenthesized(p) = &seg.arguments else { continue };
-        return match p.inputs.first() {
-            Some(first) => type_last_segment(first),
-            None => Some("()".to_string()),
-        };
-    }
-    None
 }
 
 /// Last-segment name of the single generic argument of an `Option<...>`.
