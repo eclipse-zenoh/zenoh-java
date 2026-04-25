@@ -241,5 +241,8 @@ public class JNISession(internal val sessionPtr: Long) {
 
     fun close() {
         closeSessionViaJNI(sessionPtr)
+        freePtrViaJNI(sessionPtr)
     }
+
+    private external fun freePtrViaJNI(ptr: Long)
 }

@@ -13,6 +13,9 @@
 //
 
 // Types referenced by the generated `zenoh_flat_jni.rs` below must be in scope.
+use std::sync::Arc;
+
+use jni::{objects::JClass, JNIEnv};
 use zenoh::{
     config::Config,
     key_expr::KeyExpr,
@@ -24,4 +27,20 @@ use zenoh::{
 use zenoh_ext::{AdvancedPublisher, AdvancedSubscriber};
 
 include!(concat!(env!("OUT_DIR"), "/zenoh_flat_jni.rs"));
+
+/// Drop the `Arc<Session>` referenced by `session_ptr`. Must be called exactly
+/// once per pointer obtained from session-opening JNI calls; pairs with the
+/// `Arc::into_raw` performed by the generated wrapper for the open path.
+///
+/// Distinct from `closeSessionViaJNI`, which only deactivates the session
+/// (network shutdown) without dropping the Rust handle.
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_freePtrViaJNI(
+    _env: JNIEnv,
+    _: JClass,
+    session_ptr: *const Session,
+) {
+    Arc::from_raw(session_ptr);
+}
 

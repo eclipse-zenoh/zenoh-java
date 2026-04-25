@@ -32,7 +32,7 @@
 //! decoder helpers, `OwnedObject`) — those couplings are configurable through
 //! the [`Builder`] so the converter itself stays data-driven.
 
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::path::PathBuf;
 
 use proc_macro2::TokenStream;
@@ -64,10 +64,6 @@ pub struct Builder {
     /// parameter's type (e.g. `"HistoryConfig"`). The decoder must have
     /// signature `fn(&mut JNIEnv, &JObject) -> ZResult<T>`.
     struct_decoders: HashMap<String, syn::Path>,
-    /// Per-function set of argument names that must be consumed (taken from
-    /// the raw pointer via `Arc::from_raw`) instead of borrowed. Used for
-    /// close/undeclare-style functions that invalidate their handle.
-    consume_args: HashMap<String, HashSet<String>>,
     /// Return-type wrappers keyed by the last-segment name of `T` in
     /// `ZResult<T>`. Applies when `T` is a plain (non-`Vec`) type.
     return_wrappers: HashMap<String, ReturnWrapper>,
@@ -130,7 +126,6 @@ impl Default for Builder {
             enum_decoders: HashMap::new(),
             callback_decoders: HashMap::new(),
             struct_decoders: HashMap::new(),
-            consume_args: HashMap::new(),
             return_wrappers: HashMap::new(),
             return_wrappers_vec: HashMap::new(),
             kotlin: None,
@@ -315,27 +310,6 @@ impl Builder {
         if let Some(k) = self.kotlin.as_mut() {
             k.return_kotlin_types_vec.insert(name, kt);
         }
-        self
-    }
-
-    /// Mark a specific argument of a source function as consuming: the
-    /// generated wrapper will take ownership of the raw pointer via
-    /// `Arc::from_raw` (dropping the Arc at end of scope), rather than
-    /// borrowing it through `OwnedObject::from_raw`. Applies to both
-    /// `OpaqueRef` (`&T`) and `KeyExpr` arguments — for the latter, the
-    /// string-fallback argument is omitted, leaving just the pointer.
-    ///
-    /// Typically used for `close_*` / `undeclare_*` functions that invalidate
-    /// the handle.
-    pub fn consume_arg(
-        mut self,
-        fn_name: impl Into<String>,
-        arg_name: impl Into<String>,
-    ) -> Self {
-        self.consume_args
-            .entry(fn_name.into())
-            .or_default()
-            .insert(arg_name.into());
         self
     }
 
@@ -571,13 +545,6 @@ impl JniConverter {
         let owned_object = self.cfg.owned_object.clone();
         let zresult = self.cfg.zresult.clone();
         let throw_exception = self.cfg.throw_exception.clone();
-        let empty_consume_set: HashSet<String> = HashSet::new();
-        let consume_set: HashSet<String> = self
-            .cfg
-            .consume_args
-            .get(&original_name)
-            .cloned()
-            .unwrap_or(empty_consume_set);
 
         let mut prelude: Vec<TokenStream> = Vec::new();
         let mut jni_params: Vec<TokenStream> = Vec::new();
@@ -602,15 +569,9 @@ impl JniConverter {
                 ArgKind::OpaqueRef(elem) => {
                     let ptr_ident = format_ident!("{}_ptr", name);
                     jni_params.push(quote! { #ptr_ident: *const #elem });
-                    if consume_set.contains(&name.to_string()) {
-                        prelude.push(quote! {
-                            let #name = std::sync::Arc::from_raw(#ptr_ident);
-                        });
-                    } else {
-                        prelude.push(quote! {
-                            let #name = #owned_object::from_raw(#ptr_ident);
-                        });
-                    }
+                    prelude.push(quote! {
+                        let #name = #owned_object::from_raw(#ptr_ident);
+                    });
                     call_args.push(quote! { &#name });
                     if kt_cfg.is_some() {
                         kotlin_params.push(format!(
@@ -619,55 +580,55 @@ impl JniConverter {
                         ));
                     }
                 }
-                ArgKind::KeyExpr => {
-                    let consumed = consume_set.contains(&name.to_string());
-                    if consumed {
-                        // Consume path: the declared KeyExpr is required (no
-                        // string fallback). Arc::from_raw decrements the
-                        // refcount at end of scope, freeing the handle once
-                        // no other references remain. A cloned inner KeyExpr
-                        // is passed to the callee by value.
-                        let ptr_ident = format_ident!("{}_ptr", name);
-                        let arc_ident = format_ident!("__{}_arc", name);
-                        jni_params.push(quote! {
-                            #ptr_ident: *const zenoh::key_expr::KeyExpr<'static>
-                        });
-                        prelude.push(quote! {
-                            let #arc_ident = std::sync::Arc::from_raw(#ptr_ident);
-                            let #name = (*#arc_ident).clone();
-                        });
-                        call_args.push(quote! { #name });
-                    } else {
-                        // Non-consume path: single `JObject` holder
-                        // (io.zenoh.jni.JNIKeyExpr) decoded via the
-                        // `KeyExpr` entry in `struct_decoders`.
-                        let decoder = self
-                            .cfg
-                            .struct_decoders
-                            .get("KeyExpr")
-                            .expect("struct_decoder(\"KeyExpr\", ...) not configured");
-                        jni_params.push(quote! { #name: jni::objects::JObject });
-                        prelude.push(quote! {
-                            let #name = #decoder(&mut env, &#name)?;
-                        });
-                        call_args.push(quote! { #name });
-                    }
+                ArgKind::KeyExprBorrow => {
+                    // `&KeyExpr` in the source signature: single `JObject`
+                    // holder (io.zenoh.jni.JNIKeyExpr) decoded via the
+                    // `KeyExpr` entry in `struct_decoders`.
+                    let decoder = self
+                        .cfg
+                        .struct_decoders
+                        .get("KeyExpr")
+                        .expect("struct_decoder(\"KeyExpr\", ...) not configured");
+                    jni_params.push(quote! { #name: jni::objects::JObject });
+                    prelude.push(quote! {
+                        let #name = #decoder(&mut env, &#name)?;
+                    });
+                    call_args.push(quote! { #name });
                     if let Some(kt) = kt_cfg {
-                        if consumed {
-                            kotlin_params.push(format!(
-                                "{}: Long",
-                                kotlin_param_name(&name.to_string(), true)
-                            ));
-                        } else {
-                            let fqn = kt.struct_kotlin_types.get("KeyExpr").cloned()
-                                .expect("struct_decoder(\"KeyExpr\", ...) Kotlin type not configured");
-                            let short = kotlin_register_fqn(&fqn, &mut local_kotlin_fqns);
-                            kotlin_params.push(format!(
-                                "{}: {}",
-                                kotlin_param_name(&name.to_string(), false),
-                                short
-                            ));
-                        }
+                        let fqn = kt
+                            .struct_kotlin_types
+                            .get("KeyExpr")
+                            .cloned()
+                            .expect("struct_decoder(\"KeyExpr\", ...) Kotlin type not configured");
+                        let short = kotlin_register_fqn(&fqn, &mut local_kotlin_fqns);
+                        kotlin_params.push(format!(
+                            "{}: {}",
+                            kotlin_param_name(&name.to_string(), false),
+                            short
+                        ));
+                    }
+                }
+                ArgKind::KeyExprConsume => {
+                    // `KeyExpr<'static>` by value in the source signature:
+                    // the caller relinquishes ownership of the declared
+                    // handle. Arc::from_raw decrements the refcount at end
+                    // of scope, freeing the handle once no other references
+                    // remain. A cloned inner KeyExpr is passed by value.
+                    let ptr_ident = format_ident!("{}_ptr", name);
+                    let arc_ident = format_ident!("__{}_arc", name);
+                    jni_params.push(quote! {
+                        #ptr_ident: *const zenoh::key_expr::KeyExpr<'static>
+                    });
+                    prelude.push(quote! {
+                        let #arc_ident = std::sync::Arc::from_raw(#ptr_ident);
+                        let #name = (*#arc_ident).clone();
+                    });
+                    call_args.push(quote! { #name });
+                    if kt_cfg.is_some() {
+                        kotlin_params.push(format!(
+                            "{}: Long",
+                            kotlin_param_name(&name.to_string(), true)
+                        ));
                     }
                 }
                 ArgKind::String => {
@@ -1183,7 +1144,7 @@ impl JniConverter {
         match ty {
             syn::Type::Reference(r) if r.mutability.is_none() => {
                 if type_last_segment(&r.elem).map(|s| s == "KeyExpr").unwrap_or(false) {
-                    ArgKind::KeyExpr
+                    ArgKind::KeyExprBorrow
                 } else {
                     ArgKind::OpaqueRef((*r.elem).clone())
                 }
@@ -1211,7 +1172,7 @@ impl JniConverter {
                     return ArgKind::String;
                 }
                 if name == "KeyExpr" {
-                    return ArgKind::KeyExpr;
+                    return ArgKind::KeyExprConsume;
                 }
                 if name == "Duration" {
                     return ArgKind::Duration;
@@ -1264,7 +1225,14 @@ enum StructFieldKind {
 
 enum ArgKind {
     OpaqueRef(syn::Type),
-    KeyExpr,
+    /// `&KeyExpr` in the source signature — decoded as a `JNIKeyExpr`
+    /// holder via the registered `KeyExpr` struct decoder. The handle is
+    /// borrowed; the caller retains ownership.
+    KeyExprBorrow,
+    /// `KeyExpr<'static>` (by value) in the source signature — the caller
+    /// relinquishes ownership of the declared handle. Generated wrapper
+    /// takes the raw pointer and drops the `Arc` at end of scope.
+    KeyExprConsume,
     /// `String` → `JString` decoded via `string_decoder`.
     String,
     Enum(syn::Path),

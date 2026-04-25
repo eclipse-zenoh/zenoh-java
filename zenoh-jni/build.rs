@@ -57,8 +57,6 @@ fn main() {
             "crate::utils::decode_jni_encoding",
             "JNIEncoding",
         )
-        .consume_arg("close_session", "session")
-        .consume_arg("undeclare_key_expr", "key_expr")
         .return_wrapper(
             "ZenohId",
             "jni::sys::jbyteArray",
