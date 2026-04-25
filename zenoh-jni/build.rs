@@ -73,11 +73,16 @@ fn main() {
         )
         .build();
 
-    source
+    let bindings_file =source
         .items_all()
         .batching(converter.as_closure())
         .collect::<prebindgen::collect::Destination>()
         .write("zenoh_flat_jni.rs");
+
+    println!(
+        "cargo:warning=Generated bindings at: {}",
+        bindings_file.display()
+    );
 
     converter
         .write_kotlin()
