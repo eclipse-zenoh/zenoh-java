@@ -158,7 +158,7 @@ pub fn declare_subscriber(
     session
         .declare_subscriber(key_expr)
         .callback(move |sample| {
-            let _ = &guard;
+            let _ = &guard; // capture the guard
             callback(sample);
         })
         .wait()
@@ -220,7 +220,7 @@ pub fn declare_queryable(
     session
         .declare_queryable(key_expr)
         .callback(move |query| {
-            let _ = &guard;
+            let _ = &guard; // capture the guard
             callback(query);
         })
         .complete(complete)
@@ -269,7 +269,7 @@ pub fn get(
     let mut get_builder = session
         .get(selector)
         .callback(move |reply| {
-            let _ = &guard;
+            let _ = &guard; // capture the guard
             callback(reply);
         })
         .target(query_target)
@@ -428,7 +428,7 @@ pub fn declare_advanced_subscriber(
     let mut builder = session
         .declare_subscriber(key_expr)
         .callback(move |sample| {
-            let _ = &guard;
+            let _ = &guard; // capture the guard
             callback(sample);
         })
         .advanced();
