@@ -14,42 +14,28 @@ fn jobject_consume(name: &str, decoder: &str, kotlin: &str) -> TypeBinding {
     ))
 }
 
-/// `name` must be the full callback type as it appears in `#[prebindgen]`
-/// signatures, e.g. `"impl Fn(Sample) + Send + Sync + 'static"`. Whitespace
-/// is normalized by `TypeBinding::new` so the lookup matches the AST form
-/// produced by the classifier.
-fn callback_binding(name: &str, decoder: &str, kotlin: &str) -> TypeBinding {
-    TypeBinding::new(name)
-        .kotlin(kotlin)
-        .consume(JniForm::new(
-            "jni::objects::JObject",
-            "JObject",
-            ArgDecode::env_ref_mut(decoder),
-        ))
-}
-
 /// Type vocabulary shared across every `JniConverter` build in this crate.
 /// Defined once and ingested via `Builder::jni_type_binding(...)` so each
 /// generated JNI surface (session, publisher, subscriber, ...) sees the same
 /// types without duplicating registrations.
 fn shared_bindings() -> JniTypeBinding {
     JniTypeBinding::new()
-        .type_binding(callback_binding(
+        .type_binding(jobject_consume(
             "impl Fn(Sample) + Send + Sync + 'static",
             "crate::sample_callback::process_kotlin_sample_callback",
             "io.zenoh.jni.callbacks.JNISubscriberCallback",
         ))
-        .type_binding(callback_binding(
+        .type_binding(jobject_consume(
             "impl Fn(Query) + Send + Sync + 'static",
             "crate::sample_callback::process_kotlin_query_callback",
             "io.zenoh.jni.callbacks.JNIQueryableCallback",
         ))
-        .type_binding(callback_binding(
+        .type_binding(jobject_consume(
             "impl Fn(Reply) + Send + Sync + 'static",
             "crate::sample_callback::process_kotlin_reply_callback",
             "io.zenoh.jni.callbacks.JNIGetCallback",
         ))
-        .type_binding(callback_binding(
+        .type_binding(jobject_consume(
             "impl Fn() + Send + Sync + 'static",
             "crate::sample_callback::process_kotlin_on_close_callback",
             "io.zenoh.jni.callbacks.JNIOnCloseCallback",
