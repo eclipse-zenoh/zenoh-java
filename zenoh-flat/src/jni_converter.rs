@@ -1,44 +1,254 @@
 //! JNI binding generator for functions marked with `#[prebindgen]`.
 //!
-//! This module mirrors the pattern of [`prebindgen::batching::FfiConverter`], but
-//! instead of emitting `#[no_mangle] extern "C"` proxy functions, it emits
+//! Mirrors the pattern of [`prebindgen::batching::FfiConverter`], but instead
+//! of emitting `#[no_mangle] extern "C"` proxy functions, it emits
 //! `Java_<class>_<name>ViaJNI` wrappers that decode JNI arguments, call the
-//! original Rust function, and wrap the result into a raw pointer (or throw a
+//! original Rust function, and wrap the result into a JNI return (or throw a
 //! JVM exception on error).
+//!
+//! # Type registry
+//!
+//! The converter is fully data-driven: every Rust type that can appear in a
+//! `#[prebindgen]` function's signature is described by a [`TypeBinding`]
+//! registered up-front via [`Builder::type_binding`]. A binding declares up to
+//! four forms:
+//!
+//! * `consume` — used when the type appears by value as a parameter (`T`);
+//! * `borrow`  — used when the type appears as a shared reference (`&T`);
+//! * `returns` — used when the type appears in `ZResult<T>` as a return value;
+//! * `returns_vec` — used when the type appears as `ZResult<Vec<T>>`.
+//!
+//! Each form carries a JNI on-the-wire type (e.g. `jni::sys::jlong`,
+//! `jni::objects::JObject`, `*const Foo`), the Kotlin-side declaration, and a
+//! decoding/encoding strategy. Built-in bindings for `bool`, `String`,
+//! `Vec<u8>`, and `Duration` are pre-registered with sensible defaults; a
+//! handful of builder-level convenience methods (`string_decoder`,
+//! `byte_array_decoder`, `enum_decoder`, `struct_decoder`, `return_wrapper`,
+//! `return_wrapper_vec`) populate or extend bindings without forcing every
+//! call site to spell out a full `TypeBinding`.
 //!
 //! # Pipeline
 //!
 //! ```ignore
 //! use itertools::Itertools;
+//! use zenoh_flat::jni_converter::{JniConverter, TypeBinding, JniForm, ArgDecode};
+//!
 //! let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
-//! let converter = zenoh_flat::jni_converter::JniConverter::builder()
+//! let mut converter = JniConverter::builder()
 //!     .class_prefix("Java_io_zenoh_jni_JNISession_")
 //!     .function_suffix("ViaJNI")
 //!     .source_module("zenoh_flat::session")
 //!     .owned_object("crate::owned_object::OwnedObject")
 //!     .zresult("crate::errors::ZResult")
 //!     .throw_exception("crate::throw_exception")
-//!     .struct_decoder("KeyExpr", "crate::key_expr::decode_jni_key_expr")
-//!     .enum_decoder("CongestionControl", "crate::utils::decode_congestion_control")
+//!     .string_decoder("crate::utils::decode_string")
+//!     .byte_array_decoder("crate::utils::decode_byte_array")
+//!     .struct_decoder(
+//!         "KeyExpr",
+//!         "crate::key_expr::decode_jni_key_expr",
+//!         "JNIKeyExpr",
+//!     )
 //!     .build();
 //! source
 //!     .items_all()
-//!     .batching(converter.into_closure())
+//!     .batching(converter.as_closure())
 //!     .collect::<prebindgen::collect::Destination>()
 //!     .write("zenoh_flat_jni.rs");
 //! ```
-//!
-//! This crate is currently coupled to zenoh-jni's type layout (e.g. `KeyExpr`,
-//! decoder helpers, `OwnedObject`) — those couplings are configurable through
-//! the [`Builder`] so the converter itself stays data-driven.
 
 use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 
 use prebindgen::SourceLocation;
+
+// =====================================================================
+// TypeBinding: per-type description of JNI representations
+// =====================================================================
+
+/// Per-type description of how a Rust type is represented across the JNI
+/// boundary. A type may declare up to four forms:
+/// `consume` (`T` parameter), `borrow` (`&T` parameter), `returns`
+/// (`ZResult<T>` return), and `returns_vec` (`ZResult<Vec<T>>` return).
+#[derive(Clone)]
+pub struct TypeBinding {
+    name: String,
+    /// Kotlin-side type name (FQN preferred — out-of-package import is
+    /// auto-derived; bare for same-package). Used as the Kotlin parameter
+    /// type when the form's wire JNI type is `JObject` and as the Kotlin
+    /// return type. For primitive-mapped forms (`bool`, `Duration`,
+    /// `String`, ...) the form's `kotlin_jni_type` is used instead.
+    kotlin_type: Option<String>,
+    consume: Option<JniForm>,
+    borrow: Option<JniForm>,
+    returns: Option<ReturnForm>,
+    returns_vec: Option<ReturnForm>,
+}
+
+/// Strategy for converting a JNI parameter into a Rust value.
+#[derive(Clone)]
+pub enum ArgDecode {
+    /// `let <name> = <path>(&mut env, &<input>)?;`
+    EnvRefMut(syn::Path),
+    /// `let <name> = <path>(&env, <input>)?;` — used by the legacy
+    /// `byte_array_decoder` calling convention.
+    EnvByVal(syn::Path),
+    /// `let <name> = <path>(<input>)?;` — pure conversion (e.g. enum decoders).
+    Pure(syn::Path),
+    /// `let <name> = <expr>;` — inline transformation built from the input
+    /// ident. Used for trivial conversions like `bool` (`x != 0`) or
+    /// `Duration` (`Duration::from_millis(x as u64)`).
+    Inline(InlineFn),
+    /// `let <name> = <owned_object>::from_raw(<input>);` — borrows the Arc
+    /// pointed to by `<input>` via the converter-wide `owned_object` setting.
+    /// The argument is passed to the wrapped function as `&<name>`.
+    OwnedRef,
+    /// Consume an `Arc<T>` raw pointer: reconstructs the Arc, clones the
+    /// inner value, and drops the Arc at end of scope.
+    ConsumeArc,
+}
+
+/// Clonable closure that produces a TokenStream from the JNI input ident.
+#[derive(Clone)]
+pub struct InlineFn(Arc<dyn Fn(&syn::Ident) -> TokenStream + Send + Sync>);
+
+impl InlineFn {
+    pub fn new<F>(f: F) -> Self
+    where
+        F: Fn(&syn::Ident) -> TokenStream + Send + Sync + 'static,
+    {
+        InlineFn(Arc::new(f))
+    }
+
+    fn call(&self, ident: &syn::Ident) -> TokenStream {
+        (self.0)(ident)
+    }
+}
+
+/// Describes how a JNI parameter for a particular type/form is decoded.
+#[derive(Clone)]
+pub struct JniForm {
+    /// On-the-wire JNI type, e.g. `jni::sys::jlong`, `jni::objects::JObject`,
+    /// `*const Session`. Emitted verbatim in the wrapper signature.
+    jni_type: syn::Type,
+    /// Kotlin-side wire type for this form (`"Long"`, `"Boolean"`, `"Int"`,
+    /// `"String"`, `"ByteArray"`, `"JObject"`).
+    kotlin_jni_type: String,
+    /// True for raw-pointer slots — appends `"Ptr"` to the Kotlin parameter
+    /// name (e.g. `sessionPtr: Long`).
+    pointer_param: bool,
+    decode: ArgDecode,
+}
+
+impl JniForm {
+    pub fn new(
+        jni_type: impl AsRef<str>,
+        kotlin_jni_type: impl Into<String>,
+        decode: ArgDecode,
+    ) -> Self {
+        Self {
+            jni_type: syn::parse_str(jni_type.as_ref()).expect("invalid JniForm jni_type"),
+            kotlin_jni_type: kotlin_jni_type.into(),
+            pointer_param: false,
+            decode,
+        }
+    }
+
+    pub fn pointer_param(mut self, p: bool) -> Self {
+        self.pointer_param = p;
+        self
+    }
+
+    /// Whether this form's wire JNI type is a `JObject`-shaped object that
+    /// supports `is_null()` (used by the `Option<T>` combinator).
+    fn is_jni_object(&self) -> bool {
+        matches!(jni_object_kind(&self.jni_type), Some(_))
+    }
+}
+
+#[derive(Clone)]
+pub enum ReturnEncode {
+    /// `Ok(<path>(&mut env, __result)?)` — wrapping function returns
+    /// `ZResult<jni_type>`.
+    Wrapper(syn::Path),
+    /// `Ok(Arc::into_raw(Arc::new(__result)))` — opaque Arc-handle return.
+    ArcIntoRaw,
+}
+
+/// Describes how a Rust return value is encoded into a JNI return.
+#[derive(Clone)]
+pub struct ReturnForm {
+    jni_type: syn::Type,
+    kotlin_jni_type: Option<String>,
+    encode: ReturnEncode,
+    default_expr: syn::Expr,
+}
+
+impl ReturnForm {
+    pub fn new(
+        jni_type: impl AsRef<str>,
+        encode: ReturnEncode,
+        default_expr: impl AsRef<str>,
+    ) -> Self {
+        Self {
+            jni_type: syn::parse_str(jni_type.as_ref()).expect("invalid ReturnForm jni_type"),
+            kotlin_jni_type: None,
+            encode,
+            default_expr: syn::parse_str(default_expr.as_ref())
+                .expect("invalid ReturnForm default_expr"),
+        }
+    }
+
+    pub fn kotlin(mut self, kotlin: impl Into<String>) -> Self {
+        self.kotlin_jni_type = Some(kotlin.into());
+        self
+    }
+}
+
+impl TypeBinding {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            kotlin_type: None,
+            consume: None,
+            borrow: None,
+            returns: None,
+            returns_vec: None,
+        }
+    }
+
+    pub fn kotlin(mut self, fqn: impl Into<String>) -> Self {
+        self.kotlin_type = Some(fqn.into());
+        self
+    }
+
+    pub fn consume(mut self, form: JniForm) -> Self {
+        self.consume = Some(form);
+        self
+    }
+
+    pub fn borrow(mut self, form: JniForm) -> Self {
+        self.borrow = Some(form);
+        self
+    }
+
+    pub fn returns(mut self, form: ReturnForm) -> Self {
+        self.returns = Some(form);
+        self
+    }
+
+    pub fn returns_vec(mut self, form: ReturnForm) -> Self {
+        self.returns_vec = Some(form);
+        self
+    }
+}
+
+// =====================================================================
+// Builder
+// =====================================================================
 
 /// Builder for [`JniConverter`].
 pub struct Builder {
@@ -52,33 +262,23 @@ pub struct Builder {
     owned_object: syn::Path,
     zresult: syn::Path,
     throw_exception: syn::Path,
-    string_decoder: Option<syn::Path>,
-    byte_array_decoder: Option<syn::Path>,
-    enum_decoders: HashMap<String, syn::Path>,
+    /// Primary type registry keyed by short type name.
+    types: HashMap<String, TypeBinding>,
     /// Map from callback element type name (e.g. `"Sample"`) to the decoder
     /// that builds an `impl Fn(T) + Send + Sync + 'static` closure from a
-    /// `(callback: JObject, on_close: JObject)` pair.
+    /// single `JObject`. Callbacks have a fundamentally different shape
+    /// (decoder builds a captured closure rather than a value) so they live
+    /// outside `types`.
     callback_decoders: HashMap<String, syn::Path>,
-    /// Decoders for struct parameters passed across JNI as a plain `JObject`
-    /// (e.g. a Kotlin `data class`). Keyed by the last-segment name of the
-    /// parameter's type (e.g. `"HistoryConfig"`). The decoder must have
-    /// signature `fn(&mut JNIEnv, &JObject) -> ZResult<T>`.
-    struct_decoders: HashMap<String, syn::Path>,
-    /// Return-type wrappers keyed by the last-segment name of `T` in
-    /// `ZResult<T>`. Applies when `T` is a plain (non-`Vec`) type.
-    return_wrappers: HashMap<String, ReturnWrapper>,
-    /// Return-type wrappers keyed by the element type name of `Vec<T>` in
-    /// `ZResult<Vec<T>>`.
-    return_wrappers_vec: HashMap<String, ReturnWrapper>,
+    /// Per-element-type Kotlin names for callback args (e.g. `"Sample"` →
+    /// `"io.zenoh.jni.callbacks.JNISubscriberCallback"`).
+    callback_kotlin_types: HashMap<String, String>,
     /// Kotlin output config — if `None`, no Kotlin file is emitted.
     kotlin: Option<KotlinConfig>,
 }
 
 /// Settings for generating a companion Kotlin file with `external fun`
-/// prototypes. Enabled via [`Builder::kotlin_output`]. Per-type Kotlin names
-/// are stored alongside each Rust decoder registration (see
-/// [`Builder::struct_decoder`], [`Builder::callback_decoder`], and the return
-/// wrappers), so one call registers both sides.
+/// prototypes. Enabled via [`Builder::kotlin_output`].
 pub(crate) struct KotlinConfig {
     output_path: PathBuf,
     package: String,
@@ -89,31 +289,11 @@ pub(crate) struct KotlinConfig {
     /// FQN of a singleton referenced inside the generated `init { ... }` block
     /// to force native-library loading — `None` disables the `init`.
     init_load_fqn: Option<String>,
-    /// Per-source-type Kotlin names (FQN or bare) for struct-decoded args.
-    struct_kotlin_types: HashMap<String, String>,
-    /// Per-element-type Kotlin names for callback args (e.g. `Sample` →
-    /// `io.zenoh.jni.callbacks.JNISubscriberCallback`).
-    callback_kotlin_types: HashMap<String, String>,
-    /// Per-return-type Kotlin names for `ZResult<T>` with a return_wrapper.
-    return_kotlin_types: HashMap<String, String>,
-    /// Per-element-type Kotlin names for `ZResult<Vec<T>>` with a
-    /// return_wrapper_vec.
-    return_kotlin_types_vec: HashMap<String, String>,
-}
-
-/// Describes how to render a `ZResult<T>` return value into a JNI-compatible
-/// output value. Registered via [`Builder::return_wrapper`] /
-/// [`Builder::return_wrapper_vec`].
-#[derive(Clone)]
-pub(crate) struct ReturnWrapper {
-    jni_type: syn::Type,
-    wrap_fn: syn::Path,
-    default_expr: syn::Expr,
 }
 
 impl Default for Builder {
     fn default() -> Self {
-        Self {
+        let mut b = Self {
             class_prefix: String::new(),
             function_suffix: String::new(),
             source_module: syn::parse_str("crate").unwrap(),
@@ -121,16 +301,56 @@ impl Default for Builder {
             owned_object: syn::parse_str("OwnedObject").unwrap(),
             zresult: syn::parse_str("ZResult").unwrap(),
             throw_exception: syn::parse_str("throw_exception").unwrap(),
-            string_decoder: None,
-            byte_array_decoder: None,
-            enum_decoders: HashMap::new(),
+            types: HashMap::new(),
             callback_decoders: HashMap::new(),
-            struct_decoders: HashMap::new(),
-            return_wrappers: HashMap::new(),
-            return_wrappers_vec: HashMap::new(),
+            callback_kotlin_types: HashMap::new(),
             kotlin: None,
-        }
+        };
+        register_builtins(&mut b.types);
+        b
     }
+}
+
+/// Pre-register built-in language types (`bool`, `Duration`) plus the
+/// scaffolding for `String` / `Vec<u8>` (whose decoders are filled in by
+/// [`Builder::string_decoder`] / [`Builder::byte_array_decoder`]).
+fn register_builtins(types: &mut HashMap<String, TypeBinding>) {
+    // bool — jboolean, inline `x != 0`.
+    types.insert(
+        "bool".to_string(),
+        TypeBinding::new("bool").consume(
+            JniForm::new(
+                "jni::sys::jboolean",
+                "Boolean",
+                ArgDecode::Inline(InlineFn::new(|input| quote! { #input != 0 })),
+            ),
+        ),
+    );
+    // Duration — jlong, inline `Duration::from_millis(x as u64)`.
+    types.insert(
+        "Duration".to_string(),
+        TypeBinding::new("Duration").consume(
+            JniForm::new(
+                "jni::sys::jlong",
+                "Long",
+                ArgDecode::Inline(InlineFn::new(
+                    |input| quote! { std::time::Duration::from_millis(#input as u64) },
+                )),
+            ),
+        ),
+    );
+    // String — JString, decoder filled by string_decoder().
+    types.insert(
+        "String".to_string(),
+        TypeBinding::new("String"),
+    );
+    // Vec<u8> — keyed under the synthetic name "VecU8" (looked up explicitly
+    // by classify_arg when it sees `Vec<u8>`). Decoder filled by
+    // byte_array_decoder().
+    types.insert(
+        "VecU8".to_string(),
+        TypeBinding::new("VecU8"),
+    );
 }
 
 impl Builder {
@@ -164,7 +384,8 @@ impl Builder {
         self
     }
 
-    /// Path of the `OwnedObject` helper used to borrow Arc-pointers.
+    /// Path of the `OwnedObject` helper used to borrow Arc-pointers in the
+    /// `OwnedRef` decode form.
     pub fn owned_object(mut self, path: impl AsRef<str>) -> Self {
         self.owned_object = syn::parse_str(path.as_ref()).expect("invalid owned_object path");
         self
@@ -183,73 +404,102 @@ impl Builder {
         self
     }
 
-    /// Path of the function that decodes a `JString` into `String`, e.g.
-    /// `"crate::utils::decode_string"`.
+    /// Universal entry point: register or replace a [`TypeBinding`] by name.
+    /// All sugar methods below delegate to this.
+    pub fn type_binding(mut self, binding: TypeBinding) -> Self {
+        self.types.insert(binding.name.clone(), binding);
+        self
+    }
+
+    /// Path of the function that decodes a `JString` into `String`. Used by
+    /// the built-in `String` binding.
     pub fn string_decoder(mut self, path: impl AsRef<str>) -> Self {
-        self.string_decoder =
-            Some(syn::parse_str(path.as_ref()).expect("invalid string_decoder path"));
+        let p: syn::Path = syn::parse_str(path.as_ref()).expect("invalid string_decoder path");
+        let entry = self
+            .types
+            .get_mut("String")
+            .expect("built-in `String` binding missing");
+        entry.consume = Some(JniForm::new(
+            "jni::objects::JString",
+            "String",
+            ArgDecode::EnvRefMut(p),
+        ));
         self
     }
 
-    /// Path of the function that decodes a `JByteArray` into `Vec<u8>`, e.g.
-    /// `"crate::utils::decode_byte_array"`. Used for both `Vec<u8>` and
-    /// `Option<Vec<u8>>` parameters.
+    /// Path of the function that decodes a `JByteArray` into `Vec<u8>`. Used
+    /// by the built-in `Vec<u8>` binding (under the internal name `"VecU8"`).
     pub fn byte_array_decoder(mut self, path: impl AsRef<str>) -> Self {
-        self.byte_array_decoder =
-            Some(syn::parse_str(path.as_ref()).expect("invalid byte_array_decoder path"));
+        let p: syn::Path =
+            syn::parse_str(path.as_ref()).expect("invalid byte_array_decoder path");
+        let entry = self
+            .types
+            .get_mut("VecU8")
+            .expect("built-in `VecU8` binding missing");
+        entry.consume = Some(JniForm::new(
+            "jni::objects::JByteArray",
+            "ByteArray",
+            ArgDecode::EnvByVal(p),
+        ));
         self
     }
 
-    /// Register a decoder for an enum type. `type_name` is matched against the
-    /// last segment of the parameter's type path.
+    /// Register a decoder for an enum type. Equivalent to:
+    /// ```ignore
+    /// .type_binding(TypeBinding::new(name)
+    ///     .consume(JniForm::new("jni::sys::jint", "Int", ArgDecode::Pure(<path>))))
+    /// ```
     pub fn enum_decoder(
         mut self,
         type_name: impl Into<String>,
         decoder: impl AsRef<str>,
     ) -> Self {
-        let path: syn::Path =
+        let name = type_name.into();
+        let p: syn::Path =
             syn::parse_str(decoder.as_ref()).expect("invalid enum_decoder path");
-        self.enum_decoders.insert(type_name.into(), path);
+        let binding = self
+            .types
+            .entry(name.clone())
+            .or_insert_with(|| TypeBinding::new(name));
+        binding.consume = Some(JniForm::new(
+            "jni::sys::jint",
+            "Int",
+            ArgDecode::Pure(p),
+        ));
         self
     }
 
-    /// Register a decoder for a struct parameter passed across JNI as a
-    /// plain `JObject` (typically a Kotlin data class). `type_name` matches
-    /// the last segment of the parameter's type path (e.g. `"HistoryConfig"`).
-    /// The decoder must have signature
-    /// `fn(&mut JNIEnv, &JObject) -> ZResult<T>`. Used both for the plain
-    /// form (`HistoryConfig`) and the `Option<T>` form (nullable JObject).
-    ///
-    /// `kotlin_type` is the Kotlin type name — FQN if out-of-package (import
-    /// is auto-derived) or bare for same-package / built-in. Only read when
-    /// Kotlin output is enabled via [`Builder::kotlin_output`].
+    /// Register a decoder for a struct parameter passed across JNI as a plain
+    /// `JObject` (typically a Kotlin data class). The decoder must have
+    /// signature `fn(&mut JNIEnv, &JObject) -> ZResult<T>`. `kotlin_type` is
+    /// the Kotlin type name (FQN if out-of-package, bare otherwise).
     pub fn struct_decoder(
         mut self,
         type_name: impl Into<String>,
         decoder: impl AsRef<str>,
         kotlin_type: impl Into<String>,
     ) -> Self {
-        let path: syn::Path =
-            syn::parse_str(decoder.as_ref()).expect("invalid struct_decoder path");
         let name = type_name.into();
         let kt = kotlin_type.into();
-        self.struct_decoders.insert(name.clone(), path);
-        if let Some(k) = self.kotlin.as_mut() {
-            k.struct_kotlin_types.insert(name, kt);
-        }
+        let p: syn::Path =
+            syn::parse_str(decoder.as_ref()).expect("invalid struct_decoder path");
+        let binding = self
+            .types
+            .entry(name.clone())
+            .or_insert_with(|| TypeBinding::new(name));
+        binding.kotlin_type = Some(kt);
+        binding.consume = Some(JniForm::new(
+            "jni::objects::JObject",
+            "JObject",
+            ArgDecode::EnvRefMut(p),
+        ));
         self
     }
 
     /// Register a decoder for an `impl Fn(T) + Send + Sync + 'static` callback
     /// parameter. `element_type_name` is the last path segment of `T`
-    /// (e.g. `"Sample"`, `"Query"`, `"Reply"`). The decoder must have the
-    /// signature
-    /// `fn(&mut JNIEnv, JObject, JObject) -> ZResult<impl Fn(T) + Send + Sync + 'static>`.
-    /// The generated JNI signature expands the single callback parameter into
-    /// two JNI args: `<name>: JObject, <name>_on_close: JObject`.
-    ///
-    /// `kotlin_type` is the Kotlin callback type name — FQN if out-of-package,
-    /// bare otherwise. Only read when Kotlin output is enabled.
+    /// (e.g. `"Sample"`, `"Query"`, `"Reply"`). The decoder must have
+    /// signature `fn(&mut JNIEnv, JObject) -> ZResult<impl Fn(T) + Send + Sync + 'static>`.
     pub fn callback_decoder(
         mut self,
         element_type_name: impl Into<String>,
@@ -261,20 +511,14 @@ impl Builder {
         let name = element_type_name.into();
         let kt = kotlin_type.into();
         self.callback_decoders.insert(name.clone(), path);
-        if let Some(k) = self.kotlin.as_mut() {
-            k.callback_kotlin_types.insert(name, kt);
-        }
+        self.callback_kotlin_types.insert(name, kt);
         self
     }
 
     /// Register a return-type wrapper for `ZResult<T>` where `T`'s
-    /// last-segment name equals `type_name`. `jni_type` is the generated
-    /// `extern "C"` return type. `wrap_fn` must have signature
+    /// last-segment name equals `type_name`. `wrap_fn` must have signature
     /// `fn(&mut JNIEnv, T) -> ZResult<jni_type>`. `default_expr` is the value
     /// returned on error (before the exception is thrown on the JVM side).
-    ///
-    /// `kotlin_type` is the Kotlin return type name (FQN or bare). Only read
-    /// when Kotlin output is enabled.
     pub fn return_wrapper(
         mut self,
         type_name: impl Into<String>,
@@ -285,11 +529,15 @@ impl Builder {
     ) -> Self {
         let name = type_name.into();
         let kt = kotlin_type.into();
-        self.return_wrappers
-            .insert(name.clone(), parse_return_wrapper(jni_type, wrap_fn, default_expr));
-        if let Some(k) = self.kotlin.as_mut() {
-            k.return_kotlin_types.insert(name, kt);
-        }
+        let wrap: syn::Path =
+            syn::parse_str(wrap_fn.as_ref()).expect("invalid return_wrapper wrap_fn path");
+        let mut form = ReturnForm::new(jni_type, ReturnEncode::Wrapper(wrap), default_expr);
+        form.kotlin_jni_type = Some(kt);
+        let binding = self
+            .types
+            .entry(name.clone())
+            .or_insert_with(|| TypeBinding::new(name));
+        binding.returns = Some(form);
         self
     }
 
@@ -305,18 +553,20 @@ impl Builder {
     ) -> Self {
         let name = element_type_name.into();
         let kt = kotlin_type.into();
-        self.return_wrappers_vec
-            .insert(name.clone(), parse_return_wrapper(jni_type, wrap_fn, default_expr));
-        if let Some(k) = self.kotlin.as_mut() {
-            k.return_kotlin_types_vec.insert(name, kt);
-        }
+        let wrap: syn::Path =
+            syn::parse_str(wrap_fn.as_ref()).expect("invalid return_wrapper_vec wrap_fn path");
+        let mut form = ReturnForm::new(jni_type, ReturnEncode::Wrapper(wrap), default_expr);
+        form.kotlin_jni_type = Some(kt);
+        let binding = self
+            .types
+            .entry(name.clone())
+            .or_insert_with(|| TypeBinding::new(name));
+        binding.returns_vec = Some(form);
         self
     }
 
     /// Enable Kotlin-side prototype generation. `path` is where the `.kt`
     /// file will be written when [`JniConverter::write_kotlin`] is called.
-    /// Calling this method is what turns on Kotlin output; all other
-    /// `kotlin_*` methods are optional refinements.
     pub fn kotlin_output(mut self, path: impl Into<PathBuf>) -> Self {
         self.kotlin.get_or_insert_with(KotlinConfig::default).output_path = path.into();
         self
@@ -345,7 +595,6 @@ impl Builder {
 
     /// FQN of a singleton referenced from the generated `init { ... }` block
     /// (typically `io.zenoh.ZenohLoad`) to force native-library loading.
-    /// Unset ⇒ no `init` block.
     pub fn kotlin_init(mut self, fqn: impl Into<String>) -> Self {
         self.kotlin.get_or_insert_with(KotlinConfig::default).init_load_fqn = Some(fqn.into());
         self
@@ -371,41 +620,29 @@ impl Default for KotlinConfig {
             class_name: String::new(),
             throws_class_fqn: None,
             init_load_fqn: None,
-            struct_kotlin_types: HashMap::new(),
-            callback_kotlin_types: HashMap::new(),
-            return_kotlin_types: HashMap::new(),
-            return_kotlin_types_vec: HashMap::new(),
         }
     }
 }
 
+// =====================================================================
+// JniConverter
+// =====================================================================
+
 /// Converter that transforms `#[prebindgen]`-marked Rust functions into JNI
 /// `Java_*` wrappers.
-///
-/// Intended for use with `itertools::batching`:
-///
-/// ```ignore
-/// source.items_all().batching(converter.into_closure())
-/// ```
 pub struct JniConverter {
     cfg: Builder,
     pending: VecDeque<(syn::Item, SourceLocation)>,
     /// `true` once the source iterator has been drained and sorted (structs
     /// before functions) so that function-arg classification can see every
-    /// struct decoder the converter is going to auto-register.
+    /// auto-registered struct binding.
     buffered: bool,
     /// Accumulated Kotlin `external fun ...` blocks, one per wrapped function.
-    /// Populated by `convert_fn` when Kotlin output is enabled, consumed by
-    /// [`JniConverter::write_kotlin`].
     kotlin_funs: Vec<String>,
     /// Accumulated Kotlin `data class ...` blocks, one per `#[prebindgen]`
-    /// struct seen in the source stream. Emitted by `write_kotlin` BEFORE the
-    /// `internal object { ... }` block so call sites in the same package can
-    /// see the types.
+    /// struct seen in the source stream.
     kotlin_data_classes: Vec<String>,
-    /// Set of Kotlin FQNs referenced by the emitted externals. Used to derive
-    /// the final `import` block (same-package and bare names are filtered
-    /// out).
+    /// Set of Kotlin FQNs referenced by emitted externals.
     kotlin_used_fqns: BTreeSet<String>,
 }
 
@@ -416,8 +653,8 @@ impl JniConverter {
 
     /// Drain `iter` on the first call, sort so `#[prebindgen]` struct items
     /// are processed before functions (so function-arg classification can see
-    /// every auto-registered struct decoder), then return converted items one
-    /// at a time from the buffer. Returns `None` once the buffer is drained.
+    /// every auto-registered struct binding), then return converted items
+    /// one at a time from the buffer.
     pub fn call<I>(&mut self, iter: &mut I) -> Option<(syn::Item, SourceLocation)>
     where
         I: Iterator<Item = (syn::Item, SourceLocation)>,
@@ -425,8 +662,6 @@ impl JniConverter {
         if !self.buffered {
             self.buffered = true;
             let mut all: Vec<(syn::Item, SourceLocation)> = iter.by_ref().collect();
-            // Stable sort: structs first (`false` < `true`), original order
-            // preserved within each group.
             all.sort_by_key(|(it, _)| !matches!(it, syn::Item::Struct(_)));
             for (item, loc) in all {
                 let converted = self.convert(item, &loc);
@@ -436,7 +671,7 @@ impl JniConverter {
         self.pending.pop_front()
     }
 
-    /// Closure suitable for `itertools::batching`.
+    /// Closure suitable for `itertools::batching`. Consumes `self`.
     pub fn into_closure<I>(
         mut self,
     ) -> impl FnMut(&mut I) -> Option<(syn::Item, SourceLocation)>
@@ -447,9 +682,8 @@ impl JniConverter {
     }
 
     /// Borrowing closure suitable for `itertools::batching`. Unlike
-    /// [`JniConverter::into_closure`], this does not consume `self`, so the
-    /// converter survives the pipeline and [`JniConverter::write_kotlin`] can
-    /// be called after the pipeline completes.
+    /// [`JniConverter::into_closure`], this does not consume `self`, so
+    /// [`JniConverter::write_kotlin`] can be called after the pipeline.
     pub fn as_closure<'a, I>(
         &'a mut self,
     ) -> impl FnMut(&mut I) -> Option<(syn::Item, SourceLocation)> + 'a
@@ -460,9 +694,7 @@ impl JniConverter {
     }
 
     /// Write the accumulated Kotlin `external fun ...` prototypes to the
-    /// configured output path. No-op when Kotlin output was not enabled via
-    /// [`Builder::kotlin_output`]. The output file is overwritten if it
-    /// already exists; parent directories are created as needed.
+    /// configured output path. No-op when Kotlin output was not enabled.
     pub fn write_kotlin(&self) -> std::io::Result<()> {
         let Some(kt) = self.cfg.kotlin.as_ref() else {
             return Ok(());
@@ -478,8 +710,6 @@ impl JniConverter {
     }
 
     fn render_kotlin(&self, kt: &KotlinConfig) -> String {
-        // Fold init-block FQN into the used set (deferred to emission time so
-        // it appears in imports only when the init block is emitted).
         let mut used = self.kotlin_used_fqns.clone();
         if let Some(fqn) = kt.init_load_fqn.as_ref() {
             if fqn.contains('.') {
@@ -539,21 +769,23 @@ impl JniConverter {
     fn convert_fn(&mut self, func: syn::ItemFn, loc: &SourceLocation) -> syn::ItemFn {
         let original_name = func.sig.ident.to_string();
         let camel = snake_to_camel(&original_name);
-        let jni_name = format_ident!("{}{}{}", self.cfg.class_prefix, camel, self.cfg.function_suffix);
+        let jni_name = format_ident!(
+            "{}{}{}",
+            self.cfg.class_prefix,
+            camel,
+            self.cfg.function_suffix
+        );
         let orig_ident = &func.sig.ident;
         let source_module = self.cfg.source_module.clone();
-        let owned_object = self.cfg.owned_object.clone();
         let zresult = self.cfg.zresult.clone();
         let throw_exception = self.cfg.throw_exception.clone();
 
         let mut prelude: Vec<TokenStream> = Vec::new();
         let mut jni_params: Vec<TokenStream> = Vec::new();
         let mut call_args: Vec<TokenStream> = Vec::new();
-        // Kotlin param strings accumulated in parallel with `jni_params`. Only
-        // populated when Kotlin output is enabled.
         let mut kotlin_params: Vec<String> = Vec::new();
         let mut local_kotlin_fqns: BTreeSet<String> = BTreeSet::new();
-        let kt_cfg: Option<&KotlinConfig> = self.cfg.kotlin.as_ref();
+        let kt_enabled = self.cfg.kotlin.is_some();
 
         for input in &func.sig.inputs {
             let syn::FnArg::Typed(pat_type) = input else {
@@ -565,263 +797,22 @@ impl JniConverter {
             let name = &pat_ident.ident;
             let ty = &*pat_type.ty;
 
-            match self.classify_arg(ty) {
-                ArgKind::OpaqueRef(elem) => {
-                    let ptr_ident = format_ident!("{}_ptr", name);
-                    jni_params.push(quote! { #ptr_ident: *const #elem });
-                    prelude.push(quote! {
-                        let #name = #owned_object::from_raw(#ptr_ident);
-                    });
-                    call_args.push(quote! { &#name });
-                    if kt_cfg.is_some() {
-                        kotlin_params.push(format!(
-                            "{}: Long",
-                            kotlin_param_name(&name.to_string(), /* ptr */ true)
-                        ));
-                    }
-                }
-                ArgKind::KeyExprBorrow => {
-                    // `&KeyExpr` in the source signature: single `JObject`
-                    // holder (io.zenoh.jni.JNIKeyExpr) decoded via the
-                    // `KeyExpr` entry in `struct_decoders`.
-                    let decoder = self
-                        .cfg
-                        .struct_decoders
-                        .get("KeyExpr")
-                        .expect("struct_decoder(\"KeyExpr\", ...) not configured");
-                    jni_params.push(quote! { #name: jni::objects::JObject });
-                    prelude.push(quote! {
-                        let #name = #decoder(&mut env, &#name)?;
-                    });
-                    call_args.push(quote! { #name });
-                    if let Some(kt) = kt_cfg {
-                        let fqn = kt
-                            .struct_kotlin_types
-                            .get("KeyExpr")
-                            .cloned()
-                            .expect("struct_decoder(\"KeyExpr\", ...) Kotlin type not configured");
-                        let short = kotlin_register_fqn(&fqn, &mut local_kotlin_fqns);
-                        kotlin_params.push(format!(
-                            "{}: {}",
-                            kotlin_param_name(&name.to_string(), false),
-                            short
-                        ));
-                    }
-                }
-                ArgKind::KeyExprConsume => {
-                    // `KeyExpr<'static>` by value in the source signature:
-                    // the caller relinquishes ownership of the declared
-                    // handle. Arc::from_raw decrements the refcount at end
-                    // of scope, freeing the handle once no other references
-                    // remain. A cloned inner KeyExpr is passed by value.
-                    let ptr_ident = format_ident!("{}_ptr", name);
-                    let arc_ident = format_ident!("__{}_arc", name);
-                    jni_params.push(quote! {
-                        #ptr_ident: *const zenoh::key_expr::KeyExpr<'static>
-                    });
-                    prelude.push(quote! {
-                        let #arc_ident = std::sync::Arc::from_raw(#ptr_ident);
-                        let #name = (*#arc_ident).clone();
-                    });
-                    call_args.push(quote! { #name });
-                    if kt_cfg.is_some() {
-                        kotlin_params.push(format!(
-                            "{}: Long",
-                            kotlin_param_name(&name.to_string(), true)
-                        ));
-                    }
-                }
-                ArgKind::String => {
-                    let decoder = self
-                        .cfg
-                        .string_decoder
-                        .as_ref()
-                        .expect("string_decoder not configured");
-                    jni_params.push(quote! { #name: jni::objects::JString });
-                    prelude.push(quote! {
-                        let #name = #decoder(&mut env, &#name)?;
-                    });
-                    call_args.push(quote! { #name });
-                    if kt_cfg.is_some() {
-                        kotlin_params.push(format!(
-                            "{}: String",
-                            kotlin_param_name(&name.to_string(), false)
-                        ));
-                    }
-                }
-                ArgKind::Enum(decoder) => {
-                    jni_params.push(quote! { #name: jni::sys::jint });
-                    prelude.push(quote! {
-                        let #name = #decoder(#name)?;
-                    });
-                    call_args.push(quote! { #name });
-                    if kt_cfg.is_some() {
-                        kotlin_params.push(format!(
-                            "{}: Int",
-                            kotlin_param_name(&name.to_string(), false)
-                        ));
-                    }
-                }
-                ArgKind::Bool => {
-                    jni_params.push(quote! { #name: jni::sys::jboolean });
-                    prelude.push(quote! { let #name = #name != 0; });
-                    call_args.push(quote! { #name });
-                    if kt_cfg.is_some() {
-                        kotlin_params.push(format!(
-                            "{}: Boolean",
-                            kotlin_param_name(&name.to_string(), false)
-                        ));
-                    }
-                }
-                ArgKind::Duration => {
-                    jni_params.push(quote! { #name: jni::sys::jlong });
-                    prelude.push(quote! {
-                        let #name = std::time::Duration::from_millis(#name as u64);
-                    });
-                    call_args.push(quote! { #name });
-                    if kt_cfg.is_some() {
-                        kotlin_params.push(format!(
-                            "{}: Long",
-                            kotlin_param_name(&name.to_string(), false)
-                        ));
-                    }
-                }
-                ArgKind::OptionVecU8 => {
-                    let decoder = self
-                        .cfg
-                        .byte_array_decoder
-                        .as_ref()
-                        .expect("byte_array_decoder not configured");
-                    jni_params.push(quote! { #name: jni::objects::JByteArray });
-                    prelude.push(quote! {
-                        let #name = if !#name.is_null() {
-                            Some(#decoder(&env, #name)?)
-                        } else {
-                            None
-                        };
-                    });
-                    call_args.push(quote! { #name });
-                    if kt_cfg.is_some() {
-                        kotlin_params.push(format!(
-                            "{}: ByteArray?",
-                            kotlin_param_name(&name.to_string(), false)
-                        ));
-                    }
-                }
-                ArgKind::VecU8 => {
-                    let decoder = self
-                        .cfg
-                        .byte_array_decoder
-                        .as_ref()
-                        .expect("byte_array_decoder not configured");
-                    jni_params.push(quote! { #name: jni::objects::JByteArray });
-                    prelude.push(quote! {
-                        let #name = #decoder(&env, #name)?;
-                    });
-                    call_args.push(quote! { #name });
-                    if kt_cfg.is_some() {
-                        kotlin_params.push(format!(
-                            "{}: ByteArray",
-                            kotlin_param_name(&name.to_string(), false)
-                        ));
-                    }
-                }
-                ArgKind::Callback { decoder, element_type_name } => {
-                    jni_params.push(quote! { #name: jni::objects::JObject });
-                    prelude.push(quote! {
-                        let #name = #decoder(&mut env, #name)?;
-                    });
-                    call_args.push(quote! { #name });
-                    if let Some(kt) = kt_cfg {
-                        let cb_fqn = kt.callback_kotlin_types.get(&element_type_name).cloned()
-                            .unwrap_or_else(|| panic!(
-                                "callback_decoder({:?}, ...) Kotlin type not configured",
-                                element_type_name
-                            ));
-                        let cb_short = kotlin_register_fqn(&cb_fqn, &mut local_kotlin_fqns);
-                        kotlin_params.push(format!(
-                            "{}: {}",
-                            kotlin_param_name(&name.to_string(), false),
-                            cb_short
-                        ));
-                    }
-                }
-                ArgKind::OptionString => {
-                    let decoder = self
-                        .cfg
-                        .string_decoder
-                        .as_ref()
-                        .expect("string_decoder not configured");
-                    jni_params.push(quote! { #name: jni::objects::JString });
-                    prelude.push(quote! {
-                        let #name = if !#name.is_null() {
-                            Some(#decoder(&mut env, &#name)?)
-                        } else {
-                            None
-                        };
-                    });
-                    call_args.push(quote! { #name });
-                    if kt_cfg.is_some() {
-                        kotlin_params.push(format!(
-                            "{}: String?",
-                            kotlin_param_name(&name.to_string(), false)
-                        ));
-                    }
-                }
-                ArgKind::StructFromJObject { decoder, type_name } => {
-                    jni_params.push(quote! { #name: jni::objects::JObject });
-                    prelude.push(quote! {
-                        let #name = #decoder(&mut env, &#name)?;
-                    });
-                    call_args.push(quote! { #name });
-                    if let Some(kt) = kt_cfg {
-                        let fqn = kt.struct_kotlin_types.get(&type_name).cloned()
-                            .unwrap_or_else(|| panic!(
-                                "struct_decoder({:?}, ...) Kotlin type not configured",
-                                type_name
-                            ));
-                        let short = kotlin_register_fqn(&fqn, &mut local_kotlin_fqns);
-                        kotlin_params.push(format!(
-                            "{}: {}",
-                            kotlin_param_name(&name.to_string(), false),
-                            short
-                        ));
-                    }
-                }
-                ArgKind::OptionStructFromJObject { decoder, type_name } => {
-                    jni_params.push(quote! { #name: jni::objects::JObject });
-                    prelude.push(quote! {
-                        let #name = if !#name.is_null() {
-                            Some(#decoder(&mut env, &#name)?)
-                        } else {
-                            None
-                        };
-                    });
-                    call_args.push(quote! { #name });
-                    if let Some(kt) = kt_cfg {
-                        let fqn = kt.struct_kotlin_types.get(&type_name).cloned()
-                            .unwrap_or_else(|| panic!(
-                                "struct_decoder({:?}, ...) Kotlin type not configured",
-                                type_name
-                            ));
-                        let short = kotlin_register_fqn(&fqn, &mut local_kotlin_fqns);
-                        kotlin_params.push(format!(
-                            "{}: {}?",
-                            kotlin_param_name(&name.to_string(), false),
-                            short
-                        ));
-                    }
-                }
-                ArgKind::Unsupported => panic!(
-                    "unsupported parameter type `{}` for `{}` at {loc}",
-                    ty.to_token_stream(),
-                    name
-                ),
-            }
+            let kind = self.classify_arg(ty, name);
+            self.emit_arg(
+                kind,
+                name,
+                ty,
+                loc,
+                &mut prelude,
+                &mut jni_params,
+                &mut call_args,
+                &mut kotlin_params,
+                &mut local_kotlin_fqns,
+                kt_enabled,
+            );
         }
 
-        // Kotlin return type (None = Unit). Computed in parallel with the Rust
-        // return type so a single classification drives both outputs.
+        // Return type.
         let mut kotlin_ret: Option<String> = None;
         let (ret_ty_jni, wrap_ok, on_err, closure_ret): (
             TokenStream,
@@ -840,27 +831,36 @@ impl JniConverter {
                         quote! { () },
                         quote! { #zresult<()> },
                     )
-                } else if let Some(wrapper) = self.lookup_return_wrapper(&inner) {
-                    if let Some(kt) = kt_cfg {
-                        let fqn = self
-                            .lookup_kotlin_return_type(&inner, kt)
-                            .expect("return_wrapper(...) Kotlin type not configured");
-                        let short = kotlin_register_fqn(&fqn, &mut local_kotlin_fqns);
+                } else if let Some(form) = self.lookup_return_form(&inner) {
+                    if kt_enabled {
+                        let kt = form
+                            .kotlin_jni_type
+                            .clone()
+                            .expect("return form Kotlin type not configured");
+                        let short = kotlin_register_fqn(&kt, &mut local_kotlin_fqns);
                         kotlin_ret = Some(short);
                     }
-                    let ReturnWrapper {
-                        jni_type,
-                        wrap_fn,
-                        default_expr,
-                    } = wrapper;
-                    (
-                        quote! { #jni_type },
-                        quote! { #wrap_fn(&mut env, __result) },
-                        quote! { #default_expr },
-                        quote! { #zresult<#jni_type> },
-                    )
+                    let jni_type = &form.jni_type;
+                    let default_expr = &form.default_expr;
+                    match &form.encode {
+                        ReturnEncode::Wrapper(wrap_fn) => (
+                            quote! { #jni_type },
+                            quote! { #wrap_fn(&mut env, __result) },
+                            quote! { #default_expr },
+                            quote! { #zresult<#jni_type> },
+                        ),
+                        ReturnEncode::ArcIntoRaw => (
+                            quote! { #jni_type },
+                            quote! {
+                                Ok(std::sync::Arc::into_raw(std::sync::Arc::new(__result)))
+                            },
+                            quote! { #default_expr },
+                            quote! { #zresult<#jni_type> },
+                        ),
+                    }
                 } else {
-                    if kt_cfg.is_some() {
+                    // Fallback: treat as opaque Arc-handle, return `*const T`.
+                    if kt_enabled {
                         kotlin_ret = Some("Long".to_string());
                     }
                     (
@@ -903,9 +903,8 @@ impl JniConverter {
             ) -> #ret_ty_jni #body
         };
 
-        // Assemble and stash the Kotlin `external fun ...` block so
-        // `write_kotlin()` can emit it later.
-        if self.cfg.kotlin.is_some() {
+        // Assemble the Kotlin `external fun ...` block.
+        if kt_enabled {
             let kt_fn_name = format!("{}{}", camel, self.cfg.function_suffix);
             let ret_suffix = match &kotlin_ret {
                 Some(r) => format!(": {}", r),
@@ -923,8 +922,6 @@ impl JniConverter {
                 .and_then(|k| k.throws_class_fqn.as_ref())
                 .is_some()
             {
-                // Short name already registered via kotlin_register_fqn for
-                // the whole file (see write_kotlin); re-derive here.
                 let fqn = self
                     .cfg
                     .kotlin
@@ -957,10 +954,8 @@ impl JniConverter {
     }
 
     /// Emit a JNI decoder for a `#[prebindgen]` struct and a matching Kotlin
-    /// `data class`. The struct item itself is NOT re-emitted into the output
-    /// stream — only the decoder function is — so the original type stays
-    /// solely in its home module (e.g. `zenoh_flat::ext`) and is referenced
-    /// from generated code by its fully-qualified path.
+    /// `data class`, then auto-register a `TypeBinding` so the struct can
+    /// appear by value in a wrapped function's signature.
     fn convert_struct(&mut self, s: syn::ItemStruct, loc: &SourceLocation) -> syn::Item {
         let struct_name = s.ident.to_string();
         let struct_ident = s.ident.clone();
@@ -1053,21 +1048,18 @@ impl JniConverter {
             }
         };
 
-        // Auto-register the decoder for future function-arg classification.
-        // The decoder lives in the same module as the generated wrappers, so a
-        // bare `syn::Path` resolves correctly at the wrapper call sites.
+        // Auto-register a TypeBinding for this struct.
         let decoder_path: syn::Path = syn::parse_str(&format!("decode_{struct_name}"))
             .expect("generated decoder ident must parse as path");
-        self.cfg
-            .struct_decoders
-            .insert(struct_name.clone(), decoder_path);
-        if let Some(kt) = self.cfg.kotlin.as_mut() {
-            // Same package as the generated Kotlin file → bare name, no FQN.
-            kt.struct_kotlin_types
-                .insert(struct_name.clone(), struct_name.clone());
-        }
+        let mut binding = TypeBinding::new(struct_name.clone());
+        binding.kotlin_type = Some(struct_name.clone()); // bare — same package
+        binding.consume = Some(JniForm::new(
+            "jni::objects::JObject",
+            "JObject",
+            ArgDecode::EnvRefMut(decoder_path),
+        ));
+        self.cfg.types.insert(struct_name.clone(), binding);
 
-        // Accumulate the Kotlin data class for emission by write_kotlin.
         if self.cfg.kotlin.is_some() {
             let block = format!(
                 "data class {}(\n{}\n)",
@@ -1081,8 +1073,6 @@ impl JniConverter {
     }
 
     /// Classify a `#[prebindgen]` struct field's type for JNI round-tripping.
-    /// Scope is deliberately narrow (only what the current four configs need)
-    /// — an unsupported type panics so we notice new cases at codegen time.
     fn classify_struct_field(&self, ty: &syn::Type) -> StructFieldKind {
         let syn::Type::Path(tp) = ty else {
             return StructFieldKind::Unsupported;
@@ -1096,34 +1086,21 @@ impl JniConverter {
             "i64" => StructFieldKind::I64,
             "f64" => StructFieldKind::F64,
             _ => {
-                if let Some(decoder) = self.cfg.enum_decoders.get(&name) {
-                    StructFieldKind::Enum(decoder.clone())
-                } else {
-                    StructFieldKind::Unsupported
+                // Enum decoders are stored as a `Pure` ArgDecode on the
+                // type's binding's `consume` form.
+                if let Some(binding) = self.cfg.types.get(&name) {
+                    if let Some(form) = binding.consume.as_ref() {
+                        if let ArgDecode::Pure(p) = &form.decode {
+                            return StructFieldKind::Enum(p.clone());
+                        }
+                    }
                 }
+                StructFieldKind::Unsupported
             }
         }
     }
 
-    /// Resolve the Kotlin return-type FQN for a `ZResult<T>` inner type `T`.
-    fn lookup_kotlin_return_type(&self, inner: &syn::Type, kt: &KotlinConfig) -> Option<String> {
-        let syn::Type::Path(tp) = inner else { return None };
-        let seg = tp.path.segments.last()?;
-        let name = seg.ident.to_string();
-        if name == "Vec" {
-            let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
-                return None;
-            };
-            let syn::GenericArgument::Type(elem) = args.args.first()? else {
-                return None;
-            };
-            let elem_name = type_last_segment(elem)?;
-            return kt.return_kotlin_types_vec.get(&elem_name).cloned();
-        }
-        kt.return_kotlin_types.get(&name).cloned()
-    }
-
-    fn lookup_return_wrapper(&self, ty: &syn::Type) -> Option<ReturnWrapper> {
+    fn lookup_return_form(&self, ty: &syn::Type) -> Option<&ReturnForm> {
         let syn::Type::Path(tp) = ty else { return None };
         let seg = tp.path.segments.last()?;
         let name = seg.ident.to_string();
@@ -1135,18 +1112,43 @@ impl JniConverter {
                 return None;
             };
             let elem_name = type_last_segment(elem)?;
-            return self.cfg.return_wrappers_vec.get(&elem_name).cloned();
+            return self
+                .cfg
+                .types
+                .get(&elem_name)
+                .and_then(|b| b.returns_vec.as_ref());
         }
-        self.cfg.return_wrappers.get(&name).cloned()
+        self.cfg.types.get(&name).and_then(|b| b.returns.as_ref())
     }
 
-    fn classify_arg(&self, ty: &syn::Type) -> ArgKind {
+    /// Classify a function-arg type into one of the uniform variants below.
+    fn classify_arg(&self, ty: &syn::Type, _name: &syn::Ident) -> ArgKind {
         match ty {
             syn::Type::Reference(r) if r.mutability.is_none() => {
-                if type_last_segment(&r.elem).map(|s| s == "KeyExpr").unwrap_or(false) {
-                    ArgKind::KeyExprBorrow
-                } else {
-                    ArgKind::OpaqueRef((*r.elem).clone())
+                let elem = &*r.elem;
+                let last = type_last_segment(elem).unwrap_or_default();
+                if let Some(binding) = self.cfg.types.get(&last) {
+                    if let Some(form) = binding.borrow.as_ref() {
+                        return ArgKind::Borrow {
+                            form: form.clone(),
+                            kotlin_override: binding.kotlin_type.clone(),
+                        };
+                    }
+                }
+                // Fallback: treat any unbound `&T` as an `OwnedRef` against a
+                // raw `*const T` pointer, decoded via the converter-wide
+                // `owned_object`. This matches the legacy `OpaqueRef` path.
+                let ptr_ty: syn::Type = syn::parse2(quote! { *const #elem })
+                    .expect("opaque pointer type must parse");
+                let opaque_form = JniForm {
+                    jni_type: ptr_ty,
+                    kotlin_jni_type: "Long".to_string(),
+                    pointer_param: true,
+                    decode: ArgDecode::OwnedRef,
+                };
+                ArgKind::Borrow {
+                    form: opaque_form,
+                    kotlin_override: None,
                 }
             }
             syn::Type::ImplTrait(it) => {
@@ -1165,56 +1167,304 @@ impl JniConverter {
                     return ArgKind::Unsupported;
                 };
                 let name = last.ident.to_string();
-                if name == "bool" {
-                    return ArgKind::Bool;
-                }
-                if name == "String" {
-                    return ArgKind::String;
-                }
-                if name == "KeyExpr" {
-                    return ArgKind::KeyExprConsume;
-                }
-                if name == "Duration" {
-                    return ArgKind::Duration;
-                }
-                if name == "Option" && is_option_of_vec_u8(last) {
-                    return ArgKind::OptionVecU8;
-                }
+
                 if name == "Option" {
-                    if let Some(inner) = option_inner_type_name(last) {
-                        if inner == "String" {
-                            return ArgKind::OptionString;
+                    let inner_seg = last;
+                    if is_option_of_vec_u8(inner_seg) {
+                        if let Some(binding) = self.cfg.types.get("VecU8") {
+                            if let Some(form) = binding.consume.as_ref() {
+                                return ArgKind::OptionConsume {
+                                    form: form.clone(),
+                                    kotlin_override: None,
+                                };
+                            }
                         }
-                        if let Some(decoder) = self.cfg.struct_decoders.get(&inner) {
-                            return ArgKind::OptionStructFromJObject {
-                                decoder: decoder.clone(),
-                                type_name: inner,
+                        return ArgKind::Unsupported;
+                    }
+                    if let Some(inner) = option_inner_type_name(inner_seg) {
+                        if let Some(binding) = self.cfg.types.get(&inner) {
+                            if let Some(form) = binding.consume.as_ref() {
+                                return ArgKind::OptionConsume {
+                                    form: form.clone(),
+                                    kotlin_override: binding.kotlin_type.clone(),
+                                };
+                            }
+                        }
+                    }
+                    return ArgKind::Unsupported;
+                }
+
+                if name == "Vec" && is_vec_of_u8(last) {
+                    if let Some(binding) = self.cfg.types.get("VecU8") {
+                        if let Some(form) = binding.consume.as_ref() {
+                            return ArgKind::Consume {
+                                form: form.clone(),
+                                kotlin_override: None,
                             };
                         }
                     }
+                    return ArgKind::Unsupported;
                 }
-                if name == "Vec" && is_vec_of_u8(last) {
-                    return ArgKind::VecU8;
+
+                if let Some(binding) = self.cfg.types.get(&name) {
+                    if let Some(form) = binding.consume.as_ref() {
+                        return ArgKind::Consume {
+                            form: form.clone(),
+                            kotlin_override: binding.kotlin_type.clone(),
+                        };
+                    }
                 }
-                if let Some(decoder) = self.cfg.enum_decoders.get(&name) {
-                    return ArgKind::Enum(decoder.clone());
-                }
-                if let Some(decoder) = self.cfg.struct_decoders.get(&name) {
-                    return ArgKind::StructFromJObject {
-                        decoder: decoder.clone(),
-                        type_name: name,
-                    };
-                }
+
                 ArgKind::Unsupported
             }
             _ => ArgKind::Unsupported,
         }
     }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_arg(
+        &self,
+        kind: ArgKind,
+        name: &syn::Ident,
+        ty: &syn::Type,
+        loc: &SourceLocation,
+        prelude: &mut Vec<TokenStream>,
+        jni_params: &mut Vec<TokenStream>,
+        call_args: &mut Vec<TokenStream>,
+        kotlin_params: &mut Vec<String>,
+        local_kotlin_fqns: &mut BTreeSet<String>,
+        kt_enabled: bool,
+    ) {
+        match kind {
+            ArgKind::Consume {
+                form,
+                kotlin_override,
+            } => {
+                self.emit_consume_or_borrow(
+                    /* borrow */ false,
+                    form,
+                    kotlin_override,
+                    name,
+                    prelude,
+                    jni_params,
+                    call_args,
+                    kotlin_params,
+                    local_kotlin_fqns,
+                    kt_enabled,
+                );
+            }
+            ArgKind::Borrow {
+                form,
+                kotlin_override,
+            } => {
+                self.emit_consume_or_borrow(
+                    /* borrow */ true,
+                    form,
+                    kotlin_override,
+                    name,
+                    prelude,
+                    jni_params,
+                    call_args,
+                    kotlin_params,
+                    local_kotlin_fqns,
+                    kt_enabled,
+                );
+            }
+            ArgKind::OptionConsume {
+                form,
+                kotlin_override,
+            } => {
+                if !form.is_jni_object() {
+                    panic!(
+                        "Option<{}> requires a JNI-object form for `{}`",
+                        ty.to_token_stream(),
+                        name
+                    );
+                }
+                let jt = &form.jni_type;
+                jni_params.push(quote! { #name: #jt });
+                let inner = self.decode_expr(&form.decode, name);
+                prelude.push(quote! {
+                    let #name = if !#name.is_null() {
+                        Some(#inner)
+                    } else {
+                        None
+                    };
+                });
+                call_args.push(quote! { #name });
+                if kt_enabled {
+                    let kt_decl = self.kotlin_arg_type(&form, kotlin_override.as_deref());
+                    let short = kotlin_register_fqn(&kt_decl, local_kotlin_fqns);
+                    kotlin_params.push(format!(
+                        "{}: {}?",
+                        kotlin_param_name(&name.to_string(), form.pointer_param),
+                        short
+                    ));
+                }
+            }
+            ArgKind::Callback {
+                decoder,
+                element_type_name,
+            } => {
+                jni_params.push(quote! { #name: jni::objects::JObject });
+                prelude.push(quote! {
+                    let #name = #decoder(&mut env, #name)?;
+                });
+                call_args.push(quote! { #name });
+                if kt_enabled {
+                    let cb_fqn = self
+                        .cfg
+                        .callback_kotlin_types
+                        .get(&element_type_name)
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "callback_decoder({:?}, ...) Kotlin type not configured",
+                                element_type_name
+                            )
+                        });
+                    let cb_short = kotlin_register_fqn(&cb_fqn, local_kotlin_fqns);
+                    kotlin_params.push(format!(
+                        "{}: {}",
+                        kotlin_param_name(&name.to_string(), false),
+                        cb_short
+                    ));
+                }
+            }
+            ArgKind::Unsupported => panic!(
+                "unsupported parameter type `{}` for `{}` at {loc}",
+                ty.to_token_stream(),
+                name
+            ),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_consume_or_borrow(
+        &self,
+        borrow: bool,
+        form: JniForm,
+        kotlin_override: Option<String>,
+        name: &syn::Ident,
+        prelude: &mut Vec<TokenStream>,
+        jni_params: &mut Vec<TokenStream>,
+        call_args: &mut Vec<TokenStream>,
+        kotlin_params: &mut Vec<String>,
+        local_kotlin_fqns: &mut BTreeSet<String>,
+        kt_enabled: bool,
+    ) {
+        let jt = &form.jni_type;
+        let pat = if matches!(form.decode, ArgDecode::OwnedRef | ArgDecode::ConsumeArc) {
+            // Raw-pointer slots get a `_ptr` ident in the JNI signature.
+            format_ident!("{}_ptr", name)
+        } else {
+            name.clone()
+        };
+        jni_params.push(quote! { #pat: #jt });
+
+        match &form.decode {
+            ArgDecode::EnvRefMut(path) => {
+                prelude.push(quote! { let #name = #path(&mut env, &#pat)?; });
+            }
+            ArgDecode::EnvByVal(path) => {
+                prelude.push(quote! { let #name = #path(&env, #pat)?; });
+            }
+            ArgDecode::Pure(path) => {
+                prelude.push(quote! { let #name = #path(#pat)?; });
+            }
+            ArgDecode::Inline(f) => {
+                let expr = f.call(&pat);
+                prelude.push(quote! { let #name = #expr; });
+            }
+            ArgDecode::OwnedRef => {
+                let owned = &self.cfg.owned_object;
+                prelude.push(quote! { let #name = #owned::from_raw(#pat); });
+            }
+            ArgDecode::ConsumeArc => {
+                let arc_ident = format_ident!("__{}_arc", name);
+                prelude.push(quote! {
+                    let #arc_ident = std::sync::Arc::from_raw(#pat);
+                    let #name = (*#arc_ident).clone();
+                });
+            }
+        }
+
+        // The wrapped function call site: by-value vs by-reference.
+        if borrow && matches!(form.decode, ArgDecode::OwnedRef) {
+            // OwnedRef pattern: pass `&name` to match historical OpaqueRef behavior.
+            call_args.push(quote! { &#name });
+        } else {
+            call_args.push(quote! { #name });
+        }
+
+        if kt_enabled {
+            let kt_decl = self.kotlin_arg_type(&form, kotlin_override.as_deref());
+            let short = kotlin_register_fqn(&kt_decl, local_kotlin_fqns);
+            kotlin_params.push(format!(
+                "{}: {}",
+                kotlin_param_name(&name.to_string(), form.pointer_param),
+                short
+            ));
+        }
+    }
+
+    fn decode_expr(&self, decode: &ArgDecode, input: &syn::Ident) -> TokenStream {
+        match decode {
+            ArgDecode::EnvRefMut(path) => quote! { #path(&mut env, &#input)? },
+            ArgDecode::EnvByVal(path) => quote! { #path(&env, #input)? },
+            ArgDecode::Pure(path) => quote! { #path(#input)? },
+            ArgDecode::Inline(f) => f.call(input),
+            ArgDecode::OwnedRef => {
+                let owned = &self.cfg.owned_object;
+                quote! { #owned::from_raw(#input) }
+            }
+            ArgDecode::ConsumeArc => {
+                quote! { (*std::sync::Arc::from_raw(#input)).clone() }
+            }
+        }
+    }
+
+    /// Resolve the Kotlin parameter type for a JniForm. For object-typed
+    /// JNI wires (`JObject`) we use the binding's `kotlin_type` FQN; for
+    /// primitive wires (jboolean/jlong/jint/JString/JByteArray/raw ptrs) we
+    /// use the form's `kotlin_jni_type`.
+    fn kotlin_arg_type(&self, form: &JniForm, kotlin_override: Option<&str>) -> String {
+        match jni_object_kind(&form.jni_type) {
+            Some(JniObjectKind::JObject) => kotlin_override
+                .map(str::to_string)
+                .unwrap_or_else(|| form.kotlin_jni_type.clone()),
+            _ => form.kotlin_jni_type.clone(),
+        }
+    }
+}
+
+// =====================================================================
+// ArgKind — the slim, uniform classification
+// =====================================================================
+
+enum ArgKind {
+    Consume {
+        form: JniForm,
+        kotlin_override: Option<String>,
+    },
+    Borrow {
+        form: JniForm,
+        kotlin_override: Option<String>,
+    },
+    OptionConsume {
+        form: JniForm,
+        kotlin_override: Option<String>,
+    },
+    Callback {
+        decoder: syn::Path,
+        element_type_name: String,
+    },
+    Unsupported,
 }
 
 /// Field-type classification for `#[prebindgen]` struct fields — narrower
 /// than [`ArgKind`] because structs only need a round-trippable primitive /
-/// enum representation (no refs, no callbacks, no `Option<...>`).
+/// enum representation.
 enum StructFieldKind {
     Bool,
     I64,
@@ -1223,59 +1473,23 @@ enum StructFieldKind {
     Unsupported,
 }
 
-enum ArgKind {
-    OpaqueRef(syn::Type),
-    /// `&KeyExpr` in the source signature — decoded as a `JNIKeyExpr`
-    /// holder via the registered `KeyExpr` struct decoder. The handle is
-    /// borrowed; the caller retains ownership.
-    KeyExprBorrow,
-    /// `KeyExpr<'static>` (by value) in the source signature — the caller
-    /// relinquishes ownership of the declared handle. Generated wrapper
-    /// takes the raw pointer and drops the `Arc` at end of scope.
-    KeyExprConsume,
-    /// `String` → `JString` decoded via `string_decoder`.
-    String,
-    Enum(syn::Path),
-    Bool,
-    Duration,
-    /// `Option<Vec<u8>>` → `JByteArray` decoded via `byte_array_decoder`.
-    OptionVecU8,
-    /// `Vec<u8>` → `JByteArray` decoded via `byte_array_decoder`.
-    VecU8,
-    /// `Option<String>` → nullable `JString`.
-    OptionString,
-    /// Struct type registered via `struct_decoder` → single `JObject` arg
-    /// decoded via the registered decoder.
-    StructFromJObject {
-        decoder: syn::Path,
-        type_name: String,
-    },
-    /// `Option<T>` where `T` is registered via `struct_decoder` → nullable
-    /// `JObject`, `None` when the JObject is null.
-    OptionStructFromJObject {
-        decoder: syn::Path,
-        type_name: String,
-    },
-    /// `impl Fn(T) + Send + Sync + 'static` → single `JObject` decoded via the
-    /// callback decoder registered for `T`. Zero-arg `impl Fn() + Send + Sync`
-    /// callbacks are looked up under the key `"()"`.
-    Callback {
-        decoder: syn::Path,
-        element_type_name: String,
-    },
-    Unsupported,
+#[derive(Clone, Copy)]
+enum JniObjectKind {
+    JObject,
+    JString,
+    JByteArray,
 }
 
-fn parse_return_wrapper(
-    jni_type: impl AsRef<str>,
-    wrap_fn: impl AsRef<str>,
-    default_expr: impl AsRef<str>,
-) -> ReturnWrapper {
-    ReturnWrapper {
-        jni_type: syn::parse_str(jni_type.as_ref()).expect("invalid return wrapper jni_type"),
-        wrap_fn: syn::parse_str(wrap_fn.as_ref()).expect("invalid return wrapper wrap_fn path"),
-        default_expr: syn::parse_str(default_expr.as_ref())
-            .expect("invalid return wrapper default_expr"),
+/// Recognize JNI object-shaped wire types. Used by the `Option<T>` combinator
+/// (which needs `is_null()`) and by the Kotlin parameter-type derivation.
+fn jni_object_kind(ty: &syn::Type) -> Option<JniObjectKind> {
+    let syn::Type::Path(tp) = ty else { return None };
+    let last = tp.path.segments.last()?;
+    match last.ident.to_string().as_str() {
+        "JObject" => Some(JniObjectKind::JObject),
+        "JString" => Some(JniObjectKind::JString),
+        "JByteArray" => Some(JniObjectKind::JByteArray),
+        _ => None,
     }
 }
 
@@ -1287,7 +1501,7 @@ fn type_last_segment(ty: &syn::Type) -> Option<String> {
 /// Look through the trait bounds of an `impl Fn(...) + ...` for a `Fn`-family
 /// trait and return the lookup key for its argument type:
 ///   - `impl Fn(T)` → `Some("T")`
-///   - `impl Fn()`  → `Some("()")`  (zero-arg callbacks, e.g. on-close handlers)
+///   - `impl Fn()`  → `Some("()")`
 fn extract_fn_arg_type_name(
     bounds: &syn::punctuated::Punctuated<syn::TypeParamBound, syn::Token![+]>,
 ) -> Option<String> {
@@ -1306,8 +1520,7 @@ fn extract_fn_arg_type_name(
     None
 }
 
-/// Return the last-segment name of the single generic argument of an
-/// `Option<...>` path segment, if any (e.g. `Option<String>` → `Some("String")`).
+/// Last-segment name of the single generic argument of an `Option<...>`.
 fn option_inner_type_name(seg: &syn::PathSegment) -> Option<String> {
     let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
         return None;
@@ -1318,7 +1531,6 @@ fn option_inner_type_name(seg: &syn::PathSegment) -> Option<String> {
     type_last_segment(inner)
 }
 
-/// Check whether an `Option<...>` path segment wraps exactly `Vec<u8>`.
 fn is_option_of_vec_u8(seg: &syn::PathSegment) -> bool {
     let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
         return false;
@@ -1338,7 +1550,6 @@ fn is_option_of_vec_u8(seg: &syn::PathSegment) -> bool {
     is_vec_of_u8(inner_seg)
 }
 
-/// Check whether a `Vec<...>` path segment has element type `u8`.
 fn is_vec_of_u8(seg: &syn::PathSegment) -> bool {
     let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
         return false;
@@ -1391,7 +1602,7 @@ fn snake_to_camel(s: &str) -> String {
 }
 
 /// Map a Rust snake_case arg name to its Kotlin camelCase form, appending
-/// `"Ptr"` for raw-pointer slots (OpaqueRef / consumed KeyExpr).
+/// `"Ptr"` for raw-pointer slots.
 fn kotlin_param_name(rust_name: &str, is_pointer: bool) -> String {
     let base = snake_to_camel(rust_name);
     if is_pointer {
@@ -1402,8 +1613,7 @@ fn kotlin_param_name(rust_name: &str, is_pointer: bool) -> String {
 }
 
 /// Record `fqn` in `used` if it looks fully-qualified (contains `.`) and
-/// return the short name used at the emission site. Bare names are returned
-/// as-is and not added to the import set.
+/// return the short name used at the emission site.
 fn kotlin_register_fqn(fqn: &str, used: &mut BTreeSet<String>) -> String {
     if fqn.contains('.') {
         used.insert(fqn.to_string());

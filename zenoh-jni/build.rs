@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use zenoh_flat::jni_converter::{ArgDecode, JniForm, TypeBinding};
 
 fn main() {
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
@@ -47,10 +48,19 @@ fn main() {
             "crate::sample_callback::process_kotlin_on_close_callback",
             "io.zenoh.jni.callbacks.JNIOnCloseCallback",
         )
-        .struct_decoder(
-            "KeyExpr",
-            "crate::key_expr::decode_jni_key_expr",
-            "JNIKeyExpr",
+        // KeyExpr by-value: the JNI side passes `Arc::into_raw(Arc::new(KeyExpr))`
+        // as a raw pointer; the wrapper reconstructs the Arc, clones the inner
+        // KeyExpr, and drops the Arc at end of scope. The full path is required
+        // so the generated `*const T` parameter type resolves at the include site.
+        .type_binding(
+            TypeBinding::new("KeyExpr").consume(
+                JniForm::new(
+                    "*const zenoh::key_expr::KeyExpr<'static>",
+                    "Long",
+                    ArgDecode::ConsumeArc,
+                )
+                .pointer_param(true),
+            ),
         )
         .struct_decoder(
             "Encoding",
