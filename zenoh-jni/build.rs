@@ -1,7 +1,8 @@
 use itertools::Itertools;
+use quote::quote;
 use zenoh_flat::jni_converter::{
-    ArgDecode, JniForm, JniMethodsConverter, JniStructConverter, ReturnEncode, ReturnForm,
-    TypeBinding,
+    ArgDecode, InlineFn, JniForm, JniMethodsConverter, JniStructConverter, ReturnEncode,
+    ReturnForm, TypeBinding,
 };
 use zenoh_flat::jni_type_binding::JniTypeBinding;
 
@@ -87,7 +88,9 @@ fn shared_bindings() -> JniTypeBinding {
                 JniForm::new(
                     "*const zenoh::key_expr::KeyExpr<'static>",
                     "Long",
-                    ArgDecode::ConsumeArc,
+                    ArgDecode::Inline(InlineFn::new(|input| {
+                        quote! { (*std::sync::Arc::from_raw(#input)).clone() }
+                    })),
                 )
                 .pointer_param(true),
             ),

@@ -64,13 +64,6 @@ pub enum ArgDecode {
     /// ident. Used for trivial conversions like `bool` (`x != 0`) or
     /// `Duration` (`Duration::from_millis(x as u64)`).
     Inline(InlineFn),
-    /// `let <name> = <owned_object>::from_raw(<input>);` — borrows the Arc
-    /// pointed to by `<input>` via the converter-wide `owned_object` setting.
-    /// The argument is passed to the wrapped function as `&<name>`.
-    OwnedRef,
-    /// Consume an `Arc<T>` raw pointer: reconstructs the Arc, clones the
-    /// inner value, and drops the Arc at end of scope.
-    ConsumeArc,
 }
 
 impl ArgDecode {
@@ -130,8 +123,14 @@ pub struct JniForm {
     /// `"String"`, `"ByteArray"`, `"JObject"`).
     kotlin_jni_type: String,
     /// True for raw-pointer slots — appends `"Ptr"` to the Kotlin parameter
-    /// name (e.g. `sessionPtr: Long`).
+    /// name (e.g. `sessionPtr: Long`) and drives `_ptr` rename in the JNI
+    /// wrapper signature.
     pointer_param: bool,
+    /// When true, the decoded value is passed to the wrapped function as
+    /// `&name` rather than `name`. Used for opaque-handle borrows where the
+    /// decoder produces an owner (e.g. `OwnedObject`) but the wrapped
+    /// function expects a shared reference.
+    call_with_ref: bool,
     decode: ArgDecode,
 }
 
@@ -145,12 +144,18 @@ impl JniForm {
             jni_type: syn::parse_str(jni_type.as_ref()).expect("invalid JniForm jni_type"),
             kotlin_jni_type: kotlin_jni_type.into(),
             pointer_param: false,
+            call_with_ref: false,
             decode,
         }
     }
 
     pub fn pointer_param(mut self, p: bool) -> Self {
         self.pointer_param = p;
+        self
+    }
+
+    pub fn call_with_ref(mut self, v: bool) -> Self {
+        self.call_with_ref = v;
         self
     }
 
@@ -994,16 +999,24 @@ impl JniMethodsConverter {
                         };
                     }
                 }
-                // Fallback: treat any unbound `&T` as an `OwnedRef` against a
-                // raw `*const T` pointer, decoded via the converter-wide
-                // `owned_object`. This matches the legacy `OpaqueRef` path.
+                // Fallback: treat any unbound `&T` as an opaque Arc borrow
+                // against a raw `*const T` pointer. The owned_object path is
+                // serialized to String (syn::Path is not Send) and re-parsed
+                // inside the closure. call_with_ref causes the decoded owner
+                // to be passed as `&name` to the wrapped function.
                 let ptr_ty: syn::Type = syn::parse2(quote! { *const #elem })
                     .expect("opaque pointer type must parse");
+                let owned_str = self.cfg.owned_object.to_token_stream().to_string();
                 let opaque_form = JniForm {
                     jni_type: ptr_ty,
                     kotlin_jni_type: "Long".to_string(),
                     pointer_param: true,
-                    decode: ArgDecode::OwnedRef,
+                    call_with_ref: true,
+                    decode: ArgDecode::Inline(InlineFn::new(move |input| {
+                        let owned: syn::Path =
+                            syn::parse_str(&owned_str).expect("owned_object must be a valid path");
+                        quote! { #owned::from_raw(#input) }
+                    })),
                 };
                 ArgKind::Borrow {
                     form: opaque_form,
@@ -1173,7 +1186,7 @@ impl JniMethodsConverter {
     #[allow(clippy::too_many_arguments)]
     fn emit_consume_or_borrow(
         &self,
-        borrow: bool,
+        _borrow: bool,
         form: JniForm,
         kotlin_override: Option<String>,
         name: &syn::Ident,
@@ -1185,8 +1198,7 @@ impl JniMethodsConverter {
         kt_enabled: bool,
     ) {
         let jt = &form.jni_type;
-        let pat = if matches!(form.decode, ArgDecode::OwnedRef | ArgDecode::ConsumeArc) {
-            // Raw-pointer slots get a `_ptr` ident in the JNI signature.
+        let pat = if form.pointer_param {
             format_ident!("{}_ptr", name)
         } else {
             name.clone()
@@ -1207,21 +1219,9 @@ impl JniMethodsConverter {
                 let expr = f.call(&pat);
                 prelude.push(quote! { let #name = #expr; });
             }
-            ArgDecode::OwnedRef => {
-                let owned = &self.cfg.owned_object;
-                prelude.push(quote! { let #name = #owned::from_raw(#pat); });
-            }
-            ArgDecode::ConsumeArc => {
-                let arc_ident = format_ident!("__{}_arc", name);
-                prelude.push(quote! {
-                    let #arc_ident = std::sync::Arc::from_raw(#pat);
-                    let #name = (*#arc_ident).clone();
-                });
-            }
         }
 
-        if borrow && matches!(form.decode, ArgDecode::OwnedRef) {
-            // OwnedRef pattern: pass `&name` to match historical OpaqueRef behavior.
+        if form.call_with_ref {
             call_args.push(quote! { &#name });
         } else {
             call_args.push(quote! { #name });
@@ -1244,13 +1244,6 @@ impl JniMethodsConverter {
             ArgDecode::EnvRef(path) => quote! { #path(&env, &#input)? },
             ArgDecode::Pure(path) => quote! { #path(#input)? },
             ArgDecode::Inline(f) => f.call(input),
-            ArgDecode::OwnedRef => {
-                let owned = &self.cfg.owned_object;
-                quote! { #owned::from_raw(#input) }
-            }
-            ArgDecode::ConsumeArc => {
-                quote! { (*std::sync::Arc::from_raw(#input)).clone() }
-            }
         }
     }
 

@@ -4443,6 +4443,7 @@ dependencies = [
  "json5",
  "konst",
  "prebindgen",
+ "quote",
  "rustc_version",
  "serde_yaml",
  "syn 2.0.117",
