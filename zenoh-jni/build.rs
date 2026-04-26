@@ -7,30 +7,6 @@ use zenoh_flat::jni_type_binding::{JniTypeBinding, ReturnEncode};
 
 const OWNED_OBJECT: &str = "crate::owned_object::OwnedObject";
 
-fn enum_param(name: &str, decoder: &str) -> TypeBinding {
-    TypeBinding::param(name, "Int", "jni::sys::jint", InlineFn::pure(decoder))
-        .enum_field_decoder(decoder)
-}
-
-fn jobject_param(name: &str, decoder: &str, kotlin: &str) -> TypeBinding {
-    TypeBinding::param(
-        name,
-        kotlin,
-        "jni::objects::JObject",
-        InlineFn::env_ref_mut(decoder),
-    )
-}
-
-fn wrapped_return(rust_type: &str, kotlin: &str, jni_type: &str, wrapper: &str, default: &str) -> TypeBinding {
-    TypeBinding::returns(
-        rust_type,
-        kotlin,
-        jni_type,
-        ReturnEncode::wrapper(wrapper),
-        default,
-    )
-}
-
 /// Type vocabulary shared across every JNI surface generated in this crate.
 /// Defined once, threaded into the struct-phase converter, then forwarded —
 /// together with the auto-registered struct bindings — into the methods phase.
@@ -50,33 +26,67 @@ fn shared_bindings() -> JniTypeBinding {
             InlineFn::env_ref("crate::utils::decode_byte_array"),
         ))
         // Callbacks.
-        .type_binding(jobject_param(
+        .type_binding(TypeBinding::param(
             "impl Fn(Sample) + Send + Sync + 'static",
-            "crate::sample_callback::process_kotlin_sample_callback",
             "io.zenoh.jni.callbacks.JNISubscriberCallback",
+            "jni::objects::JObject",
+            InlineFn::env_ref_mut("crate::sample_callback::process_kotlin_sample_callback"),
         ))
-        .type_binding(jobject_param(
+        .type_binding(TypeBinding::param(
             "impl Fn(Query) + Send + Sync + 'static",
-            "crate::sample_callback::process_kotlin_query_callback",
             "io.zenoh.jni.callbacks.JNIQueryableCallback",
+            "jni::objects::JObject",
+            InlineFn::env_ref_mut("crate::sample_callback::process_kotlin_query_callback"),
         ))
-        .type_binding(jobject_param(
+        .type_binding(TypeBinding::param(
             "impl Fn(Reply) + Send + Sync + 'static",
-            "crate::sample_callback::process_kotlin_reply_callback",
             "io.zenoh.jni.callbacks.JNIGetCallback",
+            "jni::objects::JObject",
+            InlineFn::env_ref_mut("crate::sample_callback::process_kotlin_reply_callback"),
         ))
-        .type_binding(jobject_param(
+        .type_binding(TypeBinding::param(
             "impl Fn() + Send + Sync + 'static",
-            "crate::sample_callback::process_kotlin_on_close_callback",
             "io.zenoh.jni.callbacks.JNIOnCloseCallback",
+            "jni::objects::JObject",
+            InlineFn::env_ref_mut("crate::sample_callback::process_kotlin_on_close_callback"),
         ))
         // Java-enum-shaped types.
-        .type_binding(enum_param("CongestionControl", "crate::utils::decode_congestion_control"))
-        .type_binding(enum_param("Priority", "crate::utils::decode_priority"))
-        .type_binding(enum_param("Reliability", "crate::utils::decode_reliability"))
-        .type_binding(enum_param("QueryTarget", "crate::utils::decode_query_target"))
-        .type_binding(enum_param("ConsolidationMode", "crate::utils::decode_consolidation"))
-        .type_binding(enum_param("ReplyKeyExpr", "crate::utils::decode_reply_key_expr"))
+        .type_binding(TypeBinding::param(
+            "CongestionControl",
+            "Int",
+            "jni::sys::jint",
+            InlineFn::pure("crate::utils::decode_congestion_control"),
+        ).enum_field_decoder("crate::utils::decode_congestion_control"))
+        .type_binding(TypeBinding::param(
+            "Priority",
+            "Int",
+            "jni::sys::jint",
+            InlineFn::pure("crate::utils::decode_priority"),
+        ).enum_field_decoder("crate::utils::decode_priority"))
+        .type_binding(TypeBinding::param(
+            "Reliability",
+            "Int",
+            "jni::sys::jint",
+            InlineFn::pure("crate::utils::decode_reliability"),
+        ).enum_field_decoder("crate::utils::decode_reliability"))
+        .type_binding(TypeBinding::param(
+            "QueryTarget",
+            "Int",
+            "jni::sys::jint",
+            InlineFn::pure("crate::utils::decode_query_target"),
+        ).enum_field_decoder("crate::utils::decode_query_target"))
+        .type_binding(TypeBinding::param(
+            "ConsolidationMode",
+            "Int",
+            "jni::sys::jint",
+            InlineFn::pure("crate::utils::decode_consolidation"),
+        ).enum_field_decoder("crate::utils::decode_consolidation"))
+        .type_binding(TypeBinding::param(
+            "ReplyKeyExpr",
+            "Int",
+            "jni::sys::jint",
+            InlineFn::pure("crate::utils::decode_reply_key_expr"),
+        ).enum_field_decoder("crate::utils::decode_reply_key_expr"))
         // KeyExpr by-value: JNI side passes `Arc::into_raw(Arc::new(KeyExpr))`
         // as a raw pointer; the wrapper reconstructs the Arc, clones the inner
         // KeyExpr, and drops the Arc at end of scope. The full path is required
@@ -88,10 +98,11 @@ fn shared_bindings() -> JniTypeBinding {
             InlineFn::new(|input| quote! { (*std::sync::Arc::from_raw(#input)).clone() }),
         ))
         // Encoding via JObject + custom decoder.
-        .type_binding(jobject_param(
+        .type_binding(TypeBinding::param(
             "Encoding",
-            "crate::utils::decode_jni_encoding",
             "io.zenoh.jni.JNIEncoding",
+            "jni::objects::JObject",
+            InlineFn::env_ref_mut("crate::utils::decode_jni_encoding"),
         ))
         // Borrows: opaque Arc handles received as `*const T` and re-borrowed
         // via OwnedObject::from_raw. The `&` prefix on the row's key tells
@@ -99,18 +110,18 @@ fn shared_bindings() -> JniTypeBinding {
         .type_binding(TypeBinding::opaque_borrow("Session", OWNED_OBJECT))
         .type_binding(TypeBinding::opaque_borrow("Config", OWNED_OBJECT))
         // Returns: ZenohId / Vec<ZenohId> via custom encoders.
-        .type_binding(wrapped_return(
+        .type_binding(TypeBinding::returns(
             "ZResult<ZenohId>",
             "ByteArray",
             "jni::sys::jbyteArray",
-            "crate::zenoh_id::zenoh_id_to_byte_array",
+            ReturnEncode::wrapper("crate::zenoh_id::zenoh_id_to_byte_array"),
             "jni::objects::JByteArray::default().as_raw()",
         ))
-        .type_binding(wrapped_return(
+        .type_binding(TypeBinding::returns(
             "ZResult<Vec<ZenohId>>",
             "List<ByteArray>",
             "jni::sys::jobject",
-            "crate::zenoh_id::zenoh_ids_to_java_list",
+            ReturnEncode::wrapper("crate::zenoh_id::zenoh_ids_to_java_list"),
             "jni::objects::JObject::default().as_raw()",
         ))
         // Returns: opaque Arc handles. Each emits `*const T` and
