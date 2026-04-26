@@ -267,12 +267,12 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_putViaJNI(
 ) {
     let publisher = OwnedObject::from_raw(publisher_ptr);
     let _ = || -> ZResult<()> {
-        let payload = decode_byte_array(&mut env, &payload)?;
+        let payload = decode_byte_array(&env, &payload)?;
         let mut publication = publisher.put(payload);
         let encoding = decode_jni_encoding(&mut env, &encoding)?;
         publication = publication.encoding(encoding);
         if !attachment.is_null() {
-            let attachment = decode_byte_array(&mut env, &attachment)?;
+            let attachment = decode_byte_array(&env, &attachment)?;
             publication = publication.attachment::<Vec<u8>>(attachment)
         };
         publication.wait().map_err(|err| zerror!(err))
@@ -306,7 +306,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_deleteViaJNI(
     let _ = || -> ZResult<()> {
         let mut delete = publisher.delete();
         if !attachment.is_null() {
-            let attachment = decode_byte_array(&mut env, &attachment)?;
+            let attachment = decode_byte_array(&env, &attachment)?;
             delete = delete.attachment::<Vec<u8>>(attachment)
         };
         delete.wait().map_err(|err| zerror!(err))

@@ -82,7 +82,7 @@ pub(crate) fn get_callback_global_ref(
 }
 
 /// Helper function to convert a JByteArray into a Vec<u8>.
-pub(crate) fn decode_byte_array(env: &mut JNIEnv, payload: &JByteArray) -> ZResult<Vec<u8>> {
+pub(crate) fn decode_byte_array(env: &JNIEnv, payload: &JByteArray) -> ZResult<Vec<u8>> {
     let payload_len = env
         .get_array_length(payload)
         .map(|length| length as usize)

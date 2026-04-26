@@ -37,7 +37,7 @@ fn shared_bindings() -> JniTypeBinding {
             TypeBinding::new("VecU8").consume(JniForm::new(
                 "jni::objects::JByteArray",
                 "ByteArray",
-                ArgDecode::env_ref_mut("crate::utils::decode_byte_array"),
+                ArgDecode::env_ref("crate::utils::decode_byte_array"),
             )),
         )
         .type_binding(jobject_consume(

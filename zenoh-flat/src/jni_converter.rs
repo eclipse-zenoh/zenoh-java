@@ -51,8 +51,13 @@ pub use crate::jni_type_binding::TypeBinding;
 /// Strategy for converting a JNI parameter into a Rust value.
 #[derive(Clone)]
 pub enum ArgDecode {
-    /// `let <name> = <path>(&mut env, &<input>)?;`
+    /// `let <name> = <path>(&mut env, &<input>)?;` — for decoders that need
+    /// mutable access to the JNI environment (e.g. `JNIEnv::get_string`).
     EnvRefMut(syn::Path),
+    /// `let <name> = <path>(&env, &<input>)?;` — for decoders that only
+    /// need shared access to the JNI environment (e.g. byte-array readers
+    /// whose `JNIEnv` methods take `&self`).
+    EnvRef(syn::Path),
     /// `let <name> = <path>(<input>)?;` — pure conversion (e.g. enum decoders).
     Pure(syn::Path),
     /// `let <name> = <expr>;` — inline transformation built from the input
@@ -78,6 +83,13 @@ impl ArgDecode {
     pub fn env_ref_mut(path: impl AsRef<str>) -> Self {
         ArgDecode::EnvRefMut(
             syn::parse_str(path.as_ref()).expect("invalid ArgDecode::env_ref_mut path"),
+        )
+    }
+
+    /// `ArgDecode::EnvRef` from a path string.
+    pub fn env_ref(path: impl AsRef<str>) -> Self {
+        ArgDecode::EnvRef(
+            syn::parse_str(path.as_ref()).expect("invalid ArgDecode::env_ref path"),
         )
     }
 }
@@ -1185,6 +1197,9 @@ impl JniMethodsConverter {
             ArgDecode::EnvRefMut(path) => {
                 prelude.push(quote! { let #name = #path(&mut env, &#pat)?; });
             }
+            ArgDecode::EnvRef(path) => {
+                prelude.push(quote! { let #name = #path(&env, &#pat)?; });
+            }
             ArgDecode::Pure(path) => {
                 prelude.push(quote! { let #name = #path(#pat)?; });
             }
@@ -1226,6 +1241,7 @@ impl JniMethodsConverter {
     fn decode_expr(&self, decode: &ArgDecode, input: &syn::Ident) -> TokenStream {
         match decode {
             ArgDecode::EnvRefMut(path) => quote! { #path(&mut env, &#input)? },
+            ArgDecode::EnvRef(path) => quote! { #path(&env, &#input)? },
             ArgDecode::Pure(path) => quote! { #path(#input)? },
             ArgDecode::Inline(f) => f.call(input),
             ArgDecode::OwnedRef => {

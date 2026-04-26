@@ -51,7 +51,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIZenohId_toStringViaJNI(
     zenoh_id: JByteArray,
 ) -> jstring {
     || -> ZResult<JString> {
-        let bytes = decode_byte_array(&mut env, &zenoh_id)?;
+        let bytes = decode_byte_array(&env, &zenoh_id)?;
         let zenohid = ZenohId::try_from(bytes.as_slice()).map_err(|err| zerror!(err))?;
         env.new_string(zenohid.to_string())
             .map_err(|err| zerror!(err))
