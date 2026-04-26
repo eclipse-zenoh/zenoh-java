@@ -1,5 +1,4 @@
 use itertools::Itertools;
-use quote::quote;
 use zenoh_flat::jni_converter::{
     InlineFn, JniMethodsConverter, JniStructConverter, TypeBinding,
 };
@@ -87,15 +86,13 @@ fn shared_bindings() -> JniTypeBinding {
             "jni::sys::jint",
             InlineFn::pure("crate::utils::decode_reply_key_expr"),
         ))
-        // KeyExpr by-value: JNI side passes `Arc::into_raw(Arc::new(KeyExpr))`
-        // as a raw pointer; the wrapper reconstructs the Arc, clones the inner
-        // KeyExpr, and drops the Arc at end of scope. The full path is required
-        // so the generated `*const T` parameter type resolves at the include site.
+        // KeyExpr by-value: JNI side passes the JNIKeyExpr holder object
+        // (`ptr: Long`, `str: String`), decoded through decode_jni_key_expr.
         .type_binding(TypeBinding::param(
             "KeyExpr<'static>",
-            "Long",
-            "*const zenoh::key_expr::KeyExpr<'static>",
-            InlineFn::new(|input| quote! { (*std::sync::Arc::from_raw(#input)).clone() }),
+            "io.zenoh.jni.JNIKeyExpr",
+            "jni::objects::JObject",
+            InlineFn::env_ref_mut("crate::key_expr::decode_jni_key_expr"),
         ))
         // Encoding via JObject + custom decoder.
         .type_binding(TypeBinding::param(

@@ -96,7 +96,7 @@ public class JNISession(internal val sessionPtr: Long) {
     fun declareKeyExpr(keyExpr: String): JNIKeyExpr = JNIKeyExpr(declareKeyExprViaJNI(sessionPtr, keyExpr), keyExpr)
 
     @Throws(ZError::class)
-    fun undeclareKeyExpr(jniKeyExpr: JNIKeyExpr) = undeclareKeyExprViaJNI(sessionPtr, jniKeyExpr.ptr)
+    fun undeclareKeyExpr(jniKeyExpr: JNIKeyExpr) = undeclareKeyExprViaJNI(sessionPtr, jniKeyExpr)
 
     @Throws(ZError::class)
     fun get(
