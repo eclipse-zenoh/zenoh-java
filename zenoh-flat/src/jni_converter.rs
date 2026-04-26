@@ -10,195 +10,28 @@
 //!   [`JniTypeBinding`], and emits a `Java_<class>_<name>ViaJNI` wrapper
 //!   plus a matching Kotlin `external fun`.
 //!
-//! The caller threads a single [`JniTypeBinding`] from the struct phase into
-//! the methods phase (see `zenoh-jni/build.rs`). Module selection is a plain
-//! `.filter(...)` on the prebindgen iterator — there is no per-purpose
-//! "struct module" knob.
-//!
 //! # Type registry
 //!
-//! Every Rust type that can appear in a `#[prebindgen]` function's signature
-//! is described by a [`TypeBinding`]. A binding declares up to four forms:
+//! Every Rust type-shape that appears in a `#[prebindgen]` function's
+//! signature must have an explicit row in the [`JniTypeBinding`] registry,
+//! keyed by the canonical `to_token_stream()` form of the type. There are
+//! no implicit fallbacks: missing row ⇒ panic with a clear "register `<key>`"
+//! message.
 //!
-//! * `consume` — used when the type appears by value as a parameter (`T`);
-//! * `borrow`  — used when the type appears as a shared reference (`&T`);
-//! * `returns` — used when the type appears in `ZResult<T>` as a return value;
-//! * `returns_vec` — used when the type appears as `ZResult<Vec<T>>`.
-//!
-//! `impl Fn(T) + Send + Sync + 'static` callback parameters reuse the
-//! `consume` form on a binding keyed under `"impl Fn(<element>)"`.
-//!
-//! Built-in bindings for `bool`, `String`, `Vec<u8>`, and `Duration` are
-//! pre-registered by [`JniTypeBinding::with_builtins`] and applied
-//! automatically inside both builders' `default()` impls.
+//! Built-in rows for `bool` and `Duration` are pre-registered by
+//! [`JniTypeBinding::with_builtins`] (applied automatically inside
+//! [`MethodsBuilder::default`]).
 
-use std::collections::{BTreeSet, HashMap, VecDeque};
+use std::collections::{BTreeSet, VecDeque};
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 
 use prebindgen::SourceLocation;
 
-use crate::jni_type_binding::JniTypeBinding;
-pub use crate::jni_type_binding::TypeBinding;
-
-// =====================================================================
-// Decode / encode strategies
-// =====================================================================
-
-impl ReturnEncode {
-    /// `ReturnEncode::Wrapper` from a path string.
-    pub fn wrapper(path: impl AsRef<str>) -> Self {
-        ReturnEncode::Wrapper(
-            syn::parse_str(path.as_ref()).expect("invalid ReturnEncode::wrapper path"),
-        )
-    }
-}
-
-/// Clonable closure that produces a TokenStream from the JNI input ident.
-///
-/// This is the single decoding mechanism used by [`JniForm`]. Common decoder
-/// shapes are exposed via [`InlineFn::pure`], [`InlineFn::env_ref`], and
-/// [`InlineFn::env_ref_mut`], which capture a decoder path as a `String`
-/// (since `syn::Path` is not `Send`) and re-parse it inside the closure.
-#[derive(Clone)]
-pub struct InlineFn(Arc<dyn Fn(&syn::Ident) -> TokenStream + Send + Sync>);
-
-impl InlineFn {
-    pub fn new<F>(f: F) -> Self
-    where
-        F: Fn(&syn::Ident) -> TokenStream + Send + Sync + 'static,
-    {
-        InlineFn(Arc::new(f))
-    }
-
-    /// `<path>(<input>)?` — pure conversion (e.g. enum decoders).
-    pub fn pure(path: impl AsRef<str>) -> Self {
-        let s = path.as_ref().to_string();
-        InlineFn::new(move |input| {
-            let p: syn::Path = syn::parse_str(&s).expect("invalid InlineFn::pure path");
-            quote! { #p(#input)? }
-        })
-    }
-
-    /// `<path>(&env, &<input>)?` — decoder needing shared access to the JNI env
-    /// (e.g. byte-array readers whose `JNIEnv` methods take `&self`).
-    pub fn env_ref(path: impl AsRef<str>) -> Self {
-        let s = path.as_ref().to_string();
-        InlineFn::new(move |input| {
-            let p: syn::Path = syn::parse_str(&s).expect("invalid InlineFn::env_ref path");
-            quote! { #p(&env, &#input)? }
-        })
-    }
-
-    /// `<path>(&mut env, &<input>)?` — decoder needing mutable access to the
-    /// JNI env (e.g. `JNIEnv::get_string`).
-    pub fn env_ref_mut(path: impl AsRef<str>) -> Self {
-        let s = path.as_ref().to_string();
-        InlineFn::new(move |input| {
-            let p: syn::Path = syn::parse_str(&s).expect("invalid InlineFn::env_ref_mut path");
-            quote! { #p(&mut env, &#input)? }
-        })
-    }
-
-    fn call(&self, ident: &syn::Ident) -> TokenStream {
-        (self.0)(ident)
-    }
-}
-
-/// Describes how a JNI parameter for a particular type/form is decoded.
-#[derive(Clone)]
-pub struct JniForm {
-    /// On-the-wire JNI type, e.g. `jni::sys::jlong`, `jni::objects::JObject`,
-    /// `*const Session`. Emitted verbatim in the wrapper signature.
-    jni_type: syn::Type,
-    /// Kotlin-side wire type for this form (`"Long"`, `"Boolean"`, `"Int"`,
-    /// `"String"`, `"ByteArray"`, `"JObject"`).
-    kotlin_jni_type: String,
-    /// True for raw-pointer slots — appends `"Ptr"` to the Kotlin parameter
-    /// name (e.g. `sessionPtr: Long`) and drives `_ptr` rename in the JNI
-    /// wrapper signature.
-    pointer_param: bool,
-    /// When true, the decoded value is passed to the wrapped function as
-    /// `&name` rather than `name`. Used for opaque-handle borrows where the
-    /// decoder produces an owner (e.g. `OwnedObject`) but the wrapped
-    /// function expects a shared reference.
-    call_with_ref: bool,
-    decode: InlineFn,
-}
-
-impl JniForm {
-    pub fn new(
-        jni_type: impl AsRef<str>,
-        kotlin_jni_type: impl Into<String>,
-        decode: InlineFn,
-    ) -> Self {
-        Self {
-            jni_type: syn::parse_str(jni_type.as_ref()).expect("invalid JniForm jni_type"),
-            kotlin_jni_type: kotlin_jni_type.into(),
-            pointer_param: false,
-            call_with_ref: false,
-            decode,
-        }
-    }
-
-    pub fn pointer_param(mut self, p: bool) -> Self {
-        self.pointer_param = p;
-        self
-    }
-
-    pub fn call_with_ref(mut self, v: bool) -> Self {
-        self.call_with_ref = v;
-        self
-    }
-
-    /// Whether this form's wire JNI type is a `JObject`-shaped object that
-    /// supports `is_null()` (used by the `Option<T>` combinator).
-    fn is_jni_object(&self) -> bool {
-        jni_object_kind(&self.jni_type).is_some()
-    }
-}
-
-#[derive(Clone)]
-pub enum ReturnEncode {
-    /// `Ok(<path>(&mut env, __result)?)` — wrapping function returns
-    /// `ZResult<jni_type>`.
-    Wrapper(syn::Path),
-    /// `Ok(Arc::into_raw(Arc::new(__result)))` — opaque Arc-handle return.
-    ArcIntoRaw,
-}
-
-/// Describes how a Rust return value is encoded into a JNI return.
-#[derive(Clone)]
-pub struct ReturnForm {
-    jni_type: syn::Type,
-    kotlin_jni_type: Option<String>,
-    encode: ReturnEncode,
-    default_expr: syn::Expr,
-}
-
-impl ReturnForm {
-    pub fn new(
-        jni_type: impl AsRef<str>,
-        encode: ReturnEncode,
-        default_expr: impl AsRef<str>,
-    ) -> Self {
-        Self {
-            jni_type: syn::parse_str(jni_type.as_ref()).expect("invalid ReturnForm jni_type"),
-            kotlin_jni_type: None,
-            encode,
-            default_expr: syn::parse_str(default_expr.as_ref())
-                .expect("invalid ReturnForm default_expr"),
-        }
-    }
-
-    pub fn kotlin(mut self, kotlin: impl Into<String>) -> Self {
-        self.kotlin_jni_type = Some(kotlin.into());
-        self
-    }
-}
+use crate::jni_type_binding::{JniTypeBinding, ReturnEncode};
+pub use crate::jni_type_binding::{InlineFn, TypeBinding};
 
 // =====================================================================
 // JniStructConverter
@@ -212,9 +45,7 @@ pub struct StructBuilder {
     /// `ZResult` type used in the decoder return signature.
     zresult: syn::Path,
     /// Type registry that the struct converter mutates as it processes each
-    /// `#[prebindgen]` struct. Pre-populated with built-ins; the caller
-    /// typically merges in a shared `JniTypeBinding` (callbacks, enums, ...)
-    /// before building.
+    /// `#[prebindgen]` struct.
     types: JniTypeBinding,
 }
 
@@ -223,9 +54,6 @@ impl Default for StructBuilder {
         Self {
             source_module: syn::parse_str("crate").unwrap(),
             zresult: syn::parse_str("ZResult").unwrap(),
-            // No `with_builtins` here: `classify_struct_field` handles
-            // bool/i64/f64 directly and resolves enums from the shared
-            // bindings the caller merges in.
             types: JniTypeBinding::new(),
         }
     }
@@ -233,8 +61,7 @@ impl Default for StructBuilder {
 
 impl StructBuilder {
     /// Module path that contains the `#[prebindgen]` struct types
-    /// (e.g. `"zenoh_flat::ext"`). Used to qualify the struct type in
-    /// auto-generated decoders.
+    /// (e.g. `"zenoh_flat::ext"`).
     pub fn source_module(mut self, path: impl AsRef<str>) -> Self {
         self.source_module = syn::parse_str(path.as_ref()).expect("invalid source_module path");
         self
@@ -248,13 +75,11 @@ impl StructBuilder {
 
     /// Register or replace a single [`TypeBinding`] in the type registry.
     pub fn type_binding(mut self, binding: TypeBinding) -> Self {
-        self.types.types.insert(binding.name.clone(), binding);
+        self.types.types.insert(binding.name().to_string(), binding);
         self
     }
 
-    /// Merge a reusable [`JniTypeBinding`] into the type registry. Type
-    /// entries override entries already present with the same key; data-class
-    /// blocks are appended in order.
+    /// Merge a reusable [`JniTypeBinding`] into the type registry.
     pub fn jni_type_binding(mut self, bindings: JniTypeBinding) -> Self {
         self.types.types.extend(bindings.types);
         self.types
@@ -302,9 +127,7 @@ impl JniStructConverter {
         self.pending.pop_front()
     }
 
-    /// Closure suitable for `itertools::batching`. Borrows `&mut self` so
-    /// [`JniStructConverter::into_jni_type_binding`] can be called after the
-    /// pipeline finishes.
+    /// Closure suitable for `itertools::batching`.
     pub fn as_closure<'a, I>(
         &'a mut self,
     ) -> impl FnMut(&mut I) -> Option<(syn::Item, SourceLocation)> + 'a
@@ -314,9 +137,7 @@ impl JniStructConverter {
         move |iter| self.call(iter)
     }
 
-    /// Consume the converter and return the populated [`JniTypeBinding`] —
-    /// now containing the original entries, the auto-registered struct
-    /// bindings, and the accumulated Kotlin `data class` strings.
+    /// Consume the converter and return the populated [`JniTypeBinding`].
     pub fn into_jni_type_binding(self) -> JniTypeBinding {
         self.cfg.types
     }
@@ -422,14 +243,13 @@ impl JniStructConverter {
         };
 
         let decoder_path = format!("decode_{struct_name}");
-        let mut binding = TypeBinding::new(struct_name.clone());
-        binding.kotlin_type = Some(struct_name.clone());
-        binding.consume = Some(JniForm::new(
+        let row = TypeBinding::param(
+            &struct_name,
+            &struct_name,
             "jni::objects::JObject",
-            "JObject",
             InlineFn::env_ref_mut(&decoder_path),
-        ));
-        self.cfg.types.types.insert(struct_name.clone(), binding);
+        );
+        self.cfg.types.types.insert(row.name().to_string(), row);
 
         let block = format!(
             "data class {}(\n{}\n)",
@@ -456,7 +276,7 @@ impl JniStructConverter {
             "f64" => StructFieldKind::F64,
             _ => {
                 if let Some(binding) = self.cfg.types.types.get(&name) {
-                    if let Some(p) = binding.enum_decoder.as_ref() {
+                    if let Some(p) = binding.enum_field_decoder_path() {
                         return StructFieldKind::Enum(p.clone());
                     }
                 }
@@ -475,15 +295,9 @@ pub struct MethodsBuilder {
     class_prefix: String,
     function_suffix: String,
     source_module: syn::Path,
-    owned_object: syn::Path,
     zresult: syn::Path,
     throw_exception: syn::Path,
-    /// Type registry. Built-ins are pre-registered; the caller threads in
-    /// the [`JniTypeBinding`] returned by
-    /// [`JniStructConverter::into_jni_type_binding`] (which itself contains
-    /// the user's shared bindings + auto-registered struct entries).
     types: JniTypeBinding,
-    /// Kotlin output config — if `None`, no Kotlin file is emitted.
     kotlin: Option<KotlinConfig>,
 }
 
@@ -493,11 +307,7 @@ pub(crate) struct KotlinConfig {
     output_path: PathBuf,
     package: String,
     class_name: String,
-    /// FQN of the `@Throws(<last>::class)` exception — `None` disables the
-    /// annotation.
     throws_class_fqn: Option<String>,
-    /// FQN of a singleton referenced inside the generated `init { ... }` block
-    /// to force native-library loading — `None` disables the `init`.
     init_load_fqn: Option<String>,
 }
 
@@ -507,7 +317,6 @@ impl Default for MethodsBuilder {
             class_prefix: String::new(),
             function_suffix: String::new(),
             source_module: syn::parse_str("crate").unwrap(),
-            owned_object: syn::parse_str("OwnedObject").unwrap(),
             zresult: syn::parse_str("ZResult").unwrap(),
             throw_exception: syn::parse_str("throw_exception").unwrap(),
             types: JniTypeBinding::new().with_builtins(),
@@ -517,30 +326,22 @@ impl Default for MethodsBuilder {
 }
 
 impl MethodsBuilder {
-    /// JNI class prefix prepended to each function name, e.g.
-    /// `"Java_io_zenoh_jni_JNISession_"`.
+    /// JNI class prefix prepended to each function name.
     pub fn class_prefix(mut self, prefix: impl Into<String>) -> Self {
         self.class_prefix = prefix.into();
         self
     }
 
-    /// Suffix appended to the camel-case function name, e.g. `"ViaJNI"`.
+    /// Suffix appended to the camel-case function name.
     pub fn function_suffix(mut self, suffix: impl Into<String>) -> Self {
         self.function_suffix = suffix.into();
         self
     }
 
     /// Fully-qualified path of the module that contains the original Rust
-    /// functions being wrapped, e.g. `"zenoh_flat::session"`.
+    /// functions being wrapped.
     pub fn source_module(mut self, path: impl AsRef<str>) -> Self {
         self.source_module = syn::parse_str(path.as_ref()).expect("invalid source_module path");
-        self
-    }
-
-    /// Path of the `OwnedObject` helper used to borrow Arc-pointers in the
-    /// `OwnedRef` decode form.
-    pub fn owned_object(mut self, path: impl AsRef<str>) -> Self {
-        self.owned_object = syn::parse_str(path.as_ref()).expect("invalid owned_object path");
         self
     }
 
@@ -550,22 +351,20 @@ impl MethodsBuilder {
         self
     }
 
-    /// Path of the `throw_exception!` macro (will be called as `<path>!`).
+    /// Path of the `throw_exception!` macro.
     pub fn throw_exception(mut self, path: impl AsRef<str>) -> Self {
         self.throw_exception =
             syn::parse_str(path.as_ref()).expect("invalid throw_exception path");
         self
     }
 
-    /// Universal entry point: register or replace a [`TypeBinding`] by name.
+    /// Register or replace a [`TypeBinding`] by name.
     pub fn type_binding(mut self, binding: TypeBinding) -> Self {
-        self.types.types.insert(binding.name.clone(), binding);
+        self.types.types.insert(binding.name().to_string(), binding);
         self
     }
 
-    /// Merge a reusable [`JniTypeBinding`] into the type registry. Type
-    /// entries override entries already present with the same key; data-class
-    /// blocks are appended in order.
+    /// Merge a reusable [`JniTypeBinding`] into the type registry.
     pub fn jni_type_binding(mut self, bindings: JniTypeBinding) -> Self {
         self.types.types.extend(bindings.types);
         self.types
@@ -574,9 +373,7 @@ impl MethodsBuilder {
         self
     }
 
-    /// Enable Kotlin-side prototype generation. `path` is where the `.kt`
-    /// file will be written when [`JniMethodsConverter::write_kotlin`] is
-    /// called.
+    /// Enable Kotlin-side prototype generation.
     pub fn kotlin_output(mut self, path: impl Into<PathBuf>) -> Self {
         self.kotlin
             .get_or_insert_with(KotlinConfig::default)
@@ -584,15 +381,13 @@ impl MethodsBuilder {
         self
     }
 
-    /// Kotlin `package` of the generated file (e.g. `"io.zenoh.jni"`).
+    /// Kotlin `package` of the generated file.
     pub fn kotlin_package(mut self, pkg: impl Into<String>) -> Self {
         self.kotlin.get_or_insert_with(KotlinConfig::default).package = pkg.into();
         self
     }
 
-    /// Name of the generated Kotlin `object` (e.g. `"JNISessionNative"`). Must
-    /// agree with the JNI class_prefix — i.e. `class_prefix` should end with
-    /// `"_<kotlin_class>_"`.
+    /// Name of the generated Kotlin `object`.
     pub fn kotlin_class(mut self, name: impl Into<String>) -> Self {
         self.kotlin
             .get_or_insert_with(KotlinConfig::default)
@@ -601,7 +396,7 @@ impl MethodsBuilder {
     }
 
     /// FQN of the exception type to annotate every `external fun` with via
-    /// `@Throws(<last>::class)`. Unset ⇒ no annotation.
+    /// `@Throws(<last>::class)`.
     pub fn kotlin_throws(mut self, fqn: impl Into<String>) -> Self {
         self.kotlin
             .get_or_insert_with(KotlinConfig::default)
@@ -609,8 +404,7 @@ impl MethodsBuilder {
         self
     }
 
-    /// FQN of a singleton referenced from the generated `init { ... }` block
-    /// (typically `io.zenoh.ZenohLoad`) to force native-library loading.
+    /// FQN of a singleton referenced from the generated `init { ... }` block.
     pub fn kotlin_init(mut self, fqn: impl Into<String>) -> Self {
         self.kotlin
             .get_or_insert_with(KotlinConfig::default)
@@ -647,9 +441,7 @@ pub struct JniMethodsConverter {
     cfg: MethodsBuilder,
     pending: VecDeque<(syn::Item, SourceLocation)>,
     buffered: bool,
-    /// Accumulated Kotlin `external fun ...` blocks, one per wrapped function.
     kotlin_funs: Vec<String>,
-    /// Set of Kotlin FQNs referenced by emitted externals.
     kotlin_used_fqns: BTreeSet<String>,
 }
 
@@ -658,8 +450,6 @@ impl JniMethodsConverter {
         MethodsBuilder::default()
     }
 
-    /// Drain `iter` on the first call, convert each fn item, and queue the
-    /// result for the next `pop` from this batching closure.
     pub fn call<I>(&mut self, iter: &mut I) -> Option<(syn::Item, SourceLocation)>
     where
         I: Iterator<Item = (syn::Item, SourceLocation)>,
@@ -674,9 +464,6 @@ impl JniMethodsConverter {
         self.pending.pop_front()
     }
 
-    /// Borrowing closure suitable for `itertools::batching`. Does not consume
-    /// `self` so [`JniMethodsConverter::write_kotlin`] can be called after
-    /// the pipeline finishes.
     pub fn as_closure<'a, I>(
         &'a mut self,
     ) -> impl FnMut(&mut I) -> Option<(syn::Item, SourceLocation)> + 'a
@@ -792,9 +579,7 @@ impl JniMethodsConverter {
             let name = &pat_ident.ident;
             let ty = &*pat_type.ty;
 
-            let kind = self.classify_arg(ty, name);
             self.emit_arg(
-                kind,
                 name,
                 ty,
                 loc,
@@ -826,43 +611,46 @@ impl JniMethodsConverter {
                         quote! { () },
                         quote! { #zresult<()> },
                     )
-                } else if let Some(form) = self.lookup_return_form(&inner) {
+                } else {
+                    let key = ty.to_token_stream().to_string();
+                    let binding = self.cfg.types.types.get(&key).unwrap_or_else(|| {
+                        panic!(
+                            "unsupported return type `{}` for `{}` at {loc}: \
+                             register a TypeBinding keyed `{}`",
+                            ty.to_token_stream(),
+                            original_name,
+                            key
+                        )
+                    });
+                    let encode = binding.encode().unwrap_or_else(|| {
+                        panic!(
+                            "TypeBinding `{}` has no encode (return direction) at {loc}",
+                            key
+                        )
+                    });
+                    let default_expr = binding
+                        .default_expr()
+                        .expect("encode-bearing row must have default_expr");
+                    let jni_type = binding.jni_type();
+
                     if kt_enabled {
-                        let kt = form
-                            .kotlin_jni_type
-                            .clone()
-                            .expect("return form Kotlin type not configured");
-                        let short = kotlin_register_fqn(&kt, &mut local_kotlin_fqns);
+                        let kt = binding.kotlin_type();
+                        let short = kotlin_register_fqn(kt, &mut local_kotlin_fqns);
                         kotlin_ret = Some(short);
                     }
-                    let jni_type = &form.jni_type;
-                    let default_expr = &form.default_expr;
-                    match &form.encode {
-                        ReturnEncode::Wrapper(wrap_fn) => (
-                            quote! { #jni_type },
-                            quote! { #wrap_fn(&mut env, __result) },
-                            quote! { #default_expr },
-                            quote! { #zresult<#jni_type> },
-                        ),
-                        ReturnEncode::ArcIntoRaw => (
-                            quote! { #jni_type },
-                            quote! {
-                                Ok(std::sync::Arc::into_raw(std::sync::Arc::new(__result)))
-                            },
-                            quote! { #default_expr },
-                            quote! { #zresult<#jni_type> },
-                        ),
-                    }
-                } else {
-                    // Fallback: treat as opaque Arc-handle, return `*const T`.
-                    if kt_enabled {
-                        kotlin_ret = Some("Long".to_string());
-                    }
+
+                    let wrap_ok_ts = match encode {
+                        ReturnEncode::Wrapper(p) => quote! { #p(&mut env, __result) },
+                        ReturnEncode::ArcIntoRaw => quote! {
+                            Ok(std::sync::Arc::into_raw(std::sync::Arc::new(__result)))
+                        },
+                    };
+
                     (
-                        quote! { *const #inner },
-                        quote! { Ok(std::sync::Arc::into_raw(std::sync::Arc::new(__result))) },
-                        quote! { std::ptr::null() },
-                        quote! { #zresult<*const #inner> },
+                        quote! { #jni_type },
+                        wrap_ok_ts,
+                        quote! { #default_expr },
+                        quote! { #zresult<#jni_type> },
                     )
                 }
             }
@@ -948,112 +736,9 @@ impl JniMethodsConverter {
         syn::parse2(tokens).expect("generated JNI wrapper must parse")
     }
 
-    fn lookup_return_form(&self, ty: &syn::Type) -> Option<&ReturnForm> {
-        let key = binding_key(ty)?;
-        self.cfg
-            .types
-            .types
-            .get(&key)
-            .and_then(|b| b.returns.as_ref())
-    }
-
-    /// Classify a function-arg type into one of the uniform variants below.
-    fn classify_arg(&self, ty: &syn::Type, _name: &syn::Ident) -> ArgKind {
-        let types: &HashMap<String, TypeBinding> = &self.cfg.types.types;
-        match ty {
-            syn::Type::Reference(r) if r.mutability.is_none() => {
-                let elem = &*r.elem;
-                let last = type_last_segment(elem).unwrap_or_default();
-                if let Some(binding) = types.get(&last) {
-                    if let Some(form) = binding.borrow.as_ref() {
-                        return ArgKind::Borrow {
-                            form: form.clone(),
-                            kotlin_override: binding.kotlin_type.clone(),
-                        };
-                    }
-                }
-                // Fallback: treat any unbound `&T` as an opaque Arc borrow
-                // against a raw `*const T` pointer. The owned_object path is
-                // serialized to String (syn::Path is not Send) and re-parsed
-                // inside the closure. call_with_ref causes the decoded owner
-                // to be passed as `&name` to the wrapped function.
-                let ptr_ty: syn::Type = syn::parse2(quote! { *const #elem })
-                    .expect("opaque pointer type must parse");
-                let owned_str = self.cfg.owned_object.to_token_stream().to_string();
-                let opaque_form = JniForm {
-                    jni_type: ptr_ty,
-                    kotlin_jni_type: "Long".to_string(),
-                    pointer_param: true,
-                    call_with_ref: true,
-                    decode: InlineFn::new(move |input| {
-                        let owned: syn::Path =
-                            syn::parse_str(&owned_str).expect("owned_object must be a valid path");
-                        quote! { #owned::from_raw(#input) }
-                    }),
-                };
-                ArgKind::Borrow {
-                    form: opaque_form,
-                    kotlin_override: None,
-                }
-            }
-            syn::Type::ImplTrait(_) => {
-                let key = ty.to_token_stream().to_string();
-                if let Some(binding) = types.get(&key) {
-                    if let Some(form) = binding.consume.as_ref() {
-                        return ArgKind::Consume {
-                            form: form.clone(),
-                            kotlin_override: binding.kotlin_type.clone(),
-                        };
-                    }
-                }
-                ArgKind::Unsupported
-            }
-            syn::Type::Path(tp) => {
-                let Some(last) = tp.path.segments.last() else {
-                    return ArgKind::Unsupported;
-                };
-                let name = last.ident.to_string();
-
-                if name == "Option" {
-                    let Some(inner_ty) = option_inner_type(last) else {
-                        return ArgKind::Unsupported;
-                    };
-                    let Some(key) = binding_key(inner_ty) else {
-                        return ArgKind::Unsupported;
-                    };
-                    if let Some(binding) = types.get(&key) {
-                        if let Some(form) = binding.consume.as_ref() {
-                            return ArgKind::OptionConsume {
-                                form: form.clone(),
-                                kotlin_override: binding.kotlin_type.clone(),
-                            };
-                        }
-                    }
-                    return ArgKind::Unsupported;
-                }
-
-                let Some(key) = binding_key(ty) else {
-                    return ArgKind::Unsupported;
-                };
-                if let Some(binding) = types.get(&key) {
-                    if let Some(form) = binding.consume.as_ref() {
-                        return ArgKind::Consume {
-                            form: form.clone(),
-                            kotlin_override: binding.kotlin_type.clone(),
-                        };
-                    }
-                }
-
-                ArgKind::Unsupported
-            }
-            _ => ArgKind::Unsupported,
-        }
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn emit_arg(
         &self,
-        kind: ArgKind,
         name: &syn::Ident,
         ty: &syn::Type,
         loc: &SourceLocation,
@@ -1064,223 +749,64 @@ impl JniMethodsConverter {
         local_kotlin_fqns: &mut BTreeSet<String>,
         kt_enabled: bool,
     ) {
-        match kind {
-            ArgKind::Consume {
-                form,
-                kotlin_override,
-            } => {
-                self.emit_consume_or_borrow(
-                    /* borrow */ false,
-                    form,
-                    kotlin_override,
-                    name,
-                    prelude,
-                    jni_params,
-                    call_args,
-                    kotlin_params,
-                    local_kotlin_fqns,
-                    kt_enabled,
-                );
-            }
-            ArgKind::Borrow {
-                form,
-                kotlin_override,
-            } => {
-                self.emit_consume_or_borrow(
-                    /* borrow */ true,
-                    form,
-                    kotlin_override,
-                    name,
-                    prelude,
-                    jni_params,
-                    call_args,
-                    kotlin_params,
-                    local_kotlin_fqns,
-                    kt_enabled,
-                );
-            }
-            ArgKind::OptionConsume {
-                form,
-                kotlin_override,
-            } => {
-                if !form.is_jni_object() {
-                    panic!(
-                        "Option<{}> requires a JNI-object form for `{}`",
-                        ty.to_token_stream(),
-                        name
-                    );
-                }
-                let jt = &form.jni_type;
-                jni_params.push(quote! { #name: #jt });
-                let inner = self.decode_expr(&form.decode, name);
-                prelude.push(quote! {
-                    let #name = if !#name.is_null() {
-                        Some(#inner)
-                    } else {
-                        None
-                    };
-                });
-                call_args.push(quote! { #name });
-                if kt_enabled {
-                    let kt_decl = self.kotlin_arg_type(&form, kotlin_override.as_deref());
-                    let short = kotlin_register_fqn(&kt_decl, local_kotlin_fqns);
-                    kotlin_params.push(format!(
-                        "{}: {}?",
-                        kotlin_param_name(&name.to_string(), form.pointer_param),
-                        short
-                    ));
-                }
-            }
-            ArgKind::Unsupported => panic!(
-                "unsupported parameter type `{}` for `{}` at {loc}",
+        let key = ty.to_token_stream().to_string();
+        let binding = self.cfg.types.types.get(&key).unwrap_or_else(|| {
+            panic!(
+                "unsupported parameter type `{}` for `{}` at {loc}: \
+                 register a TypeBinding keyed `{}`",
                 ty.to_token_stream(),
-                name
-            ),
-        }
-    }
+                name,
+                key
+            )
+        });
+        let decode = binding.decode().unwrap_or_else(|| {
+            panic!(
+                "TypeBinding `{}` has no decode (param direction) at {loc}",
+                key
+            )
+        });
 
-    #[allow(clippy::too_many_arguments)]
-    fn emit_consume_or_borrow(
-        &self,
-        _borrow: bool,
-        form: JniForm,
-        kotlin_override: Option<String>,
-        name: &syn::Ident,
-        prelude: &mut Vec<TokenStream>,
-        jni_params: &mut Vec<TokenStream>,
-        call_args: &mut Vec<TokenStream>,
-        kotlin_params: &mut Vec<String>,
-        local_kotlin_fqns: &mut BTreeSet<String>,
-        kt_enabled: bool,
-    ) {
-        let jt = &form.jni_type;
-        let pat = if form.pointer_param {
+        let pat = if binding.is_pointer() {
             format_ident!("{}_ptr", name)
         } else {
             name.clone()
         };
+        let jt = binding.jni_type();
         jni_params.push(quote! { #pat: #jt });
 
-        let expr = form.decode.call(&pat);
+        let expr = decode.call(&pat);
         prelude.push(quote! { let #name = #expr; });
 
-        if form.call_with_ref {
+        if binding.is_borrow() {
             call_args.push(quote! { &#name });
         } else {
             call_args.push(quote! { #name });
         }
 
         if kt_enabled {
-            let kt_decl = self.kotlin_arg_type(&form, kotlin_override.as_deref());
-            let short = kotlin_register_fqn(&kt_decl, local_kotlin_fqns);
+            let short = kotlin_register_fqn(binding.kotlin_type(), local_kotlin_fqns);
+            let suffix = if binding.is_option() { "?" } else { "" };
             kotlin_params.push(format!(
-                "{}: {}",
-                kotlin_param_name(&name.to_string(), form.pointer_param),
-                short
+                "{}: {}{}",
+                kotlin_param_name(&name.to_string(), binding.is_pointer()),
+                short,
+                suffix
             ));
         }
     }
-
-    fn decode_expr(&self, decode: &InlineFn, input: &syn::Ident) -> TokenStream {
-        decode.call(input)
-    }
-
-    /// Resolve the Kotlin parameter type for a JniForm. For object-typed
-    /// JNI wires (`JObject`) we use the binding's `kotlin_type` FQN; for
-    /// primitive wires (jboolean/jlong/jint/JString/JByteArray/raw ptrs) we
-    /// use the form's `kotlin_jni_type`.
-    fn kotlin_arg_type(&self, form: &JniForm, kotlin_override: Option<&str>) -> String {
-        match jni_object_kind(&form.jni_type) {
-            Some(JniObjectKind::JObject) => kotlin_override
-                .map(str::to_string)
-                .unwrap_or_else(|| form.kotlin_jni_type.clone()),
-            _ => form.kotlin_jni_type.clone(),
-        }
-    }
 }
 
 // =====================================================================
-// Internal classification helpers
+// Internal helpers
 // =====================================================================
 
-enum ArgKind {
-    Consume {
-        form: JniForm,
-        kotlin_override: Option<String>,
-    },
-    Borrow {
-        form: JniForm,
-        kotlin_override: Option<String>,
-    },
-    OptionConsume {
-        form: JniForm,
-        kotlin_override: Option<String>,
-    },
-    Unsupported,
-}
-
-/// Field-type classification for `#[prebindgen]` struct fields — narrower
-/// than [`ArgKind`] because structs only need a round-trippable primitive /
-/// enum representation.
+/// Field-type classification for `#[prebindgen]` struct fields.
 enum StructFieldKind {
     Bool,
     I64,
     F64,
     Enum(syn::Path),
     Unsupported,
-}
-
-#[derive(Clone, Copy)]
-enum JniObjectKind {
-    JObject,
-    JString,
-    JByteArray,
-}
-
-/// Recognize JNI object-shaped wire types. Used by the `Option<T>` combinator
-/// (which needs `is_null()`) and by the Kotlin parameter-type derivation.
-fn jni_object_kind(ty: &syn::Type) -> Option<JniObjectKind> {
-    let syn::Type::Path(tp) = ty else { return None };
-    let last = tp.path.segments.last()?;
-    match last.ident.to_string().as_str() {
-        "JObject" => Some(JniObjectKind::JObject),
-        "JString" => Some(JniObjectKind::JString),
-        "JByteArray" => Some(JniObjectKind::JByteArray),
-        _ => None,
-    }
-}
-
-fn type_last_segment(ty: &syn::Type) -> Option<String> {
-    let syn::Type::Path(tp) = ty else { return None };
-    tp.path.segments.last().map(|s| s.ident.to_string())
-}
-
-/// Inner type of a `Foo<T>` path segment (used for `Option<T>`).
-fn option_inner_type(seg: &syn::PathSegment) -> Option<&syn::Type> {
-    let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
-        return None;
-    };
-    let syn::GenericArgument::Type(inner) = args.args.first()? else {
-        return None;
-    };
-    Some(inner)
-}
-
-/// Lookup key for a path type in the [`crate::jni_type_binding::JniTypeBinding`]
-/// registry. For `Vec<T>` types we use the canonical
-/// `to_token_stream()` form (matching what
-/// [`crate::jni_type_binding::TypeBinding::new`] produces from input like
-/// `"Vec<u8>"`). For other path types we use the last-segment ident, which
-/// lets registrations key off short type names without forcing callers to
-/// spell out the full path of the user-side type.
-fn binding_key(ty: &syn::Type) -> Option<String> {
-    let syn::Type::Path(tp) = ty else { return None };
-    let seg = tp.path.segments.last()?;
-    if seg.ident == "Vec" {
-        Some(ty.to_token_stream().to_string())
-    } else {
-        Some(seg.ident.to_string())
-    }
 }
 
 fn is_unit(ty: &syn::Type) -> bool {

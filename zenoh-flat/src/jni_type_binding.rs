@@ -1,139 +1,277 @@
-//! Reusable collection of JNI type bindings.
+//! Flat JNI type registry.
 //!
-//! [`JniTypeBinding`] aggregates a set of [`TypeBinding`]s — including
-//! callback registrations, which live as `consume` slots on the element
-//! type's binding — into a single value that can be defined once and
-//! threaded through both phases of the JNI binding pipeline (a
-//! [`crate::jni_converter::JniStructConverter`] mutates it; a
-//! [`crate::jni_converter::JniMethodsConverter`] reads it).
+//! Each [`TypeBinding`] is a single row keyed by the canonical
+//! `to_token_stream()` form of a Rust type-shape, e.g. `"String"`,
+//! `"& Session"`, `"Vec < u8 >"`, `"Option < KeyExpr < 'static > >"`,
+//! `"ZResult < ZenohId >"`, `"impl Fn (Sample) + Send + Sync + 'static"`.
 //!
-//! ```ignore
-//! use zenoh_flat::jni_converter::{InlineFn, JniForm, TypeBinding};
-//! use zenoh_flat::jni_type_binding::JniTypeBinding;
-//! use quote::quote;
+//! A row carries:
 //!
-//! let common = JniTypeBinding::new()
-//!     .type_binding(
-//!         TypeBinding::new("KeyExpr").consume(
-//!             JniForm::new(
-//!                 "*const zenoh::key_expr::KeyExpr<'static>",
-//!                 "Long",
-//!                 InlineFn::new(|input| {
-//!                     quote! { (*std::sync::Arc::from_raw(#input)).clone() }
-//!                 }),
-//!             )
-//!             .pointer_param(true),
-//!         ),
-//!     );
-//! ```
+//! * `kotlin_type` — the Kotlin parameter or return type
+//! * `jni_type`    — the on-the-wire JNI type emitted in the wrapper signature
+//! * `decode`      — JNI value → Rust value (param-direction rows)
+//! * `encode` + `default_expr` — Rust value → JNI value (return-direction rows)
+//! * `enum_field_decoder` — only for enum-shaped rows, used by struct-field
+//!   classification
+//!
+//! Wrapper types (`&T`, `Vec<T>`, `Option<T>`, `ZResult<T>`) are **not**
+//! decomposed by the classifier — each must have its own explicit row. The
+//! [`TypeBinding::opaque_borrow`], [`TypeBinding::opaque_arc_return`] and
+//! [`TypeBinding::option_of`] convenience constructors keep registration
+//! concise.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
-use crate::jni_converter::{InlineFn, JniForm, ReturnForm};
+/// Clonable closure that produces a `TokenStream` from the JNI input ident.
+#[derive(Clone)]
+pub struct InlineFn(Arc<dyn Fn(&syn::Ident) -> TokenStream + Send + Sync>);
 
-/// Per-type description of how a Rust type is represented across the JNI
-/// boundary. A type may declare up to three forms:
-/// `consume` (`T` parameter), `borrow` (`&T` parameter), and `returns`
-/// (`ZResult<T>` return).
-///
-/// `Vec<T>` parameters and `ZResult<Vec<T>>` returns are described by a
-/// separate binding registered under the type itself, e.g.
-/// `TypeBinding::new("Vec<u8>")` or `TypeBinding::new("Vec<ZenohId>")`.
-/// The classifier looks up `Vec<T>` types by their canonical
-/// `to_token_stream()` form, matching whatever
-/// [`TypeBinding::new`] canonicalized at registration time.
-///
-/// Callback parameters (`impl Fn(T) + Send + Sync + 'static`) are described
-/// by an ordinary `consume` form on a binding keyed under
-/// `"impl Fn(<element>)"` (e.g. `"impl Fn(Sample)"`, `"impl Fn()"`). The
-/// classifier synthesizes that key when it sees an `impl Fn(...)` parameter.
+impl InlineFn {
+    pub fn new<F>(f: F) -> Self
+    where
+        F: Fn(&syn::Ident) -> TokenStream + Send + Sync + 'static,
+    {
+        InlineFn(Arc::new(f))
+    }
+
+    /// `<path>(<input>)?` — pure conversion (e.g. enum decoders).
+    pub fn pure(path: impl AsRef<str>) -> Self {
+        let s = path.as_ref().to_string();
+        InlineFn::new(move |input| {
+            let p: syn::Path = syn::parse_str(&s).expect("invalid InlineFn::pure path");
+            quote! { #p(#input)? }
+        })
+    }
+
+    /// `<path>(&env, &<input>)?` — decoder needing shared access to the JNI env.
+    pub fn env_ref(path: impl AsRef<str>) -> Self {
+        let s = path.as_ref().to_string();
+        InlineFn::new(move |input| {
+            let p: syn::Path = syn::parse_str(&s).expect("invalid InlineFn::env_ref path");
+            quote! { #p(&env, &#input)? }
+        })
+    }
+
+    /// `<path>(&mut env, &<input>)?` — decoder needing mutable access to the JNI env.
+    pub fn env_ref_mut(path: impl AsRef<str>) -> Self {
+        let s = path.as_ref().to_string();
+        InlineFn::new(move |input| {
+            let p: syn::Path =
+                syn::parse_str(&s).expect("invalid InlineFn::env_ref_mut path");
+            quote! { #p(&mut env, &#input)? }
+        })
+    }
+
+    pub(crate) fn call(&self, ident: &syn::Ident) -> TokenStream {
+        (self.0)(ident)
+    }
+}
+
+/// How a Rust return value is encoded into a JNI return.
+#[derive(Clone)]
+pub enum ReturnEncode {
+    /// `<path>(&mut env, __result)` — wrapping function returns
+    /// `ZResult<jni_type>`.
+    Wrapper(syn::Path),
+    /// `Ok(Arc::into_raw(Arc::new(__result)))` — opaque Arc-handle return.
+    ArcIntoRaw,
+}
+
+impl ReturnEncode {
+    pub fn wrapper(path: impl AsRef<str>) -> Self {
+        ReturnEncode::Wrapper(
+            syn::parse_str(path.as_ref()).expect("invalid ReturnEncode::wrapper path"),
+        )
+    }
+}
+
+/// Per-row binding from a Rust type-shape to its JNI/Kotlin representation.
 #[derive(Clone)]
 pub struct TypeBinding {
-    pub(crate) name: String,
-    /// Kotlin-side type name (FQN preferred — out-of-package import is
-    /// auto-derived; bare for same-package). Used as the Kotlin parameter
-    /// type when the form's wire JNI type is `JObject` and as the Kotlin
-    /// return type. For primitive-mapped forms (`bool`, `Duration`,
-    /// `String`, ...) the form's `kotlin_jni_type` is used instead.
-    pub(crate) kotlin_type: Option<String>,
-    pub(crate) consume: Option<JniForm>,
-    pub(crate) borrow: Option<JniForm>,
-    pub(crate) returns: Option<ReturnForm>,
+    /// Canonical Rust type-shape (token-stream form). The lookup key.
+    pub(crate) rust_type: String,
+    /// Kotlin parameter / return type (FQN preferred for object types,
+    /// bare for primitives). For Option-shaped rows this is the inner
+    /// type's Kotlin name; the `?` suffix is added by the emitter from
+    /// the row's rust_type prefix.
+    pub(crate) kotlin_type: String,
+    /// On-the-wire JNI type emitted in the wrapper signature.
+    pub(crate) jni_type: syn::Type,
+    /// JNI value → Rust value. None for return-only rows.
+    pub(crate) decode: Option<InlineFn>,
+    /// Rust value → JNI value. None for param-only rows.
+    pub(crate) encode: Option<ReturnEncode>,
+    /// Default JNI value emitted on the throw-return path. Required when
+    /// `encode` is set.
+    pub(crate) default_expr: Option<syn::Expr>,
     /// Decoder path for Java-enum-shaped types (`fn(jint) -> ZResult<T>`).
-    /// Set when the type's JNI representation is an `Int` mapped through a
-    /// pure decoder. Used by struct-field classification to detect enum
-    /// fields and emit `env.get_field(..., "I")` + decoder call.
-    pub(crate) enum_decoder: Option<syn::Path>,
+    /// Used by struct-field classification to detect enum fields and emit
+    /// `env.get_field(..., "I")` + decoder call.
+    pub(crate) enum_field_decoder: Option<syn::Path>,
 }
 
 impl TypeBinding {
-    /// Short type name this binding is keyed under (e.g. `"KeyExpr"`).
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Construct a binding keyed by `name`. If `name` parses as a Rust type,
-    /// it is canonicalized through `quote::ToTokens` so whitespace variations
-    /// in user input match the form the classifier produces from AST nodes
-    /// (matters for `impl Fn(T) + Send + Sync + 'static`-style names). Falls
-    /// back to the literal string if parsing fails.
-    pub fn new(name: impl Into<String>) -> Self {
-        let raw = name.into();
-        let canonical = syn::parse_str::<syn::Type>(&raw)
-            .map(|t| t.to_token_stream().to_string())
-            .unwrap_or_else(|_| raw);
+    /// Param-direction row. `rust_type` is canonicalized via `syn::Type` parse.
+    pub fn param(
+        rust_type: impl AsRef<str>,
+        kotlin_type: impl Into<String>,
+        jni_type: impl AsRef<str>,
+        decode: InlineFn,
+    ) -> Self {
         Self {
-            name: canonical,
-            kotlin_type: None,
-            consume: None,
-            borrow: None,
-            returns: None,
-            enum_decoder: None,
+            rust_type: canon_type(rust_type.as_ref()),
+            kotlin_type: kotlin_type.into(),
+            jni_type: parse_type(jni_type.as_ref()),
+            decode: Some(decode),
+            encode: None,
+            default_expr: None,
+            enum_field_decoder: None,
         }
     }
 
-    pub fn kotlin(mut self, fqn: impl Into<String>) -> Self {
-        self.kotlin_type = Some(fqn.into());
-        self
+    /// Return-direction row.
+    pub fn returns(
+        rust_type: impl AsRef<str>,
+        kotlin_type: impl Into<String>,
+        jni_type: impl AsRef<str>,
+        encode: ReturnEncode,
+        default_expr: impl AsRef<str>,
+    ) -> Self {
+        Self {
+            rust_type: canon_type(rust_type.as_ref()),
+            kotlin_type: kotlin_type.into(),
+            jni_type: parse_type(jni_type.as_ref()),
+            decode: None,
+            encode: Some(encode),
+            default_expr: Some(
+                syn::parse_str(default_expr.as_ref())
+                    .expect("invalid TypeBinding::returns default_expr"),
+            ),
+            enum_field_decoder: None,
+        }
     }
 
-    /// Mark this binding as a Java-enum-shaped type and record the
-    /// `fn(jint) -> ZResult<T>` decoder path used for both top-level
-    /// argument decoding and struct-field decoding.
-    pub fn enum_decoder(mut self, path: impl AsRef<str>) -> Self {
-        self.enum_decoder = Some(
-            syn::parse_str(path.as_ref()).expect("invalid TypeBinding::enum_decoder path"),
+    /// Mark this binding as a Java-enum-shaped type. Used by struct-field
+    /// classification to emit `env.get_field(..., "I")` + `<path>(raw)?`.
+    pub fn enum_field_decoder(mut self, path: impl AsRef<str>) -> Self {
+        self.enum_field_decoder = Some(
+            syn::parse_str(path.as_ref())
+                .expect("invalid TypeBinding::enum_field_decoder path"),
         );
         self
     }
 
-    pub fn consume(mut self, form: JniForm) -> Self {
-        self.consume = Some(form);
-        self
+    /// Convenience: opaque borrow `&T` — JNI side passes raw `*const T`,
+    /// decoded via `<owned_object>::from_raw`. Because the row's key starts
+    /// with `&`, the wrapped fn receives `&name` automatically.
+    pub fn opaque_borrow(t: impl AsRef<str>, owned_object: impl AsRef<str>) -> Self {
+        let t = t.as_ref().to_string();
+        let owned_str = owned_object.as_ref().to_string();
+        // Validate the owner path parses now so errors surface at registration.
+        let _: syn::Path =
+            syn::parse_str(&owned_str).expect("opaque_borrow: invalid owned_object path");
+        Self::param(
+            format!("&{}", t),
+            "Long",
+            format!("*const {}", t),
+            InlineFn::new(move |input| {
+                let owned: syn::Path =
+                    syn::parse_str(&owned_str).expect("owned_object must parse");
+                quote! { #owned::from_raw(#input) }
+            }),
+        )
     }
 
-    pub fn borrow(mut self, form: JniForm) -> Self {
-        self.borrow = Some(form);
-        self
+    /// Convenience: opaque Arc return for `ZResult<T>` — encode via
+    /// `Arc::into_raw(Arc::new(__result))`, default to `std::ptr::null()`.
+    pub fn opaque_arc_return(t: impl AsRef<str>) -> Self {
+        let t = t.as_ref();
+        Self::returns(
+            format!("ZResult<{}>", t),
+            "Long",
+            format!("*const {}", t),
+            ReturnEncode::ArcIntoRaw,
+            "std::ptr::null()",
+        )
     }
 
-    pub fn returns(mut self, form: ReturnForm) -> Self {
-        self.returns = Some(form);
-        self
+    /// Convenience: `Option<X>` row that lifts `inner`'s decode with a
+    /// JNI-side null check. Inner's wire type must be JNI-object-shaped.
+    pub fn option_of(inner: &TypeBinding) -> Self {
+        let inner_decode = inner
+            .decode
+            .as_ref()
+            .expect("option_of: inner must be a param row")
+            .clone();
+        assert!(
+            jni_object_shaped(&inner.jni_type),
+            "option_of requires a JNI-object inner form, got `{}`",
+            inner.jni_type.to_token_stream()
+        );
+        Self {
+            rust_type: canon_type(&format!("Option<{}>", inner.rust_type)),
+            kotlin_type: inner.kotlin_type.clone(),
+            jni_type: inner.jni_type.clone(),
+            decode: Some(InlineFn::new(move |input| {
+                let inner_expr = inner_decode.call(input);
+                quote! {
+                    if !#input.is_null() {
+                        Some(#inner_expr)
+                    } else {
+                        None
+                    }
+                }
+            })),
+            encode: None,
+            default_expr: None,
+            enum_field_decoder: None,
+        }
+    }
+
+    /// Canonical type-shape this binding is keyed under.
+    pub fn name(&self) -> &str {
+        &self.rust_type
+    }
+
+    pub(crate) fn jni_type(&self) -> &syn::Type {
+        &self.jni_type
+    }
+    pub(crate) fn kotlin_type(&self) -> &str {
+        &self.kotlin_type
+    }
+    pub(crate) fn decode(&self) -> Option<&InlineFn> {
+        self.decode.as_ref()
+    }
+    pub(crate) fn encode(&self) -> Option<&ReturnEncode> {
+        self.encode.as_ref()
+    }
+    pub(crate) fn default_expr(&self) -> Option<&syn::Expr> {
+        self.default_expr.as_ref()
+    }
+    pub(crate) fn enum_field_decoder_path(&self) -> Option<&syn::Path> {
+        self.enum_field_decoder.as_ref()
+    }
+    /// `&T` row — wrapped fn receives `&name`.
+    pub(crate) fn is_borrow(&self) -> bool {
+        self.rust_type.starts_with('&')
+    }
+    /// `*const _` / `*mut _` wire type — Kotlin name gets `Ptr` suffix and
+    /// the Rust ident gets `_ptr` suffix.
+    pub(crate) fn is_pointer(&self) -> bool {
+        matches!(self.jni_type, syn::Type::Ptr(_))
+    }
+    /// `Option<_>` row — Kotlin emission appends `?`.
+    pub(crate) fn is_option(&self) -> bool {
+        self.rust_type.starts_with("Option <")
     }
 }
 
 /// Reusable collection of [`TypeBinding`]s plus the Kotlin `data class`
 /// strings produced by struct processing.
-///
-/// The same value flows through both pipeline phases: the
-/// [`crate::jni_converter::JniStructConverter`] inserts an auto-generated
-/// `TypeBinding` plus a `data class` block for each `#[prebindgen]` struct
-/// it sees; the [`crate::jni_converter::JniMethodsConverter`] then reads the
-/// type registry to classify args/returns and reads the data-class strings
-/// when emitting the final Kotlin file.
 #[derive(Default, Clone)]
 pub struct JniTypeBinding {
     pub(crate) types: HashMap<String, TypeBinding>,
@@ -147,8 +285,15 @@ impl JniTypeBinding {
 
     /// Add (or replace) a [`TypeBinding`] in this collection.
     pub fn type_binding(mut self, binding: TypeBinding) -> Self {
-        self.types.insert(binding.name().to_string(), binding);
+        self.types.insert(binding.rust_type.clone(), binding);
         self
+    }
+
+    /// Look up a registered [`TypeBinding`] by its canonical type-shape key
+    /// (e.g. `"HistoryConfig"`, `"Vec < u8 >"`). The key is canonicalized
+    /// via `syn::Type` parse so callers can pass either spacing form.
+    pub fn type_by_key(&self, key: &str) -> Option<&TypeBinding> {
+        self.types.get(&canon_type(key))
     }
 
     /// Merge another [`JniTypeBinding`] into this one. Type entries in
@@ -163,31 +308,50 @@ impl JniTypeBinding {
     /// Pre-register built-in language types whose JNI form is fully described
     /// without any project-specific decoder path: `bool` (inline `x != 0`)
     /// and `Duration` (inline `Duration::from_millis(x as u64)`).
-    ///
-    /// Types whose decoder lives outside this crate — `String`, `Vec<u8>`,
-    /// callbacks, enums, opaque handles — are registered by the caller via
-    /// the universal [`JniTypeBinding::type_binding`] entry point.
     pub fn with_builtins(mut self) -> Self {
-        // bool — jboolean, inline `x != 0`.
-        self.types.insert(
-            "bool".to_string(),
-            TypeBinding::new("bool").consume(JniForm::new(
-                "jni::sys::jboolean",
-                "Boolean",
-                InlineFn::new(|input| quote! { #input != 0 }),
-            )),
+        let bool_row = TypeBinding::param(
+            "bool",
+            "Boolean",
+            "jni::sys::jboolean",
+            InlineFn::new(|input| quote! { #input != 0 }),
         );
-        // Duration — jlong, inline `Duration::from_millis(x as u64)`.
-        self.types.insert(
-            "Duration".to_string(),
-            TypeBinding::new("Duration").consume(JniForm::new(
-                "jni::sys::jlong",
-                "Long",
-                InlineFn::new(|input| {
-                    quote! { std::time::Duration::from_millis(#input as u64) }
-                }),
-            )),
+        self.types.insert(bool_row.rust_type.clone(), bool_row);
+
+        let duration_row = TypeBinding::param(
+            "Duration",
+            "Long",
+            "jni::sys::jlong",
+            InlineFn::new(|input| {
+                quote! { std::time::Duration::from_millis(#input as u64) }
+            }),
         );
+        self.types
+            .insert(duration_row.rust_type.clone(), duration_row);
         self
     }
+}
+
+/// Canonical type-shape string. Parses through `syn::Type` so whitespace
+/// variations in user input (`"Vec<u8>"` vs `"Vec < u8 >"`) match the form
+/// the classifier produces from AST nodes via `to_token_stream()`.
+pub(crate) fn canon_type(s: &str) -> String {
+    syn::parse_str::<syn::Type>(s)
+        .map(|t| t.to_token_stream().to_string())
+        .unwrap_or_else(|e| panic!("TypeBinding: cannot parse `{}` as a type: {}", s, e))
+}
+
+fn parse_type(s: &str) -> syn::Type {
+    syn::parse_str(s).unwrap_or_else(|e| panic!("invalid JNI wire type `{}`: {}", s, e))
+}
+
+/// True if `ty` is a JNI object-shaped wire type that supports `is_null()`.
+pub(crate) fn jni_object_shaped(ty: &syn::Type) -> bool {
+    let syn::Type::Path(tp) = ty else { return false };
+    let Some(last) = tp.path.segments.last() else {
+        return false;
+    };
+    matches!(
+        last.ident.to_string().as_str(),
+        "JObject" | "JString" | "JByteArray"
+    )
 }
