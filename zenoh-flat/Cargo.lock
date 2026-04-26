@@ -1223,6 +1223,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "prebindgen-ext"
+version = "1.9.0"
+dependencies = [
+ "itertools 0.12.1",
+ "prebindgen",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
 name = "prebindgen-proc-macro"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2573,14 +2584,11 @@ dependencies = [
 name = "zenoh-flat"
 version = "1.9.0"
 dependencies = [
- "itertools 0.12.1",
  "json5",
  "prebindgen",
+ "prebindgen-ext",
  "prebindgen-proc-macro",
- "proc-macro2",
- "quote",
  "serde_yaml",
- "syn 2.0.117",
  "tracing",
  "zenoh",
  "zenoh-ext",

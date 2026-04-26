@@ -19,10 +19,7 @@ serde_yaml = "0.9.19"
 tracing = "0.1"
 prebindgen-proc-macro = "0.4.1"
 prebindgen = "0.4.1"
-syn = { version = "2", features = ["full", "extra-traits"] }
-quote = "1"
-proc-macro2 = "1"
-itertools = "0.12"
+prebindgen-ext = { path = "../prebindgen-ext" }
 
 [build-dependencies]
 prebindgen = "0.4.1"
