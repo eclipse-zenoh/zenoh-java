@@ -54,7 +54,7 @@ impl Default for StructBuilder {
         Self {
             source_module: syn::parse_str("crate").unwrap(),
             zresult: syn::parse_str("ZResult").unwrap(),
-            types: JniTypeBinding::new(),
+            types: JniTypeBinding::new().with_builtins(),
         }
     }
 }
@@ -180,53 +180,42 @@ impl JniStructConverter {
             let kotlin_fname = snake_to_camel(&fname);
             let err_prefix = format!("{struct_name}.{kotlin_fname}: {{}}");
 
-            let kind = self.classify_struct_field(&field.ty);
-            match kind {
-                StructFieldKind::Bool => {
-                    field_preludes.push(quote! {
-                        let #fname_ident = env.get_field(obj, #kotlin_fname, "Z")
-                            .and_then(|v| v.z())
-                            .map_err(|err| zerror!(#err_prefix, err))?;
-                    });
-                    field_init.push(quote! { #fname_ident });
-                    kotlin_field_lines.push(format!("    val {}: Boolean,", kotlin_fname));
-                }
-                StructFieldKind::I64 => {
-                    field_preludes.push(quote! {
-                        let #fname_ident = env.get_field(obj, #kotlin_fname, "J")
-                            .and_then(|v| v.j())
-                            .map_err(|err| zerror!(#err_prefix, err))?;
-                    });
-                    field_init.push(quote! { #fname_ident });
-                    kotlin_field_lines.push(format!("    val {}: Long,", kotlin_fname));
-                }
-                StructFieldKind::F64 => {
-                    field_preludes.push(quote! {
-                        let #fname_ident = env.get_field(obj, #kotlin_fname, "D")
-                            .and_then(|v| v.d())
-                            .map_err(|err| zerror!(#err_prefix, err))?;
-                    });
-                    field_init.push(quote! { #fname_ident });
-                    kotlin_field_lines.push(format!("    val {}: Double,", kotlin_fname));
-                }
-                StructFieldKind::Enum(decoder) => {
-                    let raw_ident = format_ident!("__{}_raw", fname_ident);
-                    field_preludes.push(quote! {
-                        let #raw_ident = env.get_field(obj, #kotlin_fname, "I")
-                            .and_then(|v| v.i())
-                            .map_err(|err| zerror!(#err_prefix, err))?;
-                        let #fname_ident = #decoder(#raw_ident)?;
-                    });
-                    field_init.push(quote! { #fname_ident });
-                    kotlin_field_lines.push(format!("    val {}: Int,", kotlin_fname));
-                }
-                StructFieldKind::Unsupported => panic!(
+            let binding = self.lookup_struct_field_binding(&field.ty).unwrap_or_else(|| {
+                panic!(
                     "unsupported field type `{}` for `{}.{}` at {loc}",
                     field.ty.to_token_stream(),
                     struct_name,
                     fname
-                ),
-            }
+                )
+            });
+            let (jni_sig, jvalue_method) =
+                jni_primitive_signature(binding.jni_type()).unwrap_or_else(|| {
+                    panic!(
+                        "field `{}.{}` at {loc}: type `{}` has non-primitive JNI wire form `{}`",
+                        struct_name,
+                        fname,
+                        field.ty.to_token_stream(),
+                        binding.jni_type().to_token_stream()
+                    )
+                });
+            let raw_ident = format_ident!("__{}_raw", fname_ident);
+            let jni_type = binding.jni_type();
+            let decode_expr = binding
+                .decode()
+                .expect("struct-field binding must have a decode")
+                .call(&raw_ident);
+            field_preludes.push(quote! {
+                let #raw_ident: #jni_type = env.get_field(obj, #kotlin_fname, #jni_sig)
+                    .and_then(|v| v.#jvalue_method())
+                    .map_err(|err| zerror!(#err_prefix, err))? as _;
+                let #fname_ident = #decode_expr;
+            });
+            field_init.push(quote! { #fname_ident });
+            kotlin_field_lines.push(format!(
+                "    val {}: {},",
+                kotlin_fname,
+                binding.kotlin_type()
+            ));
         }
 
         let tokens = quote! {
@@ -261,28 +250,15 @@ impl JniStructConverter {
         syn::parse2(tokens).expect("generated struct decoder must parse")
     }
 
-    /// Classify a `#[prebindgen]` struct field's type for JNI round-tripping.
-    fn classify_struct_field(&self, ty: &syn::Type) -> StructFieldKind {
-        let syn::Type::Path(tp) = ty else {
-            return StructFieldKind::Unsupported;
-        };
-        let Some(last) = tp.path.segments.last() else {
-            return StructFieldKind::Unsupported;
-        };
+    /// Look up a `#[prebindgen]` struct field's type in the registry. Fields
+    /// must use the type's bare path-tail name (e.g. `bool`, `i64`,
+    /// `CongestionControl`) and must resolve to a registered binding whose
+    /// JNI wire form is one of the primitive `j*` types.
+    fn lookup_struct_field_binding(&self, ty: &syn::Type) -> Option<&TypeBinding> {
+        let syn::Type::Path(tp) = ty else { return None };
+        let last = tp.path.segments.last()?;
         let name = last.ident.to_string();
-        match name.as_str() {
-            "bool" => StructFieldKind::Bool,
-            "i64" => StructFieldKind::I64,
-            "f64" => StructFieldKind::F64,
-            _ => {
-                if let Some(binding) = self.cfg.types.types.get(&name) {
-                    if let Some(p) = binding.enum_field_decoder_path() {
-                        return StructFieldKind::Enum(p.clone());
-                    }
-                }
-                StructFieldKind::Unsupported
-            }
-        }
+        self.cfg.types.types.get(&name)
     }
 }
 
@@ -800,13 +776,26 @@ impl JniMethodsConverter {
 // Internal helpers
 // =====================================================================
 
-/// Field-type classification for `#[prebindgen]` struct fields.
-enum StructFieldKind {
-    Bool,
-    I64,
-    F64,
-    Enum(syn::Path),
-    Unsupported,
+/// Map a primitive JNI wire type (`jni::sys::j*`) to the JVM field
+/// signature character and the matching `JValue` accessor method.
+/// Returns `None` for non-primitive (object-shaped) wire types.
+fn jni_primitive_signature(jni_type: &syn::Type) -> Option<(&'static str, syn::Ident)> {
+    let syn::Type::Path(tp) = jni_type else {
+        return None;
+    };
+    let last = tp.path.segments.last()?;
+    let (sig, accessor) = match last.ident.to_string().as_str() {
+        "jboolean" => ("Z", "z"),
+        "jbyte" => ("B", "b"),
+        "jchar" => ("C", "c"),
+        "jshort" => ("S", "s"),
+        "jint" => ("I", "i"),
+        "jlong" => ("J", "j"),
+        "jfloat" => ("F", "f"),
+        "jdouble" => ("D", "d"),
+        _ => return None,
+    };
+    Some((sig, format_ident!("{}", accessor)))
 }
 
 fn is_unit(ty: &syn::Type) -> bool {

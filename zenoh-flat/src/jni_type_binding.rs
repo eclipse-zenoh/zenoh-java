@@ -11,8 +11,6 @@
 //! * `jni_type`    — the on-the-wire JNI type emitted in the wrapper signature
 //! * `decode`      — JNI value → Rust value (param-direction rows)
 //! * `encode` + `default_expr` — Rust value → JNI value (return-direction rows)
-//! * `enum_field_decoder` — only for enum-shaped rows, used by struct-field
-//!   classification
 //!
 //! Wrapper types (`&T`, `Vec<T>`, `Option<T>`, `ZResult<T>`) are **not**
 //! decomposed by the classifier — each must have its own explicit row. The
@@ -108,10 +106,6 @@ pub struct TypeBinding {
     /// Default JNI value emitted on the throw-return path. Required when
     /// `encode` is set.
     pub(crate) default_expr: Option<syn::Expr>,
-    /// Decoder path for Java-enum-shaped types (`fn(jint) -> ZResult<T>`).
-    /// Used by struct-field classification to detect enum fields and emit
-    /// `env.get_field(..., "I")` + decoder call.
-    pub(crate) enum_field_decoder: Option<syn::Path>,
 }
 
 impl TypeBinding {
@@ -129,7 +123,6 @@ impl TypeBinding {
             decode: Some(decode),
             encode: None,
             default_expr: None,
-            enum_field_decoder: None,
         }
     }
 
@@ -151,18 +144,7 @@ impl TypeBinding {
                 syn::parse_str(default_expr.as_ref())
                     .expect("invalid TypeBinding::returns default_expr"),
             ),
-            enum_field_decoder: None,
         }
-    }
-
-    /// Mark this binding as a Java-enum-shaped type. Used by struct-field
-    /// classification to emit `env.get_field(..., "I")` + `<path>(raw)?`.
-    pub fn enum_field_decoder(mut self, path: impl AsRef<str>) -> Self {
-        self.enum_field_decoder = Some(
-            syn::parse_str(path.as_ref())
-                .expect("invalid TypeBinding::enum_field_decoder path"),
-        );
-        self
     }
 
     /// Convenience: opaque borrow `&T` — JNI side passes raw `*const T`,
@@ -228,7 +210,6 @@ impl TypeBinding {
             })),
             encode: None,
             default_expr: None,
-            enum_field_decoder: None,
         }
     }
 
@@ -251,9 +232,6 @@ impl TypeBinding {
     }
     pub(crate) fn default_expr(&self) -> Option<&syn::Expr> {
         self.default_expr.as_ref()
-    }
-    pub(crate) fn enum_field_decoder_path(&self) -> Option<&syn::Path> {
-        self.enum_field_decoder.as_ref()
     }
     /// `&T` row — wrapped fn receives `&name`.
     pub(crate) fn is_borrow(&self) -> bool {
@@ -306,8 +284,8 @@ impl JniTypeBinding {
     }
 
     /// Pre-register built-in language types whose JNI form is fully described
-    /// without any project-specific decoder path: `bool` (inline `x != 0`)
-    /// and `Duration` (inline `Duration::from_millis(x as u64)`).
+    /// without any project-specific decoder path: `bool`, `i64`, `f64`, and
+    /// `Duration`.
     pub fn with_builtins(mut self) -> Self {
         let bool_row = TypeBinding::param(
             "bool",
@@ -316,6 +294,22 @@ impl JniTypeBinding {
             InlineFn::new(|input| quote! { #input != 0 }),
         );
         self.types.insert(bool_row.rust_type.clone(), bool_row);
+
+        let i64_row = TypeBinding::param(
+            "i64",
+            "Long",
+            "jni::sys::jlong",
+            InlineFn::new(|input| quote! { #input }),
+        );
+        self.types.insert(i64_row.rust_type.clone(), i64_row);
+
+        let f64_row = TypeBinding::param(
+            "f64",
+            "Double",
+            "jni::sys::jdouble",
+            InlineFn::new(|input| quote! { #input }),
+        );
+        self.types.insert(f64_row.rust_type.clone(), f64_row);
 
         let duration_row = TypeBinding::param(
             "Duration",

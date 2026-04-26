@@ -56,37 +56,37 @@ fn shared_bindings() -> JniTypeBinding {
             "Int",
             "jni::sys::jint",
             InlineFn::pure("crate::utils::decode_congestion_control"),
-        ).enum_field_decoder("crate::utils::decode_congestion_control"))
+        ))
         .type_binding(TypeBinding::param(
             "Priority",
             "Int",
             "jni::sys::jint",
             InlineFn::pure("crate::utils::decode_priority"),
-        ).enum_field_decoder("crate::utils::decode_priority"))
+        ))
         .type_binding(TypeBinding::param(
             "Reliability",
             "Int",
             "jni::sys::jint",
             InlineFn::pure("crate::utils::decode_reliability"),
-        ).enum_field_decoder("crate::utils::decode_reliability"))
+        ))
         .type_binding(TypeBinding::param(
             "QueryTarget",
             "Int",
             "jni::sys::jint",
             InlineFn::pure("crate::utils::decode_query_target"),
-        ).enum_field_decoder("crate::utils::decode_query_target"))
+        ))
         .type_binding(TypeBinding::param(
             "ConsolidationMode",
             "Int",
             "jni::sys::jint",
             InlineFn::pure("crate::utils::decode_consolidation"),
-        ).enum_field_decoder("crate::utils::decode_consolidation"))
+        ))
         .type_binding(TypeBinding::param(
             "ReplyKeyExpr",
             "Int",
             "jni::sys::jint",
             InlineFn::pure("crate::utils::decode_reply_key_expr"),
-        ).enum_field_decoder("crate::utils::decode_reply_key_expr"))
+        ))
         // KeyExpr by-value: JNI side passes `Arc::into_raw(Arc::new(KeyExpr))`
         // as a raw pointer; the wrapper reconstructs the Arc, clones the inner
         // KeyExpr, and drops the Arc at end of scope. The full path is required
