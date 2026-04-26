@@ -114,11 +114,16 @@ Basically:
 
 - Rust ([Installation guide](https://doc.rust-lang.org/cargo/getting-started/installation.html))
 - Kotlin ([Installation guide](https://kotlinlang.org/docs/getting-started.html#backend))
-- Gradle ([Installation guide](https://gradle.org/install/))
 
 and in case of targeting Android you'll also need:
 
 - Android SDK ([Installation guide](https://developer.android.com/about/versions/11/setup-sdk))
+
+## Gradle wrapper
+
+This repository ships a [Gradle wrapper](https://docs.gradle.org/current/userguide/gradle_wrapper.html) (`./gradlew` / `gradlew.bat`), so no system-wide Gradle installation is required. The wrapper pins the build to **Gradle 8.12.1** and verifies the distribution checksum before use, ensuring a reproducible and tamper-evident build environment.
+
+Use `./gradlew` in place of `gradle` for all commands listed below.
 
 ## <img src="jvm.png" alt="JVM" height="50"> JVM
 

@@ -22,8 +22,9 @@ use jni::{
 use zenoh::{config::WhatAmIMatcher, Wait};
 use zenoh::{scouting::Scout, Config};
 
+use crate::owned_object::OwnedObject;
 use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close};
-use crate::{errors::ZResult, throw_exception, zerror};
+use crate::{errors::ZResult, throw_exception};
 
 /// Start a scout.
 ///
@@ -46,18 +47,16 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIScout_00024Companion_scoutViaJNI(
     config_ptr: /*nullable=*/ *const Config,
 ) -> *const Scout<()> {
     || -> ZResult<*const Scout<()>> {
-        let callback_global_ref = get_callback_global_ref(&mut env, callback)?;
+        let callback_global_ref = get_callback_global_ref(&mut env, &callback)?;
         let java_vm = Arc::new(get_java_vm(&mut env)?);
-        let on_close_global_ref: GlobalRef = get_callback_global_ref(&mut env, on_close)?;
+        let on_close_global_ref: GlobalRef = get_callback_global_ref(&mut env, &on_close)?;
         let on_close = load_on_close(&java_vm, on_close_global_ref);
         let whatAmIMatcher: WhatAmIMatcher = (whatAmI as u8).try_into().unwrap(); // The validity of the operation is guaranteed on the kotlin layer.
         let config = if config_ptr.is_null() {
             Config::default()
         } else {
-            let arc_cfg = Arc::from_raw(config_ptr);
-            let config_clone = arc_cfg.as_ref().clone();
-            std::mem::forget(arc_cfg);
-            config_clone
+            let arc_cfg = OwnedObject::from_raw(config_ptr);
+            (*arc_cfg).clone()
         };
         zenoh::scout(whatAmIMatcher, config)
             .callback(move |hello| {

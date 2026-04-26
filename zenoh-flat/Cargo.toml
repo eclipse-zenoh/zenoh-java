@@ -1,0 +1,25 @@
+[package]
+name = "zenoh-flat"
+version = "1.9.0"
+edition = "2021"
+license = "EPL-2.0 OR Apache-2.0"
+description = "Zenoh flat data interchange support."
+repository = "https://github.com/eclipse-zenoh/zenoh"
+build = "build.rs"
+
+[features]
+default = []
+zenoh-ext = ["dep:zenoh-ext"]
+
+[dependencies]
+zenoh = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["unstable", "internal"], default-features = false }
+zenoh-ext = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["unstable", "internal"], default-features = false, optional = true }
+json5 = "0.4.1"
+serde_yaml = "0.9.19"
+tracing = "0.1"
+prebindgen-proc-macro = "0.4.1"
+prebindgen = "0.4.1"
+prebindgen-ext = { path = "../prebindgen-ext" }
+
+[build-dependencies]
+prebindgen = "0.4.1"

@@ -12,7 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::ops::Deref;
 use std::sync::Arc;
 
 use jni::objects::JClass;
@@ -21,8 +20,9 @@ use jni::{objects::JString, JNIEnv};
 use zenoh::key_expr::KeyExpr;
 
 use crate::errors::ZResult;
+use crate::owned_object::OwnedObject;
+use crate::throw_exception;
 use crate::utils::decode_string;
-use crate::{throw_exception, zerror};
 
 /// Validates the provided `key_expr` to be a valid key expression, returning it back
 /// in case of success or throwing an exception in case of failure.
@@ -325,9 +325,28 @@ pub(crate) unsafe fn process_kotlin_key_expr(
             .map_err(|err| zerror!("Unable to get key expression string value: '{}'.", err))?;
         Ok(KeyExpr::from_string_unchecked(key_expr))
     } else {
-        let key_expr = Arc::from_raw(key_expr_ptr);
-        let key_expr_clone = key_expr.deref().clone();
-        std::mem::forget(key_expr);
-        Ok(key_expr_clone)
+        let key_expr = OwnedObject::from_raw(key_expr_ptr);
+        Ok((*key_expr).clone())
     }
+}
+
+/// Decode a Kotlin `io.zenoh.jni.JNIKeyExpr` holder into a
+/// [`KeyExpr<'static>`]. The holder carries `ptr: Long` and `str: String`;
+/// `ptr != 0` means the KeyExpr was declared on a session and the pointer is
+/// an `Arc::into_raw(Arc::new(KeyExpr))`; `ptr == 0` means to build the
+/// expression from the string.
+pub(crate) unsafe fn decode_jni_key_expr(
+    env: &mut JNIEnv,
+    obj: &jni::objects::JObject,
+) -> ZResult<KeyExpr<'static>> {
+    let ptr = env
+        .get_field(obj, "ptr", "J")
+        .and_then(|v| v.j())
+        .map_err(|err| zerror!("JNIKeyExpr.ptr: {}", err))?;
+    let str_obj = env
+        .get_field(obj, "str", "Ljava/lang/String;")
+        .and_then(|v| v.l())
+        .map_err(|err| zerror!("JNIKeyExpr.str: {}", err))?;
+    let str_js: JString = str_obj.into();
+    process_kotlin_key_expr(env, &str_js, ptr as *const KeyExpr<'static>)
 }

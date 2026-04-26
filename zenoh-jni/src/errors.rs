@@ -12,46 +12,30 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::fmt;
-
 use jni::JNIEnv;
 
 #[macro_export]
 macro_rules! throw_exception {
     ($env:expr, $err:expr) => {{
-        let _ = $err.throw_on_jvm(&mut $env).map_err(|err| {
-            tracing::error!("Unable to throw exception: {}", err);
-        });
+        let _ =
+            <crate::errors::ZError as crate::errors::ThrowOnJvm>::throw_on_jvm(&$err, &mut $env)
+                .map_err(|err| {
+                    tracing::error!("Unable to throw exception: {}", err);
+                });
     }};
 }
 
-#[macro_export]
-macro_rules! zerror {
-    ($arg:expr) => {
-        $crate::errors::ZError($arg.to_string())
-    };
-    ($fmt:expr, $($arg:tt)*) => {
-        $crate::errors::ZError(format!($fmt, $($arg)*))
-    };
-}
-
+pub(crate) type ZError = zenoh_flat::errors::ZError;
 pub(crate) type ZResult<T> = core::result::Result<T, ZError>;
 
-#[derive(Debug)]
-pub(crate) struct ZError(pub String);
-
-impl fmt::Display for ZError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
+pub(crate) trait ThrowOnJvm {
+    fn throw_on_jvm(&self, env: &mut JNIEnv) -> ZResult<()>;
 }
 
-impl ZError {
-    const KOTLIN_EXCEPTION_NAME: &'static str = "io/zenoh/exceptions/ZError";
-
-    pub fn throw_on_jvm(&self, env: &mut JNIEnv) -> ZResult<()> {
+impl ThrowOnJvm for ZError {
+    fn throw_on_jvm(&self, env: &mut JNIEnv) -> ZResult<()> {
         let exception_class = env
-            .find_class(Self::KOTLIN_EXCEPTION_NAME)
+            .find_class("io/zenoh/exceptions/ZError")
             .map_err(|err| zerror!("Failed to retrieve exception class: {}", err))?;
         env.throw_new(exception_class, self.to_string())
             .map_err(|err| zerror!("Failed to throw exception: {}", err))

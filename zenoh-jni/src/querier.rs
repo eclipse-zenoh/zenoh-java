@@ -16,21 +16,20 @@ use std::sync::Arc;
 
 use jni::{
     objects::{JByteArray, JClass, JObject, JString},
-    sys::jint,
     JNIEnv,
 };
-use zenoh::{key_expr::KeyExpr, query::Querier, Wait};
+use zenoh::{query::Querier, Wait};
 
 use crate::{
     errors::ZResult,
-    key_expr::process_kotlin_key_expr,
-    session::{on_reply_error, on_reply_success},
+    key_expr::decode_jni_key_expr,
+    owned_object::OwnedObject,
+    sample_callback::{on_reply_error, on_reply_success},
     throw_exception,
     utils::{
-        decode_byte_array, decode_encoding, decode_string, get_callback_global_ref, get_java_vm,
+        decode_byte_array, decode_jni_encoding, decode_string, get_callback_global_ref, get_java_vm,
         load_on_close,
     },
-    zerror,
 };
 
 /// Perform a Zenoh GET through a querier.
@@ -59,22 +58,20 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_getViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     querier_ptr: *const Querier,
-    key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
-    key_expr_str: JString,
+    key_expr: JObject,
     selector_params: /*nullable*/ JString,
     callback: JObject,
     on_close: JObject,
     attachment: /*nullable*/ JByteArray,
     payload: /*nullable*/ JByteArray,
-    encoding_id: jint,
-    encoding_schema: /*nullable*/ JString,
+    encoding: JObject,
 ) {
-    let querier = Arc::from_raw(querier_ptr);
+    let querier = OwnedObject::from_raw(querier_ptr);
     let _ = || -> ZResult<()> {
-        let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
+        let key_expr = decode_jni_key_expr(&mut env, &key_expr)?;
         let java_vm = Arc::new(get_java_vm(&mut env)?);
-        let callback_global_ref = get_callback_global_ref(&mut env, callback)?;
-        let on_close_global_ref = get_callback_global_ref(&mut env, on_close)?;
+        let callback_global_ref = get_callback_global_ref(&mut env, &callback)?;
+        let on_close_global_ref = get_callback_global_ref(&mut env, &on_close)?;
         let on_close = load_on_close(&java_vm, on_close_global_ref);
         let mut get_builder = querier.get().callback(move |reply| {
             || -> ZResult<()> {
@@ -102,13 +99,15 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_getViaJNI(
         };
 
         if !payload.is_null() {
-            let encoding = decode_encoding(&mut env, encoding_id, &encoding_schema)?;
-            get_builder = get_builder.encoding(encoding);
-            get_builder = get_builder.payload(decode_byte_array(&env, payload)?);
+            if !encoding.is_null() {
+                let encoding = decode_jni_encoding(&mut env, &encoding)?;
+                get_builder = get_builder.encoding(encoding);
+            }
+            get_builder = get_builder.payload(decode_byte_array(&env, &payload)?);
         }
 
         if !attachment.is_null() {
-            let attachment = decode_byte_array(&env, attachment)?;
+            let attachment = decode_byte_array(&env, &attachment)?;
             get_builder = get_builder.attachment::<Vec<u8>>(attachment);
         }
 
@@ -118,7 +117,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_getViaJNI(
             .map_err(|err| zerror!(err))
     }()
     .map_err(|err| throw_exception!(env, err));
-    std::mem::forget(querier);
 }
 
 ///

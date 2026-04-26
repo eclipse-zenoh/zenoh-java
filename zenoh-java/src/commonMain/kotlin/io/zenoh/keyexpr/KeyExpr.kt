@@ -79,7 +79,7 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
         @JvmStatic
         @Throws(ZError::class)
         fun tryFrom(keyExpr: String): KeyExpr {
-            return JNIKeyExpr.tryFrom(keyExpr)
+            return KeyExpr(JNIKeyExpr.tryFrom(keyExpr))
         }
 
         /**
@@ -95,7 +95,7 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
         @JvmStatic
         @Throws(ZError::class)
         fun autocanonize(keyExpr: String): KeyExpr {
-            return JNIKeyExpr.autocanonize(keyExpr)
+            return KeyExpr(JNIKeyExpr.autocanonize(keyExpr))
         }
     }
 
@@ -106,7 +106,7 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      */
     @Throws(ZError::class)
     fun intersects(other: KeyExpr): Boolean {
-        return JNIKeyExpr.intersects(this, other)
+        return JNIKeyExpr.intersects(jniKeyExpr, keyExpr, other.jniKeyExpr, other.keyExpr)
     }
 
     /**
@@ -116,7 +116,7 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      */
     @Throws(ZError::class)
     fun includes(other: KeyExpr): Boolean {
-        return JNIKeyExpr.includes(this, other)
+        return JNIKeyExpr.includes(jniKeyExpr, keyExpr, other.jniKeyExpr, other.keyExpr)
     }
 
     /**
@@ -126,7 +126,7 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      */
     @Throws(ZError::class)
     fun relationTo(other: KeyExpr): SetIntersectionLevel {
-        return JNIKeyExpr.relationTo(this, other)
+        return SetIntersectionLevel.fromInt(JNIKeyExpr.relationTo(jniKeyExpr, keyExpr, other.jniKeyExpr, other.keyExpr))
     }
 
     /**
@@ -135,7 +135,7 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      */
     @Throws(ZError::class)
     fun join(other: String): KeyExpr {
-        return JNIKeyExpr.joinViaJNI(this, other)
+        return KeyExpr(JNIKeyExpr.join(jniKeyExpr, keyExpr, other))
     }
 
     /**
@@ -144,7 +144,7 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      */
     @Throws(ZError::class)
     fun concat(other: String): KeyExpr {
-        return JNIKeyExpr.concatViaJNI(this, other)
+        return KeyExpr(JNIKeyExpr.concat(jniKeyExpr, keyExpr, other))
     }
 
     override fun toString(): String {

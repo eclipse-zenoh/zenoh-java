@@ -20,3 +20,6 @@
 /build/
 /.gradle/
 */build/
+
+# Generated Kotlin prototypes emitted by zenoh-jni's build.rs
+/zenoh-jni/generated-kotlin/

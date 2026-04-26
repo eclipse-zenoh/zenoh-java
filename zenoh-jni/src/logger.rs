@@ -17,7 +17,7 @@ use jni::{
     JNIEnv,
 };
 
-use crate::{errors::ZResult, throw_exception, zerror};
+use crate::{errors::ZResult, throw_exception};
 
 /// Redirects the Rust logs either to logcat for Android systems or to the standard output (for non-Android systems).
 ///
@@ -37,7 +37,7 @@ use crate::{errors::ZResult, throw_exception, zerror};
 ///
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_Logger_00024Companion_startLogsViaJNI(
+pub extern "C" fn Java_io_zenoh_jni_JNILogger_startLogsViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     filter: JString,

@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use crate::{errors::ZResult, throw_exception, zerror};
+use crate::{errors::ZResult, throw_exception};
 use jni::{
     objects::{JByteArray, JObject, JString},
     sys::jint,
@@ -53,6 +53,21 @@ pub(crate) fn decode_encoding(
     Ok(Encoding::new(encoding_id, schema))
 }
 
+/// Decode a Kotlin `io.zenoh.jni.JNIEncoding` holder into a zenoh [`Encoding`].
+/// Fields: `id: Int`, `schema: String?`.
+pub(crate) fn decode_jni_encoding(env: &mut JNIEnv, obj: &JObject) -> ZResult<Encoding> {
+    let id = env
+        .get_field(obj, "id", "I")
+        .and_then(|v| v.i())
+        .map_err(|err| zerror!("JNIEncoding.id: {}", err))?;
+    let schema_obj = env
+        .get_field(obj, "schema", "Ljava/lang/String;")
+        .and_then(|v| v.l())
+        .map_err(|err| zerror!("JNIEncoding.schema: {}", err))?;
+    let schema_js: JString = schema_obj.into();
+    decode_encoding(env, id, &schema_js)
+}
+
 pub(crate) fn get_java_vm(env: &mut JNIEnv) -> ZResult<JavaVM> {
     env.get_java_vm()
         .map_err(|err| zerror!("Unable to retrieve JVM reference: {}", err))
@@ -60,16 +75,16 @@ pub(crate) fn get_java_vm(env: &mut JNIEnv) -> ZResult<JavaVM> {
 
 pub(crate) fn get_callback_global_ref(
     env: &mut JNIEnv,
-    callback: JObject,
+    callback: &JObject,
 ) -> crate::errors::ZResult<jni::objects::GlobalRef> {
     env.new_global_ref(callback)
         .map_err(|err| zerror!("Unable to get reference to the provided callback: {}", err))
 }
 
 /// Helper function to convert a JByteArray into a Vec<u8>.
-pub(crate) fn decode_byte_array(env: &JNIEnv<'_>, payload: JByteArray) -> ZResult<Vec<u8>> {
+pub(crate) fn decode_byte_array(env: &JNIEnv, payload: &JByteArray) -> ZResult<Vec<u8>> {
     let payload_len = env
-        .get_array_length(&payload)
+        .get_array_length(payload)
         .map(|length| length as usize)
         .map_err(|err| zerror!(err))?;
     let mut buff = vec![0; payload_len];
@@ -158,6 +173,29 @@ impl<F: FnOnce()> Drop for CallOnDrop<F> {
         // Call the now owned function
         f();
     }
+}
+
+/// Wrap a decoded data callback so that the supplied Kotlin `on_close`
+/// callback fires exactly once when the data closure is dropped (via
+/// `CallOnDrop`). Used by hand-written JNI entry points whose Kotlin signatures
+/// pair a callback with an `on_close: JNIOnCloseCallback`. Generated entry
+/// points (via `JniMethodsConverter`) take `on_close` as a separate Rust parameter
+/// instead and are wrapped at the zenoh-flat layer.
+pub(crate) fn wrap_with_on_close<T, F>(
+    env: &mut JNIEnv,
+    on_close: JObject,
+    cb: F,
+) -> ZResult<impl Fn(T) + Send + Sync + 'static>
+where
+    F: Fn(T) + Send + Sync + 'static,
+{
+    let java_vm = Arc::new(get_java_vm(env)?);
+    let on_close_global_ref = get_callback_global_ref(env, &on_close)?;
+    let guard = load_on_close(&java_vm, on_close_global_ref);
+    Ok(move |t| {
+        guard.noop();
+        cb(t);
+    })
 }
 
 pub(crate) fn load_on_close(
