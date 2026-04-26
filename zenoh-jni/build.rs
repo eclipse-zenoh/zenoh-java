@@ -1,20 +1,26 @@
 use itertools::Itertools;
 use quote::quote;
 use zenoh_flat::jni_converter::{
-    ArgDecode, InlineFn, JniForm, JniMethodsConverter, JniStructConverter, ReturnEncode,
-    ReturnForm, TypeBinding,
+    InlineFn, JniForm, JniMethodsConverter, JniStructConverter, ReturnEncode, ReturnForm,
+    TypeBinding,
 };
 use zenoh_flat::jni_type_binding::JniTypeBinding;
 
 fn enum_binding(name: &str, decoder: &str) -> TypeBinding {
-    TypeBinding::new(name).consume(JniForm::new("jni::sys::jint", "Int", ArgDecode::pure(decoder)))
+    TypeBinding::new(name)
+        .enum_decoder(decoder)
+        .consume(JniForm::new(
+            "jni::sys::jint",
+            "Int",
+            InlineFn::pure(decoder),
+        ))
 }
 
 fn jobject_consume(name: &str, decoder: &str, kotlin: &str) -> TypeBinding {
     TypeBinding::new(name).kotlin(kotlin).consume(JniForm::new(
         "jni::objects::JObject",
         "JObject",
-        ArgDecode::env_ref_mut(decoder),
+        InlineFn::env_ref_mut(decoder),
     ))
 }
 
@@ -28,7 +34,7 @@ fn shared_bindings() -> JniTypeBinding {
             TypeBinding::new("String").consume(JniForm::new(
                 "jni::objects::JString",
                 "String",
-                ArgDecode::env_ref_mut("crate::utils::decode_string"),
+                InlineFn::env_ref_mut("crate::utils::decode_string"),
             )),
         )
         // `Vec<u8>` is keyed under the synthetic name "VecU8" — the
@@ -38,7 +44,7 @@ fn shared_bindings() -> JniTypeBinding {
             TypeBinding::new("VecU8").consume(JniForm::new(
                 "jni::objects::JByteArray",
                 "ByteArray",
-                ArgDecode::env_ref("crate::utils::decode_byte_array"),
+                InlineFn::env_ref("crate::utils::decode_byte_array"),
             )),
         )
         .type_binding(jobject_consume(
@@ -88,9 +94,9 @@ fn shared_bindings() -> JniTypeBinding {
                 JniForm::new(
                     "*const zenoh::key_expr::KeyExpr<'static>",
                     "Long",
-                    ArgDecode::Inline(InlineFn::new(|input| {
+                    InlineFn::new(|input| {
                         quote! { (*std::sync::Arc::from_raw(#input)).clone() }
-                    })),
+                    }),
                 )
                 .pointer_param(true),
             ),

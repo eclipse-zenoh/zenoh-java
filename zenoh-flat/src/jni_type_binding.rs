@@ -8,8 +8,9 @@
 //! [`crate::jni_converter::JniMethodsConverter`] reads it).
 //!
 //! ```ignore
-//! use zenoh_flat::jni_converter::{ArgDecode, JniForm, TypeBinding};
+//! use zenoh_flat::jni_converter::{InlineFn, JniForm, TypeBinding};
 //! use zenoh_flat::jni_type_binding::JniTypeBinding;
+//! use quote::quote;
 //!
 //! let common = JniTypeBinding::new()
 //!     .type_binding(
@@ -17,7 +18,9 @@
 //!             JniForm::new(
 //!                 "*const zenoh::key_expr::KeyExpr<'static>",
 //!                 "Long",
-//!                 ArgDecode::ConsumeArc,
+//!                 InlineFn::new(|input| {
+//!                     quote! { (*std::sync::Arc::from_raw(#input)).clone() }
+//!                 }),
 //!             )
 //!             .pointer_param(true),
 //!         ),
@@ -28,7 +31,7 @@ use std::collections::HashMap;
 
 use quote::{quote, ToTokens};
 
-use crate::jni_converter::{ArgDecode, InlineFn, JniForm, ReturnForm};
+use crate::jni_converter::{InlineFn, JniForm, ReturnForm};
 
 /// Per-type description of how a Rust type is represented across the JNI
 /// boundary. A type may declare up to four forms:
@@ -52,6 +55,11 @@ pub struct TypeBinding {
     pub(crate) borrow: Option<JniForm>,
     pub(crate) returns: Option<ReturnForm>,
     pub(crate) returns_vec: Option<ReturnForm>,
+    /// Decoder path for Java-enum-shaped types (`fn(jint) -> ZResult<T>`).
+    /// Set when the type's JNI representation is an `Int` mapped through a
+    /// pure decoder. Used by struct-field classification to detect enum
+    /// fields and emit `env.get_field(..., "I")` + decoder call.
+    pub(crate) enum_decoder: Option<syn::Path>,
 }
 
 impl TypeBinding {
@@ -77,11 +85,22 @@ impl TypeBinding {
             borrow: None,
             returns: None,
             returns_vec: None,
+            enum_decoder: None,
         }
     }
 
     pub fn kotlin(mut self, fqn: impl Into<String>) -> Self {
         self.kotlin_type = Some(fqn.into());
+        self
+    }
+
+    /// Mark this binding as a Java-enum-shaped type and record the
+    /// `fn(jint) -> ZResult<T>` decoder path used for both top-level
+    /// argument decoding and struct-field decoding.
+    pub fn enum_decoder(mut self, path: impl AsRef<str>) -> Self {
+        self.enum_decoder = Some(
+            syn::parse_str(path.as_ref()).expect("invalid TypeBinding::enum_decoder path"),
+        );
         self
     }
 
@@ -157,7 +176,7 @@ impl JniTypeBinding {
             TypeBinding::new("bool").consume(JniForm::new(
                 "jni::sys::jboolean",
                 "Boolean",
-                ArgDecode::Inline(InlineFn::new(|input| quote! { #input != 0 })),
+                InlineFn::new(|input| quote! { #input != 0 }),
             )),
         );
         // Duration — jlong, inline `Duration::from_millis(x as u64)`.
@@ -166,9 +185,9 @@ impl JniTypeBinding {
             TypeBinding::new("Duration").consume(JniForm::new(
                 "jni::sys::jlong",
                 "Long",
-                ArgDecode::Inline(InlineFn::new(|input| {
+                InlineFn::new(|input| {
                     quote! { std::time::Duration::from_millis(#input as u64) }
-                })),
+                }),
             )),
         );
         self

@@ -48,45 +48,6 @@ pub use crate::jni_type_binding::TypeBinding;
 // Decode / encode strategies
 // =====================================================================
 
-/// Strategy for converting a JNI parameter into a Rust value.
-#[derive(Clone)]
-pub enum ArgDecode {
-    /// `let <name> = <path>(&mut env, &<input>)?;` — for decoders that need
-    /// mutable access to the JNI environment (e.g. `JNIEnv::get_string`).
-    EnvRefMut(syn::Path),
-    /// `let <name> = <path>(&env, &<input>)?;` — for decoders that only
-    /// need shared access to the JNI environment (e.g. byte-array readers
-    /// whose `JNIEnv` methods take `&self`).
-    EnvRef(syn::Path),
-    /// `let <name> = <path>(<input>)?;` — pure conversion (e.g. enum decoders).
-    Pure(syn::Path),
-    /// `let <name> = <expr>;` — inline transformation built from the input
-    /// ident. Used for trivial conversions like `bool` (`x != 0`) or
-    /// `Duration` (`Duration::from_millis(x as u64)`).
-    Inline(InlineFn),
-}
-
-impl ArgDecode {
-    /// `ArgDecode::Pure` from a path string (parsed lazily).
-    pub fn pure(path: impl AsRef<str>) -> Self {
-        ArgDecode::Pure(syn::parse_str(path.as_ref()).expect("invalid ArgDecode::pure path"))
-    }
-
-    /// `ArgDecode::EnvRefMut` from a path string.
-    pub fn env_ref_mut(path: impl AsRef<str>) -> Self {
-        ArgDecode::EnvRefMut(
-            syn::parse_str(path.as_ref()).expect("invalid ArgDecode::env_ref_mut path"),
-        )
-    }
-
-    /// `ArgDecode::EnvRef` from a path string.
-    pub fn env_ref(path: impl AsRef<str>) -> Self {
-        ArgDecode::EnvRef(
-            syn::parse_str(path.as_ref()).expect("invalid ArgDecode::env_ref path"),
-        )
-    }
-}
-
 impl ReturnEncode {
     /// `ReturnEncode::Wrapper` from a path string.
     pub fn wrapper(path: impl AsRef<str>) -> Self {
@@ -97,6 +58,11 @@ impl ReturnEncode {
 }
 
 /// Clonable closure that produces a TokenStream from the JNI input ident.
+///
+/// This is the single decoding mechanism used by [`JniForm`]. Common decoder
+/// shapes are exposed via [`InlineFn::pure`], [`InlineFn::env_ref`], and
+/// [`InlineFn::env_ref_mut`], which capture a decoder path as a `String`
+/// (since `syn::Path` is not `Send`) and re-parse it inside the closure.
 #[derive(Clone)]
 pub struct InlineFn(Arc<dyn Fn(&syn::Ident) -> TokenStream + Send + Sync>);
 
@@ -106,6 +72,35 @@ impl InlineFn {
         F: Fn(&syn::Ident) -> TokenStream + Send + Sync + 'static,
     {
         InlineFn(Arc::new(f))
+    }
+
+    /// `<path>(<input>)?` — pure conversion (e.g. enum decoders).
+    pub fn pure(path: impl AsRef<str>) -> Self {
+        let s = path.as_ref().to_string();
+        InlineFn::new(move |input| {
+            let p: syn::Path = syn::parse_str(&s).expect("invalid InlineFn::pure path");
+            quote! { #p(#input)? }
+        })
+    }
+
+    /// `<path>(&env, &<input>)?` — decoder needing shared access to the JNI env
+    /// (e.g. byte-array readers whose `JNIEnv` methods take `&self`).
+    pub fn env_ref(path: impl AsRef<str>) -> Self {
+        let s = path.as_ref().to_string();
+        InlineFn::new(move |input| {
+            let p: syn::Path = syn::parse_str(&s).expect("invalid InlineFn::env_ref path");
+            quote! { #p(&env, &#input)? }
+        })
+    }
+
+    /// `<path>(&mut env, &<input>)?` — decoder needing mutable access to the
+    /// JNI env (e.g. `JNIEnv::get_string`).
+    pub fn env_ref_mut(path: impl AsRef<str>) -> Self {
+        let s = path.as_ref().to_string();
+        InlineFn::new(move |input| {
+            let p: syn::Path = syn::parse_str(&s).expect("invalid InlineFn::env_ref_mut path");
+            quote! { #p(&mut env, &#input)? }
+        })
     }
 
     fn call(&self, ident: &syn::Ident) -> TokenStream {
@@ -131,14 +126,14 @@ pub struct JniForm {
     /// decoder produces an owner (e.g. `OwnedObject`) but the wrapped
     /// function expects a shared reference.
     call_with_ref: bool,
-    decode: ArgDecode,
+    decode: InlineFn,
 }
 
 impl JniForm {
     pub fn new(
         jni_type: impl AsRef<str>,
         kotlin_jni_type: impl Into<String>,
-        decode: ArgDecode,
+        decode: InlineFn,
     ) -> Self {
         Self {
             jni_type: syn::parse_str(jni_type.as_ref()).expect("invalid JniForm jni_type"),
@@ -426,14 +421,13 @@ impl JniStructConverter {
             }
         };
 
-        let decoder_path: syn::Path = syn::parse_str(&format!("decode_{struct_name}"))
-            .expect("generated decoder ident must parse as path");
+        let decoder_path = format!("decode_{struct_name}");
         let mut binding = TypeBinding::new(struct_name.clone());
         binding.kotlin_type = Some(struct_name.clone());
         binding.consume = Some(JniForm::new(
             "jni::objects::JObject",
             "JObject",
-            ArgDecode::EnvRefMut(decoder_path),
+            InlineFn::env_ref_mut(&decoder_path),
         ));
         self.cfg.types.types.insert(struct_name.clone(), binding);
 
@@ -461,13 +455,9 @@ impl JniStructConverter {
             "i64" => StructFieldKind::I64,
             "f64" => StructFieldKind::F64,
             _ => {
-                // Enum decoders are stored as a `Pure` ArgDecode on the
-                // type's binding's `consume` form.
                 if let Some(binding) = self.cfg.types.types.get(&name) {
-                    if let Some(form) = binding.consume.as_ref() {
-                        if let ArgDecode::Pure(p) = &form.decode {
-                            return StructFieldKind::Enum(p.clone());
-                        }
+                    if let Some(p) = binding.enum_decoder.as_ref() {
+                        return StructFieldKind::Enum(p.clone());
                     }
                 }
                 StructFieldKind::Unsupported
@@ -1012,11 +1002,11 @@ impl JniMethodsConverter {
                     kotlin_jni_type: "Long".to_string(),
                     pointer_param: true,
                     call_with_ref: true,
-                    decode: ArgDecode::Inline(InlineFn::new(move |input| {
+                    decode: InlineFn::new(move |input| {
                         let owned: syn::Path =
                             syn::parse_str(&owned_str).expect("owned_object must be a valid path");
                         quote! { #owned::from_raw(#input) }
-                    })),
+                    }),
                 };
                 ArgKind::Borrow {
                     form: opaque_form,
@@ -1205,21 +1195,8 @@ impl JniMethodsConverter {
         };
         jni_params.push(quote! { #pat: #jt });
 
-        match &form.decode {
-            ArgDecode::EnvRefMut(path) => {
-                prelude.push(quote! { let #name = #path(&mut env, &#pat)?; });
-            }
-            ArgDecode::EnvRef(path) => {
-                prelude.push(quote! { let #name = #path(&env, &#pat)?; });
-            }
-            ArgDecode::Pure(path) => {
-                prelude.push(quote! { let #name = #path(#pat)?; });
-            }
-            ArgDecode::Inline(f) => {
-                let expr = f.call(&pat);
-                prelude.push(quote! { let #name = #expr; });
-            }
-        }
+        let expr = form.decode.call(&pat);
+        prelude.push(quote! { let #name = #expr; });
 
         if form.call_with_ref {
             call_args.push(quote! { &#name });
@@ -1238,13 +1215,8 @@ impl JniMethodsConverter {
         }
     }
 
-    fn decode_expr(&self, decode: &ArgDecode, input: &syn::Ident) -> TokenStream {
-        match decode {
-            ArgDecode::EnvRefMut(path) => quote! { #path(&mut env, &#input)? },
-            ArgDecode::EnvRef(path) => quote! { #path(&env, &#input)? },
-            ArgDecode::Pure(path) => quote! { #path(#input)? },
-            ArgDecode::Inline(f) => f.call(input),
-        }
+    fn decode_expr(&self, decode: &InlineFn, input: &syn::Ident) -> TokenStream {
+        decode.call(input)
     }
 
     /// Resolve the Kotlin parameter type for a JniForm. For object-typed
