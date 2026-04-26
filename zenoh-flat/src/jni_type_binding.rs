@@ -34,9 +34,14 @@ use quote::{quote, ToTokens};
 use crate::jni_converter::{InlineFn, JniForm, ReturnForm};
 
 /// Per-type description of how a Rust type is represented across the JNI
-/// boundary. A type may declare up to four forms:
-/// `consume` (`T` parameter), `borrow` (`&T` parameter), `returns`
-/// (`ZResult<T>` return), and `returns_vec` (`ZResult<Vec<T>>` return).
+/// boundary. A type may declare up to three forms:
+/// `consume` (`T` parameter), `borrow` (`&T` parameter), and `returns`
+/// (`ZResult<T>` return).
+///
+/// `Vec<T>` parameters and `ZResult<Vec<T>>` returns are described by a
+/// separate binding keyed under the synthetic name `"Vec<Element>"`
+/// (e.g. `"VecU8"`, `"VecZenohId"`). The classifier synthesizes that key
+/// when it sees a `Vec<T>` type.
 ///
 /// Callback parameters (`impl Fn(T) + Send + Sync + 'static`) are described
 /// by an ordinary `consume` form on a binding keyed under
@@ -54,7 +59,6 @@ pub struct TypeBinding {
     pub(crate) consume: Option<JniForm>,
     pub(crate) borrow: Option<JniForm>,
     pub(crate) returns: Option<ReturnForm>,
-    pub(crate) returns_vec: Option<ReturnForm>,
     /// Decoder path for Java-enum-shaped types (`fn(jint) -> ZResult<T>`).
     /// Set when the type's JNI representation is an `Int` mapped through a
     /// pure decoder. Used by struct-field classification to detect enum
@@ -84,7 +88,6 @@ impl TypeBinding {
             consume: None,
             borrow: None,
             returns: None,
-            returns_vec: None,
             enum_decoder: None,
         }
     }
@@ -116,11 +119,6 @@ impl TypeBinding {
 
     pub fn returns(mut self, form: ReturnForm) -> Self {
         self.returns = Some(form);
-        self
-    }
-
-    pub fn returns_vec(mut self, form: ReturnForm) -> Self {
-        self.returns_vec = Some(form);
         self
     }
 }

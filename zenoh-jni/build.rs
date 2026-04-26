@@ -107,23 +107,27 @@ fn shared_bindings() -> JniTypeBinding {
             "JNIEncoding",
         ))
         .type_binding(
-            TypeBinding::new("ZenohId")
-                .returns(
-                    ReturnForm::new(
-                        "jni::sys::jbyteArray",
-                        ReturnEncode::wrapper("crate::zenoh_id::zenoh_id_to_byte_array"),
-                        "jni::objects::JByteArray::default().as_raw()",
-                    )
-                    .kotlin("ByteArray"),
+            TypeBinding::new("ZenohId").returns(
+                ReturnForm::new(
+                    "jni::sys::jbyteArray",
+                    ReturnEncode::wrapper("crate::zenoh_id::zenoh_id_to_byte_array"),
+                    "jni::objects::JByteArray::default().as_raw()",
                 )
-                .returns_vec(
-                    ReturnForm::new(
-                        "jni::sys::jobject",
-                        ReturnEncode::wrapper("crate::zenoh_id::zenoh_ids_to_java_list"),
-                        "jni::objects::JObject::default().as_raw()",
-                    )
-                    .kotlin("List<ByteArray>"),
-                ),
+                .kotlin("ByteArray"),
+            ),
+        )
+        // `Vec<ZenohId>` is keyed under the synthetic name "VecZenohId" —
+        // the methods-phase classifier looks it up explicitly when it sees
+        // `Vec<ZenohId>` as a return type.
+        .type_binding(
+            TypeBinding::new("VecZenohId").returns(
+                ReturnForm::new(
+                    "jni::sys::jobject",
+                    ReturnEncode::wrapper("crate::zenoh_id::zenoh_ids_to_java_list"),
+                    "jni::objects::JObject::default().as_raw()",
+                )
+                .kotlin("List<ByteArray>"),
+            ),
         )
 }
 

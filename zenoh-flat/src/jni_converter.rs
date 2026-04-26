@@ -952,7 +952,7 @@ impl JniMethodsConverter {
         let syn::Type::Path(tp) = ty else { return None };
         let seg = tp.path.segments.last()?;
         let name = seg.ident.to_string();
-        if name == "Vec" {
+        let key = if name == "Vec" {
             let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
                 return None;
             };
@@ -960,17 +960,14 @@ impl JniMethodsConverter {
                 return None;
             };
             let elem_name = type_last_segment(elem)?;
-            return self
-                .cfg
-                .types
-                .types
-                .get(&elem_name)
-                .and_then(|b| b.returns_vec.as_ref());
-        }
+            format!("Vec{elem_name}")
+        } else {
+            name
+        };
         self.cfg
             .types
             .types
-            .get(&name)
+            .get(&key)
             .and_then(|b| b.returns.as_ref())
     }
 
