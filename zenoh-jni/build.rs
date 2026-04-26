@@ -37,11 +37,8 @@ fn shared_bindings() -> JniTypeBinding {
                 InlineFn::env_ref_mut("crate::utils::decode_string"),
             )),
         )
-        // `Vec<u8>` is keyed under the synthetic name "VecU8" — the
-        // methods-phase classifier looks it up explicitly when it sees
-        // `Vec<u8>`.
         .type_binding(
-            TypeBinding::new("VecU8").consume(JniForm::new(
+            TypeBinding::new("Vec<u8>").consume(JniForm::new(
                 "jni::objects::JByteArray",
                 "ByteArray",
                 InlineFn::env_ref("crate::utils::decode_byte_array"),
@@ -116,11 +113,8 @@ fn shared_bindings() -> JniTypeBinding {
                 .kotlin("ByteArray"),
             ),
         )
-        // `Vec<ZenohId>` is keyed under the synthetic name "VecZenohId" —
-        // the methods-phase classifier looks it up explicitly when it sees
-        // `Vec<ZenohId>` as a return type.
         .type_binding(
-            TypeBinding::new("VecZenohId").returns(
+            TypeBinding::new("Vec<ZenohId>").returns(
                 ReturnForm::new(
                     "jni::sys::jobject",
                     ReturnEncode::wrapper("crate::zenoh_id::zenoh_ids_to_java_list"),

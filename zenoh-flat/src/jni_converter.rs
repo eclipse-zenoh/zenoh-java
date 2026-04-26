@@ -949,21 +949,7 @@ impl JniMethodsConverter {
     }
 
     fn lookup_return_form(&self, ty: &syn::Type) -> Option<&ReturnForm> {
-        let syn::Type::Path(tp) = ty else { return None };
-        let seg = tp.path.segments.last()?;
-        let name = seg.ident.to_string();
-        let key = if name == "Vec" {
-            let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
-                return None;
-            };
-            let syn::GenericArgument::Type(elem) = args.args.first()? else {
-                return None;
-            };
-            let elem_name = type_last_segment(elem)?;
-            format!("Vec{elem_name}")
-        } else {
-            name
-        };
+        let key = binding_key(ty)?;
         self.cfg
             .types
             .types
@@ -1029,44 +1015,27 @@ impl JniMethodsConverter {
                 let name = last.ident.to_string();
 
                 if name == "Option" {
-                    let inner_seg = last;
-                    if is_option_of_vec_u8(inner_seg) {
-                        if let Some(binding) = types.get("VecU8") {
-                            if let Some(form) = binding.consume.as_ref() {
-                                return ArgKind::OptionConsume {
-                                    form: form.clone(),
-                                    kotlin_override: None,
-                                };
-                            }
-                        }
+                    let Some(inner_ty) = option_inner_type(last) else {
                         return ArgKind::Unsupported;
-                    }
-                    if let Some(inner) = option_inner_type_name(inner_seg) {
-                        if let Some(binding) = types.get(&inner) {
-                            if let Some(form) = binding.consume.as_ref() {
-                                return ArgKind::OptionConsume {
-                                    form: form.clone(),
-                                    kotlin_override: binding.kotlin_type.clone(),
-                                };
-                            }
-                        }
-                    }
-                    return ArgKind::Unsupported;
-                }
-
-                if name == "Vec" && is_vec_of_u8(last) {
-                    if let Some(binding) = types.get("VecU8") {
+                    };
+                    let Some(key) = binding_key(inner_ty) else {
+                        return ArgKind::Unsupported;
+                    };
+                    if let Some(binding) = types.get(&key) {
                         if let Some(form) = binding.consume.as_ref() {
-                            return ArgKind::Consume {
+                            return ArgKind::OptionConsume {
                                 form: form.clone(),
-                                kotlin_override: None,
+                                kotlin_override: binding.kotlin_type.clone(),
                             };
                         }
                     }
                     return ArgKind::Unsupported;
                 }
 
-                if let Some(binding) = types.get(&name) {
+                let Some(key) = binding_key(ty) else {
+                    return ArgKind::Unsupported;
+                };
+                if let Some(binding) = types.get(&key) {
                     if let Some(form) = binding.consume.as_ref() {
                         return ArgKind::Consume {
                             form: form.clone(),
@@ -1286,47 +1255,32 @@ fn type_last_segment(ty: &syn::Type) -> Option<String> {
     tp.path.segments.last().map(|s| s.ident.to_string())
 }
 
-/// Last-segment name of the single generic argument of an `Option<...>`.
-fn option_inner_type_name(seg: &syn::PathSegment) -> Option<String> {
+/// Inner type of a `Foo<T>` path segment (used for `Option<T>`).
+fn option_inner_type(seg: &syn::PathSegment) -> Option<&syn::Type> {
     let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
         return None;
     };
     let syn::GenericArgument::Type(inner) = args.args.first()? else {
         return None;
     };
-    type_last_segment(inner)
+    Some(inner)
 }
 
-fn is_option_of_vec_u8(seg: &syn::PathSegment) -> bool {
-    let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
-        return false;
-    };
-    let Some(syn::GenericArgument::Type(inner)) = args.args.first() else {
-        return false;
-    };
-    let syn::Type::Path(inner_path) = inner else {
-        return false;
-    };
-    let Some(inner_seg) = inner_path.path.segments.last() else {
-        return false;
-    };
-    if inner_seg.ident != "Vec" {
-        return false;
+/// Lookup key for a path type in the [`crate::jni_type_binding::JniTypeBinding`]
+/// registry. For `Vec<T>` types we use the canonical
+/// `to_token_stream()` form (matching what
+/// [`crate::jni_type_binding::TypeBinding::new`] produces from input like
+/// `"Vec<u8>"`). For other path types we use the last-segment ident, which
+/// lets registrations key off short type names without forcing callers to
+/// spell out the full path of the user-side type.
+fn binding_key(ty: &syn::Type) -> Option<String> {
+    let syn::Type::Path(tp) = ty else { return None };
+    let seg = tp.path.segments.last()?;
+    if seg.ident == "Vec" {
+        Some(ty.to_token_stream().to_string())
+    } else {
+        Some(seg.ident.to_string())
     }
-    is_vec_of_u8(inner_seg)
-}
-
-fn is_vec_of_u8(seg: &syn::PathSegment) -> bool {
-    let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
-        return false;
-    };
-    let Some(syn::GenericArgument::Type(elem)) = args.args.first() else {
-        return false;
-    };
-    matches!(
-        elem,
-        syn::Type::Path(tp) if tp.path.is_ident("u8")
-    )
 }
 
 fn is_unit(ty: &syn::Type) -> bool {

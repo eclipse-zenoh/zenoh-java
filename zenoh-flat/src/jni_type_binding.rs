@@ -39,9 +39,11 @@ use crate::jni_converter::{InlineFn, JniForm, ReturnForm};
 /// (`ZResult<T>` return).
 ///
 /// `Vec<T>` parameters and `ZResult<Vec<T>>` returns are described by a
-/// separate binding keyed under the synthetic name `"Vec<Element>"`
-/// (e.g. `"VecU8"`, `"VecZenohId"`). The classifier synthesizes that key
-/// when it sees a `Vec<T>` type.
+/// separate binding registered under the type itself, e.g.
+/// `TypeBinding::new("Vec<u8>")` or `TypeBinding::new("Vec<ZenohId>")`.
+/// The classifier looks up `Vec<T>` types by their canonical
+/// `to_token_stream()` form, matching whatever
+/// [`TypeBinding::new`] canonicalized at registration time.
 ///
 /// Callback parameters (`impl Fn(T) + Send + Sync + 'static`) are described
 /// by an ordinary `consume` form on a binding keyed under
@@ -164,9 +166,7 @@ impl JniTypeBinding {
     ///
     /// Types whose decoder lives outside this crate — `String`, `Vec<u8>`,
     /// callbacks, enums, opaque handles — are registered by the caller via
-    /// the universal [`JniTypeBinding::type_binding`] entry point. `Vec<u8>`
-    /// is keyed under the synthetic name `"VecU8"` (looked up explicitly by
-    /// the methods-phase classifier when it sees `Vec<u8>`).
+    /// the universal [`JniTypeBinding::type_binding`] entry point.
     pub fn with_builtins(mut self) -> Self {
         // bool — jboolean, inline `x != 0`.
         self.types.insert(
