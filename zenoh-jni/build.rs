@@ -69,10 +69,20 @@ macro_rules! decode_owned_raw {
     };
 }
 
+/// Reconstruct an `Arc<T>` from a raw pointer, clone the inner `T`, and let
+/// the temporary `Arc` drop at end of scope (releasing the JNI strong
+/// reference). The optional `$wrap` path lets callers emit a newtype-wrapped
+/// value (e.g. `OwnedKeyExpr(...)`) when the wrapped fn signature uses a
+/// disambiguating wrapper type.
 macro_rules! decode_arc_from_raw {
     () => {
         InputFn::new(|input: &syn::Ident| -> TokenStream {
             quote! { (*std::sync::Arc::from_raw(#input)).clone() }
+        })
+    };
+    ($wrap:path) => {
+        InputFn::new(|input: &syn::Ident| -> TokenStream {
+            quote! { $wrap((*std::sync::Arc::from_raw(#input)).clone()) }
         })
     };
 }
@@ -96,6 +106,20 @@ macro_rules! encode_arc_into_raw {
                     quote! { std::sync::Arc::into_raw(std::sync::Arc::new(#output)) }
                 }
                 None => quote! { std::ptr::null() },
+            }
+        })
+    };
+}
+
+/// Emit `<result> as <wire>` on success and `<on_err> as <wire>` on the
+/// throw-path. Used for primitive wire types that map straight from the
+/// Rust return value (e.g. `bool` → `jboolean`, `i32` → `jint`).
+macro_rules! encode_cast {
+    ($wire:path, $on_err:expr) => {
+        OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
+            match output {
+                Some(output) => quote! { #output as $wire },
+                None => quote! { $on_err as $wire },
             }
         })
     };
@@ -162,9 +186,7 @@ fn shared_bindings() -> TypeRegistry {
         // used by every other key-expression operation. Used by
         // `drop_key_expr`.
         .type_pair("OwnedKeyExpr", "*const KeyExpr<'static>")
-        .input(InputFn::new(|input: &syn::Ident| -> TokenStream {
-            quote! { zenoh_flat::keyexpr::OwnedKeyExpr((*std::sync::Arc::from_raw(#input)).clone()) }
-        }))
+        .input(decode_arc_from_raw!(zenoh_flat::keyexpr::OwnedKeyExpr))
         // Returns: ZenohId / Vec<ZenohId> via custom encoders.
         .type_pair("ZResult<ZenohId>", "jni::sys::jbyteArray")
         .output(encode_wrapper!(crate::zenoh_id::zenoh_id_to_byte_array))
@@ -192,19 +214,9 @@ fn shared_bindings() -> TypeRegistry {
         .output(encode_wrapper!(crate::utils::encode_jstring))
         // Returns: bool / i32 primitives (wire matches Java's `boolean` / `int`).
         .type_pair("ZResult<bool>", "jni::sys::jboolean")
-        .output(OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
-            match output {
-                Some(o) => quote! { #o as jni::sys::jboolean },
-                None => quote! { false as jni::sys::jboolean },
-            }
-        }))
+        .output(encode_cast!(jni::sys::jboolean, false))
         .type_pair("ZResult<i32>", "jni::sys::jint")
-        .output(OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
-            match output {
-                Some(o) => quote! { #o as jni::sys::jint },
-                None => quote! { -1 as jni::sys::jint },
-            }
-        }))
+        .output(encode_cast!(jni::sys::jint, -1))
         // Unit returns: ZResult<()> with `()` wire type so the converter treats it as a no-return shape.
         .type_pair("ZResult<()>", "()")
         // Structs from ext.rs and nullable wrappers.
