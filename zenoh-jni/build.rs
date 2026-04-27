@@ -156,6 +156,15 @@ fn shared_bindings() -> TypeRegistry {
         // `Session` to the wrapped fn. Used by `drop_session`.
         .type_pair("Session", "*const Session")
         .input(decode_arc_from_raw!())
+        // Owning take by raw pointer for KeyExpr drop: a newtype wraps the
+        // cloned KeyExpr so the registry key is distinct from the existing
+        // `KeyExpr<'static>` ↔ `JObject` (declared/undeclared holder) wire
+        // used by every other key-expression operation. Used by
+        // `drop_key_expr`.
+        .type_pair("OwnedKeyExpr", "*const KeyExpr<'static>")
+        .input(InputFn::new(|input: &syn::Ident| -> TokenStream {
+            quote! { zenoh_flat::keyexpr::OwnedKeyExpr((*std::sync::Arc::from_raw(#input)).clone()) }
+        }))
         // Returns: ZenohId / Vec<ZenohId> via custom encoders.
         .type_pair("ZResult<ZenohId>", "jni::sys::jbyteArray")
         .output(encode_wrapper!(crate::zenoh_id::zenoh_id_to_byte_array))
@@ -178,6 +187,24 @@ fn shared_bindings() -> TypeRegistry {
         .output(encode_arc_into_raw!())
         .type_pair("ZResult<AdvancedPublisher<'static>>", "*const AdvancedPublisher<'static>")
         .output(encode_arc_into_raw!())
+        // Returns: owned String via env.new_string.
+        .type_pair("ZResult<String>", "jni::sys::jstring")
+        .output(encode_wrapper!(crate::utils::encode_jstring))
+        // Returns: bool / i32 primitives (wire matches Java's `boolean` / `int`).
+        .type_pair("ZResult<bool>", "jni::sys::jboolean")
+        .output(OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
+            match output {
+                Some(o) => quote! { #o as jni::sys::jboolean },
+                None => quote! { false as jni::sys::jboolean },
+            }
+        }))
+        .type_pair("ZResult<i32>", "jni::sys::jint")
+        .output(OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
+            match output {
+                Some(o) => quote! { #o as jni::sys::jint },
+                None => quote! { -1 as jni::sys::jint },
+            }
+        }))
         // Unit returns: ZResult<()> with `()` wire type so the converter treats it as a no-return shape.
         .type_pair("ZResult<()>", "()")
         // Structs from ext.rs and nullable wrappers.
@@ -225,6 +252,7 @@ fn shared_kotlin_types() -> KotlinTypeMap {
         .add("&Session", "Long")
         .add("&Config", "Long")
         .add("Session", "Long")
+        .add("OwnedKeyExpr", "Long")
         .add("ZResult<ZenohId>", "ByteArray")
         .add("ZResult<Vec<ZenohId>>", "List<ByteArray>")
         .add("ZResult<Session>", "Long")
@@ -235,6 +263,9 @@ fn shared_kotlin_types() -> KotlinTypeMap {
         .add("ZResult<Queryable<()>>", "Long")
         .add("ZResult<AdvancedSubscriber<()>>", "Long")
         .add("ZResult<AdvancedPublisher<'static>>", "Long")
+        .add("ZResult<String>", "String")
+        .add("ZResult<bool>", "Boolean")
+        .add("ZResult<i32>", "Int")
 }
 
 fn main() {
@@ -260,9 +291,12 @@ fn main() {
 
     let types = struct_conv.into_type_registry();
 
-    // Phase 2: process #[prebindgen] fns from zenoh_flat::session against
-    // the now fully-populated type registry, with a JNI try-closure body
-    // strategy.
+    // Phase 2: process #[prebindgen] fns from zenoh_flat::session and
+    // zenoh_flat::keyexpr against the now fully-populated type registry,
+    // with a JNI try-closure body strategy. Each module gets its own
+    // FunctionsConverter pass so that the JNI symbol prefix can target a
+    // distinct destination Kotlin object (`JNISessionNative` vs
+    // `JNIKeyExprNative`).
     let extra_leading: TokenStream = quote! {
         mut env: jni::JNIEnv,
         _class: jni::objects::JClass
@@ -271,13 +305,37 @@ fn main() {
         syn::parse_quote!(#[no_mangle]),
         syn::parse_quote!(#[allow(non_snake_case, unused_mut, unused_variables)]),
     ];
-    let mut method_conv = FunctionsConverter::builder(JniTryClosureBody::new(
+    let mut session_conv = FunctionsConverter::builder(JniTryClosureBody::new(
         "crate::errors::ZResult",
         "crate::throw_exception",
     ))
     .source_module("zenoh_flat::session")
     .name_mangler(NameMangler::CamelPrefixSuffix {
         prefix: "Java_io_zenoh_jni_JNISessionNative_".into(),
+        suffix: "ViaJNI".into(),
+    })
+    .extra_leading_params(extra_leading.clone())
+    .extra_attrs(extra_attrs.clone())
+    .extern_abi(syn::parse_quote!(extern "C"))
+    .unsafety(true)
+    .type_registry(types.clone())
+    .build();
+
+    let session_items: Vec<_> = source
+        .items_all()
+        .filter(|(item, loc)| {
+            matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/session.rs")
+        })
+        .batching(session_conv.as_closure())
+        .collect();
+
+    let mut keyexpr_conv = FunctionsConverter::builder(JniTryClosureBody::new(
+        "crate::errors::ZResult",
+        "crate::throw_exception",
+    ))
+    .source_module("zenoh_flat::keyexpr")
+    .name_mangler(NameMangler::CamelPrefixSuffix {
+        prefix: "Java_io_zenoh_jni_JNIKeyExprNative_".into(),
         suffix: "ViaJNI".into(),
     })
     .extra_leading_params(extra_leading)
@@ -287,12 +345,12 @@ fn main() {
     .type_registry(types.clone())
     .build();
 
-    let method_items: Vec<_> = source
+    let keyexpr_items: Vec<_> = source
         .items_all()
         .filter(|(item, loc)| {
-            matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/session.rs")
+            matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/keyexpr.rs")
         })
-        .batching(method_conv.as_closure())
+        .batching(keyexpr_conv.as_closure())
         .collect();
 
     // Pass-through: items that are neither `#[prebindgen]` structs nor fns
@@ -303,7 +361,8 @@ fn main() {
 
     let bindings_file = struct_items
         .into_iter()
-        .chain(method_items)
+        .chain(session_items)
+        .chain(keyexpr_items)
         .chain(passthrough)
         .collect::<prebindgen::collect::Destination>()
         .write("zenoh_flat_jni.rs");
@@ -328,10 +387,31 @@ fn main() {
             .add(format!("Option<{}>", s), *s);
     }
 
-    let mut kotlin = KotlinInterfaceGenerator::builder()
+    let mut session_kotlin = KotlinInterfaceGenerator::builder()
         .output_path("../zenoh-jni/generated-kotlin/io/zenoh/jni/JNISessionNative.kt")
         .package("io.zenoh.jni")
         .class_name("JNISessionNative")
+        .throws_class("io.zenoh.exceptions.ZError")
+        .init_load("io.zenoh.ZenohLoad")
+        .function_suffix("ViaJNI")
+        .type_registry(types.clone())
+        .kotlin_types(kotlin_types.clone())
+        .build();
+
+    for (item, loc) in source.items_all().filter(|(item, loc)| {
+        (matches!(item, syn::Item::Struct(_)) && loc.file.ends_with("/structs.rs"))
+            || (matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/session.rs"))
+    }) {
+        session_kotlin.add_item(&item, &loc);
+    }
+    session_kotlin
+        .write()
+        .expect("failed to write generated JNISessionNative.kt");
+
+    let mut keyexpr_kotlin = KotlinInterfaceGenerator::builder()
+        .output_path("../zenoh-jni/generated-kotlin/io/zenoh/jni/JNIKeyExprNative.kt")
+        .package("io.zenoh.jni")
+        .class_name("JNIKeyExprNative")
         .throws_class("io.zenoh.exceptions.ZError")
         .init_load("io.zenoh.ZenohLoad")
         .function_suffix("ViaJNI")
@@ -340,10 +420,11 @@ fn main() {
         .build();
 
     for (item, loc) in source.items_all().filter(|(item, loc)| {
-        (matches!(item, syn::Item::Struct(_)) && loc.file.ends_with("/structs.rs"))
-            || (matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/session.rs"))
+        matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/keyexpr.rs")
     }) {
-        kotlin.add_item(&item, &loc);
+        keyexpr_kotlin.add_item(&item, &loc);
     }
-    kotlin.write().expect("failed to write generated Kotlin file");
+    keyexpr_kotlin
+        .write()
+        .expect("failed to write generated JNIKeyExprNative.kt");
 }

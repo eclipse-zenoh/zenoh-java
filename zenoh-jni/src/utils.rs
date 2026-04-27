@@ -17,7 +17,7 @@ use std::sync::Arc;
 use crate::{errors::ZResult, throw_exception};
 use jni::{
     objects::{JByteArray, JObject, JString},
-    sys::jint,
+    sys::{jint, jstring},
     JNIEnv, JavaVM,
 };
 use zenoh::{
@@ -36,6 +36,13 @@ pub(crate) fn decode_string(env: &mut JNIEnv, string: &JString) -> ZResult<Strin
         .to_str()
         .map_err(|err| zerror!("Error decoding JString: {}", err))?;
     Ok(value.to_string())
+}
+
+/// Encode a Rust [`String`] as a Java `jstring` raw handle.
+pub(crate) fn encode_jstring(env: &mut JNIEnv, s: String) -> ZResult<jstring> {
+    env.new_string(s)
+        .map(|js| js.as_raw())
+        .map_err(|err| zerror!(err))
 }
 
 pub(crate) fn decode_encoding(
