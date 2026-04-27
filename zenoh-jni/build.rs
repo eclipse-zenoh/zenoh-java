@@ -81,13 +81,13 @@ macro_rules! encode_wrapper {
 }
 
 macro_rules! encode_arc_into_raw {
-    ($default_expr:expr) => {
+    () => {
         OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
             match output {
                 Some(output) => {
                     quote! { std::sync::Arc::into_raw(std::sync::Arc::new(#output)) }
                 }
-                None => quote! { $default_expr },
+                None => quote! { std::ptr::null() },
             }
         })
     };
@@ -150,21 +150,21 @@ fn shared_bindings() -> TypeRegistry {
         .output(encode_wrapper!(crate::zenoh_id::zenoh_ids_to_java_list))
         // Returns: opaque Arc handles.
         .type_pair("ZResult<Session>", "*const Session")
-        .output(encode_arc_into_raw!(std::ptr::null()))
+        .output(encode_arc_into_raw!())
         .type_pair("ZResult<Publisher<'static>>", "*const Publisher<'static>")
-        .output(encode_arc_into_raw!(std::ptr::null()))
+        .output(encode_arc_into_raw!())
         .type_pair("ZResult<KeyExpr<'static>>", "*const KeyExpr<'static>")
-        .output(encode_arc_into_raw!(std::ptr::null()))
+        .output(encode_arc_into_raw!())
         .type_pair("ZResult<Subscriber<()>>", "*const Subscriber<()>")
-        .output(encode_arc_into_raw!(std::ptr::null()))
+        .output(encode_arc_into_raw!())
         .type_pair("ZResult<Querier<'static>>", "*const Querier<'static>")
-        .output(encode_arc_into_raw!(std::ptr::null()))
+        .output(encode_arc_into_raw!())
         .type_pair("ZResult<Queryable<()>>", "*const Queryable<()>")
-        .output(encode_arc_into_raw!(std::ptr::null()))
+        .output(encode_arc_into_raw!())
         .type_pair("ZResult<AdvancedSubscriber<()>>", "*const AdvancedSubscriber<()>")
-        .output(encode_arc_into_raw!(std::ptr::null()))
+        .output(encode_arc_into_raw!())
         .type_pair("ZResult<AdvancedPublisher<'static>>", "*const AdvancedPublisher<'static>")
-        .output(encode_arc_into_raw!(std::ptr::null()))
+        .output(encode_arc_into_raw!())
         // Unit returns: ZResult<()> with `()` wire type so the converter treats it as a no-return shape.
         .type_pair("ZResult<()>", "()")
         // Structs from ext.rs and nullable wrappers.
