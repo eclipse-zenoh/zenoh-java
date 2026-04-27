@@ -29,7 +29,7 @@ use crate::errors::{ZError, ZResult};
 use crate::zerror;
 
 /// Flat cache configuration for an [`zenoh_ext::AdvancedPublisher`].
-#[prebindgen_proc_macro::prebindgen("jni")]
+#[prebindgen_proc_macro::prebindgen]
 #[derive(Debug, Clone)]
 pub struct CacheConfig {
     pub max_samples: i64,
@@ -41,7 +41,7 @@ pub struct CacheConfig {
 /// Flat history configuration for an [`zenoh_ext::AdvancedSubscriber`].
 ///
 /// `max_samples <= 0` and `max_age_seconds <= 0.0` mean "unlimited".
-#[prebindgen_proc_macro::prebindgen("jni")]
+#[prebindgen_proc_macro::prebindgen]
 #[derive(Debug, Clone)]
 pub struct HistoryConfig {
     pub detect_late_publishers: bool,
@@ -55,7 +55,7 @@ pub struct HistoryConfig {
 /// `period_ms` — sporadic if `is_sporadic`, regular otherwise. When
 /// `enable_heartbeat` is `false`, the other fields are ignored and
 /// [`zenoh_ext::MissDetectionConfig::default`] is used as-is.
-#[prebindgen_proc_macro::prebindgen("jni")]
+#[prebindgen_proc_macro::prebindgen]
 #[derive(Debug, Clone)]
 pub struct MissDetectionConfig {
     pub enable_heartbeat: bool,
@@ -67,7 +67,7 @@ pub struct MissDetectionConfig {
 ///
 /// When `is_heartbeat` is `true`, `period_ms` is ignored; otherwise
 /// `period_ms` is the `periodic_queries` period in milliseconds.
-#[prebindgen_proc_macro::prebindgen("jni")]
+#[prebindgen_proc_macro::prebindgen]
 #[derive(Debug, Clone)]
 pub struct RecoveryConfig {
     pub is_heartbeat: bool,
