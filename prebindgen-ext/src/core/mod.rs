@@ -30,7 +30,7 @@ pub mod types_converter;
 pub use functions_converter::{
     BodyContext, BodyStrategy, FunctionsBuilder, FunctionsConverter, PassThroughBody,
 };
-pub use inline_fn::{InputFn, OutputFn, InlineFn};
+pub use inline_fn::{InputFn, OutputFn};
 pub use name_mangler::NameMangler;
 pub use type_registry::{primitive_builtins, TypePairBuilder, TypeRegistry};
 pub use types_converter::{StructStrategy, TypesBuilder, TypesConverter};

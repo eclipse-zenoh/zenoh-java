@@ -12,7 +12,7 @@ pub mod kotlin;
 mod util;
 
 pub use core::{
-    BodyContext, BodyStrategy, FunctionsBuilder, FunctionsConverter, InlineFn, NameMangler,
+    BodyContext, BodyStrategy, FunctionsBuilder, FunctionsConverter, NameMangler,
     PassThroughBody, StructStrategy, TypePairBuilder, TypeRegistry, TypesBuilder, TypesConverter,
 };
 pub use jni::{JniDecoderStruct, JniTryClosureBody};

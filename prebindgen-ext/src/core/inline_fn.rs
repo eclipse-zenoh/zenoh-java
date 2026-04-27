@@ -39,7 +39,3 @@ impl OutputFn {
     }
 }
 
-/// Backward-compatible alias for the former generic inline conversion
-/// closure type. Existing input-only call sites can continue to use
-/// `InlineFn`.
-pub type InlineFn = InputFn;
