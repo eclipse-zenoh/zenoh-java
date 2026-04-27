@@ -33,8 +33,8 @@ use quote::{format_ident, quote, ToTokens};
 
 use prebindgen::SourceLocation;
 
+use crate::core::inline_fn::InlineFn;
 use crate::core::name_mangler::NameMangler;
-use crate::core::return_encode::ReturnEncode;
 use crate::core::type_binding::TypeBinding;
 use crate::core::type_registry::TypeRegistry;
 use crate::util::is_unit;
@@ -54,7 +54,7 @@ pub struct BodyContext<'a> {
     pub wire_return: Option<&'a syn::Type>,
     /// Return-direction encode info, if the return has a registered
     /// [`TypeBinding`] with `encode` set.
-    pub return_encode: Option<&'a ReturnEncode>,
+    pub return_encode: Option<&'a InlineFn>,
     /// Default expression for the error path (paired with `return_encode`).
     pub return_default: Option<&'a syn::Expr>,
     /// Original function ident (for diagnostics).
@@ -69,29 +69,26 @@ pub trait BodyStrategy {
 }
 
 /// Body strategy that emits the call expression directly, applying any
-/// configured `ReturnEncode` inline. Used by pass-through C-style FFI.
+/// configured return encoder inline. Used by pass-through C-style FFI.
 pub struct PassThroughBody;
 
 impl BodyStrategy for PassThroughBody {
     fn build_body(&self, ctx: BodyContext) -> TokenStream {
         let prelude = ctx.prelude;
         let call = &ctx.call_expr;
+        let result_ident = format_ident!("__result");
         match ctx.return_encode {
             None => quote! { { #(#prelude)* #call } },
-            Some(ReturnEncode::Wrapper(p)) => quote! {
+            Some(encode) => {
+                let encoded = encode.call(&result_ident);
+                quote! {
                 {
                     #(#prelude)*
-                    let __result = #call;
-                    #p(__result)
+                    let #result_ident = #call;
+                    #encoded
                 }
-            },
-            Some(ReturnEncode::ArcIntoRaw) => quote! {
-                {
-                    #(#prelude)*
-                    let __result = #call;
-                    std::sync::Arc::into_raw(std::sync::Arc::new(__result))
                 }
-            },
+            }
         }
     }
 }
@@ -254,7 +251,7 @@ impl FunctionsConverter {
 
         let (wire_return_ty, return_encode, return_default): (
             Option<syn::Type>,
-            Option<ReturnEncode>,
+            Option<InlineFn>,
             Option<syn::Expr>,
         ) = match &func.sig.output {
             syn::ReturnType::Default => (None, None, None),

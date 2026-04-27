@@ -13,7 +13,7 @@ mod util;
 
 pub use core::{
     BodyContext, BodyStrategy, FunctionsBuilder, FunctionsConverter, InlineFn, NameMangler,
-    PassThroughBody, ReturnEncode, StructStrategy, TypeBinding, TypeRegistry, TypesBuilder,
+    PassThroughBody, StructStrategy, TypeBinding, TypeRegistry, TypesBuilder,
     TypesConverter,
 };
 pub use jni::{JniDecoderStruct, JniTryClosureBody};

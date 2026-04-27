@@ -14,7 +14,6 @@ use proc_macro2::TokenStream;
 use quote::ToTokens;
 
 use crate::core::inline_fn::InlineFn;
-use crate::core::return_encode::ReturnEncode;
 
 /// Per-row binding from a Rust type-shape to its FFI wire form.
 #[derive(Clone)]
@@ -22,13 +21,13 @@ pub struct TypeBinding {
     pub(crate) rust_type: String,
     pub(crate) wire_type: syn::Type,
     pub(crate) decode: Option<InlineFn>,
-    pub(crate) encode: Option<ReturnEncode>,
+    pub(crate) encode: Option<InlineFn>,
     pub(crate) default_expr: Option<syn::Expr>,
 }
 
 impl TypeBinding {
     /// Param-direction row. `rust_type` is canonicalized via `syn::Type` parse.
-    pub fn param(
+    pub fn input(
         rust_type: impl AsRef<str>,
         wire_type: impl AsRef<str>,
         decode: InlineFn,
@@ -43,10 +42,10 @@ impl TypeBinding {
     }
 
     /// Return-direction row.
-    pub fn returns(
+    pub fn output(
         rust_type: impl AsRef<str>,
         wire_type: impl AsRef<str>,
-        encode: ReturnEncode,
+        encode: InlineFn,
         default_expr: impl AsRef<str>,
     ) -> Self {
         Self {
@@ -56,18 +55,18 @@ impl TypeBinding {
             encode: Some(encode),
             default_expr: Some(
                 syn::parse_str(default_expr.as_ref())
-                    .expect("invalid TypeBinding::returns default_expr"),
+                    .expect("invalid TypeBinding::output default_expr"),
             ),
         }
     }
 
     /// Construct a new binding from raw parts. Used by language-specific
     /// convenience builders (e.g. `jni::opaque::option_of_jobject`).
-    pub fn new(
+    pub fn input_output(
         rust_type: impl AsRef<str>,
         wire_type: syn::Type,
         decode: Option<InlineFn>,
-        encode: Option<ReturnEncode>,
+        encode: Option<InlineFn>,
         default_expr: Option<syn::Expr>,
     ) -> Self {
         Self {
@@ -95,7 +94,7 @@ impl TypeBinding {
     pub(crate) fn decode(&self) -> Option<&InlineFn> {
         self.decode.as_ref()
     }
-    pub(crate) fn encode(&self) -> Option<&ReturnEncode> {
+    pub(crate) fn encode(&self) -> Option<&InlineFn> {
         self.encode.as_ref()
     }
     pub(crate) fn default_expr(&self) -> Option<&syn::Expr> {

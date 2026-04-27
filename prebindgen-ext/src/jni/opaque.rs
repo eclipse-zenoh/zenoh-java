@@ -4,7 +4,6 @@ use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
 use crate::core::inline_fn::InlineFn;
-use crate::core::return_encode::ReturnEncode;
 use crate::core::type_binding::{jni_object_shaped, TypeBinding};
 
 /// Opaque borrow `&T` — JNI side passes raw `*const T`, decoded via
@@ -16,7 +15,7 @@ pub fn opaque_borrow(t: impl AsRef<str>, owned_object: impl AsRef<str>) -> TypeB
     // Validate the owner path parses now so errors surface at registration.
     let _: syn::Path =
         syn::parse_str(&owned_str).expect("opaque_borrow: invalid owned_object path");
-    TypeBinding::param(
+    TypeBinding::input(
         format!("&{}", t),
         format!("*const {}", t),
         InlineFn::new(move |input: &syn::Ident| -> TokenStream {
@@ -30,11 +29,13 @@ pub fn opaque_borrow(t: impl AsRef<str>, owned_object: impl AsRef<str>) -> TypeB
 /// Opaque Arc return for `ZResult<T>` — encode via
 /// `Arc::into_raw(Arc::new(__result))`, default to `std::ptr::null()`.
 pub fn opaque_arc_return(t: impl AsRef<str>) -> TypeBinding {
-    let t = t.as_ref();
-    TypeBinding::returns(
+    let t = t.as_ref().to_string();
+    TypeBinding::output(
         format!("ZResult<{}>", t),
         format!("*const {}", t),
-        ReturnEncode::ArcIntoRaw,
+        InlineFn::new(move |output: &syn::Ident| -> TokenStream {
+            quote! { std::sync::Arc::into_raw(std::sync::Arc::new(#output)) }
+        }),
         "std::ptr::null()",
     )
 }
@@ -53,7 +54,7 @@ pub fn option_of_jobject(inner: &TypeBinding) -> TypeBinding {
         "option_of_jobject requires a JNI-object inner wire form, got `{}`",
         inner.wire_type.to_token_stream()
     );
-    TypeBinding::new(
+    TypeBinding::input_output(
         format!("Option<{}>", &inner.rust_type),
         inner.wire_type.clone(),
         Some(InlineFn::new(move |input: &syn::Ident| -> TokenStream {

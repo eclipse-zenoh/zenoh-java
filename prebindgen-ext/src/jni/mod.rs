@@ -8,14 +8,21 @@
 //! * [`JniTryClosureBody`] — a `BodyStrategy` that wraps the call in a
 //!   try-closure and routes errors through `throw_exception!`.
 //! * `inline_fn_helpers` — `pure` / `env_ref` / `env_ref_mut`
-//!   constructors for `InlineFn` that hardcode the `&env` / `&mut env`
-//!   variable names produced by `JniTryClosureBody`'s prelude.
+//!   constructors for param-direction `TypeBinding` rows that hardcode
+//!   the `&env` / `&mut env` variable names produced by
+//!   `JniTryClosureBody`'s prelude.
+//! * `jni_type` — helpers for common JNI wire-type spellings like
+//!   `JObject`, `JString`, and `jint`.
+//! * `jni_type_helper` — type-specific binding constructors like
+//!   `jobject(rust_type, decode)` and `jint(rust_type, decode)`.
 //! * `opaque` — convenience builders for opaque `&T` borrows and
 //!   `Arc<T>` returns, plus `option_of_jobject` for `Option<X>` rows
 //!   whose inner is a JNI-object-shaped wire type.
 
 pub mod body_strategy;
 pub mod inline_fn_helpers;
+pub mod jni_type;
+pub mod jni_type_helper;
 pub mod opaque;
 pub mod struct_strategy;
 

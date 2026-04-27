@@ -23,7 +23,6 @@
 pub mod functions_converter;
 pub mod inline_fn;
 pub mod name_mangler;
-pub mod return_encode;
 pub mod type_binding;
 pub mod type_registry;
 pub mod types_converter;
@@ -33,7 +32,6 @@ pub use functions_converter::{
 };
 pub use inline_fn::InlineFn;
 pub use name_mangler::NameMangler;
-pub use return_encode::ReturnEncode;
 pub use type_binding::TypeBinding;
 pub use type_registry::{primitive_builtins, TypeRegistry};
 pub use types_converter::{StructStrategy, TypesBuilder, TypesConverter};

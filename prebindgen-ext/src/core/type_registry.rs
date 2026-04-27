@@ -60,7 +60,7 @@ impl TypeRegistry {
 /// Kept here as a free function so the universal core has no opinion
 /// about which primitives are pre-registered.
 pub fn primitive_builtins() -> TypeRegistry {
-    let bool_row = TypeBinding::param(
+    let bool_row = TypeBinding::input(
         "bool",
         "jni::sys::jboolean",
         InlineFn::new(|input: &syn::Ident| -> TokenStream {
@@ -68,7 +68,7 @@ pub fn primitive_builtins() -> TypeRegistry {
         }),
     );
 
-    let i64_row = TypeBinding::param(
+    let i64_row = TypeBinding::input(
         "i64",
         "jni::sys::jlong",
         InlineFn::new(|input: &syn::Ident| -> TokenStream {
@@ -76,7 +76,7 @@ pub fn primitive_builtins() -> TypeRegistry {
         }),
     );
 
-    let f64_row = TypeBinding::param(
+    let f64_row = TypeBinding::input(
         "f64",
         "jni::sys::jdouble",
         InlineFn::new(|input: &syn::Ident| -> TokenStream {
@@ -84,7 +84,7 @@ pub fn primitive_builtins() -> TypeRegistry {
         }),
     );
 
-    let duration_row = TypeBinding::param(
+    let duration_row = TypeBinding::input(
         "Duration",
         "jni::sys::jlong",
         InlineFn::new(|input: &syn::Ident| -> TokenStream {

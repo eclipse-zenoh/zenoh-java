@@ -10,7 +10,8 @@ use prebindgen::SourceLocation;
 use crate::core::type_binding::TypeBinding;
 use crate::core::type_registry::TypeRegistry;
 use crate::core::types_converter::StructStrategy;
-use crate::jni::inline_fn_helpers::env_ref_mut;
+use crate::jni::inline_fn_helpers::env_ref_mut_decode;
+use crate::jni::jni_type;
 use crate::util::snake_to_camel;
 
 /// JNI struct decoder strategy.
@@ -22,8 +23,8 @@ use crate::util::snake_to_camel;
 ///     obj: &jni::objects::JObject,
 /// ) -> <zresult><source_module>::<Name> { ... }
 /// ```
-/// and registers a `TypeBinding::param("<Name>", "jni::objects::JObject",
-/// env_ref_mut("decode_<Name>"))` so the struct can be passed by value
+/// and registers a `TypeBinding::param("<Name>", jni_type::jobject(),
+/// env_ref_mut_decode("decode_<Name>"))` so the struct can be passed by value
 /// to a wrapped function.
 ///
 /// Field types are resolved by **bare ident** (e.g. `bool`, `i64`,
@@ -134,10 +135,10 @@ impl StructStrategy for JniDecoderStruct {
         };
 
         let decoder_path = format!("decode_{struct_name}");
-        let row = TypeBinding::param(
+        let row = TypeBinding::input(
             &struct_name,
-            "jni::objects::JObject",
-            env_ref_mut(&decoder_path),
+            jni_type::jobject(),
+            env_ref_mut_decode(&decoder_path),
         );
         registry.insert_raw(row.name().to_string(), row);
 

@@ -2,10 +2,9 @@
 //! and routes errors through `throw_exception!`.
 
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 
 use crate::core::functions_converter::{BodyContext, BodyStrategy};
-use crate::core::return_encode::ReturnEncode;
 
 /// JNI try-closure body strategy.
 ///
@@ -46,6 +45,7 @@ impl BodyStrategy for JniTryClosureBody {
         let call = &ctx.call_expr;
         let zresult = &self.zresult;
         let throw = &self.throw_exception;
+        let result_ident = format_ident!("__result");
 
         let (closure_ret, wrap_ok, on_err): (TokenStream, TokenStream, TokenStream) =
             match (ctx.wire_return, ctx.return_encode) {
@@ -54,31 +54,20 @@ impl BodyStrategy for JniTryClosureBody {
                     quote! { Ok(()) },
                     quote! { () },
                 ),
-                (Some(wire), Some(ReturnEncode::Wrapper(p))) => {
+                (Some(wire), Some(encode)) => {
                     let default = ctx
                         .return_default
                         .expect("encode-bearing row must have default_expr");
+                    let encoded = encode.call(&result_ident);
                     (
                         quote! { #zresult<#wire> },
-                        quote! { #p(&mut env, __result) },
-                        quote! { #default },
-                    )
-                }
-                (Some(wire), Some(ReturnEncode::ArcIntoRaw)) => {
-                    let default = ctx
-                        .return_default
-                        .expect("encode-bearing row must have default_expr");
-                    (
-                        quote! { #zresult<#wire> },
-                        quote! {
-                            Ok(std::sync::Arc::into_raw(std::sync::Arc::new(__result)))
-                        },
+                        quote! { Ok(#encoded) },
                         quote! { #default },
                     )
                 }
                 (Some(wire), None) => {
                     panic!(
-                        "JniTryClosureBody: wire return `{}` has no ReturnEncode at {}",
+                        "JniTryClosureBody: wire return `{}` has no encode at {}",
                         wire.to_token_stream(),
                         ctx.loc
                     );
@@ -89,7 +78,7 @@ impl BodyStrategy for JniTryClosureBody {
             {
                 (|| -> #closure_ret {
                     #(#prelude)*
-                    let __result = #call?;
+                    let #result_ident = #call?;
                     #wrap_ok
                 })()
                 .unwrap_or_else(|err| {
