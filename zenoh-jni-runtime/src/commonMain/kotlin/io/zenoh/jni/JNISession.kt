@@ -25,7 +25,7 @@ import io.zenoh.jni.JNISessionNative.declareQuerierViaJNI
 import io.zenoh.jni.JNISessionNative.declareQueryableViaJNI
 import io.zenoh.jni.JNISessionNative.declareSubscriberViaJNI
 import io.zenoh.jni.JNISessionNative.deleteViaJNI
-import io.zenoh.jni.JNISessionNative.freePtrViaJNI
+import io.zenoh.jni.JNISessionNative.dropSessionViaJNI
 import io.zenoh.jni.JNISessionNative.getPeersZidViaJNI
 import io.zenoh.jni.JNISessionNative.getRoutersZidViaJNI
 import io.zenoh.jni.JNISessionNative.getViaJNI
@@ -242,6 +242,6 @@ public class JNISession(internal val sessionPtr: Long) {
 
     fun close() {
         closeSessionViaJNI(sessionPtr)
-        freePtrViaJNI(sessionPtr)
+        dropSessionViaJNI(sessionPtr)
     }
 }

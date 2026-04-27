@@ -143,10 +143,13 @@ fn shared_bindings() -> TypeRegistry {
         .input(decode_owned_raw!(crate::owned_object::OwnedObject))
         .type_pair("&Config", "*const Config")
         .input(decode_owned_raw!(crate::owned_object::OwnedObject))
-        // Owning take: `*const Session` reconstructed into `Arc<Session>` and
-        // dropped by the wrapped fn. Used by `free_ptr` to release the handle.
-        .type_pair("Arc<Session>", "*const Session")
-        .input(decode_owned_raw!(std::sync::Arc))
+        // Owning take by value: the wire side reconstructs the `Arc<Session>`
+        // (releasing its strong reference at end of scope) and hands a cloned
+        // `Session` to the wrapped fn. Used by `drop_session`.
+        .type_pair("Session", "*const Session")
+        .input(InputFn::new(|input: &syn::Ident| -> TokenStream {
+            quote! { (*std::sync::Arc::from_raw(#input)).clone() }
+        }))
         // Returns: ZenohId / Vec<ZenohId> via custom encoders.
         .type_pair("ZResult<ZenohId>", "jni::sys::jbyteArray")
         .output(encode_wrapper!(crate::zenoh_id::zenoh_id_to_byte_array))
@@ -215,7 +218,7 @@ fn shared_kotlin_types() -> KotlinTypeMap {
         .add("Option<Encoding>", "io.zenoh.jni.JNIEncoding")
         .add("&Session", "Long")
         .add("&Config", "Long")
-        .add("Arc<Session>", "Long")
+        .add("Session", "Long")
         .add("ZResult<ZenohId>", "ByteArray")
         .add("ZResult<Vec<ZenohId>>", "List<ByteArray>")
         .add("ZResult<Session>", "Long")
