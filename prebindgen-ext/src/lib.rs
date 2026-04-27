@@ -1,9 +1,20 @@
-//! Prebindgen JNI extensions for Zenoh.
+//! Universal converters for `#[prebindgen]` items, plus destination-
+//! language helpers (JNI strategies and Kotlin interface generation).
 //!
-//! This crate provides JNI binding generators for items marked with `#[prebindgen]`.
+//! See [`core`] for the language-agnostic `TypesConverter` /
+//! `FunctionsConverter` primitives, [`jni`] for the JNI-flavoured
+//! strategies and convenience builders, and [`kotlin`] for the
+//! Kotlin interface declaration generator.
 
-pub mod jni_converter;
-pub mod jni_type_binding;
+pub mod core;
+pub mod jni;
+pub mod kotlin;
+mod util;
 
-pub use jni_converter::{JniStructConverter, JniMethodsConverter};
-pub use jni_type_binding::{JniTypeBinding, TypeBinding, InlineFn, ReturnEncode};
+pub use core::{
+    BodyContext, BodyStrategy, FunctionsBuilder, FunctionsConverter, InlineFn, NameMangler,
+    PassThroughBody, ReturnEncode, StructStrategy, TypeBinding, TypeRegistry, TypesBuilder,
+    TypesConverter,
+};
+pub use jni::{JniDecoderStruct, JniTryClosureBody};
+pub use kotlin::{KotlinInterfaceBuilder, KotlinInterfaceGenerator, KotlinTypeMap};

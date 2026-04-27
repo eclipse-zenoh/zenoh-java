@@ -4451,6 +4451,7 @@ dependencies = [
  "json5",
  "konst",
  "prebindgen",
+ "proc-macro2",
  "quote",
  "rustc_version",
  "serde_yaml",

@@ -9,5 +9,5 @@ pub mod errors;
 pub mod ext;
 pub mod session;
 
-pub use prebindgen_ext::{jni_converter, jni_type_binding};
+pub use prebindgen_ext::{core, jni, kotlin};
 

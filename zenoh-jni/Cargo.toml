@@ -53,6 +53,7 @@ zenoh-flat = { path = "../zenoh-flat", features = ["zenoh-ext"] }
 itertools = "0.12"
 syn = "2"
 quote = "1"
+proc-macro2 = "1"
 
 [profile.release]
 debug = false     # If you want debug symbol in release mode, set the env variable: RUSTFLAGS=-g

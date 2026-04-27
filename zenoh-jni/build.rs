@@ -1,142 +1,172 @@
 use itertools::Itertools;
-use zenoh_flat::jni_converter::{
-    InlineFn, JniMethodsConverter, JniStructConverter, TypeBinding,
+use proc_macro2::TokenStream;
+use quote::quote;
+
+use zenoh_flat::core::{
+    primitive_builtins, FunctionsConverter, NameMangler, ReturnEncode, TypeBinding, TypeRegistry,
+    TypesConverter,
 };
-use zenoh_flat::jni_type_binding::{JniTypeBinding, ReturnEncode};
+use zenoh_flat::jni::inline_fn_helpers as jni_helpers;
+use zenoh_flat::jni::opaque::{opaque_arc_return, opaque_borrow, option_of_jobject};
+use zenoh_flat::jni::{JniDecoderStruct, JniTryClosureBody};
+use zenoh_flat::kotlin::{KotlinInterfaceGenerator, KotlinTypeMap};
 
 const OWNED_OBJECT: &str = "crate::owned_object::OwnedObject";
 
-/// Type vocabulary shared across every JNI surface generated in this crate.
-/// Defined once, threaded into the struct-phase converter, then forwarded —
-/// together with the auto-registered struct bindings — into the methods phase.
-fn shared_bindings() -> JniTypeBinding {
-    JniTypeBinding::new()
+/// Wire-side `TypeBinding` registry shared across every JNI surface
+/// generated in this crate. Defined once, threaded into the struct-phase
+/// converter, then forwarded — together with the auto-registered struct
+/// bindings — into the methods phase and the Kotlin generator.
+fn shared_bindings() -> TypeRegistry {
+    primitive_builtins()
         // Strings & byte arrays.
         .type_binding(TypeBinding::param(
             "String",
-            "String",
             "jni::objects::JString",
-            InlineFn::env_ref_mut("crate::utils::decode_string"),
+            jni_helpers::env_ref_mut("crate::utils::decode_string"),
         ))
         .type_binding(TypeBinding::param(
             "Vec<u8>",
-            "ByteArray",
             "jni::objects::JByteArray",
-            InlineFn::env_ref("crate::utils::decode_byte_array"),
+            jni_helpers::env_ref("crate::utils::decode_byte_array"),
         ))
         // Callbacks.
         .type_binding(TypeBinding::param(
             "impl Fn(Sample) + Send + Sync + 'static",
-            "io.zenoh.jni.callbacks.JNISubscriberCallback",
             "jni::objects::JObject",
-            InlineFn::env_ref_mut("crate::sample_callback::process_kotlin_sample_callback"),
+            jni_helpers::env_ref_mut("crate::sample_callback::process_kotlin_sample_callback"),
         ))
         .type_binding(TypeBinding::param(
             "impl Fn(Query) + Send + Sync + 'static",
-            "io.zenoh.jni.callbacks.JNIQueryableCallback",
             "jni::objects::JObject",
-            InlineFn::env_ref_mut("crate::sample_callback::process_kotlin_query_callback"),
+            jni_helpers::env_ref_mut("crate::sample_callback::process_kotlin_query_callback"),
         ))
         .type_binding(TypeBinding::param(
             "impl Fn(Reply) + Send + Sync + 'static",
-            "io.zenoh.jni.callbacks.JNIGetCallback",
             "jni::objects::JObject",
-            InlineFn::env_ref_mut("crate::sample_callback::process_kotlin_reply_callback"),
+            jni_helpers::env_ref_mut("crate::sample_callback::process_kotlin_reply_callback"),
         ))
         .type_binding(TypeBinding::param(
             "impl Fn() + Send + Sync + 'static",
-            "io.zenoh.jni.callbacks.JNIOnCloseCallback",
             "jni::objects::JObject",
-            InlineFn::env_ref_mut("crate::sample_callback::process_kotlin_on_close_callback"),
+            jni_helpers::env_ref_mut("crate::sample_callback::process_kotlin_on_close_callback"),
         ))
         // Java-enum-shaped types.
         .type_binding(TypeBinding::param(
             "CongestionControl",
-            "Int",
             "jni::sys::jint",
-            InlineFn::pure("crate::utils::decode_congestion_control"),
+            jni_helpers::pure("crate::utils::decode_congestion_control"),
         ))
         .type_binding(TypeBinding::param(
             "Priority",
-            "Int",
             "jni::sys::jint",
-            InlineFn::pure("crate::utils::decode_priority"),
+            jni_helpers::pure("crate::utils::decode_priority"),
         ))
         .type_binding(TypeBinding::param(
             "Reliability",
-            "Int",
             "jni::sys::jint",
-            InlineFn::pure("crate::utils::decode_reliability"),
+            jni_helpers::pure("crate::utils::decode_reliability"),
         ))
         .type_binding(TypeBinding::param(
             "QueryTarget",
-            "Int",
             "jni::sys::jint",
-            InlineFn::pure("crate::utils::decode_query_target"),
+            jni_helpers::pure("crate::utils::decode_query_target"),
         ))
         .type_binding(TypeBinding::param(
             "ConsolidationMode",
-            "Int",
             "jni::sys::jint",
-            InlineFn::pure("crate::utils::decode_consolidation"),
+            jni_helpers::pure("crate::utils::decode_consolidation"),
         ))
         .type_binding(TypeBinding::param(
             "ReplyKeyExpr",
-            "Int",
             "jni::sys::jint",
-            InlineFn::pure("crate::utils::decode_reply_key_expr"),
+            jni_helpers::pure("crate::utils::decode_reply_key_expr"),
         ))
-        // KeyExpr by-value: JNI side passes the JNIKeyExpr holder object
-        // (`ptr: Long`, `str: String`), decoded through decode_jni_key_expr.
+        // KeyExpr by-value: JNI side passes the JNIKeyExpr holder object.
         .type_binding(TypeBinding::param(
             "KeyExpr<'static>",
-            "io.zenoh.jni.JNIKeyExpr",
             "jni::objects::JObject",
-            InlineFn::env_ref_mut("crate::key_expr::decode_jni_key_expr"),
+            jni_helpers::env_ref_mut("crate::key_expr::decode_jni_key_expr"),
         ))
         // Encoding via JObject + custom decoder.
         .type_binding(TypeBinding::param(
             "Encoding",
-            "io.zenoh.jni.JNIEncoding",
             "jni::objects::JObject",
-            InlineFn::env_ref_mut("crate::utils::decode_jni_encoding"),
+            jni_helpers::env_ref_mut("crate::utils::decode_jni_encoding"),
         ))
-        // Borrows: opaque Arc handles received as `*const T` and re-borrowed
-        // via OwnedObject::from_raw. The `&` prefix on the row's key tells
-        // the converter to pass `&name` to the wrapped fn.
-        .type_binding(TypeBinding::opaque_borrow("Session", OWNED_OBJECT))
-        .type_binding(TypeBinding::opaque_borrow("Config", OWNED_OBJECT))
+        // Borrows: opaque Arc handles received as `*const T`.
+        .type_binding(opaque_borrow("Session", OWNED_OBJECT))
+        .type_binding(opaque_borrow("Config", OWNED_OBJECT))
         // Returns: ZenohId / Vec<ZenohId> via custom encoders.
         .type_binding(TypeBinding::returns(
             "ZResult<ZenohId>",
-            "ByteArray",
             "jni::sys::jbyteArray",
             ReturnEncode::wrapper("crate::zenoh_id::zenoh_id_to_byte_array"),
             "jni::objects::JByteArray::default().as_raw()",
         ))
         .type_binding(TypeBinding::returns(
             "ZResult<Vec<ZenohId>>",
-            "List<ByteArray>",
             "jni::sys::jobject",
             ReturnEncode::wrapper("crate::zenoh_id::zenoh_ids_to_java_list"),
             "jni::objects::JObject::default().as_raw()",
         ))
         // Returns: opaque Arc handles. Each emits `*const T` and
         // `Arc::into_raw(Arc::new(__result))` with a null default.
-        .type_binding(TypeBinding::opaque_arc_return("Session"))
-        .type_binding(TypeBinding::opaque_arc_return("Publisher<'static>"))
-        .type_binding(TypeBinding::opaque_arc_return("KeyExpr<'static>"))
-        .type_binding(TypeBinding::opaque_arc_return("Subscriber<()>"))
-        .type_binding(TypeBinding::opaque_arc_return("Querier<'static>"))
-        .type_binding(TypeBinding::opaque_arc_return("Queryable<()>"))
-        .type_binding(TypeBinding::opaque_arc_return("AdvancedSubscriber<()>"))
-        .type_binding(TypeBinding::opaque_arc_return("AdvancedPublisher<'static>"))
+        .type_binding(opaque_arc_return("Session"))
+        .type_binding(opaque_arc_return("Publisher<'static>"))
+        .type_binding(opaque_arc_return("KeyExpr<'static>"))
+        .type_binding(opaque_arc_return("Subscriber<()>"))
+        .type_binding(opaque_arc_return("Querier<'static>"))
+        .type_binding(opaque_arc_return("Queryable<()>"))
+        .type_binding(opaque_arc_return("AdvancedSubscriber<()>"))
+        .type_binding(opaque_arc_return("AdvancedPublisher<'static>"))
+        // Unit returns: ZResult<()> with `()` wire type so the converter
+        // treats it as a no-return shape.
+        .type_binding(TypeBinding::new(
+            "ZResult<()>",
+            syn::parse_str::<syn::Type>("()").unwrap(),
+            None,
+            None,
+            None,
+        ))
+}
+
+/// Rust → Kotlin name mappings consumed by `KotlinInterfaceGenerator`.
+fn shared_kotlin_types() -> KotlinTypeMap {
+    KotlinTypeMap::new()
+        .with_primitive_builtins()
+        .add("String", "String")
+        .add("Vec<u8>", "ByteArray")
+        .add("impl Fn(Sample) + Send + Sync + 'static", "io.zenoh.jni.callbacks.JNISubscriberCallback")
+        .add("impl Fn(Query) + Send + Sync + 'static", "io.zenoh.jni.callbacks.JNIQueryableCallback")
+        .add("impl Fn(Reply) + Send + Sync + 'static", "io.zenoh.jni.callbacks.JNIGetCallback")
+        .add("impl Fn() + Send + Sync + 'static", "io.zenoh.jni.callbacks.JNIOnCloseCallback")
+        .add("CongestionControl", "Int")
+        .add("Priority", "Int")
+        .add("Reliability", "Int")
+        .add("QueryTarget", "Int")
+        .add("ConsolidationMode", "Int")
+        .add("ReplyKeyExpr", "Int")
+        .add("KeyExpr<'static>", "io.zenoh.jni.JNIKeyExpr")
+        .add("Encoding", "io.zenoh.jni.JNIEncoding")
+        .add("&Session", "Long")
+        .add("&Config", "Long")
+        .add("ZResult<ZenohId>", "ByteArray")
+        .add("ZResult<Vec<ZenohId>>", "List<ByteArray>")
+        .add("ZResult<Session>", "Long")
+        .add("ZResult<Publisher<'static>>", "Long")
+        .add("ZResult<KeyExpr<'static>>", "Long")
+        .add("ZResult<Subscriber<()>>", "Long")
+        .add("ZResult<Querier<'static>>", "Long")
+        .add("ZResult<Queryable<()>>", "Long")
+        .add("ZResult<AdvancedSubscriber<()>>", "Long")
+        .add("ZResult<AdvancedPublisher<'static>>", "Long")
 }
 
 /// Build `Option<X>` rows for every X that can appear under `Option<...>` in
 /// the wrapped fn signatures. Must be called after struct-converter has
 /// registered the auto-generated struct rows.
-fn add_option_rows(types: JniTypeBinding) -> JniTypeBinding {
+fn add_option_rows(types: TypeRegistry) -> TypeRegistry {
     let inner_keys = [
         "String",
         "Vec<u8>",
@@ -152,8 +182,30 @@ fn add_option_rows(types: JniTypeBinding) -> JniTypeBinding {
             .type_by_key(key)
             .unwrap_or_else(|| panic!("add_option_rows: missing inner row `{}`", key))
             .clone();
-        let opt = TypeBinding::option_of(&inner);
+        let opt = option_of_jobject(&inner);
         out = out.type_binding(opt);
+    }
+    out
+}
+
+/// Mirror of `add_option_rows` for the Kotlin name map: every wrapped
+/// `Option<X>` row needs the same Kotlin name as `X`.
+fn add_option_kotlin_types(map: KotlinTypeMap, struct_names: &[&str]) -> KotlinTypeMap {
+    let mut out = map;
+    let inner_keys: Vec<String> = [
+        "String".to_string(),
+        "Vec<u8>".to_string(),
+        "Encoding".to_string(),
+    ]
+    .into_iter()
+    .chain(struct_names.iter().map(|s| s.to_string()))
+    .collect();
+    for key in &inner_keys {
+        let kotlin = out
+            .lookup(key)
+            .unwrap_or_else(|| panic!("add_option_kotlin_types: missing `{}`", key))
+            .to_string();
+        out = out.add(format!("Option<{}>", key), kotlin);
     }
     out
 }
@@ -161,14 +213,15 @@ fn add_option_rows(types: JniTypeBinding) -> JniTypeBinding {
 fn main() {
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
 
-    // Phase 1: process #[prebindgen] structs from zenoh_flat::ext.
-    // Each struct adds a TypeBinding (and a Kotlin data class) to the
-    // shared JniTypeBinding that we forward to the methods converter.
-    let mut struct_conv = JniStructConverter::builder()
-        .source_module("zenoh_flat::ext")
-        .zresult("crate::errors::ZResult")
-        .jni_type_binding(shared_bindings())
-        .build();
+    // Phase 1: process #[prebindgen] structs from zenoh_flat::ext via a
+    // JNI decoder strategy. Each struct registers a TypeBinding in the
+    // shared TypeRegistry and emits a `decode_<Name>` Rust fn.
+    let mut struct_conv = TypesConverter::builder(JniDecoderStruct::new(
+        "zenoh_flat::ext",
+        "crate::errors::ZResult",
+    ))
+    .type_registry(shared_bindings())
+    .build();
 
     let struct_items: Vec<_> = source
         .items_all()
@@ -178,23 +231,34 @@ fn main() {
         .batching(struct_conv.as_closure())
         .collect();
 
-    let types = add_option_rows(struct_conv.into_jni_type_binding());
+    let types = add_option_rows(struct_conv.into_type_registry());
 
     // Phase 2: process #[prebindgen] fns from zenoh_flat::session against
-    // the now fully-populated type registry.
-    let mut method_conv = JniMethodsConverter::builder()
-        .class_prefix("Java_io_zenoh_jni_JNISessionNative_")
-        .function_suffix("ViaJNI")
-        .source_module("zenoh_flat::session")
-        .zresult("crate::errors::ZResult")
-        .throw_exception("crate::throw_exception")
-        .kotlin_output("../zenoh-jni/generated-kotlin/io/zenoh/jni/JNISessionNative.kt")
-        .kotlin_package("io.zenoh.jni")
-        .kotlin_class("JNISessionNative")
-        .kotlin_throws("io.zenoh.exceptions.ZError")
-        .kotlin_init("io.zenoh.ZenohLoad")
-        .jni_type_binding(types)
-        .build();
+    // the now fully-populated type registry, with a JNI try-closure body
+    // strategy.
+    let extra_leading: TokenStream = quote! {
+        mut env: jni::JNIEnv,
+        _class: jni::objects::JClass
+    };
+    let extra_attrs: Vec<syn::Attribute> = vec![
+        syn::parse_quote!(#[no_mangle]),
+        syn::parse_quote!(#[allow(non_snake_case, unused_mut, unused_variables)]),
+    ];
+    let mut method_conv = FunctionsConverter::builder(JniTryClosureBody::new(
+        "crate::errors::ZResult",
+        "crate::throw_exception",
+    ))
+    .source_module("zenoh_flat::session")
+    .name_mangler(NameMangler::CamelPrefixSuffix {
+        prefix: "Java_io_zenoh_jni_JNISessionNative_".into(),
+        suffix: "ViaJNI".into(),
+    })
+    .extra_leading_params(extra_leading)
+    .extra_attrs(extra_attrs)
+    .extern_abi(syn::parse_quote!(extern "C"))
+    .unsafety(true)
+    .type_registry(types.clone())
+    .build();
 
     let method_items: Vec<_> = source
         .items_all()
@@ -222,7 +286,36 @@ fn main() {
         bindings_file.display()
     );
 
-    method_conv
-        .write_kotlin()
-        .expect("failed to write generated Kotlin file");
+    // Phase 3: Kotlin interface declaration. Walks the same items in a
+    // separate pass.
+    let struct_names = [
+        "HistoryConfig",
+        "RecoveryConfig",
+        "CacheConfig",
+        "MissDetectionConfig",
+    ];
+    let mut kotlin_types = shared_kotlin_types();
+    for s in &struct_names {
+        kotlin_types = kotlin_types.add(*s, *s);
+    }
+    let kotlin_types = add_option_kotlin_types(kotlin_types, &struct_names);
+
+    let mut kotlin = KotlinInterfaceGenerator::builder()
+        .output_path("../zenoh-jni/generated-kotlin/io/zenoh/jni/JNISessionNative.kt")
+        .package("io.zenoh.jni")
+        .class_name("JNISessionNative")
+        .throws_class("io.zenoh.exceptions.ZError")
+        .init_load("io.zenoh.ZenohLoad")
+        .function_suffix("ViaJNI")
+        .type_registry(types)
+        .kotlin_types(kotlin_types)
+        .build();
+
+    for (item, loc) in source.items_all().filter(|(item, loc)| {
+        (matches!(item, syn::Item::Struct(_)) && loc.file.ends_with("/ext.rs"))
+            || (matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/session.rs"))
+    }) {
+        kotlin.add_item(&item, &loc);
+    }
+    kotlin.write().expect("failed to write generated Kotlin file");
 }
