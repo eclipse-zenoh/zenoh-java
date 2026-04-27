@@ -9,7 +9,7 @@ use crate::core::type_binding::{jni_object_shaped, TypeBinding};
 /// Opaque borrow `&T` — JNI side passes raw `*const T`, decoded via
 /// `<owned_object>::from_raw`. Because the row's key starts with `&`,
 /// the wrapped fn receives `&name` automatically.
-pub fn opaque_borrow(t: impl AsRef<str>, owned_object: impl AsRef<str>) -> TypeBinding {
+pub(crate) fn opaque_borrow(t: impl AsRef<str>, owned_object: impl AsRef<str>) -> TypeBinding {
     let t = t.as_ref().to_string();
     let owned_str = owned_object.as_ref().to_string();
     // Validate the owner path parses now so errors surface at registration.
@@ -29,7 +29,7 @@ pub fn opaque_borrow(t: impl AsRef<str>, owned_object: impl AsRef<str>) -> TypeB
 
 /// Opaque Arc return for `ZResult<T>` — encode via
 /// `Arc::into_raw(Arc::new(__result))`, default to `std::ptr::null()`.
-pub fn opaque_arc_return(t: impl AsRef<str>) -> TypeBinding {
+pub(crate) fn opaque_arc_return(t: impl AsRef<str>) -> TypeBinding {
     let t = t.as_ref().to_string();
     TypeBinding::output(
         format!("ZResult<{}>", t),
@@ -49,7 +49,7 @@ pub fn opaque_arc_return(t: impl AsRef<str>) -> TypeBinding {
 /// check. Inner's wire form must be JNI-object-shaped (`JObject`,
 /// `JString`, or `JByteArray`) — those are the wire types that support
 /// `is_null()`.
-pub fn option_of_jobject(inner: &TypeBinding) -> TypeBinding {
+pub(crate) fn option_of_jobject(inner: &TypeBinding) -> TypeBinding {
     let inner_decode = inner
         .decode
         .clone()

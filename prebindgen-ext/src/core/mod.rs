@@ -32,6 +32,5 @@ pub use functions_converter::{
 };
 pub use inline_fn::InlineFn;
 pub use name_mangler::NameMangler;
-pub use type_binding::TypeBinding;
-pub use type_registry::{primitive_builtins, TypeRegistry};
+pub use type_registry::{primitive_builtins, TypePairBuilder, TypeRegistry};
 pub use types_converter::{StructStrategy, TypesBuilder, TypesConverter};

@@ -12,7 +12,7 @@ use quote::ToTokens;
 
 use prebindgen::SourceLocation;
 
-use crate::core::type_binding::TypeBinding;
+use crate::core::inline_fn::InlineFn;
 use crate::core::type_registry::TypeRegistry;
 
 /// Strategy for translating one `#[prebindgen]` struct into output items.
@@ -44,9 +44,37 @@ impl TypesBuilder {
         }
     }
 
-    /// Register or replace a single [`TypeBinding`] in the registry.
-    pub fn type_binding(mut self, binding: TypeBinding) -> Self {
-        self.types.insert_raw(binding.name().to_string(), binding);
+    /// Add or replace a Rust/Wire type pair in the local registry.
+    pub fn add_type_pair(
+        mut self,
+        rust_type: impl AsRef<str>,
+        wire_type: impl AsRef<str>,
+    ) -> Self {
+        self.types = self.types.type_pair(rust_type, wire_type).finish();
+        self
+    }
+
+    /// Add or replace an input conversion function in the local registry.
+    pub fn add_input_conversion_function(
+        mut self,
+        rust_type: impl AsRef<str>,
+        decode: InlineFn,
+    ) -> Self {
+        self.types = self
+            .types
+            .add_input_conversion_function(rust_type, decode);
+        self
+    }
+
+    /// Add or replace an output conversion function in the local registry.
+    pub fn add_output_conversion_function(
+        mut self,
+        rust_type: impl AsRef<str>,
+        encode: InlineFn,
+    ) -> Self {
+        self.types = self
+            .types
+            .add_output_conversion_function(rust_type, encode);
         self
     }
 

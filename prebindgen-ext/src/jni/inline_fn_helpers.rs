@@ -10,7 +10,7 @@ use crate::core::inline_fn::InlineFn;
 use crate::core::type_binding::TypeBinding;
 
 /// `<path>(<input>)?` — pure conversion (e.g. enum decoders).
-pub fn pure(
+pub(crate) fn pure(
     rust_type: impl AsRef<str>,
     jni_type: impl AsRef<str>,
     path: impl AsRef<str>,
@@ -28,7 +28,7 @@ pub(crate) fn pure_decode(path: impl AsRef<str>) -> InlineFn {
 }
 
 /// `<path>(&env, &<input>)?` — decoder needing shared access to the JNI env.
-pub fn env_ref(
+pub(crate) fn env_ref(
     rust_type: impl AsRef<str>,
     jni_type: impl AsRef<str>,
     path: impl AsRef<str>,
@@ -46,7 +46,7 @@ pub(crate) fn env_ref_decode(path: impl AsRef<str>) -> InlineFn {
 }
 
 /// `<path>(&mut env, &<input>)?` — decoder needing mutable access to the JNI env.
-pub fn env_ref_mut(
+pub(crate) fn env_ref_mut(
     rust_type: impl AsRef<str>,
     jni_type: impl AsRef<str>,
     path: impl AsRef<str>,

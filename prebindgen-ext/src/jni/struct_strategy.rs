@@ -135,12 +135,8 @@ impl StructStrategy for JniDecoderStruct {
         };
 
         let decoder_path = format!("decode_{struct_name}");
-        let row = TypeBinding::input(
-            &struct_name,
-            jni_type::jobject(),
-            env_ref_mut_decode(&decoder_path),
-        );
-        registry.insert_raw(row.name().to_string(), row);
+        registry.add_type_pair_mut(&struct_name, jni_type::jobject());
+        registry.add_input_conversion_function_mut(&struct_name, env_ref_mut_decode(&decoder_path));
 
         let item: syn::Item = syn::parse2(tokens).expect("generated struct decoder must parse");
         out.push((item, loc.clone()));

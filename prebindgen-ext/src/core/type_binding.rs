@@ -17,7 +17,7 @@ use crate::core::inline_fn::InlineFn;
 
 /// Per-row binding from a Rust type-shape to its FFI wire form.
 #[derive(Clone)]
-pub struct TypeBinding {
+pub(crate) struct TypeBinding {
     pub(crate) rust_type: String,
     pub(crate) wire_type: syn::Type,
     pub(crate) decode: Option<InlineFn>,
@@ -26,7 +26,7 @@ pub struct TypeBinding {
 
 impl TypeBinding {
     /// Param-direction row. `rust_type` is canonicalized via `syn::Type` parse.
-    pub fn input(
+    pub(crate) fn input(
         rust_type: impl AsRef<str>,
         wire_type: impl AsRef<str>,
         decode: InlineFn,
@@ -40,7 +40,7 @@ impl TypeBinding {
     }
 
     /// Return-direction row.
-    pub fn output(
+    pub(crate) fn output(
         rust_type: impl AsRef<str>,
         wire_type: impl AsRef<str>,
         encode: InlineFn,
@@ -53,9 +53,8 @@ impl TypeBinding {
         }
     }
 
-    /// Construct a new binding from raw parts. Used by language-specific
-    /// convenience builders (e.g. `jni::opaque::option_of_jobject`).
-    pub fn input_output(
+    /// Construct a new binding from raw parts.
+    pub(crate) fn input_output(
         rust_type: impl AsRef<str>,
         wire_type: syn::Type,
         decode: Option<InlineFn>,
@@ -70,7 +69,7 @@ impl TypeBinding {
     }
 
     /// Canonical type-shape this binding is keyed under.
-    pub fn name(&self) -> &str {
+    pub(crate) fn name(&self) -> &str {
         &self.rust_type
     }
 
@@ -90,16 +89,16 @@ impl TypeBinding {
     }
 
     /// `&T` row — the wrapped fn receives `&name` instead of `name`.
-    pub fn is_borrow(&self) -> bool {
+    pub(crate) fn is_borrow(&self) -> bool {
         self.rust_type.starts_with('&')
     }
     /// `*const _` / `*mut _` wire type — Rust pat ident gets a `_ptr` suffix.
-    pub fn is_pointer(&self) -> bool {
+    pub(crate) fn is_pointer(&self) -> bool {
         matches!(self.wire_type, syn::Type::Ptr(_))
     }
     /// `Option<_>` row — destination-language emitters may use this to
     /// append a nullability marker.
-    pub fn is_option(&self) -> bool {
+    pub(crate) fn is_option(&self) -> bool {
         self.rust_type.starts_with("Option <")
     }
 

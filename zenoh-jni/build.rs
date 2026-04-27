@@ -3,150 +3,201 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 use zenoh_flat::core::{
-    primitive_builtins, FunctionsConverter, NameMangler, ReturnEncode, TypeBinding, TypeRegistry,
-    TypesConverter,
+    primitive_builtins, FunctionsConverter, InlineFn, NameMangler, TypeRegistry, TypesConverter,
 };
-use zenoh_flat::jni::jni_type_helper;
-use zenoh_flat::jni::opaque::{opaque_arc_return, opaque_borrow, option_of_jobject};
 use zenoh_flat::jni::{JniDecoderStruct, JniTryClosureBody};
 use zenoh_flat::kotlin::{KotlinInterfaceGenerator, KotlinTypeMap};
 
 const OWNED_OBJECT: &str = "crate::owned_object::OwnedObject";
 
-/// Wire-side `TypeBinding` registry shared across every JNI surface
+fn decode_pure(path: impl AsRef<str>) -> InlineFn {
+    let s = path.as_ref().to_string();
+    InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
+        let input = input.expect("pure decode requires an input ident");
+        let p: syn::Path = syn::parse_str(&s).expect("invalid pure decode path");
+        quote! { #p(#input)? }
+    })
+}
+
+fn decode_env_ref(path: impl AsRef<str>) -> InlineFn {
+    let s = path.as_ref().to_string();
+    InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
+        let input = input.expect("env_ref decode requires an input ident");
+        let p: syn::Path = syn::parse_str(&s).expect("invalid env_ref decode path");
+        quote! { #p(&env, &#input)? }
+    })
+}
+
+fn decode_env_ref_mut(path: impl AsRef<str>) -> InlineFn {
+    let s = path.as_ref().to_string();
+    InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
+        let input = input.expect("env_ref_mut decode requires an input ident");
+        let p: syn::Path = syn::parse_str(&s).expect("invalid env_ref_mut decode path");
+        quote! { #p(&mut env, &#input)? }
+    })
+}
+
+fn decode_option_env_ref(path: impl AsRef<str>) -> InlineFn {
+    let s = path.as_ref().to_string();
+    InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
+        let input = input.expect("option decode requires an input ident");
+        let p: syn::Path = syn::parse_str(&s).expect("invalid option decode path");
+        quote! {
+            if !#input.is_null() {
+                Some(#p(&env, &#input)?)
+            } else {
+                None
+            }
+        }
+    })
+}
+
+fn decode_option_env_ref_mut(path: impl AsRef<str>) -> InlineFn {
+    let s = path.as_ref().to_string();
+    InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
+        let input = input.expect("option decode requires an input ident");
+        let p: syn::Path = syn::parse_str(&s).expect("invalid option decode path");
+        quote! {
+            if !#input.is_null() {
+                Some(#p(&mut env, &#input)?)
+            } else {
+                None
+            }
+        }
+    })
+}
+
+fn decode_owned_raw(owned_object: impl AsRef<str>) -> InlineFn {
+    let owned = owned_object.as_ref().to_string();
+    InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
+        let input = input.expect("opaque borrow decode requires an input ident");
+        let p: syn::Path = syn::parse_str(&owned).expect("invalid owned object path");
+        quote! { #p::from_raw(#input) }
+    })
+}
+
+fn encode_wrapper(path: impl AsRef<str>, default_expr: impl AsRef<str>) -> InlineFn {
+    let s = path.as_ref().to_string();
+    let default = default_expr.as_ref().to_string();
+    InlineFn::new(move |output: Option<&syn::Ident>| -> TokenStream {
+        let p: syn::Path = syn::parse_str(&s).expect("invalid wrapper encode path");
+        let default_expr: syn::Expr =
+            syn::parse_str(&default).expect("invalid wrapper encode default expr");
+        match output {
+            Some(output) => quote! { #p(&mut env, #output)? },
+            None => quote! { #default_expr },
+        }
+    })
+}
+
+fn encode_arc_into_raw(default_expr: impl AsRef<str>) -> InlineFn {
+    let default = default_expr.as_ref().to_string();
+    InlineFn::new(move |output: Option<&syn::Ident>| -> TokenStream {
+        let default_expr: syn::Expr =
+            syn::parse_str(&default).expect("invalid Arc encode default expr");
+        match output {
+            Some(output) => {
+                quote! { std::sync::Arc::into_raw(std::sync::Arc::new(#output)) }
+            }
+            None => quote! { #default_expr },
+        }
+    })
+}
+
+/// Wire-side `TypeRegistry` shared across every JNI surface
 /// generated in this crate. Defined once, threaded into the struct-phase
 /// converter, then forwarded — together with the auto-registered struct
 /// bindings — into the methods phase and the Kotlin generator.
 fn shared_bindings() -> TypeRegistry {
-    let string = jni_type_helper::jstring(
-        "String",
-        "crate::utils::decode_string",
-    );
-    let bytes = jni_type_helper::jbyte_array(
-        "Vec<u8>",
-        "crate::utils::decode_byte_array",
-    );
-    let encoding = jni_type_helper::jobject(
-        "Encoding",
-        "crate::utils::decode_jni_encoding",
-    );
-    let history_config = jni_type_helper::jobject(
-        "HistoryConfig",
-        "decode_HistoryConfig",
-    );
-    let recovery_config = jni_type_helper::jobject(
-        "RecoveryConfig",
-        "decode_RecoveryConfig",
-    );
-    let cache_config = jni_type_helper::jobject(
-        "CacheConfig",
-        "decode_CacheConfig",
-    );
-    let miss_detection_config = jni_type_helper::jobject(
-        "MissDetectionConfig",
-        "decode_MissDetectionConfig",
-    );
- 
     primitive_builtins()
         // Strings & byte arrays.
-        .type_binding(string.clone())
-        .type_binding(option_of_jobject(&string))
-        .type_binding(bytes.clone())
-        .type_binding(option_of_jobject(&bytes))
+        .type_pair("String", "jni::objects::JString")
+        .input(decode_env_ref_mut("crate::utils::decode_string"))
+        .type_pair("Option<String>", "jni::objects::JString")
+        .input(decode_option_env_ref_mut("crate::utils::decode_string"))
+        .type_pair("Vec<u8>", "jni::objects::JByteArray")
+        .input(decode_env_ref("crate::utils::decode_byte_array"))
+        .type_pair("Option<Vec<u8>>", "jni::objects::JByteArray")
+        .input(decode_option_env_ref("crate::utils::decode_byte_array"))
         // Callbacks.
-        .type_binding(jni_type_helper::jobject(
-            "impl Fn(Sample) + Send + Sync + 'static",
-            "crate::sample_callback::process_kotlin_sample_callback",
-        ))
-        .type_binding(jni_type_helper::jobject(
-            "impl Fn(Query) + Send + Sync + 'static",
-            "crate::sample_callback::process_kotlin_query_callback",
-        ))
-        .type_binding(jni_type_helper::jobject(
-            "impl Fn(Reply) + Send + Sync + 'static",
-            "crate::sample_callback::process_kotlin_reply_callback",
-        ))
-        .type_binding(jni_type_helper::jobject(
-            "impl Fn() + Send + Sync + 'static",
-            "crate::sample_callback::process_kotlin_on_close_callback",
-        ))
+        .type_pair("impl Fn(Sample) + Send + Sync + 'static", "jni::objects::JObject")
+        .input(decode_env_ref_mut("crate::sample_callback::process_kotlin_sample_callback"))
+        .type_pair("impl Fn(Query) + Send + Sync + 'static", "jni::objects::JObject")
+        .input(decode_env_ref_mut("crate::sample_callback::process_kotlin_query_callback"))
+        .type_pair("impl Fn(Reply) + Send + Sync + 'static", "jni::objects::JObject")
+        .input(decode_env_ref_mut("crate::sample_callback::process_kotlin_reply_callback"))
+        .type_pair("impl Fn() + Send + Sync + 'static", "jni::objects::JObject")
+        .input(decode_env_ref_mut("crate::sample_callback::process_kotlin_on_close_callback"))
         // Java-enum-shaped types.
-        .type_binding(jni_type_helper::jint(
-            "CongestionControl",
-            "crate::utils::decode_congestion_control",
-        ))
-        .type_binding(jni_type_helper::jint(
-            "Priority",
-            "crate::utils::decode_priority",
-        ))
-        .type_binding(jni_type_helper::jint(
-            "Reliability",
-            "crate::utils::decode_reliability",
-        ))
-        .type_binding(jni_type_helper::jint(
-            "QueryTarget",
-            "crate::utils::decode_query_target",
-        ))
-        .type_binding(jni_type_helper::jint(
-            "ConsolidationMode",
-            "crate::utils::decode_consolidation",
-        ))
-        .type_binding(jni_type_helper::jint(
-            "ReplyKeyExpr",
-            "crate::utils::decode_reply_key_expr",
-        ))
+        .type_pair("CongestionControl", "jni::sys::jint")
+        .input(decode_pure("crate::utils::decode_congestion_control"))
+        .type_pair("Priority", "jni::sys::jint")
+        .input(decode_pure("crate::utils::decode_priority"))
+        .type_pair("Reliability", "jni::sys::jint")
+        .input(decode_pure("crate::utils::decode_reliability"))
+        .type_pair("QueryTarget", "jni::sys::jint")
+        .input(decode_pure("crate::utils::decode_query_target"))
+        .type_pair("ConsolidationMode", "jni::sys::jint")
+        .input(decode_pure("crate::utils::decode_consolidation"))
+        .type_pair("ReplyKeyExpr", "jni::sys::jint")
+        .input(decode_pure("crate::utils::decode_reply_key_expr"))
         // KeyExpr by-value: JNI side passes the JNIKeyExpr holder object.
-        .type_binding(jni_type_helper::jobject(
-            "KeyExpr<'static>",
-            "crate::key_expr::decode_jni_key_expr",
-        ))
+        .type_pair("KeyExpr<'static>", "jni::objects::JObject")
+        .input(decode_env_ref_mut("crate::key_expr::decode_jni_key_expr"))
         // Encoding via JObject + custom decoder.
-        .type_binding(encoding.clone())
-        .type_binding(option_of_jobject(&encoding))
+        .type_pair("Encoding", "jni::objects::JObject")
+        .input(decode_env_ref_mut("crate::utils::decode_jni_encoding"))
+        .type_pair("Option<Encoding>", "jni::objects::JObject")
+        .input(decode_option_env_ref_mut("crate::utils::decode_jni_encoding"))
         // Borrows: opaque Arc handles received as `*const T`.
-        .type_binding(opaque_borrow("Session", OWNED_OBJECT))
-        .type_binding(opaque_borrow("Config", OWNED_OBJECT))
+        .type_pair("&Session", "*const Session")
+        .input(decode_owned_raw(OWNED_OBJECT))
+        .type_pair("&Config", "*const Config")
+        .input(decode_owned_raw(OWNED_OBJECT))
         // Returns: ZenohId / Vec<ZenohId> via custom encoders.
-        .type_binding(TypeBinding::output(
-            "ZResult<ZenohId>",
-            "jni::sys::jbyteArray",
-            ReturnEncode::wrapper("crate::zenoh_id::zenoh_id_to_byte_array"),
-            "jni::objects::JByteArray::default().as_raw()",
-        ))
-        .type_binding(TypeBinding::output(
-            "ZResult<Vec<ZenohId>>",
-            "jni::sys::jobject",
-            ReturnEncode::wrapper("crate::zenoh_id::zenoh_ids_to_java_list"),
-            "jni::objects::JObject::default().as_raw()",
-        ))
-        // Returns: opaque Arc handles. Each emits `*const T` and
-        // `Arc::into_raw(Arc::new(__result))` with a null default.
-        .type_binding(opaque_arc_return("Session"))
-        .type_binding(opaque_arc_return("Publisher<'static>"))
-        .type_binding(opaque_arc_return("KeyExpr<'static>"))
-        .type_binding(opaque_arc_return("Subscriber<()>"))
-        .type_binding(opaque_arc_return("Querier<'static>"))
-        .type_binding(opaque_arc_return("Queryable<()>"))
-        .type_binding(opaque_arc_return("AdvancedSubscriber<()>"))
-        .type_binding(opaque_arc_return("AdvancedPublisher<'static>"))
-        // Unit returns: ZResult<()> with `()` wire type so the converter
-        // treats it as a no-return shape.
-        .type_binding(TypeBinding::input_output(
-            "ZResult<()>",
-            syn::parse_str::<syn::Type>("()").unwrap(),
-            None,
-            None,
-            None,
-        ))
-        .type_binding(history_config.clone())
-        .type_binding(option_of_jobject(&history_config))
-        .type_binding(recovery_config.clone())
-        .type_binding(option_of_jobject(&recovery_config))
-        .type_binding(cache_config.clone())
-        .type_binding(option_of_jobject(&cache_config))
-        .type_binding(miss_detection_config.clone())
-        .type_binding(option_of_jobject(&miss_detection_config))
+        .type_pair("ZResult<ZenohId>", "jni::sys::jbyteArray")
+        .output(encode_wrapper("crate::zenoh_id::zenoh_id_to_byte_array", "jni::objects::JByteArray::default().as_raw()"))
+        .type_pair("ZResult<Vec<ZenohId>>", "jni::sys::jobject")
+        .output(encode_wrapper("crate::zenoh_id::zenoh_ids_to_java_list", "jni::objects::JObject::default().as_raw()"))
+        // Returns: opaque Arc handles.
+        .type_pair("ZResult<Session>", "*const Session")
+        .output(encode_arc_into_raw("std::ptr::null()"))
+        .type_pair("ZResult<Publisher<'static>>", "*const Publisher<'static>")
+        .output(encode_arc_into_raw("std::ptr::null()"))
+        .type_pair("ZResult<KeyExpr<'static>>", "*const KeyExpr<'static>")
+        .output(encode_arc_into_raw("std::ptr::null()"))
+        .type_pair("ZResult<Subscriber<()>>", "*const Subscriber<()>")
+        .output(encode_arc_into_raw("std::ptr::null()"))
+        .type_pair("ZResult<Querier<'static>>", "*const Querier<'static>")
+        .output(encode_arc_into_raw("std::ptr::null()"))
+        .type_pair("ZResult<Queryable<()>>", "*const Queryable<()>")
+        .output(encode_arc_into_raw("std::ptr::null()"))
+        .type_pair("ZResult<AdvancedSubscriber<()>>", "*const AdvancedSubscriber<()>")
+        .output(encode_arc_into_raw("std::ptr::null()"))
+        .type_pair("ZResult<AdvancedPublisher<'static>>", "*const AdvancedPublisher<'static>")
+        .output(encode_arc_into_raw("std::ptr::null()"))
+        // Unit returns: ZResult<()> with `()` wire type so the converter treats it as a no-return shape.
+        .type_pair("ZResult<()>", "()")
+        // Structs from ext.rs and nullable wrappers.
+        .type_pair("HistoryConfig", "jni::objects::JObject")
+        .input(decode_env_ref_mut("decode_HistoryConfig"))
+        .type_pair("Option<HistoryConfig>", "jni::objects::JObject")
+        .input(decode_option_env_ref_mut("decode_HistoryConfig"))
+        .type_pair("RecoveryConfig", "jni::objects::JObject")
+        .input(decode_env_ref_mut("decode_RecoveryConfig"))
+        .type_pair("Option<RecoveryConfig>", "jni::objects::JObject")
+        .input(decode_option_env_ref_mut("decode_RecoveryConfig"))
+        .type_pair("CacheConfig", "jni::objects::JObject")
+        .input(decode_env_ref_mut("decode_CacheConfig"))
+        .type_pair("Option<CacheConfig>", "jni::objects::JObject")
+        .input(decode_option_env_ref_mut("decode_CacheConfig"))
+        .type_pair("MissDetectionConfig", "jni::objects::JObject")
+        .input(decode_env_ref_mut("decode_MissDetectionConfig"))
+        .type_pair("Option<MissDetectionConfig>", "jni::objects::JObject")
+        .input(decode_option_env_ref_mut("decode_MissDetectionConfig"))
+        .finish()
 }
+
 
 /// Rust → Kotlin name mappings consumed by `KotlinInterfaceGenerator`.
 fn shared_kotlin_types() -> KotlinTypeMap {
@@ -187,7 +238,7 @@ fn main() {
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
 
     // Phase 1: process #[prebindgen] structs from zenoh_flat::ext via a
-    // JNI decoder strategy. Each struct registers a TypeBinding in the
+    // JNI decoder strategy. Each struct registers a type row in the
     // shared TypeRegistry and emits a `decode_<Name>` Rust fn.
     let mut struct_conv = TypesConverter::builder(JniDecoderStruct::new(
         "zenoh_flat::ext",
