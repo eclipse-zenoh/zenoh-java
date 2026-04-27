@@ -23,7 +23,7 @@ use crate::core::functions_converter::{BodyContext, BodyStrategy};
 /// }
 /// ```
 /// where `wrap_ok` and `on_err` are derived from the return-direction
-/// `TypeBinding`'s `encode` / `default_expr`.
+/// `TypeBinding`'s `encode`.
 pub struct JniTryClosureBody {
     pub zresult: syn::Path,
     pub throw_exception: syn::Path,
@@ -55,14 +55,12 @@ impl BodyStrategy for JniTryClosureBody {
                     quote! { () },
                 ),
                 (Some(wire), Some(encode)) => {
-                    let default = ctx
-                        .return_default
-                        .expect("encode-bearing row must have default_expr");
-                    let encoded = encode.call(&result_ident);
+                    let encoded = encode.call(Some(&result_ident));
+                    let on_err = encode.call(None);
                     (
                         quote! { #zresult<#wire> },
                         quote! { Ok(#encoded) },
-                        quote! { #default },
+                        quote! { #on_err },
                     )
                 }
                 (Some(wire), None) => {

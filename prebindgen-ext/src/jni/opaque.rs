@@ -18,7 +18,8 @@ pub fn opaque_borrow(t: impl AsRef<str>, owned_object: impl AsRef<str>) -> TypeB
     TypeBinding::input(
         format!("&{}", t),
         format!("*const {}", t),
-        InlineFn::new(move |input: &syn::Ident| -> TokenStream {
+        InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
+            let input = input.expect("opaque_borrow decode requires an input ident");
             let owned: syn::Path =
                 syn::parse_str(&owned_str).expect("owned_object must parse");
             quote! { #owned::from_raw(#input) }
@@ -33,10 +34,14 @@ pub fn opaque_arc_return(t: impl AsRef<str>) -> TypeBinding {
     TypeBinding::output(
         format!("ZResult<{}>", t),
         format!("*const {}", t),
-        InlineFn::new(move |output: &syn::Ident| -> TokenStream {
-            quote! { std::sync::Arc::into_raw(std::sync::Arc::new(#output)) }
+        InlineFn::new(move |output: Option<&syn::Ident>| -> TokenStream {
+            match output {
+                Some(output) => {
+                    quote! { std::sync::Arc::into_raw(std::sync::Arc::new(#output)) }
+                }
+                None => quote! { std::ptr::null() },
+            }
         }),
-        "std::ptr::null()",
     )
 }
 
@@ -57,8 +62,9 @@ pub fn option_of_jobject(inner: &TypeBinding) -> TypeBinding {
     TypeBinding::input_output(
         format!("Option<{}>", &inner.rust_type),
         inner.wire_type.clone(),
-        Some(InlineFn::new(move |input: &syn::Ident| -> TokenStream {
-            let inner_expr = inner_decode.call(input);
+        Some(InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
+            let input = input.expect("option_of_jobject decode requires an input ident");
+            let inner_expr = inner_decode.call(Some(input));
             quote! {
                 if !#input.is_null() {
                     Some(#inner_expr)
@@ -67,7 +73,6 @@ pub fn option_of_jobject(inner: &TypeBinding) -> TypeBinding {
                 }
             }
         })),
-        None,
         None,
     )
 }

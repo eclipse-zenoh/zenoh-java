@@ -63,7 +63,8 @@ pub fn primitive_builtins() -> TypeRegistry {
     let bool_row = TypeBinding::input(
         "bool",
         "jni::sys::jboolean",
-        InlineFn::new(|input: &syn::Ident| -> TokenStream {
+        InlineFn::new(|input: Option<&syn::Ident>| -> TokenStream {
+            let input = input.expect("bool decode requires an input ident");
             quote! { #input != 0 }
         }),
     );
@@ -71,7 +72,8 @@ pub fn primitive_builtins() -> TypeRegistry {
     let i64_row = TypeBinding::input(
         "i64",
         "jni::sys::jlong",
-        InlineFn::new(|input: &syn::Ident| -> TokenStream {
+        InlineFn::new(|input: Option<&syn::Ident>| -> TokenStream {
+            let input = input.expect("i64 decode requires an input ident");
             quote! { #input }
         }),
     );
@@ -79,7 +81,8 @@ pub fn primitive_builtins() -> TypeRegistry {
     let f64_row = TypeBinding::input(
         "f64",
         "jni::sys::jdouble",
-        InlineFn::new(|input: &syn::Ident| -> TokenStream {
+        InlineFn::new(|input: Option<&syn::Ident>| -> TokenStream {
+            let input = input.expect("f64 decode requires an input ident");
             quote! { #input }
         }),
     );
@@ -87,7 +90,8 @@ pub fn primitive_builtins() -> TypeRegistry {
     let duration_row = TypeBinding::input(
         "Duration",
         "jni::sys::jlong",
-        InlineFn::new(|input: &syn::Ident| -> TokenStream {
+        InlineFn::new(|input: Option<&syn::Ident>| -> TokenStream {
+            let input = input.expect("Duration decode requires an input ident");
             quote! { std::time::Duration::from_millis(#input as u64) }
         }),
     );

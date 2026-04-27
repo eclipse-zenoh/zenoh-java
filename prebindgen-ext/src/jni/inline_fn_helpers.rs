@@ -20,7 +20,8 @@ pub fn pure(
 
 pub(crate) fn pure_decode(path: impl AsRef<str>) -> InlineFn {
     let s = path.as_ref().to_string();
-    InlineFn::new(move |input: &syn::Ident| -> TokenStream {
+    InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
+        let input = input.expect("pure_decode requires an input ident");
         let p: syn::Path = syn::parse_str(&s).expect("invalid pure path");
         quote! { #p(#input)? }
     })
@@ -37,7 +38,8 @@ pub fn env_ref(
 
 pub(crate) fn env_ref_decode(path: impl AsRef<str>) -> InlineFn {
     let s = path.as_ref().to_string();
-    InlineFn::new(move |input: &syn::Ident| -> TokenStream {
+    InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
+        let input = input.expect("env_ref_decode requires an input ident");
         let p: syn::Path = syn::parse_str(&s).expect("invalid env_ref path");
         quote! { #p(&env, &#input)? }
     })
@@ -54,7 +56,8 @@ pub fn env_ref_mut(
 
 pub(crate) fn env_ref_mut_decode(path: impl AsRef<str>) -> InlineFn {
     let s = path.as_ref().to_string();
-    InlineFn::new(move |input: &syn::Ident| -> TokenStream {
+    InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
+        let input = input.expect("env_ref_mut_decode requires an input ident");
         let p: syn::Path = syn::parse_str(&s).expect("invalid env_ref_mut path");
         quote! { #p(&mut env, &#input)? }
     })

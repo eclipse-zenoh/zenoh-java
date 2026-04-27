@@ -55,8 +55,6 @@ pub struct BodyContext<'a> {
     /// Return-direction encode info, if the return has a registered
     /// [`TypeBinding`] with `encode` set.
     pub return_encode: Option<&'a InlineFn>,
-    /// Default expression for the error path (paired with `return_encode`).
-    pub return_default: Option<&'a syn::Expr>,
     /// Original function ident (for diagnostics).
     pub orig_ident: &'a syn::Ident,
     /// Source location (for diagnostics).
@@ -80,7 +78,7 @@ impl BodyStrategy for PassThroughBody {
         match ctx.return_encode {
             None => quote! { { #(#prelude)* #call } },
             Some(encode) => {
-                let encoded = encode.call(&result_ident);
+                let encoded = encode.call(Some(&result_ident));
                 quote! {
                 {
                     #(#prelude)*
@@ -249,15 +247,14 @@ impl FunctionsConverter {
             self.emit_arg(name, ty, loc, &mut prelude, &mut wire_params, &mut call_args);
         }
 
-        let (wire_return_ty, return_encode, return_default): (
+        let (wire_return_ty, return_encode): (
             Option<syn::Type>,
             Option<InlineFn>,
-            Option<syn::Expr>,
         ) = match &func.sig.output {
-            syn::ReturnType::Default => (None, None, None),
+            syn::ReturnType::Default => (None, None),
             syn::ReturnType::Type(_, ty) => {
                 if is_unit(ty) {
-                    (None, None, None)
+                    (None, None)
                 } else {
                     let key = ty.to_token_stream().to_string();
                     let binding = self.cfg.types.types.get(&key).unwrap_or_else(|| {
@@ -271,13 +268,12 @@ impl FunctionsConverter {
                     });
                     let wire = binding.wire_type().clone();
                     let encode = binding.encode().cloned();
-                    let default = binding.default_expr().cloned();
                     // Treat a `()` wire type as the unit case so body
                     // strategies have a single canonical "no return" shape.
                     if is_unit(&wire) {
-                        (None, encode, default)
+                        (None, encode)
                     } else {
-                        (Some(wire), encode, default)
+                        (Some(wire), encode)
                     }
                 }
             }
@@ -289,7 +285,6 @@ impl FunctionsConverter {
             call_expr,
             wire_return: wire_return_ty.as_ref(),
             return_encode: return_encode.as_ref(),
-            return_default: return_default.as_ref(),
             orig_ident: &original_ident,
             loc,
         });

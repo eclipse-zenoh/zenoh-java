@@ -22,7 +22,6 @@ pub struct TypeBinding {
     pub(crate) wire_type: syn::Type,
     pub(crate) decode: Option<InlineFn>,
     pub(crate) encode: Option<InlineFn>,
-    pub(crate) default_expr: Option<syn::Expr>,
 }
 
 impl TypeBinding {
@@ -37,7 +36,6 @@ impl TypeBinding {
             wire_type: parse_type(wire_type.as_ref()),
             decode: Some(decode),
             encode: None,
-            default_expr: None,
         }
     }
 
@@ -46,17 +44,12 @@ impl TypeBinding {
         rust_type: impl AsRef<str>,
         wire_type: impl AsRef<str>,
         encode: InlineFn,
-        default_expr: impl AsRef<str>,
     ) -> Self {
         Self {
             rust_type: canon_type(rust_type.as_ref()),
             wire_type: parse_type(wire_type.as_ref()),
             decode: None,
             encode: Some(encode),
-            default_expr: Some(
-                syn::parse_str(default_expr.as_ref())
-                    .expect("invalid TypeBinding::output default_expr"),
-            ),
         }
     }
 
@@ -67,14 +60,12 @@ impl TypeBinding {
         wire_type: syn::Type,
         decode: Option<InlineFn>,
         encode: Option<InlineFn>,
-        default_expr: Option<syn::Expr>,
     ) -> Self {
         Self {
             rust_type: canon_type(rust_type.as_ref()),
             wire_type,
             decode,
             encode,
-            default_expr,
         }
     }
 
@@ -97,9 +88,6 @@ impl TypeBinding {
     pub(crate) fn encode(&self) -> Option<&InlineFn> {
         self.encode.as_ref()
     }
-    pub(crate) fn default_expr(&self) -> Option<&syn::Expr> {
-        self.default_expr.as_ref()
-    }
 
     /// `&T` row — the wrapped fn receives `&name` instead of `name`.
     pub fn is_borrow(&self) -> bool {
@@ -119,7 +107,7 @@ impl TypeBinding {
     /// the given input ident. Used by `FunctionsConverter` to build the
     /// per-arg prelude.
     pub(crate) fn call_decode(&self, input: &syn::Ident) -> Option<TokenStream> {
-        self.decode.as_ref().map(|d| d.call(input))
+        self.decode.as_ref().map(|d| d.call(Some(input)))
     }
 }
 
