@@ -12,7 +12,7 @@ use quote::ToTokens;
 
 use prebindgen::SourceLocation;
 
-use crate::core::inline_fn::InlineFn;
+use crate::core::inline_fn::{InputFn, OutputFn};
 use crate::core::type_registry::TypeRegistry;
 
 /// Strategy for translating one `#[prebindgen]` struct into output items.
@@ -58,7 +58,7 @@ impl TypesBuilder {
     pub fn add_input_conversion_function(
         mut self,
         rust_type: impl AsRef<str>,
-        decode: InlineFn,
+        decode: InputFn,
     ) -> Self {
         self.types = self
             .types
@@ -70,7 +70,7 @@ impl TypesBuilder {
     pub fn add_output_conversion_function(
         mut self,
         rust_type: impl AsRef<str>,
-        encode: InlineFn,
+        encode: OutputFn,
     ) -> Self {
         self.types = self
             .types

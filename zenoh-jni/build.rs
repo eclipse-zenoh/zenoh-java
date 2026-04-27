@@ -3,44 +3,41 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 use zenoh_flat::core::{
-    primitive_builtins, FunctionsConverter, InlineFn, NameMangler, TypeRegistry, TypesConverter,
+    primitive_builtins, FunctionsConverter, InputFn, NameMangler, OutputFn, TypeRegistry,
+    TypesConverter,
 };
 use zenoh_flat::jni::{JniDecoderStruct, JniTryClosureBody};
 use zenoh_flat::kotlin::{KotlinInterfaceGenerator, KotlinTypeMap};
 
 const OWNED_OBJECT: &str = "crate::owned_object::OwnedObject";
 
-fn decode_pure(path: impl AsRef<str>) -> InlineFn {
+fn decode_pure(path: impl AsRef<str>) -> InputFn {
     let s = path.as_ref().to_string();
-    InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
-        let input = input.expect("pure decode requires an input ident");
+    InputFn::new(move |input: &syn::Ident| -> TokenStream {
         let p: syn::Path = syn::parse_str(&s).expect("invalid pure decode path");
         quote! { #p(#input)? }
     })
 }
 
-fn decode_env_ref(path: impl AsRef<str>) -> InlineFn {
+fn decode_env_ref(path: impl AsRef<str>) -> InputFn {
     let s = path.as_ref().to_string();
-    InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
-        let input = input.expect("env_ref decode requires an input ident");
+    InputFn::new(move |input: &syn::Ident| -> TokenStream {
         let p: syn::Path = syn::parse_str(&s).expect("invalid env_ref decode path");
         quote! { #p(&env, &#input)? }
     })
 }
 
-fn decode_env_ref_mut(path: impl AsRef<str>) -> InlineFn {
+fn decode_env_ref_mut(path: impl AsRef<str>) -> InputFn {
     let s = path.as_ref().to_string();
-    InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
-        let input = input.expect("env_ref_mut decode requires an input ident");
+    InputFn::new(move |input: &syn::Ident| -> TokenStream {
         let p: syn::Path = syn::parse_str(&s).expect("invalid env_ref_mut decode path");
         quote! { #p(&mut env, &#input)? }
     })
 }
 
-fn decode_option_env_ref(path: impl AsRef<str>) -> InlineFn {
+fn decode_option_env_ref(path: impl AsRef<str>) -> InputFn {
     let s = path.as_ref().to_string();
-    InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
-        let input = input.expect("option decode requires an input ident");
+    InputFn::new(move |input: &syn::Ident| -> TokenStream {
         let p: syn::Path = syn::parse_str(&s).expect("invalid option decode path");
         quote! {
             if !#input.is_null() {
@@ -52,10 +49,9 @@ fn decode_option_env_ref(path: impl AsRef<str>) -> InlineFn {
     })
 }
 
-fn decode_option_env_ref_mut(path: impl AsRef<str>) -> InlineFn {
+fn decode_option_env_ref_mut(path: impl AsRef<str>) -> InputFn {
     let s = path.as_ref().to_string();
-    InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
-        let input = input.expect("option decode requires an input ident");
+    InputFn::new(move |input: &syn::Ident| -> TokenStream {
         let p: syn::Path = syn::parse_str(&s).expect("invalid option decode path");
         quote! {
             if !#input.is_null() {
@@ -67,19 +63,18 @@ fn decode_option_env_ref_mut(path: impl AsRef<str>) -> InlineFn {
     })
 }
 
-fn decode_owned_raw(owned_object: impl AsRef<str>) -> InlineFn {
+fn decode_owned_raw(owned_object: impl AsRef<str>) -> InputFn {
     let owned = owned_object.as_ref().to_string();
-    InlineFn::new(move |input: Option<&syn::Ident>| -> TokenStream {
-        let input = input.expect("opaque borrow decode requires an input ident");
+    InputFn::new(move |input: &syn::Ident| -> TokenStream {
         let p: syn::Path = syn::parse_str(&owned).expect("invalid owned object path");
         quote! { #p::from_raw(#input) }
     })
 }
 
-fn encode_wrapper(path: impl AsRef<str>, default_expr: impl AsRef<str>) -> InlineFn {
+fn encode_wrapper(path: impl AsRef<str>, default_expr: impl AsRef<str>) -> OutputFn {
     let s = path.as_ref().to_string();
     let default = default_expr.as_ref().to_string();
-    InlineFn::new(move |output: Option<&syn::Ident>| -> TokenStream {
+    OutputFn::new(move |output: Option<&syn::Ident>| -> TokenStream {
         let p: syn::Path = syn::parse_str(&s).expect("invalid wrapper encode path");
         let default_expr: syn::Expr =
             syn::parse_str(&default).expect("invalid wrapper encode default expr");
@@ -90,9 +85,9 @@ fn encode_wrapper(path: impl AsRef<str>, default_expr: impl AsRef<str>) -> Inlin
     })
 }
 
-fn encode_arc_into_raw(default_expr: impl AsRef<str>) -> InlineFn {
+fn encode_arc_into_raw(default_expr: impl AsRef<str>) -> OutputFn {
     let default = default_expr.as_ref().to_string();
-    InlineFn::new(move |output: Option<&syn::Ident>| -> TokenStream {
+    OutputFn::new(move |output: Option<&syn::Ident>| -> TokenStream {
         let default_expr: syn::Expr =
             syn::parse_str(&default).expect("invalid Arc encode default expr");
         match output {

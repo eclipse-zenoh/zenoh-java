@@ -111,7 +111,7 @@ impl StructStrategy for JniDecoderStruct {
             let decode_expr = binding
                 .decode()
                 .expect("struct-field binding must have a decode")
-                .call(Some(&raw_ident));
+                .call(&raw_ident);
             field_preludes.push(quote! {
                 let #raw_ident: #jni_type = env.get_field(obj, #camel_fname, #jni_sig)
                     .and_then(|v| v.#jvalue_method())

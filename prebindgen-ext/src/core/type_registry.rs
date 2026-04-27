@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::core::inline_fn::InlineFn;
+use crate::core::inline_fn::{InputFn, OutputFn};
 use crate::core::type_binding::{canon_type, TypeBinding};
 
 #[derive(Default, Clone)]
@@ -22,7 +22,7 @@ pub struct TypePairBuilder {
 impl TypePairBuilder {
     /// Add or replace the input conversion function for the current
     /// Rust type pair.
-    pub fn input(mut self, decode: InlineFn) -> Self {
+    pub fn input(mut self, decode: InputFn) -> Self {
         self.registry
             .add_input_conversion_function_mut(&self.rust_type, decode);
         self
@@ -30,7 +30,7 @@ impl TypePairBuilder {
 
     /// Add or replace the output conversion function for the current
     /// Rust type pair.
-    pub fn output(mut self, encode: InlineFn) -> Self {
+    pub fn output(mut self, encode: OutputFn) -> Self {
         self.registry
             .add_output_conversion_function_mut(&self.rust_type, encode);
         self
@@ -76,7 +76,7 @@ impl TypeRegistry {
     pub fn add_input_conversion_function(
         mut self,
         rust_type: impl AsRef<str>,
-        decode: InlineFn,
+        decode: InputFn,
     ) -> Self {
         self.add_input_conversion_function_mut(rust_type, decode);
         self
@@ -87,7 +87,7 @@ impl TypeRegistry {
     pub fn add_output_conversion_function(
         mut self,
         rust_type: impl AsRef<str>,
-        encode: InlineFn,
+        encode: OutputFn,
     ) -> Self {
         self.add_output_conversion_function_mut(rust_type, encode);
         self
@@ -123,7 +123,7 @@ impl TypeRegistry {
     pub(crate) fn add_input_conversion_function_mut(
         &mut self,
         rust_type: impl AsRef<str>,
-        decode: InlineFn,
+        decode: InputFn,
     ) {
         let key = canon_type(rust_type.as_ref());
         let binding = self.types.get_mut(&key).unwrap_or_else(|| {
@@ -138,7 +138,7 @@ impl TypeRegistry {
     pub(crate) fn add_output_conversion_function_mut(
         &mut self,
         rust_type: impl AsRef<str>,
-        encode: InlineFn,
+        encode: OutputFn,
     ) {
         let key = canon_type(rust_type.as_ref());
         let binding = self.types.get_mut(&key).unwrap_or_else(|| {
@@ -168,29 +168,25 @@ pub fn primitive_builtins() -> TypeRegistry {
     TypeRegistry::new()
         .type_pair("bool", "jni::sys::jboolean")
         .input(
-            InlineFn::new(|input: Option<&syn::Ident>| -> TokenStream {
-                let input = input.expect("bool decode requires an input ident");
+            InputFn::new(|input: &syn::Ident| -> TokenStream {
                 quote! { #input != 0 }
             }),
         )
         .type_pair("i64", "jni::sys::jlong")
         .input(
-            InlineFn::new(|input: Option<&syn::Ident>| -> TokenStream {
-                let input = input.expect("i64 decode requires an input ident");
+            InputFn::new(|input: &syn::Ident| -> TokenStream {
                 quote! { #input }
             }),
         )
         .type_pair("f64", "jni::sys::jdouble")
         .input(
-            InlineFn::new(|input: Option<&syn::Ident>| -> TokenStream {
-                let input = input.expect("f64 decode requires an input ident");
+            InputFn::new(|input: &syn::Ident| -> TokenStream {
                 quote! { #input }
             }),
         )
         .type_pair("Duration", "jni::sys::jlong")
         .input(
-            InlineFn::new(|input: Option<&syn::Ident>| -> TokenStream {
-                let input = input.expect("Duration decode requires an input ident");
+            InputFn::new(|input: &syn::Ident| -> TokenStream {
                 quote! { std::time::Duration::from_millis(#input as u64) }
             }),
         )

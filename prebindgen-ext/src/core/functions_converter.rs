@@ -33,7 +33,7 @@ use quote::{format_ident, quote, ToTokens};
 
 use prebindgen::SourceLocation;
 
-use crate::core::inline_fn::InlineFn;
+use crate::core::inline_fn::{InputFn, OutputFn};
 use crate::core::name_mangler::NameMangler;
 use crate::core::type_registry::TypeRegistry;
 use crate::util::is_unit;
@@ -53,7 +53,7 @@ pub struct BodyContext<'a> {
     pub wire_return: Option<&'a syn::Type>,
     /// Return-direction encode info, if the return has a registered
     /// [`TypeBinding`] with `encode` set.
-    pub return_encode: Option<&'a InlineFn>,
+    pub return_encode: Option<&'a OutputFn>,
     /// Original function ident (for diagnostics).
     pub orig_ident: &'a syn::Ident,
     /// Source location (for diagnostics).
@@ -167,7 +167,7 @@ impl FunctionsBuilder {
     pub fn add_input_conversion_function(
         mut self,
         rust_type: impl AsRef<str>,
-        decode: InlineFn,
+        decode: InputFn,
     ) -> Self {
         self.types = self
             .types
@@ -179,7 +179,7 @@ impl FunctionsBuilder {
     pub fn add_output_conversion_function(
         mut self,
         rust_type: impl AsRef<str>,
-        encode: InlineFn,
+        encode: OutputFn,
     ) -> Self {
         self.types = self
             .types
@@ -276,7 +276,7 @@ impl FunctionsConverter {
 
         let (wire_return_ty, return_encode): (
             Option<syn::Type>,
-            Option<InlineFn>,
+            Option<OutputFn>,
         ) = match &func.sig.output {
             syn::ReturnType::Default => (None, None),
             syn::ReturnType::Type(_, ty) => {

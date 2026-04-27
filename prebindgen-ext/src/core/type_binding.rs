@@ -13,15 +13,15 @@
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 
-use crate::core::inline_fn::InlineFn;
+use crate::core::inline_fn::{InputFn, OutputFn};
 
 /// Per-row binding from a Rust type-shape to its FFI wire form.
 #[derive(Clone)]
 pub(crate) struct TypeBinding {
     pub(crate) rust_type: String,
     pub(crate) wire_type: syn::Type,
-    pub(crate) decode: Option<InlineFn>,
-    pub(crate) encode: Option<InlineFn>,
+    pub(crate) decode: Option<InputFn>,
+    pub(crate) encode: Option<OutputFn>,
 }
 
 impl TypeBinding {
@@ -29,8 +29,8 @@ impl TypeBinding {
     pub(crate) fn input_output(
         rust_type: impl AsRef<str>,
         wire_type: syn::Type,
-        decode: Option<InlineFn>,
-        encode: Option<InlineFn>,
+        decode: Option<InputFn>,
+        encode: Option<OutputFn>,
     ) -> Self {
         Self {
             rust_type: canon_type(rust_type.as_ref()),
@@ -48,10 +48,10 @@ impl TypeBinding {
     pub(crate) fn wire_type_ref(&self) -> &syn::Type {
         &self.wire_type
     }
-    pub(crate) fn decode(&self) -> Option<&InlineFn> {
+    pub(crate) fn decode(&self) -> Option<&InputFn> {
         self.decode.as_ref()
     }
-    pub(crate) fn encode(&self) -> Option<&InlineFn> {
+    pub(crate) fn encode(&self) -> Option<&OutputFn> {
         self.encode.as_ref()
     }
 
@@ -73,7 +73,7 @@ impl TypeBinding {
     /// the given input ident. Used by `FunctionsConverter` to build the
     /// per-arg prelude.
     pub(crate) fn call_decode(&self, input: &syn::Ident) -> Option<TokenStream> {
-        self.decode.as_ref().map(|d| d.call(Some(input)))
+        self.decode.as_ref().map(|d| d.call(input))
     }
 }
 
