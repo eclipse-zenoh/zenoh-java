@@ -69,6 +69,14 @@ macro_rules! decode_owned_raw {
     };
 }
 
+macro_rules! decode_arc_from_raw {
+    () => {
+        InputFn::new(|input: &syn::Ident| -> TokenStream {
+            quote! { (*std::sync::Arc::from_raw(#input)).clone() }
+        })
+    };
+}
+
 macro_rules! encode_wrapper {
     ($path:path) => {
         OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
@@ -147,9 +155,7 @@ fn shared_bindings() -> TypeRegistry {
         // (releasing its strong reference at end of scope) and hands a cloned
         // `Session` to the wrapped fn. Used by `drop_session`.
         .type_pair("Session", "*const Session")
-        .input(InputFn::new(|input: &syn::Ident| -> TokenStream {
-            quote! { (*std::sync::Arc::from_raw(#input)).clone() }
-        }))
+        .input(decode_arc_from_raw!())
         // Returns: ZenohId / Vec<ZenohId> via custom encoders.
         .type_pair("ZResult<ZenohId>", "jni::sys::jbyteArray")
         .output(encode_wrapper!(crate::zenoh_id::zenoh_id_to_byte_array))
