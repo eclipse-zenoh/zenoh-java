@@ -13,6 +13,7 @@
 
 use crate::{errors::ZResult, zerror};
 use tracing::{error, trace};
+use std::sync::Arc;
 use std::time::Duration;
 
 use zenoh::{
@@ -389,6 +390,17 @@ pub fn get_peers_zid(session: &Session) -> ZResult<Vec<ZenohId>> {
 #[prebindgen_proc_macro::prebindgen]
 pub fn get_routers_zid(session: &Session) -> ZResult<Vec<ZenohId>> {
     Ok(session.info().routers_zid().wait().collect())
+}
+
+/// Drop the [`Arc<Session>`] obtained from [`open_session`].
+///
+/// Takes ownership of the raw pointer (a reconstructed `Arc<Session>`) and
+/// drops it. Distinct from [`close_session`], which only deactivates the
+/// session (network shutdown) without releasing the Rust handle.
+#[prebindgen_proc_macro::prebindgen]
+pub fn free_ptr(session: Arc<Session>) -> ZResult<()> {
+    drop(session);
+    Ok(())
 }
 
 /// Close a Zenoh session using a reference to the session.
