@@ -71,16 +71,13 @@ fn decode_owned_raw(owned_object: impl AsRef<str>) -> InputFn {
     })
 }
 
-fn encode_wrapper(path: impl AsRef<str>, default_expr: impl AsRef<str>) -> OutputFn {
+fn encode_wrapper(path: impl AsRef<str>) -> OutputFn {
     let s = path.as_ref().to_string();
-    let default = default_expr.as_ref().to_string();
     OutputFn::new(move |output: Option<&syn::Ident>| -> TokenStream {
         let p: syn::Path = syn::parse_str(&s).expect("invalid wrapper encode path");
-        let default_expr: syn::Expr =
-            syn::parse_str(&default).expect("invalid wrapper encode default expr");
         match output {
             Some(output) => quote! { #p(&mut env, #output)? },
-            None => quote! { #default_expr },
+            None => quote! { std::ptr::null_mut() },
         }
     })
 }
@@ -151,9 +148,9 @@ fn shared_bindings() -> TypeRegistry {
         .input(decode_owned_raw(OWNED_OBJECT))
         // Returns: ZenohId / Vec<ZenohId> via custom encoders.
         .type_pair("ZResult<ZenohId>", "jni::sys::jbyteArray")
-        .output(encode_wrapper("crate::zenoh_id::zenoh_id_to_byte_array", "jni::objects::JByteArray::default().as_raw()"))
+        .output(encode_wrapper("crate::zenoh_id::zenoh_id_to_byte_array"))
         .type_pair("ZResult<Vec<ZenohId>>", "jni::sys::jobject")
-        .output(encode_wrapper("crate::zenoh_id::zenoh_ids_to_java_list", "jni::objects::JObject::default().as_raw()"))
+        .output(encode_wrapper("crate::zenoh_id::zenoh_ids_to_java_list"))
         // Returns: opaque Arc handles.
         .type_pair("ZResult<Session>", "*const Session")
         .output(encode_arc_into_raw("std::ptr::null()"))
