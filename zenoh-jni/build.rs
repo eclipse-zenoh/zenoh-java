@@ -240,11 +240,11 @@ fn shared_kotlin_types() -> KotlinTypeMap {
 fn main() {
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
 
-    // Phase 1: process #[prebindgen] structs from zenoh_flat::ext via a
+    // Phase 1: process #[prebindgen] structs from zenoh_flat::structs via a
     // JNI decoder strategy. Each struct registers a type row in the
     // shared TypeRegistry and emits a `decode_<Name>` Rust fn.
     let mut struct_conv = TypesConverter::builder(JniDecoderStruct::new(
-        "zenoh_flat::ext",
+        "zenoh_flat::structs",
         "crate::errors::ZResult",
     ))
     .type_registry(shared_bindings())
@@ -253,7 +253,7 @@ fn main() {
     let struct_items: Vec<_> = source
         .items_all()
         .filter(|(item, loc)| {
-            matches!(item, syn::Item::Struct(_)) && loc.file.ends_with("/ext.rs")
+            matches!(item, syn::Item::Struct(_)) && loc.file.ends_with("/structs.rs")
         })
         .batching(struct_conv.as_closure())
         .collect();
@@ -340,7 +340,7 @@ fn main() {
         .build();
 
     for (item, loc) in source.items_all().filter(|(item, loc)| {
-        (matches!(item, syn::Item::Struct(_)) && loc.file.ends_with("/ext.rs"))
+        (matches!(item, syn::Item::Struct(_)) && loc.file.ends_with("/structs.rs"))
             || (matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/session.rs"))
     }) {
         kotlin.add_item(&item, &loc);

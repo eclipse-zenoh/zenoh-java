@@ -28,7 +28,7 @@ use zenoh::{
 };
 
 #[cfg(feature = "zenoh-ext")]
-use crate::ext::{CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig};
+use crate::structs::{CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig};
 #[cfg(feature = "zenoh-ext")]
 use zenoh_ext::{
     AdvancedPublisher, AdvancedPublisherBuilderExt, AdvancedSubscriber,
