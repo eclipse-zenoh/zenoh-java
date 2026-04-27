@@ -93,13 +93,6 @@ impl TypeRegistry {
         self
     }
 
-    /// Look up a registered type row by its canonical type-shape key
-    /// (e.g. "HistoryConfig", "Vec < u8 >"). The key is canonicalized
-    /// via `syn::Type` parse so callers can pass either spacing form.
-    pub(crate) fn type_by_key(&self, key: &str) -> Option<&TypeBinding> {
-        self.types.get(&canon_type(key))
-    }
-
     /// Merge another registry into this one. Entries in `other` override
     /// entries with the same key in `self`.
     pub fn merge(mut self, other: TypeRegistry) -> Self {

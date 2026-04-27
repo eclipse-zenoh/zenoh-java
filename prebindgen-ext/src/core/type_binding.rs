@@ -25,34 +25,6 @@ pub(crate) struct TypeBinding {
 }
 
 impl TypeBinding {
-    /// Param-direction row. `rust_type` is canonicalized via `syn::Type` parse.
-    pub(crate) fn input(
-        rust_type: impl AsRef<str>,
-        wire_type: impl AsRef<str>,
-        decode: InlineFn,
-    ) -> Self {
-        Self {
-            rust_type: canon_type(rust_type.as_ref()),
-            wire_type: parse_type(wire_type.as_ref()),
-            decode: Some(decode),
-            encode: None,
-        }
-    }
-
-    /// Return-direction row.
-    pub(crate) fn output(
-        rust_type: impl AsRef<str>,
-        wire_type: impl AsRef<str>,
-        encode: InlineFn,
-    ) -> Self {
-        Self {
-            rust_type: canon_type(rust_type.as_ref()),
-            wire_type: parse_type(wire_type.as_ref()),
-            decode: None,
-            encode: Some(encode),
-        }
-    }
-
     /// Construct a new binding from raw parts.
     pub(crate) fn input_output(
         rust_type: impl AsRef<str>,
@@ -66,11 +38,6 @@ impl TypeBinding {
             decode,
             encode,
         }
-    }
-
-    /// Canonical type-shape this binding is keyed under.
-    pub(crate) fn name(&self) -> &str {
-        &self.rust_type
     }
 
     pub(crate) fn wire_type(&self) -> &syn::Type {
@@ -119,20 +86,3 @@ pub(crate) fn canon_type(s: &str) -> String {
         .unwrap_or_else(|e| panic!("TypeBinding: cannot parse `{}` as a type: {}", s, e))
 }
 
-fn parse_type(s: &str) -> syn::Type {
-    syn::parse_str(s).unwrap_or_else(|e| panic!("invalid wire type `{}`: {}", s, e))
-}
-
-/// True if `ty` is a JNI-object-shaped wire type that supports `is_null()`.
-/// Lives in `core` so language-flavoured convenience builders can call it
-/// without crossing module boundaries.
-pub(crate) fn jni_object_shaped(ty: &syn::Type) -> bool {
-    let syn::Type::Path(tp) = ty else { return false };
-    let Some(last) = tp.path.segments.last() else {
-        return false;
-    };
-    matches!(
-        last.ident.to_string().as_str(),
-        "JObject" | "JString" | "JByteArray"
-    )
-}
