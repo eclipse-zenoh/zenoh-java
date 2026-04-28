@@ -94,7 +94,7 @@ public class JNISession(internal val sessionPtr: Long) {
     ): JNIQuerier = JNIQuerier(declareQuerierViaJNI(sessionPtr, JNIKeyExpr.of(jniKeyExpr, keyExprString), target, consolidation, congestionControl, priority, express, timeoutMs, acceptReplies))
 
     @Throws(ZError::class)
-    fun declareKeyExpr(keyExpr: String): JNIKeyExpr = JNIKeyExpr(declareKeyExprViaJNI(sessionPtr, keyExpr), keyExpr)
+    fun declareKeyExpr(keyExpr: String): JNIKeyExpr = declareKeyExprViaJNI(sessionPtr, keyExpr)
 
     @Throws(ZError::class)
     fun undeclareKeyExpr(jniKeyExpr: JNIKeyExpr) = undeclareKeyExprViaJNI(sessionPtr, jniKeyExpr)

@@ -23,9 +23,9 @@ import io.zenoh.exceptions.ZError
  * Carries both the native-handle pointer and the source string so it can be
  * passed across JNI as a single `JObject`. `ptr == 0L` means "not declared on
  * a session — use [str] at the native side"; `ptr != 0L` means "declared —
- * use the pointer and ignore [str]".
+ * the pointer holds the `Arc<KeyExpr>` registration handle".
  */
-public class JNIKeyExpr(internal val ptr: Long, internal val str: String) {
+public class JNIKeyExpr(internal val ptr: Long, public val str: String) {
 
     companion object {
         init {
@@ -49,10 +49,10 @@ public class JNIKeyExpr(internal val ptr: Long, internal val str: String) {
             declared ?: JNIKeyExpr(0L, keyExpr)
 
         @Throws(ZError::class)
-        fun tryFrom(keyExpr: String): String = JNIKeyExprNative.tryFromViaJNI(keyExpr)
+        fun tryFrom(keyExpr: String): JNIKeyExpr = JNIKeyExprNative.tryFromViaJNI(keyExpr)
 
         @Throws(ZError::class)
-        fun autocanonize(keyExpr: String): String = JNIKeyExprNative.autocanonizeViaJNI(keyExpr)
+        fun autocanonize(keyExpr: String): JNIKeyExpr = JNIKeyExprNative.autocanonizeViaJNI(keyExpr)
 
         @Throws(ZError::class)
         fun intersects(a: JNIKeyExpr?, aStr: String, b: JNIKeyExpr?, bStr: String): Boolean =
@@ -68,20 +68,20 @@ public class JNIKeyExpr(internal val ptr: Long, internal val str: String) {
             JNIKeyExprNative.relationToViaJNI(of(a, aStr), of(b, bStr))
 
         @Throws(ZError::class)
-        fun join(a: JNIKeyExpr?, aStr: String, other: String): String =
+        fun join(a: JNIKeyExpr?, aStr: String, other: String): JNIKeyExpr =
             JNIKeyExprNative.joinViaJNI(of(a, aStr), other)
 
         @Throws(ZError::class)
-        fun concat(a: JNIKeyExpr?, aStr: String, other: String): String =
+        fun concat(a: JNIKeyExpr?, aStr: String, other: String): JNIKeyExpr =
             JNIKeyExprNative.concatViaJNI(of(a, aStr), other)
     }
 
+    /**
+     * Release the native Arc strong reference (if any). Safe for both
+     * declared (ptr != 0) and undeclared (ptr == 0) holders — the native
+     * side checks the pointer.
+     */
     fun close() {
-        // Guard against a future caller invoking close() on an undeclared
-        // holder (ptr == 0L); the native side reconstructs `Arc::from_raw`,
-        // which is UB on a null pointer.
-        if (ptr != 0L) {
-            JNIKeyExprNative.dropKeyExprViaJNI(ptr)
-        }
+        JNIKeyExprNative.dropKeyExprViaJNI(this)
     }
 }

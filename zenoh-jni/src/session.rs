@@ -15,7 +15,6 @@
 // Types referenced by the generated `zenoh_flat_jni.rs` below must be in scope.
 use zenoh::{
     config::Config,
-    key_expr::KeyExpr,
     pubsub::{Publisher, Subscriber},
     query::{Querier, Queryable},
     session::Session,

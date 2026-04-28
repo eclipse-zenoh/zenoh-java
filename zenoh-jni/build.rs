@@ -71,18 +71,11 @@ macro_rules! decode_owned_raw {
 
 /// Reconstruct an `Arc<T>` from a raw pointer, clone the inner `T`, and let
 /// the temporary `Arc` drop at end of scope (releasing the JNI strong
-/// reference). The optional `$wrap` path lets callers emit a newtype-wrapped
-/// value (e.g. `OwnedKeyExpr(...)`) when the wrapped fn signature uses a
-/// disambiguating wrapper type.
+/// reference).
 macro_rules! decode_arc_from_raw {
     () => {
         InputFn::new(|input: &syn::Ident| -> TokenStream {
             quote! { (*std::sync::Arc::from_raw(#input)).clone() }
-        })
-    };
-    ($wrap:path) => {
-        InputFn::new(|input: &syn::Ident| -> TokenStream {
-            quote! { $wrap((*std::sync::Arc::from_raw(#input)).clone()) }
         })
     };
 }
@@ -162,9 +155,26 @@ fn shared_bindings() -> TypeRegistry {
         .input(decode_pure!(crate::utils::decode_consolidation))
         .type_pair("ReplyKeyExpr", "jni::sys::jint")
         .input(decode_pure!(crate::utils::decode_reply_key_expr))
-        // KeyExpr by-value: JNI side passes the JNIKeyExpr holder object.
-        .type_pair("KeyExpr<'static>", "jni::objects::JObject")
-        .input(decode_env_ref_mut!(crate::key_expr::decode_jni_key_expr))
+        // FlatKeyExpr (zenoh_flat::keyexpr::KeyExpr) — universal handle that
+        // crosses JNI as the `io.zenoh.jni.JNIKeyExpr` Kotlin holder. Three
+        // wire roles:
+        //
+        // - by-ref (`&KeyExpr`): borrow-decoder bumps the Arc strong count
+        //   so the JNI side keeps its reference;
+        // - by-value (`KeyExpr`): owned-decoder takes the Arc, releasing
+        //   the JNI strong ref when the wrapper drops at end of scope;
+        // - return (`ZResult<KeyExpr>`): encoder transfers a fresh strong
+        //   ref to Java via `Arc::into_raw`.
+        .type_pair("KeyExpr", "jni::objects::JObject")
+        .input(decode_env_ref_mut!(crate::key_expr::decode_jni_keyexpr_owned))
+        .type_pair("&KeyExpr", "jni::objects::JObject")
+        .input(decode_env_ref_mut!(crate::key_expr::decode_jni_keyexpr_borrow))
+        .type_pair("ZResult<KeyExpr>", "jni::sys::jobject")
+        .output(encode_wrapper!(crate::key_expr::encode_jni_keyexpr))
+        // Set-intersection level returned by `relation_to`. Cast zenoh's
+        // enum (variants 0/1/2/3 in declaration order) directly to `jint`.
+        .type_pair("ZResult<SetIntersectionLevel>", "jni::sys::jint")
+        .output(encode_cast!(jni::sys::jint, -1))
         // Encoding via JObject + custom decoder.
         .type_pair("Encoding", "jni::objects::JObject")
         .input(decode_env_ref_mut!(crate::utils::decode_jni_encoding))
@@ -180,13 +190,6 @@ fn shared_bindings() -> TypeRegistry {
         // `Session` to the wrapped fn. Used by `drop_session`.
         .type_pair("Session", "*const Session")
         .input(decode_arc_from_raw!())
-        // Owning take by raw pointer for KeyExpr drop: a newtype wraps the
-        // cloned KeyExpr so the registry key is distinct from the existing
-        // `KeyExpr<'static>` ↔ `JObject` (declared/undeclared holder) wire
-        // used by every other key-expression operation. Used by
-        // `drop_key_expr`.
-        .type_pair("OwnedKeyExpr", "*const KeyExpr<'static>")
-        .input(decode_arc_from_raw!(zenoh_flat::keyexpr::OwnedKeyExpr))
         // Returns: ZenohId / Vec<ZenohId> via custom encoders.
         .type_pair("ZResult<ZenohId>", "jni::sys::jbyteArray")
         .output(encode_wrapper!(crate::zenoh_id::zenoh_id_to_byte_array))
@@ -196,8 +199,6 @@ fn shared_bindings() -> TypeRegistry {
         .type_pair("ZResult<Session>", "*const Session")
         .output(encode_arc_into_raw!())
         .type_pair("ZResult<Publisher<'static>>", "*const Publisher<'static>")
-        .output(encode_arc_into_raw!())
-        .type_pair("ZResult<KeyExpr<'static>>", "*const KeyExpr<'static>")
         .output(encode_arc_into_raw!())
         .type_pair("ZResult<Subscriber<()>>", "*const Subscriber<()>")
         .output(encode_arc_into_raw!())
@@ -209,14 +210,9 @@ fn shared_bindings() -> TypeRegistry {
         .output(encode_arc_into_raw!())
         .type_pair("ZResult<AdvancedPublisher<'static>>", "*const AdvancedPublisher<'static>")
         .output(encode_arc_into_raw!())
-        // Returns: owned String via env.new_string.
-        .type_pair("ZResult<String>", "jni::sys::jstring")
-        .output(encode_wrapper!(crate::utils::encode_jstring))
-        // Returns: bool / i32 primitives (wire matches Java's `boolean` / `int`).
+        // Returns: bool primitive (wire matches Java's `boolean`).
         .type_pair("ZResult<bool>", "jni::sys::jboolean")
         .output(encode_cast!(jni::sys::jboolean, false))
-        .type_pair("ZResult<i32>", "jni::sys::jint")
-        .output(encode_cast!(jni::sys::jint, -1))
         // Unit returns: ZResult<()> with `()` wire type so the converter treats it as a no-return shape.
         .type_pair("ZResult<()>", "()")
         // Structs from ext.rs and nullable wrappers.
@@ -258,26 +254,25 @@ fn shared_kotlin_types() -> KotlinTypeMap {
         .add("QueryTarget", "Int")
         .add("ConsolidationMode", "Int")
         .add("ReplyKeyExpr", "Int")
-        .add("KeyExpr<'static>", "io.zenoh.jni.JNIKeyExpr")
+        .add("KeyExpr", "io.zenoh.jni.JNIKeyExpr")
+        .add("&KeyExpr", "io.zenoh.jni.JNIKeyExpr")
+        .add("ZResult<KeyExpr>", "io.zenoh.jni.JNIKeyExpr")
+        .add("ZResult<SetIntersectionLevel>", "Int")
         .add("Encoding", "io.zenoh.jni.JNIEncoding")
         .add("Option<Encoding>", "io.zenoh.jni.JNIEncoding")
         .add("&Session", "Long")
         .add("&Config", "Long")
         .add("Session", "Long")
-        .add("OwnedKeyExpr", "Long")
         .add("ZResult<ZenohId>", "ByteArray")
         .add("ZResult<Vec<ZenohId>>", "List<ByteArray>")
         .add("ZResult<Session>", "Long")
         .add("ZResult<Publisher<'static>>", "Long")
-        .add("ZResult<KeyExpr<'static>>", "Long")
         .add("ZResult<Subscriber<()>>", "Long")
         .add("ZResult<Querier<'static>>", "Long")
         .add("ZResult<Queryable<()>>", "Long")
         .add("ZResult<AdvancedSubscriber<()>>", "Long")
         .add("ZResult<AdvancedPublisher<'static>>", "Long")
-        .add("ZResult<String>", "String")
         .add("ZResult<bool>", "Boolean")
-        .add("ZResult<i32>", "Int")
 }
 
 fn main() {

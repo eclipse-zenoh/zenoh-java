@@ -62,6 +62,13 @@ import io.zenoh.query.Selector
 class KeyExpr internal constructor(internal val keyExpr: String, internal var jniKeyExpr: JNIKeyExpr? = null): AutoCloseable, IntoSelector,
     SessionDeclaration {
 
+    /**
+     * Adapter constructor used by factories that already produce a fully
+     * formed [JNIKeyExpr] (carrying both the validated string and any
+     * declaration handle).
+     */
+    internal constructor(jni: JNIKeyExpr) : this(jni.str, jni)
+
     companion object {
 
         /**
