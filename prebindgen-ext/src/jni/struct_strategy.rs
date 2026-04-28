@@ -10,7 +10,7 @@ use prebindgen::SourceLocation;
 use crate::core::type_binding::TypeBinding;
 use crate::core::type_registry::TypeRegistry;
 use crate::core::types_converter::StructStrategy;
-use crate::jni::inline_fn_helpers::env_ref_mut_decode;
+use crate::jni::inline_fn_helpers::{env_ref_mut_decode, env_ref_mut_encode};
 use crate::jni::jni_type;
 use crate::util::snake_to_camel;
 
@@ -26,6 +26,9 @@ use crate::util::snake_to_camel;
 /// and registers a `TypeBinding::param("<Name>", jni_type::jobject(),
 /// env_ref_mut_decode("decode_<Name>"))` so the struct can be passed by value
 /// to a wrapped function.
+///
+/// Also emits an `encode_<Name>` function if all struct fields have available
+/// encoders. The encoder creates a JObject and sets all fields from the Rust struct.
 ///
 /// Field types are resolved by **bare ident** (e.g. `bool`, `i64`,
 /// `CongestionControl`), not by canonical token-stream key — Rust struct
@@ -67,6 +70,7 @@ impl StructStrategy for JniDecoderStruct {
         let struct_name = s.ident.to_string();
         let struct_ident = s.ident.clone();
         let decoder_ident = format_ident!("decode_{}", struct_ident);
+        let encoder_ident = format_ident!("encode_{}", struct_ident);
         let zresult = &self.zresult;
         let struct_module = &self.source_module;
         let zerror = &self.zerror_macro;
@@ -77,6 +81,9 @@ impl StructStrategy for JniDecoderStruct {
 
         let mut field_preludes: Vec<TokenStream> = Vec::new();
         let mut field_init: Vec<TokenStream> = Vec::new();
+        let mut encoder_field_preludes: Vec<TokenStream> = Vec::new();
+        let mut field_assignments: Vec<TokenStream> = Vec::new();
+        let mut all_fields_have_encoders = true;
 
         for field in &named.named {
             let fname_ident = field
@@ -131,9 +138,42 @@ impl StructStrategy for JniDecoderStruct {
                 }
             };
             field_init.push(quote! { #fname_ident });
+
+            // Check if encoder is available for this field
+            if let Some(encode) = binding.encode() {
+                let encode_expr = encode.call(Some(&fname_ident));
+                encoder_field_preludes.push(quote! {
+                    let __encoded_value = #encode_expr;
+                });
+
+                match jni_field_access(binding.wire_type()) {
+                    Some((_jni_sig, _jvalue_method, false)) => {
+                        field_assignments.push(quote! {
+                            env.set_field(obj, #camel_fname, __encoded_value)
+                                .map_err(|err| #zerror!(#err_prefix, err))?;
+                        });
+                    }
+                    Some((_jni_sig, _jvalue_method, true)) => {
+                        field_assignments.push(quote! {
+                            env.set_field(obj, #camel_fname, jni::objects::JObject::from(__encoded_value))
+                                .map_err(|err| #zerror!(#err_prefix, err))?;
+                        });
+                    }
+                    None => {
+                        panic!(
+                            "field `{}.{}` at {loc}: unsupported JNI wire form for encoding `{}`",
+                            struct_name,
+                            fname,
+                            binding.wire_type().to_token_stream()
+                        );
+                    }
+                }
+            } else {
+                all_fields_have_encoders = false;
+            }
         }
 
-        let tokens = quote! {
+        let decoder_tokens = quote! {
             #[allow(non_snake_case, unused_mut, unused_variables)]
             pub(crate) fn #decoder_ident(
                 mut env: &mut jni::JNIEnv,
@@ -150,8 +190,34 @@ impl StructStrategy for JniDecoderStruct {
         registry.add_type_pair_mut(&struct_name, jni_type::jobject());
         registry.add_input_conversion_function_mut(&struct_name, env_ref_mut_decode(&decoder_path));
 
-        let item: syn::Item = syn::parse2(tokens).expect("generated struct decoder must parse");
-        out.push((item, loc.clone()));
+        let decoder_item: syn::Item = syn::parse2(decoder_tokens).expect("generated struct decoder must parse");
+        out.push((decoder_item, loc.clone()));
+
+        // Only generate encoder if all fields have encoders available
+        if all_fields_have_encoders {
+            let encoder_tokens = quote! {
+                #[allow(non_snake_case, unused_mut, unused_variables)]
+                pub(crate) fn #encoder_ident(
+                    mut env: &mut jni::JNIEnv,
+                    value: &#struct_module::#struct_ident,
+                ) -> #zresult<jni::sys::jobject> {
+                    let obj = env.new_object(
+                        stringify!(#struct_ident),
+                        "()V",
+                    )
+                    .map_err(|err| #zerror!(err))?;
+                    #(#encoder_field_preludes)*
+                    #(#field_assignments)*
+                    Ok(obj.as_raw())
+                }
+            };
+
+            let encoder_path = format!("encode_{struct_name}");
+            registry.add_output_conversion_function_mut(&struct_name, env_ref_mut_encode(&encoder_path));
+
+            let encoder_item: syn::Item = syn::parse2(encoder_tokens).expect("generated struct encoder must parse");
+            out.push((encoder_item, loc.clone()));
+        }
     }
 }
 
