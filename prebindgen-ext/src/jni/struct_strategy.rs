@@ -4,6 +4,7 @@
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
+use proc_macro2::Span;
 
 use prebindgen::SourceLocation;
 
@@ -96,7 +97,8 @@ impl StructStrategy for JniDecoderStruct {
         let mut field_preludes: Vec<TokenStream> = Vec::new();
         let mut field_init: Vec<TokenStream> = Vec::new();
         let mut encoder_field_preludes: Vec<TokenStream> = Vec::new();
-        let mut field_assignments: Vec<TokenStream> = Vec::new();
+        let mut ctor_sig = String::from("(");
+        let mut ctor_args: Vec<TokenStream> = Vec::new();
         let mut all_fields_have_encoders = true;
 
         for field in &named.named {
@@ -165,27 +167,19 @@ impl StructStrategy for JniDecoderStruct {
 
                 match jni_field_access(binding.wire_type()) {
                     Some((jni_sig, _jvalue_method, false)) => {
-                        field_assignments.push(quote! {
-                            env.set_field(
-                                &obj,
-                                #camel_fname,
-                                #jni_sig,
-                                jni::objects::JValue::from(#encoded_ident),
-                            )
-                                .map_err(|err| #zerror!(#err_prefix, err))?;
+                        ctor_sig.push_str(jni_sig);
+                        ctor_args.push(quote! {
+                            jni::objects::JValue::from(#encoded_ident)
                         });
                     }
                     Some((jni_sig, _jvalue_method, true)) => {
                         let encoded_obj_ident = format_ident!("__{}_encoded_obj", fname_ident);
-                        field_assignments.push(quote! {
+                        encoder_field_preludes.push(quote! {
                             let #encoded_obj_ident: jni::objects::JObject = #encoded_ident.into();
-                            env.set_field(
-                                &obj,
-                                #camel_fname,
-                                #jni_sig,
-                                jni::objects::JValue::Object(&#encoded_obj_ident),
-                            )
-                                .map_err(|err| #zerror!(#err_prefix, err))?;
+                        });
+                        ctor_sig.push_str(jni_sig);
+                        ctor_args.push(quote! {
+                            jni::objects::JValue::Object(&#encoded_obj_ident)
                         });
                     }
                     None => {
@@ -224,20 +218,21 @@ impl StructStrategy for JniDecoderStruct {
 
         // Only generate encoder if all fields have encoders available
         if all_fields_have_encoders {
+            ctor_sig.push_str(")V");
+            let ctor_sig_lit = syn::LitStr::new(&ctor_sig, Span::call_site());
             let encoder_tokens = quote! {
                 #[allow(non_snake_case, unused_mut, unused_variables)]
                 pub(crate) fn #encoder_ident(
                     mut env: &mut jni::JNIEnv,
                     value: #struct_module::#struct_ident,
                 ) -> #zresult<jni::sys::jobject> {
+                    #(#encoder_field_preludes)*
                     let obj = env.new_object(
                         #java_class_name,
-                        "()V",
-                        &[],
+                        #ctor_sig_lit,
+                        &[#(#ctor_args),*],
                     )
                     .map_err(|err| #zerror!(err))?;
-                    #(#encoder_field_preludes)*
-                    #(#field_assignments)*
                     Ok(obj.as_raw())
                 }
             };
