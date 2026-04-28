@@ -38,6 +38,7 @@ pub struct JniDecoderStruct {
     pub source_module: syn::Path,
     pub zresult: syn::Path,
     pub zerror_macro: syn::Path,
+    pub java_class_prefix: Option<String>,
 }
 
 impl JniDecoderStruct {
@@ -50,11 +51,20 @@ impl JniDecoderStruct {
                 .expect("invalid source_module path"),
             zresult: syn::parse_str(zresult.as_ref()).expect("invalid zresult path"),
             zerror_macro: syn::parse_str("zerror").unwrap(),
+            java_class_prefix: None,
         }
     }
 
     pub fn zerror_macro(mut self, path: impl AsRef<str>) -> Self {
         self.zerror_macro = syn::parse_str(path.as_ref()).expect("invalid zerror_macro path");
+        self
+    }
+
+    /// Set destination Java package prefix (slash-separated, e.g. `io/zenoh/jni`).
+    /// When unset, generated encoders instantiate by simple class name.
+    pub fn java_class_prefix(mut self, prefix: impl AsRef<str>) -> Self {
+        let p = prefix.as_ref().trim().trim_matches('/').to_string();
+        self.java_class_prefix = if p.is_empty() { None } else { Some(p) };
         self
     }
 }
@@ -74,6 +84,10 @@ impl StructStrategy for JniDecoderStruct {
         let zresult = &self.zresult;
         let struct_module = &self.source_module;
         let zerror = &self.zerror_macro;
+        let java_class_name = match &self.java_class_prefix {
+            Some(prefix) => format!("{prefix}/{struct_name}"),
+            None => struct_name.clone(),
+        };
 
         let syn::Fields::Named(named) = &s.fields else {
             panic!("tuple / unit structs are not supported at {loc}");
@@ -141,21 +155,36 @@ impl StructStrategy for JniDecoderStruct {
 
             // Check if encoder is available for this field
             if let Some(encode) = binding.encode() {
-                let encode_expr = encode.call(Some(&fname_ident));
+                let field_ref_ident = format_ident!("__{}_value", fname_ident);
+                let encoded_ident = format_ident!("__{}_encoded", fname_ident);
+                let encode_expr = encode.call(Some(&field_ref_ident));
                 encoder_field_preludes.push(quote! {
-                    let __encoded_value = #encode_expr;
+                    let #field_ref_ident = &value.#fname_ident;
+                    let #encoded_ident = #encode_expr;
                 });
 
                 match jni_field_access(binding.wire_type()) {
-                    Some((_jni_sig, _jvalue_method, false)) => {
+                    Some((jni_sig, _jvalue_method, false)) => {
                         field_assignments.push(quote! {
-                            env.set_field(obj, #camel_fname, __encoded_value)
+                            env.set_field(
+                                &obj,
+                                #camel_fname,
+                                #jni_sig,
+                                jni::objects::JValue::from(#encoded_ident),
+                            )
                                 .map_err(|err| #zerror!(#err_prefix, err))?;
                         });
                     }
-                    Some((_jni_sig, _jvalue_method, true)) => {
+                    Some((jni_sig, _jvalue_method, true)) => {
+                        let encoded_obj_ident = format_ident!("__{}_encoded_obj", fname_ident);
                         field_assignments.push(quote! {
-                            env.set_field(obj, #camel_fname, jni::objects::JObject::from(__encoded_value))
+                            let #encoded_obj_ident: jni::objects::JObject = #encoded_ident.into();
+                            env.set_field(
+                                &obj,
+                                #camel_fname,
+                                #jni_sig,
+                                jni::objects::JValue::Object(&#encoded_obj_ident),
+                            )
                                 .map_err(|err| #zerror!(#err_prefix, err))?;
                         });
                     }
@@ -199,11 +228,12 @@ impl StructStrategy for JniDecoderStruct {
                 #[allow(non_snake_case, unused_mut, unused_variables)]
                 pub(crate) fn #encoder_ident(
                     mut env: &mut jni::JNIEnv,
-                    value: &#struct_module::#struct_ident,
+                    value: #struct_module::#struct_ident,
                 ) -> #zresult<jni::sys::jobject> {
                     let obj = env.new_object(
-                        stringify!(#struct_ident),
+                        #java_class_name,
                         "()V",
+                        &[],
                     )
                     .map_err(|err| #zerror!(err))?;
                     #(#encoder_field_preludes)*

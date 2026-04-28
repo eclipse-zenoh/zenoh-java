@@ -141,6 +141,12 @@ fn shared_bindings() -> TypeRegistry {
         // Strings & byte arrays.
         .type_pair("String", "jni::objects::JString")
         .input(decode_env_ref_mut!(crate::utils::decode_string))
+        .output(OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
+            match output {
+                Some(output) => quote! { env.new_string(#output).map_err(|err| zerror!(err))? },
+                None => quote! { jni::objects::JString::from(jni::objects::JObject::null()) },
+            }
+        }))
         .type_pair("Option<String>", "jni::objects::JString")
         .input(decode_option_env_ref_mut!(crate::utils::decode_string))
         .type_pair("Vec<u8>", "jni::objects::JByteArray")
@@ -179,10 +185,21 @@ fn shared_bindings() -> TypeRegistry {
         // below, so only the borrow and return variants need manual entries.
         .type_pair("Option<Arc<ZKeyExpr<'static>>>", "jni::sys::jlong")
         .input(decode_option_arc_from_raw!(zenoh::key_expr::KeyExpr<'static>))
+        .output(OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
+            match output {
+                Some(output) => quote! {
+                    #output
+                        .as_ref()
+                        .map(|ptr| std::sync::Arc::as_ptr(ptr) as i64)
+                        .unwrap_or(0)
+                },
+                None => quote! { 0 },
+            }
+        }))
         .type_pair("&KeyExpr", "jni::objects::JObject")
         .input(decode_env_ref_mut!(decode_KeyExpr))
         .type_pair("ZResult<KeyExpr>", "jni::sys::jobject")
-        .output(encode_wrapper!(crate::key_expr::encode_jni_keyexpr))
+        .output(encode_wrapper!(encode_KeyExpr))
         // Set-intersection level returned by `relation_to`. Cast zenoh's
         // enum (variants 0/1/2/3 in declaration order) directly to `jint`.
         .type_pair("ZResult<SetIntersectionLevel>", "jni::sys::jint")
@@ -296,7 +313,8 @@ fn main() {
     let mut struct_conv = TypesConverter::builder(JniDecoderStruct::new(
         "zenoh_flat::structs",
         "crate::errors::ZResult",
-    ))
+    )
+    .java_class_prefix("io/zenoh/jni"))
     .type_registry(shared_bindings())
     .build();
 
@@ -316,7 +334,8 @@ fn main() {
     let mut keyexpr_struct_conv = TypesConverter::builder(JniDecoderStruct::new(
         "zenoh_flat::keyexpr",
         "crate::errors::ZResult",
-    ))
+    )
+    .java_class_prefix("io/zenoh/jni"))
     .type_registry(types)
     .build();
 
