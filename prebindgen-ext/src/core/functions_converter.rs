@@ -33,7 +33,7 @@ use quote::{format_ident, quote, ToTokens};
 
 use prebindgen::SourceLocation;
 
-use crate::core::inline_fn::{InputFn, OutputFn};
+use crate::core::inline_fn::{InputFn, NO_INPUT, NO_OUTPUT, OutputFn};
 use crate::core::name_mangler::NameMangler;
 use crate::core::type_registry::TypeRegistry;
 use crate::util::is_unit;
@@ -159,7 +159,13 @@ impl FunctionsBuilder {
         rust_type: impl AsRef<str>,
         wire_type: impl AsRef<str>,
     ) -> Self {
-        self.types = self.types.type_pair(rust_type, wire_type).finish();
+        let rust_type = rust_type.as_ref().to_owned();
+        self.types = self.types.type_pair(
+            &rust_type,
+            wire_type,
+            NO_INPUT,
+            NO_OUTPUT,
+        );
         self
     }
 

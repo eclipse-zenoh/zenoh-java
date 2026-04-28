@@ -4,7 +4,7 @@ use quote::quote;
 
 use zenoh_flat::core::{
     primitive_builtins, FunctionsConverter, InputFn, NameMangler, OutputFn, TypeRegistry,
-    TypesConverter,
+    TypesConverter, NO_INPUT, NO_OUTPUT,
 };
 use zenoh_flat::jni::{JniDecoderStruct, JniTryClosureBody};
 use zenoh_flat::kotlin::{KotlinInterfaceGenerator, KotlinTypeMap};
@@ -162,42 +162,97 @@ macro_rules! encode_cast {
 fn shared_bindings() -> TypeRegistry {
     primitive_builtins()
         // Strings & byte arrays.
-        .type_pair("String", "jni::objects::JString")
-        .input(decode_env_ref_mut!(crate::utils::decode_string))
-        .output(OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
-            match output {
-                Some(output) => quote! { env.new_string(#output).map_err(|err| zerror!(err))? },
-                None => quote! { jni::objects::JString::from(jni::objects::JObject::null()) },
-            }
-        }))
-        .type_pair("Option<String>", "jni::objects::JString")
-        .input(decode_option_env_ref_mut!(crate::utils::decode_string))
-        .type_pair("Vec<u8>", "jni::objects::JByteArray")
-        .input(decode_env_ref!(crate::utils::decode_byte_array))
-        .type_pair("Option<Vec<u8>>", "jni::objects::JByteArray")
-        .input(decode_option_env_ref!(crate::utils::decode_byte_array))
+        .type_pair(
+            "String",
+            "jni::objects::JString",
+            decode_env_ref_mut!(crate::utils::decode_string),
+            OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
+                match output {
+                    Some(output) => quote! { env.new_string(#output).map_err(|err| zerror!(err))? },
+                    None => quote! { jni::objects::JString::from(jni::objects::JObject::null()) },
+                }
+            }),
+        )
+        .type_pair(
+            "Option<String>",
+            "jni::objects::JString",
+            decode_option_env_ref_mut!(crate::utils::decode_string),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "Vec<u8>",
+            "jni::objects::JByteArray",
+            decode_env_ref!(crate::utils::decode_byte_array),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "Option<Vec<u8>>",
+            "jni::objects::JByteArray",
+            decode_option_env_ref!(crate::utils::decode_byte_array),
+            NO_OUTPUT,
+        )
         // Callbacks.
-        .type_pair("impl Fn(Sample) + Send + Sync + 'static", "jni::objects::JObject")
-        .input(decode_env_ref_mut!(crate::sample_callback::process_kotlin_sample_callback))
-        .type_pair("impl Fn(Query) + Send + Sync + 'static", "jni::objects::JObject")
-        .input(decode_env_ref_mut!(crate::sample_callback::process_kotlin_query_callback))
-        .type_pair("impl Fn(Reply) + Send + Sync + 'static", "jni::objects::JObject")
-        .input(decode_env_ref_mut!(crate::sample_callback::process_kotlin_reply_callback))
-        .type_pair("impl Fn() + Send + Sync + 'static", "jni::objects::JObject")
-        .input(decode_env_ref_mut!(crate::sample_callback::process_kotlin_on_close_callback))
+        .type_pair(
+            "impl Fn(Sample) + Send + Sync + 'static",
+            "jni::objects::JObject",
+            decode_env_ref_mut!(crate::sample_callback::process_kotlin_sample_callback),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "impl Fn(Query) + Send + Sync + 'static",
+            "jni::objects::JObject",
+            decode_env_ref_mut!(crate::sample_callback::process_kotlin_query_callback),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "impl Fn(Reply) + Send + Sync + 'static",
+            "jni::objects::JObject",
+            decode_env_ref_mut!(crate::sample_callback::process_kotlin_reply_callback),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "impl Fn() + Send + Sync + 'static",
+            "jni::objects::JObject",
+            decode_env_ref_mut!(crate::sample_callback::process_kotlin_on_close_callback),
+            NO_OUTPUT,
+        )
         // Java-enum-shaped types.
-        .type_pair("CongestionControl", "jni::sys::jint")
-        .input(decode_pure!(crate::utils::decode_congestion_control))
-        .type_pair("Priority", "jni::sys::jint")
-        .input(decode_pure!(crate::utils::decode_priority))
-        .type_pair("Reliability", "jni::sys::jint")
-        .input(decode_pure!(crate::utils::decode_reliability))
-        .type_pair("QueryTarget", "jni::sys::jint")
-        .input(decode_pure!(crate::utils::decode_query_target))
-        .type_pair("ConsolidationMode", "jni::sys::jint")
-        .input(decode_pure!(crate::utils::decode_consolidation))
-        .type_pair("ReplyKeyExpr", "jni::sys::jint")
-        .input(decode_pure!(crate::utils::decode_reply_key_expr))
+        .type_pair(
+            "CongestionControl",
+            "jni::sys::jint",
+            decode_pure!(crate::utils::decode_congestion_control),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "Priority",
+            "jni::sys::jint",
+            decode_pure!(crate::utils::decode_priority),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "Reliability",
+            "jni::sys::jint",
+            decode_pure!(crate::utils::decode_reliability),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "QueryTarget",
+            "jni::sys::jint",
+            decode_pure!(crate::utils::decode_query_target),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "ConsolidationMode",
+            "jni::sys::jint",
+            decode_pure!(crate::utils::decode_consolidation),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "ReplyKeyExpr",
+            "jni::sys::jint",
+            decode_pure!(crate::utils::decode_reply_key_expr),
+            NO_OUTPUT,
+        )
         // FlatKeyExpr (zenoh_flat::keyexpr::KeyExpr) — auto-generated as a
         // Kotlin data class; `ptr: Long` carries the raw Arc pointer (0 =
         // string-only). The flat Rust struct now stores
@@ -207,77 +262,182 @@ fn shared_bindings() -> TypeRegistry {
         //
         // `"KeyExpr"` (by-value) is auto-registered by the struct_conv pass
         // below, so only the borrow and return variants need manual entries.
-        .type_pair("Option<ZKeyExpr<'static>>", "jni::sys::jlong")
-        .input(decode_option_arc_from_raw!(zenoh::key_expr::KeyExpr<'static>))
-        .output(encode_option_clone_into_arc_raw_jlong!())
-        .type_pair("&KeyExpr", "jni::objects::JObject")
-        .input(decode_env_ref_mut!(decode_KeyExpr))
-        .type_pair("ZResult<KeyExpr>", "jni::sys::jobject")
-        .output(encode_wrapper!(encode_KeyExpr))
+        .type_pair(
+            "Option<ZKeyExpr<'static>>",
+            "jni::sys::jlong",
+            decode_option_arc_from_raw!(zenoh::key_expr::KeyExpr<'static>),
+            encode_option_clone_into_arc_raw_jlong!(),
+        )
+        .type_pair(
+            "&KeyExpr",
+            "jni::objects::JObject",
+            decode_env_ref_mut!(decode_KeyExpr),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "ZResult<KeyExpr>",
+            "jni::sys::jobject",
+            NO_INPUT,
+            encode_wrapper!(encode_KeyExpr),
+        )
         // Set-intersection level returned by `relation_to`. Cast zenoh's
         // enum (variants 0/1/2/3 in declaration order) directly to `jint`.
-        .type_pair("ZResult<SetIntersectionLevel>", "jni::sys::jint")
-        .output(encode_cast!(jni::sys::jint, -1))
+        .type_pair(
+            "ZResult<SetIntersectionLevel>",
+            "jni::sys::jint",
+            NO_INPUT,
+            encode_cast!(jni::sys::jint, -1),
+        )
         // Encoding via JObject + custom decoder.
-        .type_pair("Encoding", "jni::objects::JObject")
-        .input(decode_env_ref_mut!(crate::utils::decode_jni_encoding))
-        .type_pair("Option<Encoding>", "jni::objects::JObject")
-        .input(decode_option_env_ref_mut!(crate::utils::decode_jni_encoding))
+        .type_pair(
+            "Encoding",
+            "jni::objects::JObject",
+            decode_env_ref_mut!(crate::utils::decode_jni_encoding),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "Option<Encoding>",
+            "jni::objects::JObject",
+            decode_option_env_ref_mut!(crate::utils::decode_jni_encoding),
+            NO_OUTPUT,
+        )
         // Borrows: opaque Arc handles received as `*const T`.
-        .type_pair("&Session", "*const Session")
-        .input(decode_owned_raw!(crate::owned_object::OwnedObject))
-        .type_pair("&Config", "*const Config")
-        .input(decode_owned_raw!(crate::owned_object::OwnedObject))
+        .type_pair(
+            "&Session",
+            "*const Session",
+            decode_owned_raw!(crate::owned_object::OwnedObject),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "&Config",
+            "*const Config",
+            decode_owned_raw!(crate::owned_object::OwnedObject),
+            NO_OUTPUT,
+        )
         // Owning take by value: the wire side reconstructs the `Arc<Session>`
         // (releasing its strong reference at end of scope) and hands a cloned
         // `Session` to the wrapped fn. Used by `drop_session`.
-        .type_pair("Session", "*const Session")
-        .input(decode_arc_from_raw!())
+        .type_pair(
+            "Session",
+            "*const Session",
+            decode_arc_from_raw!(),
+            NO_OUTPUT,
+        )
         // Returns: ZenohId / Vec<ZenohId> via custom encoders.
-        .type_pair("ZResult<ZenohId>", "jni::sys::jbyteArray")
-        .output(encode_wrapper!(crate::zenoh_id::zenoh_id_to_byte_array))
-        .type_pair("ZResult<Vec<ZenohId>>", "jni::sys::jobject")
-        .output(encode_wrapper!(crate::zenoh_id::zenoh_ids_to_java_list))
+        .type_pair(
+            "ZResult<ZenohId>",
+            "jni::sys::jbyteArray",
+            NO_INPUT,
+            encode_wrapper!(crate::zenoh_id::zenoh_id_to_byte_array),
+        )
+        .type_pair(
+            "ZResult<Vec<ZenohId>>",
+            "jni::sys::jobject",
+            NO_INPUT,
+            encode_wrapper!(crate::zenoh_id::zenoh_ids_to_java_list),
+        )
         // Returns: opaque Arc handles.
-        .type_pair("ZResult<Session>", "*const Session")
-        .output(encode_arc_into_raw!())
-        .type_pair("ZResult<Publisher<'static>>", "*const Publisher<'static>")
-        .output(encode_arc_into_raw!())
-        .type_pair("ZResult<Subscriber<()>>", "*const Subscriber<()>")
-        .output(encode_arc_into_raw!())
-        .type_pair("ZResult<Querier<'static>>", "*const Querier<'static>")
-        .output(encode_arc_into_raw!())
-        .type_pair("ZResult<Queryable<()>>", "*const Queryable<()>")
-        .output(encode_arc_into_raw!())
-        .type_pair("ZResult<AdvancedSubscriber<()>>", "*const AdvancedSubscriber<()>")
-        .output(encode_arc_into_raw!())
-        .type_pair("ZResult<AdvancedPublisher<'static>>", "*const AdvancedPublisher<'static>")
-        .output(encode_arc_into_raw!())
+        .type_pair(
+            "ZResult<Session>",
+            "*const Session",
+            NO_INPUT,
+            encode_arc_into_raw!(),
+        )
+        .type_pair(
+            "ZResult<Publisher<'static>>",
+            "*const Publisher<'static>",
+            NO_INPUT,
+            encode_arc_into_raw!(),
+        )
+        .type_pair(
+            "ZResult<Subscriber<()>>",
+            "*const Subscriber<()>",
+            NO_INPUT,
+            encode_arc_into_raw!(),
+        )
+        .type_pair(
+            "ZResult<Querier<'static>>",
+            "*const Querier<'static>",
+            NO_INPUT,
+            encode_arc_into_raw!(),
+        )
+        .type_pair(
+            "ZResult<Queryable<()>>",
+            "*const Queryable<()>",
+            NO_INPUT,
+            encode_arc_into_raw!(),
+        )
+        .type_pair(
+            "ZResult<AdvancedSubscriber<()>>",
+            "*const AdvancedSubscriber<()>",
+            NO_INPUT,
+            encode_arc_into_raw!(),
+        )
+        .type_pair(
+            "ZResult<AdvancedPublisher<'static>>",
+            "*const AdvancedPublisher<'static>",
+            NO_INPUT,
+            encode_arc_into_raw!(),
+        )
         // Returns: bool primitive (wire matches Java's `boolean`).
-        .type_pair("ZResult<bool>", "jni::sys::jboolean")
-        .output(encode_cast!(jni::sys::jboolean, false))
+        .type_pair(
+            "ZResult<bool>",
+            "jni::sys::jboolean",
+            NO_INPUT,
+            encode_cast!(jni::sys::jboolean, false),
+        )
         // Unit returns: ZResult<()> with `()` wire type so the converter treats it as a no-return shape.
-        .type_pair("ZResult<()>", "()")
+        .type_pair("ZResult<()>", "()", NO_INPUT, NO_OUTPUT)
         // Structs from ext.rs and nullable wrappers.
-        .type_pair("HistoryConfig", "jni::objects::JObject")
-        .input(decode_env_ref_mut!(decode_HistoryConfig))
-        .type_pair("Option<HistoryConfig>", "jni::objects::JObject")
-        .input(decode_option_env_ref_mut!(decode_HistoryConfig))
-        .type_pair("RecoveryConfig", "jni::objects::JObject")
-        .input(decode_env_ref_mut!(decode_RecoveryConfig))
-        .type_pair("Option<RecoveryConfig>", "jni::objects::JObject")
-        .input(decode_option_env_ref_mut!(decode_RecoveryConfig))
-        .type_pair("CacheConfig", "jni::objects::JObject")
-        .input(decode_env_ref_mut!(decode_CacheConfig))
-        .type_pair("Option<CacheConfig>", "jni::objects::JObject")
-        .input(decode_option_env_ref_mut!(decode_CacheConfig))
-        .type_pair("MissDetectionConfig", "jni::objects::JObject")
-        .input(decode_env_ref_mut!(decode_MissDetectionConfig))
-        .type_pair("Option<MissDetectionConfig>", "jni::objects::JObject")
-        .input(decode_option_env_ref_mut!(decode_MissDetectionConfig))
-        .finish()
+        .type_pair(
+            "HistoryConfig",
+            "jni::objects::JObject",
+            decode_env_ref_mut!(decode_HistoryConfig),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "Option<HistoryConfig>",
+            "jni::objects::JObject",
+            decode_option_env_ref_mut!(decode_HistoryConfig),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "RecoveryConfig",
+            "jni::objects::JObject",
+            decode_env_ref_mut!(decode_RecoveryConfig),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "Option<RecoveryConfig>",
+            "jni::objects::JObject",
+            decode_option_env_ref_mut!(decode_RecoveryConfig),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "CacheConfig",
+            "jni::objects::JObject",
+            decode_env_ref_mut!(decode_CacheConfig),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "Option<CacheConfig>",
+            "jni::objects::JObject",
+            decode_option_env_ref_mut!(decode_CacheConfig),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "MissDetectionConfig",
+            "jni::objects::JObject",
+            decode_env_ref_mut!(decode_MissDetectionConfig),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "Option<MissDetectionConfig>",
+            "jni::objects::JObject",
+            decode_option_env_ref_mut!(decode_MissDetectionConfig),
+            NO_OUTPUT,
+        )
 }
-
 
 /// Rust → Kotlin name mappings consumed by `KotlinInterfaceGenerator`.
 fn shared_kotlin_types() -> KotlinTypeMap {
@@ -287,10 +447,22 @@ fn shared_kotlin_types() -> KotlinTypeMap {
         .add("Option<String>", "String")
         .add("Vec<u8>", "ByteArray")
         .add("Option<Vec<u8>>", "ByteArray")
-        .add("impl Fn(Sample) + Send + Sync + 'static", "io.zenoh.jni.callbacks.JNISubscriberCallback")
-        .add("impl Fn(Query) + Send + Sync + 'static", "io.zenoh.jni.callbacks.JNIQueryableCallback")
-        .add("impl Fn(Reply) + Send + Sync + 'static", "io.zenoh.jni.callbacks.JNIGetCallback")
-        .add("impl Fn() + Send + Sync + 'static", "io.zenoh.jni.callbacks.JNIOnCloseCallback")
+        .add(
+            "impl Fn(Sample) + Send + Sync + 'static",
+            "io.zenoh.jni.callbacks.JNISubscriberCallback",
+        )
+        .add(
+            "impl Fn(Query) + Send + Sync + 'static",
+            "io.zenoh.jni.callbacks.JNIQueryableCallback",
+        )
+        .add(
+            "impl Fn(Reply) + Send + Sync + 'static",
+            "io.zenoh.jni.callbacks.JNIGetCallback",
+        )
+        .add(
+            "impl Fn() + Send + Sync + 'static",
+            "io.zenoh.jni.callbacks.JNIOnCloseCallback",
+        )
         .add("CongestionControl", "Int")
         .add("Priority", "Int")
         .add("Reliability", "Int")
@@ -324,11 +496,10 @@ fn main() {
     // Phase 1: process #[prebindgen] structs from zenoh_flat::structs via a
     // JNI decoder strategy. Each struct registers a type row in the
     // shared TypeRegistry and emits a `decode_<Name>` Rust fn.
-    let mut struct_conv = TypesConverter::builder(JniDecoderStruct::new(
-        "zenoh_flat::structs",
-        "crate::errors::ZResult",
+    let mut struct_conv = TypesConverter::builder(
+        JniDecoderStruct::new("zenoh_flat::structs", "crate::errors::ZResult")
+            .java_class_prefix("io/zenoh/jni"),
     )
-    .java_class_prefix("io/zenoh/jni"))
     .type_registry(shared_bindings())
     .build();
 
@@ -345,11 +516,10 @@ fn main() {
     // Phase 1b: process the `#[prebindgen]` struct from zenoh_flat::keyexpr
     // (the `KeyExpr` flat handle). Separate pass because its source module
     // path differs from `zenoh_flat::structs`.
-    let mut keyexpr_struct_conv = TypesConverter::builder(JniDecoderStruct::new(
-        "zenoh_flat::keyexpr",
-        "crate::errors::ZResult",
+    let mut keyexpr_struct_conv = TypesConverter::builder(
+        JniDecoderStruct::new("zenoh_flat::keyexpr", "crate::errors::ZResult")
+            .java_class_prefix("io/zenoh/jni"),
     )
-    .java_class_prefix("io/zenoh/jni"))
     .type_registry(types)
     .build();
 
@@ -395,9 +565,7 @@ fn main() {
 
     let session_items: Vec<_> = source
         .items_all()
-        .filter(|(item, loc)| {
-            matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/session.rs")
-        })
+        .filter(|(item, loc)| matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/session.rs"))
         .batching(session_conv.as_closure())
         .collect();
 
@@ -419,9 +587,7 @@ fn main() {
 
     let keyexpr_items: Vec<_> = source
         .items_all()
-        .filter(|(item, loc)| {
-            matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/keyexpr.rs")
-        })
+        .filter(|(item, loc)| matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/keyexpr.rs"))
         .batching(keyexpr_conv.as_closure())
         .collect();
 
@@ -456,9 +622,7 @@ fn main() {
     ];
     let mut kotlin_types = shared_kotlin_types();
     for s in &struct_names {
-        kotlin_types = kotlin_types
-            .add(*s, *s)
-            .add(format!("Option<{}>", s), *s);
+        kotlin_types = kotlin_types.add(*s, *s).add(format!("Option<{}>", s), *s);
     }
 
     let mut session_kotlin = KotlinInterfaceGenerator::builder()

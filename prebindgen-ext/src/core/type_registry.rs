@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::core::inline_fn::{InputFn, OutputFn};
+use crate::core::inline_fn::{InputFn, NO_OUTPUT, OutputFn};
 use crate::core::type_binding::{canon_type, TypeBinding};
 
 #[derive(Default, Clone)]
@@ -14,61 +14,25 @@ pub struct TypeRegistry {
     pub(crate) types: HashMap<String, TypeBinding>,
 }
 
-pub struct TypePairBuilder {
-    registry: TypeRegistry,
-    rust_type: String,
-}
-
-impl TypePairBuilder {
-    /// Add or replace the input conversion function for the current
-    /// Rust type pair.
-    pub fn input(mut self, decode: InputFn) -> Self {
-        self.registry
-            .add_input_conversion_function_mut(&self.rust_type, decode);
-        self
-    }
-
-    /// Add or replace the output conversion function for the current
-    /// Rust type pair.
-    pub fn output(mut self, encode: OutputFn) -> Self {
-        self.registry
-            .add_output_conversion_function_mut(&self.rust_type, encode);
-        self
-    }
-
-    /// Add or replace a new Rust/Wire type pair and continue chaining
-    /// conversions against that new pair.
-    pub fn type_pair(
-        self,
-        rust_type: impl AsRef<str>,
-        wire_type: impl AsRef<str>,
-    ) -> TypePairBuilder {
-        self.finish().type_pair(rust_type, wire_type)
-    }
-
-    /// Return to the owning [`TypeRegistry`].
-    pub fn finish(self) -> TypeRegistry {
-        self.registry
-    }
-}
-
 impl TypeRegistry {
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Add or replace a Rust/Wire type pair.
+    /// Add or replace a Rust/Wire type pair together with conversion
+    /// functions used for wire-to-Rust (`input`) and Rust-to-wire (`output`).
     pub fn type_pair(
         mut self,
         rust_type: impl AsRef<str>,
         wire_type: impl AsRef<str>,
-    ) -> TypePairBuilder {
-        let rust_type = rust_type.as_ref().to_owned();
-        self.add_type_pair_mut(&rust_type, wire_type);
-        TypePairBuilder {
-            registry: self,
-            rust_type,
-        }
+        input: InputFn,
+        output: OutputFn,
+    ) -> Self {
+        let rust_type = rust_type.as_ref();
+        self.add_type_pair_mut(rust_type, wire_type);
+        self.add_input_conversion_function_mut(rust_type, input);
+        self.add_output_conversion_function_mut(rust_type, output);
+        self
     }
 
     /// Add or replace the input conversion function for an already
@@ -165,30 +129,39 @@ impl TypeRegistry {
 /// Kept here as a free function so the universal core has no opinion
 /// about which primitives are pre-registered.
 pub fn primitive_builtins() -> TypeRegistry {
+    let bool_input = InputFn::new(|input: &syn::Ident| -> TokenStream {
+        quote! { #input != 0 }
+    });
+    let id_input = InputFn::new(|input: &syn::Ident| -> TokenStream {
+        quote! { #input }
+    });
+    let duration_input = InputFn::new(|input: &syn::Ident| -> TokenStream {
+        quote! { std::time::Duration::from_millis(#input as u64) }
+    });
+
     TypeRegistry::new()
-        .type_pair("bool", "jni::sys::jboolean")
-        .input(
-            InputFn::new(|input: &syn::Ident| -> TokenStream {
-                quote! { #input != 0 }
-            }),
+        .type_pair(
+            "bool",
+            "jni::sys::jboolean",
+            bool_input,
+            NO_OUTPUT,
         )
-        .type_pair("i64", "jni::sys::jlong")
-        .input(
-            InputFn::new(|input: &syn::Ident| -> TokenStream {
-                quote! { #input }
-            }),
+        .type_pair(
+            "i64",
+            "jni::sys::jlong",
+            id_input.clone(),
+            NO_OUTPUT,
         )
-        .type_pair("f64", "jni::sys::jdouble")
-        .input(
-            InputFn::new(|input: &syn::Ident| -> TokenStream {
-                quote! { #input }
-            }),
+        .type_pair(
+            "f64",
+            "jni::sys::jdouble",
+            id_input,
+            NO_OUTPUT,
         )
-        .type_pair("Duration", "jni::sys::jlong")
-        .input(
-            InputFn::new(|input: &syn::Ident| -> TokenStream {
-                quote! { std::time::Duration::from_millis(#input as u64) }
-            }),
+        .type_pair(
+            "Duration",
+            "jni::sys::jlong",
+            duration_input,
+            NO_OUTPUT,
         )
-        .finish()
 }

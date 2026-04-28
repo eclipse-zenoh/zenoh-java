@@ -156,7 +156,7 @@ impl StructStrategy for JniDecoderStruct {
             field_init.push(quote! { #fname_ident });
 
             // Check if encoder is available for this field
-            if let Some(encode) = binding.encode() {
+            if let Some(encode) = binding.encode().filter(|encode| encode.is_implemented()) {
                 let field_ref_ident = format_ident!("__{}_value", fname_ident);
                 let encoded_ident = format_ident!("__{}_encoded", fname_ident);
                 let encode_expr = encode.call(Some(&field_ref_ident));

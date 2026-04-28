@@ -13,7 +13,7 @@ mod util;
 
 pub use core::{
     BodyContext, BodyStrategy, FunctionsBuilder, FunctionsConverter, NameMangler,
-    PassThroughBody, StructStrategy, TypePairBuilder, TypeRegistry, TypesBuilder, TypesConverter,
+    PassThroughBody, StructStrategy, TypeRegistry, TypesBuilder, TypesConverter,
 };
 pub use jni::{JniDecoderStruct, JniTryClosureBody};
 pub use kotlin::{KotlinInterfaceBuilder, KotlinInterfaceGenerator, KotlinTypeMap};

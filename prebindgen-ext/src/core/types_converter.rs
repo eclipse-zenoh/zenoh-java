@@ -12,7 +12,7 @@ use quote::ToTokens;
 
 use prebindgen::SourceLocation;
 
-use crate::core::inline_fn::{InputFn, OutputFn};
+use crate::core::inline_fn::{InputFn, NO_INPUT, NO_OUTPUT, OutputFn};
 use crate::core::type_registry::TypeRegistry;
 
 /// Strategy for translating one `#[prebindgen]` struct into output items.
@@ -50,7 +50,13 @@ impl TypesBuilder {
         rust_type: impl AsRef<str>,
         wire_type: impl AsRef<str>,
     ) -> Self {
-        self.types = self.types.type_pair(rust_type, wire_type).finish();
+        let rust_type = rust_type.as_ref().to_owned();
+        self.types = self.types.type_pair(
+            &rust_type,
+            wire_type,
+            NO_INPUT,
+            NO_OUTPUT,
+        );
         self
     }
 
