@@ -22,13 +22,18 @@ use zenoh_flat::keyexpr::KeyExpr as FlatKeyExpr;
 
 use crate::errors::ZResult;
 
+unsafe fn clone_key_expr_from_arc_ptr(ptr: i64) -> ZResult<ZKeyExpr<'static>> {
+    let raw = ptr as *const ZKeyExpr<'static>;
+    Ok((*raw).clone())
+}
+
 /// Encode a [`FlatKeyExpr`] as a freshly-constructed
 /// `io.zenoh.jni.KeyExpr` Java object. When `ptr` is non-zero, the strong
 /// `Arc` reference (already owned by this value) is transferred to Java.
 pub(crate) fn encode_jni_keyexpr(env: &mut JNIEnv, k: FlatKeyExpr) -> ZResult<jobject> {
     let raw_ptr = k
         .ptr
-        .map(|ptr| Arc::into_raw(ptr) as i64)
+        .map(|key_expr| Arc::into_raw(Arc::new(key_expr)) as i64)
         .unwrap_or(0);
     let jstr = env
         .new_string(k.string)
@@ -58,10 +63,7 @@ pub(crate) unsafe fn decode_jni_key_expr(
         .and_then(|v| v.j())
         .map_err(|err| zerror!("KeyExpr.ptr: {}", err))?;
     if ptr != 0 {
-        let raw = ptr as *const ZKeyExpr<'static>;
-        Arc::increment_strong_count(raw);
-        let arc = Arc::from_raw(raw);
-        Ok((*arc).clone())
+        clone_key_expr_from_arc_ptr(ptr)
     } else {
         let str_obj = env
             .get_field(obj, "string", "Ljava/lang/String;")

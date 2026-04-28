@@ -13,7 +13,6 @@
 
 use crate::keyexpr::KeyExpr;
 use crate::{errors::ZResult, zerror};
-use std::sync::Arc;
 use std::time::Duration;
 use tracing::{error, trace};
 
@@ -110,8 +109,7 @@ pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<KeyExpr>
         .map(|ke| {
             trace!("Declared key expression '{}'.", key_expr_clone);
             KeyExpr {
-                // SAFETY: transfers Arc ownership to the Java caller.
-                ptr: Some(Arc::new(ke)),
+                ptr: Some(ke),
                 string: key_expr,
             }
         })

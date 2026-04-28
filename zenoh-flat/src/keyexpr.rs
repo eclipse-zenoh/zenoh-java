@@ -11,8 +11,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::sync::Arc;
-
 use crate::{errors::ZResult, zerror};
 use prebindgen_proc_macro::prebindgen;
 use zenoh::key_expr::{KeyExpr as ZKeyExpr, SetIntersectionLevel};
@@ -20,30 +18,26 @@ use zenoh::key_expr::{KeyExpr as ZKeyExpr, SetIntersectionLevel};
 /// Universal key-expression handle shared across the flat layer.
 ///
 /// `ptr` is `None` for string-only expressions built via [`try_from`] /
-/// [`autocanonize`].  `Some(md)` holds an `Arc<ZKeyExpr<'static>>` wrapped
-/// in `ManuallyDrop` so it never auto-drops when the struct is destroyed:
-/// the caller is responsible for releasing the Arc either by calling
-/// `drop_key_expr` / `undeclare_key_expr` (session-declared) or simply
-/// letting the undeclared variant be discarded (no-op).
+/// [`autocanonize`]. `Some(md)` holds a session-declared zenoh
+/// `ZKeyExpr<'static>`.
 ///
 /// Field order (`ptr` first) matches the `KeyExpr(ptr: Long, string: String)`
 /// Kotlin constructor so positional call sites need no update.
 #[prebindgen_proc_macro::prebindgen]
 #[derive(Debug)]
 pub struct KeyExpr {
-    pub ptr: Option<Arc<ZKeyExpr<'static>>>,
+    pub ptr: Option<ZKeyExpr<'static>>,
     pub string: String,
 }
 
 impl KeyExpr {
     /// Materialize a borrowed zenoh `KeyExpr` for one-shot zenoh calls.
     ///
-    /// When `ptr != 0`, bumps the Arc strong count, clones the inner
-    /// `ZKeyExpr`, then drops the temporary Arc (net count unchanged).
+    /// When `ptr != 0`, clones the stored `ZKeyExpr`.
     /// When `ptr == 0`, constructs from the already-validated string.
     pub(crate) fn as_zenoh(&self) -> ZKeyExpr<'static> {
         if let Some(md) = &self.ptr {
-            md.as_ref().clone()
+            md.clone()
         } else {
             // SAFETY: every `KeyExpr` is built via the validating
             // constructors (`try_from`, `autocanonize`, join, concat).
@@ -105,7 +99,7 @@ pub fn join(a: &KeyExpr, other: String) -> ZResult<KeyExpr> {
         .map_err(|err| zerror!(err))?;
     let string = joined.to_string();
     let ptr = if a.ptr.is_some() {
-        Some(Arc::new(ZKeyExpr::from(joined)))
+        Some(ZKeyExpr::from(joined))
     } else {
         None
     };
@@ -123,7 +117,7 @@ pub fn concat(a: &KeyExpr, other: String) -> ZResult<KeyExpr> {
         .map_err(|err| zerror!(err))?;
     let string = concatenated.to_string();
     let ptr = if a.ptr.is_some() {
-        Some(Arc::new(ZKeyExpr::from(concatenated)))
+        Some(ZKeyExpr::from(concatenated))
     } else {
         None
     };
@@ -131,14 +125,10 @@ pub fn concat(a: &KeyExpr, other: String) -> ZResult<KeyExpr> {
 }
 
 /// Drop a [`KeyExpr`] handle obtained from a session-declared key
-/// expression. When `ptr != 0`, takes ownership of the `Arc<ZKeyExpr>`
-/// (decrementing the strong count). String-only expressions are a no-op.
+/// expression. With value-owned storage, this is always a no-op because the
+/// wrapper drops naturally when consumed.
 #[prebindgen]
 pub fn drop_key_expr(key_expr: KeyExpr) -> ZResult<()> {
-    if let Some(ptr) = key_expr.ptr {
-        // SAFETY: `ptr` was produced by `Arc::into_raw`; taking ownership
-        // here and letting the Arc drop releases the Java-side strong ref.
-        drop(ptr);
-    }
+    let _ = key_expr;
     Ok(())
 }

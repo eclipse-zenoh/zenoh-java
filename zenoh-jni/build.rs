@@ -87,8 +87,7 @@ macro_rules! decode_option_arc_from_raw {
                 if #input != 0 {
                     Some(unsafe {
                         let raw = #input as *const $inner;
-                        std::sync::Arc::increment_strong_count(raw);
-                        std::sync::Arc::from_raw(raw)
+                        (*raw).clone()
                     })
                 } else {
                     None
@@ -117,6 +116,26 @@ macro_rules! encode_arc_into_raw {
                     quote! { std::sync::Arc::into_raw(std::sync::Arc::new(#output)) }
                 }
                 None => quote! { std::ptr::null() },
+            }
+        })
+    };
+}
+
+/// Encode an `Option<T>` (where `T: Clone`) into a `jlong` Arc-handle.
+///
+/// `Some(v)` becomes `Arc::into_raw(Arc::new(v.clone())) as i64`.
+/// `None` maps to `0`.
+macro_rules! encode_option_clone_into_arc_raw_jlong {
+    () => {
+        OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
+            match output {
+                Some(output) => quote! {
+                    #output
+                        .as_ref()
+                        .map(|value| std::sync::Arc::into_raw(std::sync::Arc::new(value.clone())) as i64)
+                        .unwrap_or(0)
+                },
+                None => quote! { 0 },
             }
         })
     };
@@ -182,24 +201,15 @@ fn shared_bindings() -> TypeRegistry {
         // FlatKeyExpr (zenoh_flat::keyexpr::KeyExpr) — auto-generated as a
         // Kotlin data class; `ptr: Long` carries the raw Arc pointer (0 =
         // string-only). The flat Rust struct now stores
-        // `Option<Arc<ZKeyExpr<'static>>>`, so decode the primitive field
-        // into an owned `Arc` only when a non-zero pointer is present.
+        // `Option<ZKeyExpr<'static>>`, so decode the primitive field by
+        // temporarily materializing an Arc-handle (from raw), cloning the
+        // inner key expression, then dropping the temporary Arc.
         //
         // `"KeyExpr"` (by-value) is auto-registered by the struct_conv pass
         // below, so only the borrow and return variants need manual entries.
-        .type_pair("Option<Arc<ZKeyExpr<'static>>>", "jni::sys::jlong")
+        .type_pair("Option<ZKeyExpr<'static>>", "jni::sys::jlong")
         .input(decode_option_arc_from_raw!(zenoh::key_expr::KeyExpr<'static>))
-        .output(OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
-            match output {
-                Some(output) => quote! {
-                    #output
-                        .as_ref()
-                        .map(|ptr| std::sync::Arc::into_raw(ptr.clone()) as i64)
-                        .unwrap_or(0)
-                },
-                None => quote! { 0 },
-            }
-        }))
+        .output(encode_option_clone_into_arc_raw_jlong!())
         .type_pair("&KeyExpr", "jni::objects::JObject")
         .input(decode_env_ref_mut!(decode_KeyExpr))
         .type_pair("ZResult<KeyExpr>", "jni::sys::jobject")
@@ -287,7 +297,7 @@ fn shared_kotlin_types() -> KotlinTypeMap {
         .add("QueryTarget", "Int")
         .add("ConsolidationMode", "Int")
         .add("ReplyKeyExpr", "Int")
-        .add("Option<Arc<ZKeyExpr<'static>>>", "Long")
+        .add("Option<ZKeyExpr<'static>>", "Long")
         .add("&KeyExpr", "KeyExpr")
         .add("ZResult<KeyExpr>", "KeyExpr")
         .add("ZResult<SetIntersectionLevel>", "Int")
