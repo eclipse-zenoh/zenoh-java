@@ -96,35 +96,47 @@ impl StructStrategy for JniDecoderStruct {
                     fname
                 )
             });
-            let (jni_sig, jvalue_method) =
-                jni_primitive_signature(binding.wire_type()).unwrap_or_else(|| {
-                    panic!(
-                        "field `{}.{}` at {loc}: type `{}` has non-primitive JNI wire form `{}`",
-                        struct_name,
-                        fname,
-                        field.ty.to_token_stream(),
-                        binding.wire_type().to_token_stream()
-                    )
-                });
             let raw_ident = format_ident!("__{}_raw", fname_ident);
             let jni_type = binding.wire_type();
             let decode_expr = binding
                 .decode()
                 .expect("struct-field binding must have a decode")
                 .call(&raw_ident);
-            field_preludes.push(quote! {
-                let #raw_ident: #jni_type = env.get_field(obj, #camel_fname, #jni_sig)
-                    .and_then(|v| v.#jvalue_method())
-                    .map_err(|err| #zerror!(#err_prefix, err))? as _;
-                let #fname_ident = #decode_expr;
-            });
+            match jni_field_access(binding.wire_type()) {
+                Some((jni_sig, jvalue_method, false)) => {
+                    field_preludes.push(quote! {
+                        let #raw_ident: #jni_type = env.get_field(obj, #camel_fname, #jni_sig)
+                            .and_then(|v| v.#jvalue_method())
+                            .map_err(|err| #zerror!(#err_prefix, err))? as _;
+                        let #fname_ident = #decode_expr;
+                    });
+                }
+                Some((jni_sig, _jvalue_method, true)) => {
+                    let tmp_ident = format_ident!("__{}_jobj", fname_ident);
+                    field_preludes.push(quote! {
+                        let #tmp_ident: jni::objects::JObject = env.get_field(obj, #camel_fname, #jni_sig)
+                            .and_then(|v| v.l())
+                            .map_err(|err| #zerror!(#err_prefix, err))?;
+                        let #raw_ident: #jni_type = #tmp_ident.into();
+                        let #fname_ident = #decode_expr;
+                    });
+                }
+                None => {
+                    panic!(
+                        "field `{}.{}` at {loc}: unsupported JNI wire form `{}`",
+                        struct_name,
+                        fname,
+                        binding.wire_type().to_token_stream()
+                    );
+                }
+            };
             field_init.push(quote! { #fname_ident });
         }
 
         let tokens = quote! {
             #[allow(non_snake_case, unused_mut, unused_variables)]
             pub(crate) fn #decoder_ident(
-                env: &mut jni::JNIEnv,
+                mut env: &mut jni::JNIEnv,
                 obj: &jni::objects::JObject,
             ) -> #zresult<#struct_module::#struct_ident> {
                 #(#field_preludes)*
@@ -156,24 +168,29 @@ fn lookup_field_binding<'a>(
     registry.types.get(&name)
 }
 
-/// Map a primitive JNI wire type (`jni::sys::j*`) to the JVM field
-/// signature character and the matching `JValue` accessor method.
-/// Returns `None` for non-primitive (object-shaped) wire types.
-fn jni_primitive_signature(jni_type: &syn::Type) -> Option<(&'static str, syn::Ident)> {
+/// Map a JNI wire type to `(jvm_field_descriptor, JValue_accessor_ident, is_object)`.
+///
+/// Primitive types (`jlong`, `jint`, …) set `is_object = false` and the
+/// accessor names the `.j()` / `.i()` / … `JValue` variant.
+///
+/// Object types (`JString`, …) set `is_object = true`; the caller uses
+/// `.l()` to get a `JObject` and then `.into()` to cast to the wire type.
+fn jni_field_access(jni_type: &syn::Type) -> Option<(&'static str, syn::Ident, bool)> {
     let syn::Type::Path(tp) = jni_type else {
         return None;
     };
     let last = tp.path.segments.last()?;
-    let (sig, accessor) = match last.ident.to_string().as_str() {
-        "jboolean" => ("Z", "z"),
-        "jbyte" => ("B", "b"),
-        "jchar" => ("C", "c"),
-        "jshort" => ("S", "s"),
-        "jint" => ("I", "i"),
-        "jlong" => ("J", "j"),
-        "jfloat" => ("F", "f"),
-        "jdouble" => ("D", "d"),
+    let (sig, accessor, is_obj) = match last.ident.to_string().as_str() {
+        "jboolean" => ("Z", "z", false),
+        "jbyte" => ("B", "b", false),
+        "jchar" => ("C", "c", false),
+        "jshort" => ("S", "s", false),
+        "jint" => ("I", "i", false),
+        "jlong" => ("J", "j", false),
+        "jfloat" => ("F", "f", false),
+        "jdouble" => ("D", "d", false),
+        "JString" => ("Ljava/lang/String;", "l", true),
         _ => return None,
     };
-    Some((sig, format_ident!("{}", accessor)))
+    Some((sig, format_ident!("{}", accessor), is_obj))
 }

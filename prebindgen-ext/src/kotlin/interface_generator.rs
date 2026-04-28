@@ -133,7 +133,7 @@ impl KotlinInterfaceGenerator {
         }
 
         let block = format!(
-            "data class {}(\n{}\n)",
+            "data class {}(\n{}\n) {{\n    companion object\n}}",
             struct_name,
             field_lines.join("\n")
         );

@@ -19,38 +19,41 @@ use zenoh::key_expr::{KeyExpr as ZKeyExpr, SetIntersectionLevel};
 
 /// Universal key-expression handle shared across the flat layer.
 ///
-/// `string` is the validated text form of the key expression — kept on
-/// the host (Java/Kotlin) side so cross-boundary calls that only inspect
-/// the string don't need to enter Rust.
+/// `ptr` is `0` for string-only expressions built via [`try_from`] /
+/// [`autocanonize`].  Non-zero values are `Arc<ZKeyExpr<'static>>` raw
+/// pointers: the `Arc` holds zenoh's hidden registration id and must not
+/// be dropped while the registration is alive.
 ///
-/// `ptr` is `Some` for session-declared key expressions: the `Arc`
-/// holds zenoh's hidden registration id and must not be dropped while
-/// the registration is alive. It is `None` for string-only expressions
-/// built via [`try_from`] / [`autocanonize`].
-///
-/// Field is named `ptr` to mirror the JNI-side `JNIKeyExpr.ptr` it
-/// round-trips through.
+/// Field order (`ptr` first) matches the `JNIKeyExpr(ptr: Long, string: String)`
+/// Kotlin constructor so positional call sites need no update.
+#[prebindgen_proc_macro::prebindgen]
+#[derive(Debug, Clone)]
 pub struct KeyExpr {
+    pub ptr: i64,
     pub string: String,
-    pub ptr: Option<Arc<ZKeyExpr<'static>>>,
 }
 
 impl KeyExpr {
     /// Materialize a borrowed zenoh `KeyExpr` for one-shot zenoh calls.
     ///
-    /// `Some(arc)` → cheap clone of the inner registered `KeyExpr`.
-    /// `None` → unchecked-construct from the wrapper's already-validated
-    /// string (the wrapper is only ever built via the validating
-    /// constructors below, so the unchecked path is sound).
+    /// When `ptr != 0`, bumps the Arc strong count, clones the inner
+    /// `ZKeyExpr`, then drops the temporary Arc (net count unchanged).
+    /// When `ptr == 0`, constructs from the already-validated string.
     pub(crate) fn as_zenoh(&self) -> ZKeyExpr<'static> {
-        match &self.ptr {
-            Some(arc) => (**arc).clone(),
+        if self.ptr != 0 {
+            let raw = self.ptr as *const ZKeyExpr<'static>;
+            // SAFETY: `ptr` was produced by `Arc::into_raw`; we increment
+            // before taking ownership so the Java-side strong ref survives.
+            unsafe {
+                Arc::increment_strong_count(raw);
+                (*Arc::from_raw(raw)).clone()
+            }
+        } else {
             // SAFETY: every `KeyExpr` is built via the validating
             // constructors below (`try_from`, `autocanonize`, or by joining
             // / concatenating an already-validated wrapper), so
-            // `self.string` is guaranteed to be a syntactically valid Zenoh
-            // key expression.
-            None => unsafe { ZKeyExpr::from_string_unchecked(self.string.clone()) },
+            // `self.string` is a syntactically valid Zenoh key expression.
+            unsafe { ZKeyExpr::from_string_unchecked(self.string.clone()) }
         }
     }
 }
@@ -61,10 +64,7 @@ impl KeyExpr {
 pub fn try_from(s: String) -> ZResult<KeyExpr> {
     ZKeyExpr::try_from(s.as_str())
         .map_err(|err| zerror!("Unable to create key expression: '{}'.", err))?;
-    Ok(KeyExpr {
-        string: s,
-        ptr: None,
-    })
+    Ok(KeyExpr { ptr: 0, string: s })
 }
 
 /// Auto-canonize `s` and return the canonized form as a string-only
@@ -74,8 +74,8 @@ pub fn autocanonize(s: String) -> ZResult<KeyExpr> {
     let canonized = ZKeyExpr::autocanonize(s)
         .map_err(|err| zerror!("Unable to create key expression: '{}'", err))?;
     Ok(KeyExpr {
+        ptr: 0,
         string: canonized.to_string(),
-        ptr: None,
     })
 }
 
@@ -102,8 +102,7 @@ pub fn relation_to(a: &KeyExpr, b: &KeyExpr) -> ZResult<SetIntersectionLevel> {
 
 /// Join `a` with `other` using `/` and return the joined key expression.
 /// Mirrors zenoh's `KeyExpr::join(&self, other: &str)`. When `a` is
-/// session-declared the result also carries an `Arc` (preserving the
-/// declaration handle).
+/// session-declared the result also carries a fresh Arc (new registration).
 #[prebindgen]
 pub fn join(a: &KeyExpr, other: String) -> ZResult<KeyExpr> {
     let joined = a
@@ -111,12 +110,14 @@ pub fn join(a: &KeyExpr, other: String) -> ZResult<KeyExpr> {
         .join(other.as_str())
         .map_err(|err| zerror!(err))?;
     let string = joined.to_string();
-    let ptr = if a.ptr.is_some() {
-        Some(Arc::new(joined.into()))
+    let ptr = if a.ptr != 0 {
+        // SAFETY: `Arc::into_raw` transfers ownership to the Java caller.
+        let arc: Arc<ZKeyExpr<'static>> = Arc::new(joined.into());
+        Arc::into_raw(arc) as i64
     } else {
-        None
+        0
     };
-    Ok(KeyExpr { string, ptr })
+    Ok(KeyExpr { ptr, string })
 }
 
 /// Concatenate `a` with `other` (raw string concat) and return the result.
@@ -129,20 +130,24 @@ pub fn concat(a: &KeyExpr, other: String) -> ZResult<KeyExpr> {
         .concat(other.as_str())
         .map_err(|err| zerror!(err))?;
     let string = concatenated.to_string();
-    let ptr = if a.ptr.is_some() {
-        Some(Arc::new(concatenated.into()))
+    let ptr = if a.ptr != 0 {
+        let arc: Arc<ZKeyExpr<'static>> = Arc::new(concatenated.into());
+        Arc::into_raw(arc) as i64
     } else {
-        None
+        0
     };
-    Ok(KeyExpr { string, ptr })
+    Ok(KeyExpr { ptr, string })
 }
 
 /// Drop a [`KeyExpr`] handle obtained from a session-declared key
-/// expression. Consuming the wrapper releases the `Arc<ZKeyExpr>` strong
-/// reference (which the JNI side previously held). String-only
-/// expressions (where `ptr` is `None`) are a no-op.
+/// expression. When `ptr != 0`, takes ownership of the `Arc<ZKeyExpr>`
+/// (decrementing the strong count). String-only expressions are a no-op.
 #[prebindgen]
 pub fn drop_key_expr(key_expr: KeyExpr) -> ZResult<()> {
-    drop(key_expr);
+    if key_expr.ptr != 0 {
+        // SAFETY: `ptr` was produced by `Arc::into_raw`; taking ownership
+        // here and letting the Arc drop releases the Java-side strong ref.
+        unsafe { drop(Arc::from_raw(key_expr.ptr as *const ZKeyExpr<'static>)) };
+    }
     Ok(())
 }

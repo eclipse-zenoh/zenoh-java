@@ -155,20 +155,16 @@ fn shared_bindings() -> TypeRegistry {
         .input(decode_pure!(crate::utils::decode_consolidation))
         .type_pair("ReplyKeyExpr", "jni::sys::jint")
         .input(decode_pure!(crate::utils::decode_reply_key_expr))
-        // FlatKeyExpr (zenoh_flat::keyexpr::KeyExpr) — universal handle that
-        // crosses JNI as the `io.zenoh.jni.JNIKeyExpr` Kotlin holder. Three
-        // wire roles:
+        // FlatKeyExpr (zenoh_flat::keyexpr::KeyExpr) — auto-generated as a
+        // Kotlin data class; `ptr: i64` carries the raw Arc pointer (0 =
+        // string-only). By-value and borrow use the same flat decoder
+        // because `i64` has no Drop impl — Arc lifecycle is managed
+        // explicitly by `drop_key_expr` / `undeclare_key_expr`.
         //
-        // - by-ref (`&KeyExpr`): borrow-decoder bumps the Arc strong count
-        //   so the JNI side keeps its reference;
-        // - by-value (`KeyExpr`): owned-decoder takes the Arc, releasing
-        //   the JNI strong ref when the wrapper drops at end of scope;
-        // - return (`ZResult<KeyExpr>`): encoder transfers a fresh strong
-        //   ref to Java via `Arc::into_raw`.
-        .type_pair("KeyExpr", "jni::objects::JObject")
-        .input(decode_env_ref_mut!(crate::key_expr::decode_jni_keyexpr_owned))
+        // `"KeyExpr"` (by-value) is auto-registered by the struct_conv pass
+        // below, so only the borrow and return variants need manual entries.
         .type_pair("&KeyExpr", "jni::objects::JObject")
-        .input(decode_env_ref_mut!(crate::key_expr::decode_jni_keyexpr_borrow))
+        .input(decode_env_ref_mut!(decode_KeyExpr))
         .type_pair("ZResult<KeyExpr>", "jni::sys::jobject")
         .output(encode_wrapper!(crate::key_expr::encode_jni_keyexpr))
         // Set-intersection level returned by `relation_to`. Cast zenoh's
@@ -254,9 +250,8 @@ fn shared_kotlin_types() -> KotlinTypeMap {
         .add("QueryTarget", "Int")
         .add("ConsolidationMode", "Int")
         .add("ReplyKeyExpr", "Int")
-        .add("KeyExpr", "io.zenoh.jni.JNIKeyExpr")
-        .add("&KeyExpr", "io.zenoh.jni.JNIKeyExpr")
-        .add("ZResult<KeyExpr>", "io.zenoh.jni.JNIKeyExpr")
+        .add("&KeyExpr", "KeyExpr")
+        .add("ZResult<KeyExpr>", "KeyExpr")
         .add("ZResult<SetIntersectionLevel>", "Int")
         .add("Encoding", "io.zenoh.jni.JNIEncoding")
         .add("Option<Encoding>", "io.zenoh.jni.JNIEncoding")
@@ -297,6 +292,26 @@ fn main() {
         .collect();
 
     let types = struct_conv.into_type_registry();
+
+    // Phase 1b: process the `#[prebindgen]` struct from zenoh_flat::keyexpr
+    // (the `KeyExpr` flat handle). Separate pass because its source module
+    // path differs from `zenoh_flat::structs`.
+    let mut keyexpr_struct_conv = TypesConverter::builder(JniDecoderStruct::new(
+        "zenoh_flat::keyexpr",
+        "crate::errors::ZResult",
+    ))
+    .type_registry(types)
+    .build();
+
+    let keyexpr_struct_items: Vec<_> = source
+        .items_all()
+        .filter(|(item, loc)| {
+            matches!(item, syn::Item::Struct(_)) && loc.file.ends_with("/keyexpr.rs")
+        })
+        .batching(keyexpr_struct_conv.as_closure())
+        .collect();
+
+    let types = keyexpr_struct_conv.into_type_registry();
 
     // Phase 2: process #[prebindgen] fns from zenoh_flat::session and
     // zenoh_flat::keyexpr against the now fully-populated type registry,
@@ -368,6 +383,7 @@ fn main() {
 
     let bindings_file = struct_items
         .into_iter()
+        .chain(keyexpr_struct_items)
         .chain(session_items)
         .chain(keyexpr_items)
         .chain(passthrough)
@@ -386,6 +402,7 @@ fn main() {
         "RecoveryConfig",
         "CacheConfig",
         "MissDetectionConfig",
+        "KeyExpr",
     ];
     let mut kotlin_types = shared_kotlin_types();
     for s in &struct_names {
@@ -427,7 +444,8 @@ fn main() {
         .build();
 
     for (item, loc) in source.items_all().filter(|(item, loc)| {
-        matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/keyexpr.rs")
+        (matches!(item, syn::Item::Struct(_)) && loc.file.ends_with("/keyexpr.rs"))
+            || (matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/keyexpr.rs"))
     }) {
         keyexpr_kotlin.add_item(&item, &loc);
     }

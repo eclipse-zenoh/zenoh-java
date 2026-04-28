@@ -110,8 +110,9 @@ pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<KeyExpr>
         .map(|ke| {
             trace!("Declared key expression '{}'.", key_expr_clone);
             KeyExpr {
+                // SAFETY: transfers Arc ownership to the Java caller.
+                ptr: Arc::into_raw(Arc::new(ke)) as i64,
                 string: key_expr,
-                ptr: Some(Arc::new(ke)),
             }
         })
         .map_err(|err| {
@@ -137,13 +138,17 @@ pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<KeyExpr>
 #[prebindgen_proc_macro::prebindgen]
 pub fn undeclare_key_expr(session: &Session, key_expr: KeyExpr) -> ZResult<()> {
     let key_expr_string = key_expr.string.clone();
-    let Some(arc) = &key_expr.ptr else {
+    if key_expr.ptr == 0 {
         return Err(zerror!(
             "Attempting to undeclare a non declared key expression '{}'.",
             key_expr_string
         ));
-    };
-    let inner = (**arc).clone();
+    }
+    let raw = key_expr.ptr as *const zenoh::key_expr::KeyExpr<'static>;
+    // SAFETY: `ptr` was produced by `Arc::into_raw`; taking ownership here
+    // releases the Java-side strong reference when `arc` drops.
+    let arc = unsafe { Arc::from_raw(raw) };
+    let inner = (*arc).clone();
     session
         .undeclare(inner)
         .wait()

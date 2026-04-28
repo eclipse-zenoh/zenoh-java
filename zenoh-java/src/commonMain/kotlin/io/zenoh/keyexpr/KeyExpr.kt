@@ -18,6 +18,14 @@ import io.zenoh.Session
 import io.zenoh.session.SessionDeclaration
 import io.zenoh.exceptions.ZError
 import io.zenoh.jni.JNIKeyExpr
+import io.zenoh.jni.tryFrom
+import io.zenoh.jni.autocanonize
+import io.zenoh.jni.intersects
+import io.zenoh.jni.includes
+import io.zenoh.jni.relationTo
+import io.zenoh.jni.join
+import io.zenoh.jni.concat
+import io.zenoh.jni.close
 import io.zenoh.query.IntoSelector
 import io.zenoh.query.Selector
 
@@ -67,7 +75,7 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      * formed [JNIKeyExpr] (carrying both the validated string and any
      * declaration handle).
      */
-    internal constructor(jni: JNIKeyExpr) : this(jni.str, jni)
+    internal constructor(jni: JNIKeyExpr) : this(jni.string, jni)
 
     companion object {
 
