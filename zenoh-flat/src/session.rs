@@ -111,7 +111,7 @@ pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<KeyExpr>
             trace!("Declared key expression '{}'.", key_expr_clone);
             KeyExpr {
                 // SAFETY: transfers Arc ownership to the Java caller.
-                ptr: Arc::into_raw(Arc::new(ke)) as i64,
+                ptr: Some(Arc::new(ke)),
                 string: key_expr,
             }
         })
@@ -137,35 +137,18 @@ pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<KeyExpr>
 /// expression is a programming error and must surface to the caller.
 #[prebindgen_proc_macro::prebindgen]
 pub fn undeclare_key_expr(session: &Session, key_expr: KeyExpr) -> ZResult<()> {
-    let key_expr_string = key_expr.string.clone();
-    if key_expr.ptr == 0 {
-        return Err(zerror!(
-            "Attempting to undeclare a non declared key expression '{}'.",
-            key_expr_string
-        ));
-    }
-    let raw = key_expr.ptr as *const zenoh::key_expr::KeyExpr<'static>;
-    // SAFETY: `ptr` was produced by `Arc::into_raw`; taking ownership here
-    // releases the Java-side strong reference when `arc` drops.
-    let arc = unsafe { Arc::from_raw(raw) };
-    let inner = (*arc).clone();
-    session
-        .undeclare(inner)
-        .wait()
-        .map(|_| {
-            trace!("Undeclared key expression '{}'.", key_expr_string);
-        })
-        .map_err(|err| {
-            error!(
-                "Unable to undeclare key expression '{}': {}",
-                key_expr_string, err
-            );
-            zerror!(
-                "Unable to undeclare key expression '{}': {}",
-                key_expr_string,
-                err
-            )
-        })
+    let ke = key_expr.as_zenoh();
+    session.undeclare(ke).wait().map_err(|err| {
+        error!(
+            "Unable to undeclare key expression '{}': {}",
+            key_expr.string, err
+        );
+        zerror!(
+            "Unable to undeclare key expression '{}': {}",
+            key_expr.string,
+            err
+        )
+    })
 }
 
 /// Declare a subscriber through an existing Zenoh session.

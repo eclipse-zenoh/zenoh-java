@@ -26,7 +26,10 @@ use crate::errors::ZResult;
 /// `io.zenoh.jni.KeyExpr` Java object. When `ptr` is non-zero, the strong
 /// `Arc` reference (already owned by this value) is transferred to Java.
 pub(crate) fn encode_jni_keyexpr(env: &mut JNIEnv, k: FlatKeyExpr) -> ZResult<jobject> {
-    let raw_ptr: i64 = k.ptr;
+    let raw_ptr = k
+        .ptr
+        .map(|ptr| Arc::into_raw(ptr) as i64)
+        .unwrap_or(0);
     let jstr = env
         .new_string(k.string)
         .map_err(|err| zerror!(err))?;

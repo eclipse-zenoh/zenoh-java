@@ -80,6 +80,20 @@ macro_rules! decode_arc_from_raw {
     };
 }
 
+macro_rules! decode_option_arc_from_raw {
+    ($inner:ty) => {
+        InputFn::new(|input: &syn::Ident| -> TokenStream {
+            quote! {
+                if #input != 0 {
+                    Some(unsafe { std::sync::Arc::from_raw(#input as *const $inner) })
+                } else {
+                    None
+                }
+            }
+        })
+    };
+}
+
 macro_rules! encode_wrapper {
     ($path:path) => {
         OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
@@ -156,13 +170,15 @@ fn shared_bindings() -> TypeRegistry {
         .type_pair("ReplyKeyExpr", "jni::sys::jint")
         .input(decode_pure!(crate::utils::decode_reply_key_expr))
         // FlatKeyExpr (zenoh_flat::keyexpr::KeyExpr) — auto-generated as a
-        // Kotlin data class; `ptr: i64` carries the raw Arc pointer (0 =
-        // string-only). By-value and borrow use the same flat decoder
-        // because `i64` has no Drop impl — Arc lifecycle is managed
-        // explicitly by `drop_key_expr` / `undeclare_key_expr`.
+        // Kotlin data class; `ptr: Long` carries the raw Arc pointer (0 =
+        // string-only). The flat Rust struct now stores
+        // `Option<Arc<ZKeyExpr<'static>>>`, so decode the primitive field
+        // into an owned `Arc` only when a non-zero pointer is present.
         //
         // `"KeyExpr"` (by-value) is auto-registered by the struct_conv pass
         // below, so only the borrow and return variants need manual entries.
+        .type_pair("Option<Arc<ZKeyExpr<'static>>>", "jni::sys::jlong")
+        .input(decode_option_arc_from_raw!(zenoh::key_expr::KeyExpr<'static>))
         .type_pair("&KeyExpr", "jni::objects::JObject")
         .input(decode_env_ref_mut!(decode_KeyExpr))
         .type_pair("ZResult<KeyExpr>", "jni::sys::jobject")
@@ -250,6 +266,7 @@ fn shared_kotlin_types() -> KotlinTypeMap {
         .add("QueryTarget", "Int")
         .add("ConsolidationMode", "Int")
         .add("ReplyKeyExpr", "Int")
+        .add("Option<Arc<ZKeyExpr<'static>>>", "Long")
         .add("&KeyExpr", "KeyExpr")
         .add("ZResult<KeyExpr>", "KeyExpr")
         .add("ZResult<SetIntersectionLevel>", "Int")

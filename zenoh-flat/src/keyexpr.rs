@@ -19,17 +19,19 @@ use zenoh::key_expr::{KeyExpr as ZKeyExpr, SetIntersectionLevel};
 
 /// Universal key-expression handle shared across the flat layer.
 ///
-/// `ptr` is `0` for string-only expressions built via [`try_from`] /
-/// [`autocanonize`].  Non-zero values are `Arc<ZKeyExpr<'static>>` raw
-/// pointers: the `Arc` holds zenoh's hidden registration id and must not
-/// be dropped while the registration is alive.
+/// `ptr` is `None` for string-only expressions built via [`try_from`] /
+/// [`autocanonize`].  `Some(md)` holds an `Arc<ZKeyExpr<'static>>` wrapped
+/// in `ManuallyDrop` so it never auto-drops when the struct is destroyed:
+/// the caller is responsible for releasing the Arc either by calling
+/// `drop_key_expr` / `undeclare_key_expr` (session-declared) or simply
+/// letting the undeclared variant be discarded (no-op).
 ///
-/// Field order (`ptr` first) matches the `JNIKeyExpr(ptr: Long, string: String)`
+/// Field order (`ptr` first) matches the `KeyExpr(ptr: Long, string: String)`
 /// Kotlin constructor so positional call sites need no update.
 #[prebindgen_proc_macro::prebindgen]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct KeyExpr {
-    pub ptr: i64,
+    pub ptr: Option<Arc<ZKeyExpr<'static>>>,
     pub string: String,
 }
 
@@ -40,19 +42,11 @@ impl KeyExpr {
     /// `ZKeyExpr`, then drops the temporary Arc (net count unchanged).
     /// When `ptr == 0`, constructs from the already-validated string.
     pub(crate) fn as_zenoh(&self) -> ZKeyExpr<'static> {
-        if self.ptr != 0 {
-            let raw = self.ptr as *const ZKeyExpr<'static>;
-            // SAFETY: `ptr` was produced by `Arc::into_raw`; we increment
-            // before taking ownership so the Java-side strong ref survives.
-            unsafe {
-                Arc::increment_strong_count(raw);
-                (*Arc::from_raw(raw)).clone()
-            }
+        if let Some(md) = &self.ptr {
+            md.as_ref().clone()
         } else {
             // SAFETY: every `KeyExpr` is built via the validating
-            // constructors below (`try_from`, `autocanonize`, or by joining
-            // / concatenating an already-validated wrapper), so
-            // `self.string` is a syntactically valid Zenoh key expression.
+            // constructors (`try_from`, `autocanonize`, join, concat).
             unsafe { ZKeyExpr::from_string_unchecked(self.string.clone()) }
         }
     }
@@ -64,7 +58,7 @@ impl KeyExpr {
 pub fn try_from(s: String) -> ZResult<KeyExpr> {
     ZKeyExpr::try_from(s.as_str())
         .map_err(|err| zerror!("Unable to create key expression: '{}'.", err))?;
-    Ok(KeyExpr { ptr: 0, string: s })
+    Ok(KeyExpr { ptr: None, string: s })
 }
 
 /// Auto-canonize `s` and return the canonized form as a string-only
@@ -74,7 +68,7 @@ pub fn autocanonize(s: String) -> ZResult<KeyExpr> {
     let canonized = ZKeyExpr::autocanonize(s)
         .map_err(|err| zerror!("Unable to create key expression: '{}'", err))?;
     Ok(KeyExpr {
-        ptr: 0,
+        ptr: None,
         string: canonized.to_string(),
     })
 }
@@ -110,12 +104,10 @@ pub fn join(a: &KeyExpr, other: String) -> ZResult<KeyExpr> {
         .join(other.as_str())
         .map_err(|err| zerror!(err))?;
     let string = joined.to_string();
-    let ptr = if a.ptr != 0 {
-        // SAFETY: `Arc::into_raw` transfers ownership to the Java caller.
-        let arc: Arc<ZKeyExpr<'static>> = Arc::new(joined.into());
-        Arc::into_raw(arc) as i64
+    let ptr = if a.ptr.is_some() {
+        Some(Arc::new(ZKeyExpr::from(joined)))
     } else {
-        0
+        None
     };
     Ok(KeyExpr { ptr, string })
 }
@@ -130,11 +122,10 @@ pub fn concat(a: &KeyExpr, other: String) -> ZResult<KeyExpr> {
         .concat(other.as_str())
         .map_err(|err| zerror!(err))?;
     let string = concatenated.to_string();
-    let ptr = if a.ptr != 0 {
-        let arc: Arc<ZKeyExpr<'static>> = Arc::new(concatenated.into());
-        Arc::into_raw(arc) as i64
+    let ptr = if a.ptr.is_some() {
+        Some(Arc::new(ZKeyExpr::from(concatenated)))
     } else {
-        0
+        None
     };
     Ok(KeyExpr { ptr, string })
 }
@@ -144,10 +135,10 @@ pub fn concat(a: &KeyExpr, other: String) -> ZResult<KeyExpr> {
 /// (decrementing the strong count). String-only expressions are a no-op.
 #[prebindgen]
 pub fn drop_key_expr(key_expr: KeyExpr) -> ZResult<()> {
-    if key_expr.ptr != 0 {
+    if let Some(ptr) = key_expr.ptr {
         // SAFETY: `ptr` was produced by `Arc::into_raw`; taking ownership
         // here and letting the Arc drop releases the Java-side strong ref.
-        unsafe { drop(Arc::from_raw(key_expr.ptr as *const ZKeyExpr<'static>)) };
+        drop(ptr);
     }
     Ok(())
 }

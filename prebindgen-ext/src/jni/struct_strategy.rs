@@ -155,17 +155,28 @@ impl StructStrategy for JniDecoderStruct {
     }
 }
 
-/// Look up a `#[prebindgen]` struct field's type in the registry. Fields
-/// must use the type's bare path-tail name (e.g. `bool`, `i64`,
-/// `CongestionControl`) and must resolve to a registered binding.
+/// Look up a `#[prebindgen]` struct field's type in the registry.
+///
+/// Fast path: bare path-tail ident (e.g. `bool`, `i64`, `CongestionControl`).
+/// Fallback: full canonical token-stream key, which allows generic field types
+/// like `Option<ManuallyDrop<Arc<ZKeyExpr<'static'>>>>` to be registered and
+/// found by callers that use the full type expression as the registry key.
 fn lookup_field_binding<'a>(
     registry: &'a TypeRegistry,
     ty: &syn::Type,
 ) -> Option<&'a TypeBinding> {
-    let syn::Type::Path(tp) = ty else { return None };
-    let last = tp.path.segments.last()?;
-    let name = last.ident.to_string();
-    registry.types.get(&name)
+    use quote::ToTokens as _;
+    // Fast path: last path segment.
+    if let syn::Type::Path(tp) = ty {
+        if let Some(last) = tp.path.segments.last() {
+            if let Some(b) = registry.types.get(&last.ident.to_string()) {
+                return Some(b);
+            }
+        }
+    }
+    // Fallback: full canonical token-stream key.
+    let key = crate::core::type_binding::canon_type(&ty.to_token_stream().to_string());
+    registry.types.get(&key)
 }
 
 /// Map a JNI wire type to `(jvm_field_descriptor, JValue_accessor_ident, is_object)`.
