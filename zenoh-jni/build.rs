@@ -1,6 +1,7 @@
 use itertools::Itertools;
 use proc_macro2::TokenStream;
 use quote::quote;
+use std::fs;
 
 use zenoh_flat::core::{
     primitive_builtins, FunctionsConverter, InputFn, NameMangler, OutputFn, TypeRegistry,
@@ -85,7 +86,11 @@ macro_rules! decode_option_arc_from_raw {
         InputFn::new(|input: &syn::Ident| -> TokenStream {
             quote! {
                 if #input != 0 {
-                    Some(unsafe { std::sync::Arc::from_raw(#input as *const $inner) })
+                    Some(unsafe {
+                        let raw = #input as *const $inner;
+                        std::sync::Arc::increment_strong_count(raw);
+                        std::sync::Arc::from_raw(raw)
+                    })
                 } else {
                     None
                 }
@@ -190,7 +195,7 @@ fn shared_bindings() -> TypeRegistry {
                 Some(output) => quote! {
                     #output
                         .as_ref()
-                        .map(|ptr| std::sync::Arc::as_ptr(ptr) as i64)
+                        .map(|ptr| std::sync::Arc::into_raw(ptr.clone()) as i64)
                         .unwrap_or(0)
                 },
                 None => quote! { 0 },
@@ -302,6 +307,16 @@ fn shared_kotlin_types() -> KotlinTypeMap {
         .add("ZResult<AdvancedSubscriber<()>>", "Long")
         .add("ZResult<AdvancedPublisher<'static>>", "Long")
         .add("ZResult<bool>", "Boolean")
+}
+
+fn patch_generated_kotlin_data_classes(path: &str, replacements: &[(&str, &str)]) {
+    let mut content = fs::read_to_string(path)
+        .unwrap_or_else(|err| panic!("failed to read generated Kotlin file {path}: {err}"));
+    for (from, to) in replacements {
+        content = content.replace(from, to);
+    }
+    fs::write(path, content)
+        .unwrap_or_else(|err| panic!("failed to patch generated Kotlin file {path}: {err}"));
 }
 
 fn main() {
@@ -467,6 +482,36 @@ fn main() {
     session_kotlin
         .write()
         .expect("failed to write generated JNISessionNative.kt");
+    patch_generated_kotlin_data_classes(
+        "../zenoh-jni/generated-kotlin/io/zenoh/jni/JNISessionNative.kt",
+        &[
+            ("val isHeartbeat: Boolean,", "var isHeartbeat: Boolean = false,"),
+            ("val periodMs: Long,", "var periodMs: Long = 0L,"),
+            ("val maxSamples: Long,", "var maxSamples: Long = 0L,"),
+            ("val repliesPriority: Int,", "var repliesPriority: Int = 0,"),
+            (
+                "val repliesCongestionControl: Int,",
+                "var repliesCongestionControl: Int = 0,",
+            ),
+            (
+                "val repliesIsExpress: Boolean,",
+                "var repliesIsExpress: Boolean = false,",
+            ),
+            (
+                "val enableHeartbeat: Boolean,",
+                "var enableHeartbeat: Boolean = false,",
+            ),
+            ("val isSporadic: Boolean,", "var isSporadic: Boolean = false,"),
+            (
+                "val detectLatePublishers: Boolean,",
+                "var detectLatePublishers: Boolean = false,",
+            ),
+            (
+                "val maxAgeSeconds: Double,",
+                "var maxAgeSeconds: Double = 0.0,",
+            ),
+        ],
+    );
 
     let mut keyexpr_kotlin = KotlinInterfaceGenerator::builder()
         .output_path("../zenoh-jni/generated-kotlin/io/zenoh/jni/JNIKeyExprNative.kt")
@@ -488,4 +533,11 @@ fn main() {
     keyexpr_kotlin
         .write()
         .expect("failed to write generated JNIKeyExprNative.kt");
+    patch_generated_kotlin_data_classes(
+        "../zenoh-jni/generated-kotlin/io/zenoh/jni/JNIKeyExprNative.kt",
+        &[
+            ("val ptr: Long,", "var ptr: Long = 0L,"),
+            ("val string: String,", "var string: String = \"\","),
+        ],
+    );
 }
