@@ -163,6 +163,21 @@ pub fn primitive_builtins() -> TypeRegistry {
             None => quote! { zenoh_flat::jni::null_string() },
         }
     });
+    let string_option_output = OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
+        match output {
+            Some(output) => quote! {
+                #output
+                    .as_ref()
+                    .map(|value| {
+                        zenoh_flat::jni::encode_string(&mut env, value)
+                            .map_err(|err| zerror!(err))
+                    })
+                    .transpose()?
+                    .unwrap_or_else(zenoh_flat::jni::null_string)
+            },
+            None => quote! { zenoh_flat::jni::null_string() },
+        }
+    });
 
     TypeRegistry::new()
         // Strings
@@ -176,7 +191,7 @@ pub fn primitive_builtins() -> TypeRegistry {
             "Option<String>",
             "jni::objects::JString",
             string_option_input,
-            NO_OUTPUT,
+            string_option_output,
         )
         // Primitives
         .type_pair(
