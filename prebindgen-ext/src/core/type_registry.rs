@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::core::inline_fn::{InputFn, NO_OUTPUT, OutputFn};
+use crate::core::inline_fn::{InputFn, NO_OUTPUT, OutputFn, option_input, option_output};
 use crate::core::type_binding::{canon_type, TypeBinding};
 
 #[derive(Default, Clone)]
@@ -144,16 +144,6 @@ pub fn primitive_builtins() -> TypeRegistry {
                 .map_err(|err| zerror!(err))?
         }
     });
-    let string_option_input = InputFn::new(|input: &syn::Ident| -> TokenStream {
-        quote! {
-            if !#input.is_null() {
-                Some(zenoh_flat::jni::decode_string(&mut env, &#input)
-                    .map_err(|err| zerror!(err))?)
-            } else {
-                None
-            }
-        }
-    });
     let string_output = OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
         match output {
             Some(output) => quote! {
@@ -163,21 +153,8 @@ pub fn primitive_builtins() -> TypeRegistry {
             None => quote! { zenoh_flat::jni::null_string() },
         }
     });
-    let string_option_output = OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
-        match output {
-            Some(output) => quote! {
-                #output
-                    .as_ref()
-                    .map(|value| {
-                        zenoh_flat::jni::encode_string(&mut env, value)
-                            .map_err(|err| zerror!(err))
-                    })
-                    .transpose()?
-                    .unwrap_or_else(zenoh_flat::jni::null_string)
-            },
-            None => quote! { zenoh_flat::jni::null_string() },
-        }
-    });
+    let string_option_input = option_input(string_input.clone());
+    let string_option_output = option_output(string_output.clone());
 
     TypeRegistry::new()
         // Strings
@@ -185,7 +162,7 @@ pub fn primitive_builtins() -> TypeRegistry {
             "String",
             "jni::objects::JString",
             string_input,
-            string_output.clone(),
+            string_output,
         )
         .type_pair(
             "Option<String>",
