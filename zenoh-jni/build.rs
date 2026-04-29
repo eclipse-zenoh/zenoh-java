@@ -161,24 +161,7 @@ macro_rules! encode_cast {
 /// bindings — into the methods phase and the Kotlin generator.
 fn shared_bindings() -> TypeRegistry {
     primitive_builtins()
-        // Strings & byte arrays.
-        .type_pair(
-            "String",
-            "jni::objects::JString",
-            decode_env_ref_mut!(crate::utils::decode_string),
-            OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
-                match output {
-                    Some(output) => quote! { env.new_string(#output).map_err(|err| zerror!(err))? },
-                    None => quote! { jni::objects::JString::from(jni::objects::JObject::null()) },
-                }
-            }),
-        )
-        .type_pair(
-            "Option<String>",
-            "jni::objects::JString",
-            decode_option_env_ref_mut!(crate::utils::decode_string),
-            NO_OUTPUT,
-        )
+        // Strings & byte arrays (String converters now in primitive_builtins)
         .type_pair(
             "Vec<u8>",
             "jni::objects::JByteArray",

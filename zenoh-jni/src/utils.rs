@@ -27,17 +27,6 @@ use zenoh::{
     query::{ConsolidationMode, QueryTarget, ReplyKeyExpr},
 };
 
-/// Converts a JString into a rust String.
-pub(crate) fn decode_string(env: &mut JNIEnv, string: &JString) -> ZResult<String> {
-    let binding = env
-        .get_string(string)
-        .map_err(|err| zerror!("Error while retrieving JString: {}", err))?;
-    let value = binding
-        .to_str()
-        .map_err(|err| zerror!("Error decoding JString: {}", err))?;
-    Ok(value.to_string())
-}
-
 pub(crate) fn decode_encoding(
     env: &mut JNIEnv,
     encoding: jint,
@@ -46,7 +35,14 @@ pub(crate) fn decode_encoding(
     let schema: Option<ZSlice> = if schema.is_null() {
         None
     } else {
-        Some(decode_string(env, schema)?.into_bytes().into())
+        // Inline String decoding logic (moved from decode_string)
+        let binding = env
+            .get_string(schema)
+            .map_err(|err| zerror!("Error while retrieving JString: {}", err))?;
+        let value = binding
+            .to_str()
+            .map_err(|err| zerror!("Error decoding JString: {}", err))?;
+        Some(value.to_string().into_bytes().into())
     };
     let encoding_id =
         u16::try_from(encoding).map_err(|err| zerror!("Failed to decode encoding: {}", err))?;

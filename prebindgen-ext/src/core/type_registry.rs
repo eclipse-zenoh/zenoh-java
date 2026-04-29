@@ -138,8 +138,47 @@ pub fn primitive_builtins() -> TypeRegistry {
     let duration_input = InputFn::new(|input: &syn::Ident| -> TokenStream {
         quote! { std::time::Duration::from_millis(#input as u64) }
     });
+    let string_input = InputFn::new(|input: &syn::Ident| -> TokenStream {
+        quote! {
+            zenoh_flat::jni::decode_string(&mut env, &#input)
+                .map_err(|err| zerror!(err))?
+        }
+    });
+    let string_option_input = InputFn::new(|input: &syn::Ident| -> TokenStream {
+        quote! {
+            if !#input.is_null() {
+                Some(zenoh_flat::jni::decode_string(&mut env, &#input)
+                    .map_err(|err| zerror!(err))?)
+            } else {
+                None
+            }
+        }
+    });
+    let string_output = OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
+        match output {
+            Some(output) => quote! {
+                zenoh_flat::jni::encode_string(&mut env, #output)
+                    .map_err(|err| zerror!(err))?
+            },
+            None => quote! { zenoh_flat::jni::null_string() },
+        }
+    });
 
     TypeRegistry::new()
+        // Strings
+        .type_pair(
+            "String",
+            "jni::objects::JString",
+            string_input,
+            string_output.clone(),
+        )
+        .type_pair(
+            "Option<String>",
+            "jni::objects::JString",
+            string_option_input,
+            NO_OUTPUT,
+        )
+        // Primitives
         .type_pair(
             "bool",
             "jni::sys::jboolean",

@@ -23,7 +23,8 @@ use zenoh::Config;
 
 use crate::errors::ZResult;
 use crate::owned_object::OwnedObject;
-use crate::{throw_exception, utils::decode_string};
+use crate::throw_exception;
+use zenoh_flat::jni::decode_string;
 
 /// Loads the default configuration, returning a raw pointer to it.
 ///
@@ -54,7 +55,8 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadConfigFileViaJN
     config_path: JString,
 ) -> *const Config {
     || -> ZResult<*const Config> {
-        let config_file_path = decode_string(&mut env, &config_path)?;
+        let config_file_path = decode_string(&mut env, &config_path)
+            .map_err(|err| zerror!(err))?;
         let config = Config::from_file(config_file_path).map_err(|err| zerror!(err))?;
         Ok(Arc::into_raw(Arc::new(config)))
     }()
@@ -78,7 +80,8 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadJsonConfigViaJN
     json_config: JString,
 ) -> *const Config {
     || -> ZResult<*const Config> {
-        let json_config = decode_string(&mut env, &json_config)?;
+        let json_config = decode_string(&mut env, &json_config)
+            .map_err(|err| zerror!(err))?;
         let config = zenoh_flat::config::load_json_config(&json_config)?;
         Ok(Arc::into_raw(Arc::new(config)))
     }()
@@ -102,7 +105,8 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadYamlConfigViaJN
     yaml_config: JString,
 ) -> *const Config {
     || -> ZResult<*const Config> {
-        let yaml_config = decode_string(&mut env, &yaml_config)?;
+        let yaml_config = decode_string(&mut env, &yaml_config)
+            .map_err(|err| zerror!(err))?;
         let config = zenoh_flat::config::load_yaml_config(&yaml_config)?;
         Ok(Arc::into_raw(Arc::new(config)))
     }()
@@ -124,7 +128,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_getJsonViaJN
 ) -> jstring {
     let arc_cfg = OwnedObject::from_raw(cfg_ptr);
     || -> ZResult<jstring> {
-        let key = decode_string(&mut env, &key)?;
+        let key = decode_string(&mut env, &key)
+            .map_err(|err| zerror!(err))?;
         let json = arc_cfg.get_json(&key).map_err(|err| zerror!(err))?;
         let java_json = env.new_string(json).map_err(|err| zerror!(err))?;
         Ok(java_json.as_raw())
@@ -147,8 +152,10 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_insertJson5V
     value: JString,
 ) {
     || -> ZResult<()> {
-        let key = decode_string(&mut env, &key)?;
-        let value = decode_string(&mut env, &value)?;
+        let key = decode_string(&mut env, &key)
+            .map_err(|err| zerror!(err))?;
+        let value = decode_string(&mut env, &value)
+            .map_err(|err| zerror!(err))?;
         let mut config = core::ptr::read(cfg_ptr);
         let insert_result = config
             .insert_json5(&key, &value)

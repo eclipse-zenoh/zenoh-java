@@ -27,10 +27,11 @@ use crate::{
     sample_callback::{on_reply_error, on_reply_success},
     throw_exception,
     utils::{
-        decode_byte_array, decode_jni_encoding, decode_string, get_callback_global_ref, get_java_vm,
+        decode_byte_array, decode_jni_encoding, get_callback_global_ref, get_java_vm,
         load_on_close,
     },
 };
+use zenoh_flat::jni::decode_string;
 
 /// Perform a Zenoh GET through a querier.
 ///
@@ -94,7 +95,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_getViaJNI(
         });
 
         if !selector_params.is_null() {
-            let params = decode_string(&mut env, &selector_params)?;
+            let params = decode_string(&mut env, &selector_params)
+                .map_err(|err| zerror!(err))?;
             get_builder = get_builder.parameters(params)
         };
 

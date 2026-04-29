@@ -1866,6 +1866,7 @@ name = "prebindgen-ext"
 version = "1.9.0"
 dependencies = [
  "itertools 0.12.1",
+ "jni",
  "prebindgen",
  "proc-macro2",
  "quote",

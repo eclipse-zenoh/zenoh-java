@@ -24,7 +24,9 @@ pub mod inline_fn_helpers;
 pub mod jni_type;
 pub mod jni_type_helper;
 pub mod opaque;
+pub mod string_helpers;
 pub mod struct_strategy;
 
 pub use body_strategy::JniTryClosureBody;
+pub use string_helpers::{decode_string, encode_string, null_string};
 pub use struct_strategy::JniDecoderStruct;
