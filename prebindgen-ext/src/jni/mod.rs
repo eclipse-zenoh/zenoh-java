@@ -20,6 +20,7 @@
 //!   whose inner is a JNI-object-shaped wire type.
 
 pub mod body_strategy;
+pub mod byte_array_helpers;
 pub mod inline_fn_helpers;
 pub mod jni_type;
 pub mod jni_type_helper;
@@ -28,5 +29,6 @@ pub mod string_helpers;
 pub mod struct_strategy;
 
 pub use body_strategy::JniTryClosureBody;
+pub use byte_array_helpers::{decode_byte_array, encode_byte_array, null_byte_array};
 pub use string_helpers::{decode_string, encode_string, null_string};
 pub use struct_strategy::JniDecoderStruct;

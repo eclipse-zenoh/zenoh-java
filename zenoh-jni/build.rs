@@ -17,32 +17,10 @@ macro_rules! decode_pure {
     };
 }
 
-macro_rules! decode_env_ref {
-    ($path:path) => {
-        InputFn::new(|input: &syn::Ident| -> TokenStream {
-            quote! { $path(&env, &#input)? }
-        })
-    };
-}
-
 macro_rules! decode_env_ref_mut {
     ($path:path) => {
         InputFn::new(|input: &syn::Ident| -> TokenStream {
             quote! { $path(&mut env, &#input)? }
-        })
-    };
-}
-
-macro_rules! decode_option_env_ref {
-    ($path:path) => {
-        InputFn::new(|input: &syn::Ident| -> TokenStream {
-            quote! {
-                if !#input.is_null() {
-                    Some($path(&env, &#input)?)
-                } else {
-                    None
-                }
-            }
         })
     };
 }
@@ -161,19 +139,7 @@ macro_rules! encode_cast {
 /// bindings — into the methods phase and the Kotlin generator.
 fn shared_bindings() -> TypeRegistry {
     primitive_builtins()
-        // Strings & byte arrays (String converters now in primitive_builtins)
-        .type_pair(
-            "Vec<u8>",
-            "jni::objects::JByteArray",
-            decode_env_ref!(crate::utils::decode_byte_array),
-            NO_OUTPUT,
-        )
-        .type_pair(
-            "Option<Vec<u8>>",
-            "jni::objects::JByteArray",
-            decode_option_env_ref!(crate::utils::decode_byte_array),
-            NO_OUTPUT,
-        )
+        // String and byte-array converters are in primitive_builtins.
         // Callbacks.
         .type_pair(
             "impl Fn(Sample) + Send + Sync + 'static",

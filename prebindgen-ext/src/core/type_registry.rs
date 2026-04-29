@@ -155,6 +155,23 @@ pub fn primitive_builtins() -> TypeRegistry {
     });
     let string_option_input = option_input(string_input.clone());
     let string_option_output = option_output(string_output.clone());
+    let bytes_input = InputFn::new(|input: &syn::Ident| -> TokenStream {
+        quote! {
+            zenoh_flat::jni::decode_byte_array(&mut env, &#input)
+                .map_err(|err| zerror!(err))?
+        }
+    });
+    let bytes_option_input = option_input(bytes_input.clone());
+    let bytes_output = OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
+        match output {
+            Some(output) => quote! {
+                zenoh_flat::jni::encode_byte_array(&mut env, #output)
+                    .map_err(|err| zerror!(err))?
+            },
+            None => quote! { zenoh_flat::jni::null_byte_array() },
+        }
+    });
+    let bytes_option_output = option_output(bytes_output.clone());
 
     TypeRegistry::new()
         // Strings
@@ -169,6 +186,18 @@ pub fn primitive_builtins() -> TypeRegistry {
             "jni::objects::JString",
             string_option_input,
             string_option_output,
+        )
+        .type_pair(
+            "Vec<u8>",
+            "jni::objects::JByteArray",
+            bytes_input,
+            bytes_output,
+        )
+        .type_pair(
+            "Option<Vec<u8>>",
+            "jni::objects::JByteArray",
+            bytes_option_input,
+            bytes_option_output,
         )
         // Primitives
         .type_pair(
