@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
 
 use crate::core::inline_fn::{InputFn, NO_OUTPUT, OutputFn, option_input, option_output};
 use crate::core::type_binding::{canon_type, TypeBinding};
