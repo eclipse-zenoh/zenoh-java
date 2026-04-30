@@ -3,12 +3,10 @@
 
 use std::collections::HashMap;
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 
-use crate::core::inline_fn::{
-    input_fn, option_input, option_output, output_fn, InputFn, OutputFn, NO_INPUT, NO_OUTPUT,
-};
+use crate::core::inline_fn::{input_fn, output_fn, InputFn, OutputFn, NO_INPUT, NO_OUTPUT};
 use crate::core::type_binding::{canon_type, TypeBinding};
 
 #[derive(Default, Clone)]
@@ -228,6 +226,52 @@ fn no_output_fn(_output: Option<&syn::Ident>) -> TokenStream {
     TokenStream::new()
 }
 
+/// Wraps an `impl Fn` for `T` into an [`InputFn`] for `Option<T>`.
+///
+/// The wire value must expose an `.is_null()` method (e.g. JNI reference types);
+/// a truthy result maps to `None`, otherwise the inner conversion is applied.
+pub fn option_input<F>(inner: F) -> InputFn
+where
+    F: Fn(&syn::Ident) -> TokenStream + Send + Sync + 'static,
+{
+    InputFn::new(move |input: &syn::Ident| -> TokenStream {
+        let inner_expr = inner(input);
+        quote! {
+            if !#input.is_null() {
+                Some(#inner_expr)
+            } else {
+                None
+            }
+        }
+    })
+}
+
+/// Wraps an `impl Fn` for `T` into an [`OutputFn`] for `Option<T>`.
+///
+/// The `None` arm of the inner function is reused as the null wire value,
+/// so no separate null-sentinel helper is needed here.
+pub fn option_output<F>(inner: F) -> OutputFn
+where
+    F: Fn(Option<&syn::Ident>) -> TokenStream + Send + Sync + 'static,
+{
+    OutputFn::new(move |output: Option<&syn::Ident>| -> TokenStream {
+        let null_expr = inner(None);
+        match output {
+            Some(output) => {
+                let value_ident = syn::Ident::new("value", Span::call_site());
+                let inner_expr = inner(Some(&value_ident));
+                quote! {
+                    match &#output {
+                        Some(value) => #inner_expr,
+                        None => #null_expr,
+                    }
+                }
+            }
+            None => null_expr,
+        }
+    })
+}
+
 /// Pre-built registry containing universal language-primitive rows
 /// (`bool`, `i64`, `f64`). These have JNI-shaped wire forms today; if a
 /// non-JNI destination is added, callers should construct their own
@@ -236,15 +280,10 @@ fn no_output_fn(_output: Option<&syn::Ident>) -> TokenStream {
 /// Kept here as a free function so the universal core has no opinion
 /// about which primitives are pre-registered.
 pub fn primitive_builtins() -> TypeRegistry {
-    let string_input_fn = InputFn::new(string_input);
-    let string_output_fn = OutputFn::new(string_output);
-    let string_option_input_fn = option_input(string_input_fn.clone());
-    let string_option_output_fn = option_output(string_output_fn.clone());
-
-    let bytes_input_fn = InputFn::new(bytes_input);
-    let bytes_output_fn = OutputFn::new(bytes_output);
-    let bytes_option_input_fn = option_input(bytes_input_fn.clone());
-    let bytes_option_output_fn = option_output(bytes_output_fn.clone());
+    let string_option_input_fn = option_input(string_input);
+    let string_option_output_fn = option_output(string_output);
+    let bytes_option_input_fn = option_input(bytes_input);
+    let bytes_option_output_fn = option_output(bytes_output);
 
     TypeRegistry::new()
         // Strings
