@@ -20,8 +20,8 @@ use crate::core::inline_fn::{InputFn, OutputFn};
 pub(crate) struct TypeBinding {
     pub(crate) rust_type: syn::Type,
     pub(crate) wire_type: syn::Type,
-    pub(crate) decode: Option<InputFn>,
-    pub(crate) encode: Option<OutputFn>,
+    pub(crate) decode: InputFn,
+    pub(crate) encode: OutputFn,
 }
 
 impl TypeBinding {
@@ -29,8 +29,8 @@ impl TypeBinding {
     pub(crate) fn input_output(
         rust_type: syn::Type,
         wire_type: syn::Type,
-        decode: Option<InputFn>,
-        encode: Option<OutputFn>,
+        decode: InputFn,
+        encode: OutputFn,
     ) -> Self {
         Self {
             rust_type,
@@ -49,10 +49,18 @@ impl TypeBinding {
         &self.wire_type
     }
     pub(crate) fn decode(&self) -> Option<&InputFn> {
-        self.decode.as_ref()
+        if self.decode.is_implemented() {
+            Some(&self.decode)
+        } else {
+            None
+        }
     }
     pub(crate) fn encode(&self) -> Option<&OutputFn> {
-        self.encode.as_ref()
+        if self.encode.is_implemented() {
+            Some(&self.encode)
+        } else {
+            None
+        }
     }
 
     /// `&T` row — the wrapped fn receives `&name` instead of `name`.
@@ -67,7 +75,11 @@ impl TypeBinding {
     /// the given input ident. Used by `FunctionsConverter` to build the
     /// per-arg prelude.
     pub(crate) fn call_decode(&self, input: &syn::Ident) -> Option<TokenStream> {
-        self.decode.as_ref().map(|d| d.call(input))
+        if self.decode.is_implemented() {
+            Some(self.decode.call(input))
+        } else {
+            None
+        }
     }
 }
 

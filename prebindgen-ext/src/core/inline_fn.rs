@@ -26,6 +26,10 @@ impl InputFn {
     pub(crate) fn call(&self, ident: &syn::Ident) -> TokenStream {
         self.0.as_ref().expect("missing input conversion")(ident)
     }
+
+    pub(crate) fn is_implemented(&self) -> bool {
+        self.0.is_some()
+    }
 }
 
 pub const NO_INPUT: InputFn = InputFn(None);

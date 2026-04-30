@@ -6,7 +6,9 @@ use std::collections::HashMap;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
-use crate::core::inline_fn::{input_fn, option_input, option_output, output_fn, InputFn, OutputFn};
+use crate::core::inline_fn::{
+    input_fn, option_input, option_output, output_fn, InputFn, OutputFn, NO_INPUT, NO_OUTPUT,
+};
 use crate::core::type_binding::{canon_type, TypeBinding};
 
 #[derive(Default, Clone)]
@@ -120,7 +122,7 @@ impl TypeRegistry {
             None => {
                 self.types.insert(
                     key,
-                    TypeBinding::input_output(parsed_rust, parsed_wire, None, None),
+                    TypeBinding::input_output(parsed_rust, parsed_wire, NO_INPUT, NO_OUTPUT),
                 );
             }
         }
@@ -138,7 +140,7 @@ impl TypeRegistry {
                 rust_type.as_ref()
             )
         });
-        binding.decode = Some(decode);
+        binding.decode = decode;
     }
 
     pub(crate) fn add_output_conversion_function_mut(
@@ -153,7 +155,7 @@ impl TypeRegistry {
                 rust_type.as_ref()
             )
         });
-        binding.encode = Some(encode);
+        binding.encode = encode;
     }
 
     /// Internal: drain the entries of another registry into this one.
