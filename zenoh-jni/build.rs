@@ -11,23 +11,23 @@ use zenoh_flat::kotlin::{KotlinInterfaceGenerator, KotlinTypeMap};
 
 macro_rules! decode_pure {
     ($path:path) => {
-        InputFn::new(|input: &syn::Ident| -> TokenStream {
+        |input: &syn::Ident| -> TokenStream {
             quote! { $path(#input)? }
-        })
+        }
     };
 }
 
 macro_rules! decode_env_ref_mut {
     ($path:path) => {
-        InputFn::new(|input: &syn::Ident| -> TokenStream {
+        |input: &syn::Ident| -> TokenStream {
             quote! { $path(&mut env, &#input)? }
-        })
+        }
     };
 }
 
 macro_rules! decode_option_env_ref_mut {
     ($path:path) => {
-        InputFn::new(|input: &syn::Ident| -> TokenStream {
+        |input: &syn::Ident| -> TokenStream {
             quote! {
                 if !#input.is_null() {
                     Some($path(&mut env, &#input)?)
@@ -35,15 +35,15 @@ macro_rules! decode_option_env_ref_mut {
                     None
                 }
             }
-        })
+        }
     };
 }
 
 macro_rules! decode_owned_raw {
     ($owned_object:path) => {
-        InputFn::new(|input: &syn::Ident| -> TokenStream {
+        |input: &syn::Ident| -> TokenStream {
             quote! { $owned_object::from_raw(#input) }
-        })
+        }
     };
 }
 
@@ -52,15 +52,15 @@ macro_rules! decode_owned_raw {
 /// reference).
 macro_rules! decode_arc_from_raw {
     () => {
-        InputFn::new(|input: &syn::Ident| -> TokenStream {
+        |input: &syn::Ident| -> TokenStream {
             quote! { (*std::sync::Arc::from_raw(#input)).clone() }
-        })
+        }
     };
 }
 
 macro_rules! decode_option_arc_from_raw {
     ($inner:ty) => {
-        InputFn::new(|input: &syn::Ident| -> TokenStream {
+        |input: &syn::Ident| -> TokenStream {
             quote! {
                 if #input != 0 {
                     Some(unsafe {
@@ -71,31 +71,31 @@ macro_rules! decode_option_arc_from_raw {
                     None
                 }
             }
-        })
+        }
     };
 }
 
 macro_rules! encode_wrapper {
     ($path:path) => {
-        OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
+        |output: Option<&syn::Ident>| -> TokenStream {
             match output {
                 Some(output) => quote! { $path(&mut env, #output)? },
                 None => quote! { std::ptr::null_mut() },
             }
-        })
+        }
     };
 }
 
 macro_rules! encode_arc_into_raw {
     () => {
-        OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
+        |output: Option<&syn::Ident>| -> TokenStream {
             match output {
                 Some(output) => {
                     quote! { std::sync::Arc::into_raw(std::sync::Arc::new(#output)) }
                 }
                 None => quote! { std::ptr::null() },
             }
-        })
+        }
     };
 }
 
@@ -105,7 +105,7 @@ macro_rules! encode_arc_into_raw {
 /// `None` maps to `0`.
 macro_rules! encode_option_clone_into_arc_raw_jlong {
     () => {
-        OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
+        |output: Option<&syn::Ident>| -> TokenStream {
             match output {
                 Some(output) => quote! {
                     #output
@@ -115,7 +115,7 @@ macro_rules! encode_option_clone_into_arc_raw_jlong {
                 },
                 None => quote! { 0 },
             }
-        })
+        }
     };
 }
 
@@ -124,12 +124,12 @@ macro_rules! encode_option_clone_into_arc_raw_jlong {
 /// Rust return value (e.g. `bool` → `jboolean`, `i32` → `jint`).
 macro_rules! encode_cast {
     ($wire:path, $on_err:expr) => {
-        OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
+        |output: Option<&syn::Ident>| -> TokenStream {
             match output {
                 Some(output) => quote! { #output as $wire },
                 None => quote! { $on_err as $wire },
             }
-        })
+        }
     };
 }
 
