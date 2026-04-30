@@ -32,5 +32,5 @@ pub use functions_converter::{
 };
 pub use inline_fn::{InputFn, OutputFn, NO_INPUT, NO_OUTPUT};
 pub use name_mangler::NameMangler;
-pub use type_registry::{option_input, option_output, primitive_builtins, TypeRegistry};
+pub use type_registry::{primitive_builtins, TypeRegistry};
 pub use types_converter::{StructStrategy, TypesBuilder, TypesConverter};

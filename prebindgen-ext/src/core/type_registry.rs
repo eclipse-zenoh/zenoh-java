@@ -170,13 +170,8 @@ fn bool_input(input: &syn::Ident) -> TokenStream {
     quote! { #input != 0 }
 }
 
-/// Input conversion function for `i64`: identity conversion.
+/// Identity conversion function for `T`: returns the input as-is.
 fn id_input(input: &syn::Ident) -> TokenStream {
-    quote! { #input }
-}
-
-/// Input conversion function for `f64`: identity conversion.
-fn f64_input(input: &syn::Ident) -> TokenStream {
     quote! { #input }
 }
 
@@ -223,17 +218,12 @@ fn bytes_output(output: Option<&syn::Ident>) -> TokenStream {
     }
 }
 
-/// Output conversion function for types with no output conversion.
-fn no_output_fn(_output: Option<&syn::Ident>) -> TokenStream {
-    TokenStream::new()
-}
-
 /// Wraps an [`InputFn`] (or anything that converts into one) for `T` into an
 /// [`InputFn`] for `Option<T>`.
 ///
 /// The wire value must expose an `.is_null()` method (e.g. JNI reference types);
 /// a truthy result maps to `None`, otherwise the inner conversion is applied.
-pub fn option_input(inner: impl Into<InputFn>) -> InputFn {
+pub fn nullable_to_option(inner: impl Into<InputFn>) -> InputFn {
     let inner = inner.into();
     InputFn::new(move |input: &syn::Ident| -> TokenStream {
         let inner_expr = inner.call(input);
@@ -252,7 +242,7 @@ pub fn option_input(inner: impl Into<InputFn>) -> InputFn {
 ///
 /// The `None` arm of the inner function is reused as the null wire value,
 /// so no separate null-sentinel helper is needed here.
-pub fn option_output(inner: impl Into<OutputFn>) -> OutputFn {
+pub fn option_to_nullable(inner: impl Into<OutputFn>) -> OutputFn {
     let inner = inner.into();
     OutputFn::new(move |output: Option<&syn::Ident>| -> TokenStream {
         let null_expr = inner.call(None);
@@ -280,11 +270,6 @@ pub fn option_output(inner: impl Into<OutputFn>) -> OutputFn {
 /// Kept here as a free function so the universal core has no opinion
 /// about which primitives are pre-registered.
 pub fn primitive_builtins() -> TypeRegistry {
-    let string_option_input_fn = option_input(string_input);
-    let string_option_output_fn = option_output(string_output);
-    let bytes_option_input_fn = option_input(bytes_input);
-    let bytes_option_output_fn = option_output(bytes_output);
-
     TypeRegistry::new()
         // Strings
         .type_pair(
@@ -296,8 +281,8 @@ pub fn primitive_builtins() -> TypeRegistry {
         .type_pair_internal(
             "Option<String>",
             "jni::objects::JString",
-            string_option_input_fn,
-            string_option_output_fn,
+            nullable_to_option(string_input),
+            option_to_nullable(string_output),
         )
         .type_pair(
             "Vec<u8>",
@@ -308,12 +293,12 @@ pub fn primitive_builtins() -> TypeRegistry {
         .type_pair_internal(
             "Option<Vec<u8>>",
             "jni::objects::JByteArray",
-            bytes_option_input_fn,
-            bytes_option_output_fn,
+            nullable_to_option(bytes_input),
+            option_to_nullable(bytes_output),
         )
         // Primitives (no output conversion)
-        .type_pair("bool", "jni::sys::jboolean", bool_input, no_output_fn)
-        .type_pair("i64", "jni::sys::jlong", id_input, no_output_fn)
-        .type_pair("f64", "jni::sys::jdouble", f64_input, no_output_fn)
-        .type_pair("Duration", "jni::sys::jlong", duration_input, no_output_fn)
+        .type_pair("bool", "jni::sys::jboolean", bool_input, NO_OUTPUT)
+        .type_pair("i64", "jni::sys::jlong", id_input, NO_OUTPUT)
+        .type_pair("f64", "jni::sys::jdouble", id_input, NO_OUTPUT)
+        .type_pair("Duration", "jni::sys::jlong", duration_input, NO_OUTPUT)
 }
