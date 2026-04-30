@@ -6,9 +6,7 @@ use std::collections::HashMap;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
-use crate::core::inline_fn::{
-    input_fn, option_input, option_output, output_fn, InputFn, OutputFn, NO_OUTPUT,
-};
+use crate::core::inline_fn::{input_fn, option_input, option_output, output_fn, InputFn, OutputFn};
 use crate::core::type_binding::{canon_type, TypeBinding};
 
 #[derive(Default, Clone)]
@@ -92,7 +90,12 @@ impl TypeRegistry {
     /// Primarily for internal use; prefer [`add_output_conversion_function`](Self::add_output_conversion_function).
     pub(crate) fn add_output_conversion_function_internal(
         mut self,
-        rust_type: impl As
+        rust_type: impl AsRef<str>,
+        encode: OutputFn,
+    ) -> Self {
+        self.add_output_conversion_function_mut(rust_type, encode);
+        self
+    }
 
     /// Merge another registry into this one. Entries in `other` override
     /// entries with the same key in `self`.
@@ -160,6 +163,69 @@ impl TypeRegistry {
     }
 }
 
+/// Input conversion function for `bool`: converts non-zero to true.
+fn bool_input(input: &syn::Ident) -> TokenStream {
+    quote! { #input != 0 }
+}
+
+/// Input conversion function for `i64`: identity conversion.
+fn id_input(input: &syn::Ident) -> TokenStream {
+    quote! { #input }
+}
+
+/// Input conversion function for `f64`: identity conversion.
+fn f64_input(input: &syn::Ident) -> TokenStream {
+    quote! { #input }
+}
+
+/// Input conversion function for `Duration`: converts milliseconds to Duration.
+fn duration_input(input: &syn::Ident) -> TokenStream {
+    quote! { std::time::Duration::from_millis(#input as u64) }
+}
+
+/// Input conversion function for `String`: decodes JNI string.
+fn string_input(input: &syn::Ident) -> TokenStream {
+    quote! {
+        zenoh_flat::jni::decode_string(&mut env, &#input)
+            .map_err(|err| zerror!(err))?
+    }
+}
+
+/// Output conversion function for `String`: encodes Rust string to JNI.
+fn string_output(output: Option<&syn::Ident>) -> TokenStream {
+    match output {
+        Some(output) => quote! {
+            zenoh_flat::jni::encode_string(&mut env, #output)
+                .map_err(|err| zerror!(err))?
+        },
+        None => quote! { zenoh_flat::jni::null_string() },
+    }
+}
+
+/// Input conversion function for `Vec<u8>`: decodes JNI byte array.
+fn bytes_input(input: &syn::Ident) -> TokenStream {
+    quote! {
+        zenoh_flat::jni::decode_byte_array(&mut env, &#input)
+            .map_err(|err| zerror!(err))?
+    }
+}
+
+/// Output conversion function for `Vec<u8>`: encodes Rust byte array to JNI.
+fn bytes_output(output: Option<&syn::Ident>) -> TokenStream {
+    match output {
+        Some(output) => quote! {
+            zenoh_flat::jni::encode_byte_array(&mut env, #output)
+                .map_err(|err| zerror!(err))?
+        },
+        None => quote! { zenoh_flat::jni::null_byte_array() },
+    }
+}
+
+/// Output conversion function for types with no output conversion.
+fn no_output_fn(_output: Option<&syn::Ident>) -> TokenStream {
+    TokenStream::new()
+}
+
 /// Pre-built registry containing universal language-primitive rows
 /// (`bool`, `i64`, `f64`). These have JNI-shaped wire forms today; if a
 /// non-JNI destination is added, callers should construct their own
@@ -168,53 +234,19 @@ impl TypeRegistry {
 /// Kept here as a free function so the universal core has no opinion
 /// about which primitives are pre-registered.
 pub fn primitive_builtins() -> TypeRegistry {
-    let bool_input = InputFn::new(|input: &syn::Ident| -> TokenStream {
-        quote! { #input != 0 }
-    });
-    let id_input = InputFn::new(|input: &syn::Ident| -> TokenStream {
-        quote! { #input }
-    });
-    let duration_input = InputFn::new(|input: &syn::Ident| -> TokenStream {
-        quote! { std::time::Duration::from_millis(#input as u64) }
-    });
-    let string_input = InputFn::new(|input: &syn::Ident| -> TokenStream {
-        quote! {
-            zenoh_flat::jni::decode_string(&mut env, &#input)
-                .map_err(|err| zerror!(err))?
-        }
-    });
-    let string_output = OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
-        match output {
-            Some(output) => quote! {
-                zenoh_flat::jni::encode_string(&mut env, #output)
-                    .map_err(|err| zerror!(err))?
-            },
-            None => quote! { zenoh_flat::jni::null_string() },
-        }
-    });
-    let string_option_input = option_input(string_input.clone());
-    let string_option_output = option_output(string_output.clone());
-    let bytes_input = InputFn::new(|input: &syn::Ident| -> TokenStream {
-        quote! {
-            zenoh_flat::jni::decode_byte_array(&mut env, &#input)
-                .map_err(|err| zerror!(err))?
-        }
-    });
-    let bytes_option_input = option_input(bytes_input.clone());
-    let bytes_output = OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
-        match output {
-            Some(output) => quote! {
-                zenoh_flat::jni::encode_byte_array(&mut env, #output)
-                    .map_err(|err| zerror!(err))?
-            },
-            None => quote! { zenoh_flat::jni::null_byte_array() },
-        }
-    });
-    let bytes_option_output = option_output(bytes_output.clone());
+    let string_input_fn = InputFn::new(string_input);
+    let string_output_fn = OutputFn::new(string_output);
+    let string_option_input_fn = option_input(string_input_fn.clone());
+    let string_option_output_fn = option_output(string_output_fn.clone());
+
+    let bytes_input_fn = InputFn::new(bytes_input);
+    let bytes_output_fn = OutputFn::new(bytes_output);
+    let bytes_option_input_fn = option_input(bytes_input_fn.clone());
+    let bytes_option_output_fn = option_output(bytes_output_fn.clone());
 
     TypeRegistry::new()
         // Strings
-        .type_pair_internal(
+        .type_pair(
             "String",
             "jni::objects::JString",
             string_input,
@@ -223,10 +255,10 @@ pub fn primitive_builtins() -> TypeRegistry {
         .type_pair_internal(
             "Option<String>",
             "jni::objects::JString",
-            string_option_input,
-            string_option_output,
+            string_option_input_fn,
+            string_option_output_fn,
         )
-        .type_pair_internal(
+        .type_pair(
             "Vec<u8>",
             "jni::objects::JByteArray",
             bytes_input,
@@ -235,12 +267,12 @@ pub fn primitive_builtins() -> TypeRegistry {
         .type_pair_internal(
             "Option<Vec<u8>>",
             "jni::objects::JByteArray",
-            bytes_option_input,
-            bytes_option_output,
+            bytes_option_input_fn,
+            bytes_option_output_fn,
         )
-        // Primitives
-        .type_pair_internal("bool", "jni::sys::jboolean", bool_input, NO_OUTPUT)
-        .type_pair_internal("i64", "jni::sys::jlong", id_input.clone(), NO_OUTPUT)
-        .type_pair_internal("f64", "jni::sys::jdouble", id_input, NO_OUTPUT)
-        .type_pair_internal("Duration", "jni::sys::jlong", duration_input, NO_OUTPUT)
+        // Primitives (no output conversion)
+        .type_pair("bool", "jni::sys::jboolean", bool_input, no_output_fn)
+        .type_pair("i64", "jni::sys::jlong", id_input, no_output_fn)
+        .type_pair("f64", "jni::sys::jdouble", f64_input, no_output_fn)
+        .type_pair("Duration", "jni::sys::jlong", duration_input, no_output_fn)
 }
