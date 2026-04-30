@@ -33,7 +33,7 @@ use quote::{format_ident, quote, ToTokens};
 
 use prebindgen::SourceLocation;
 
-use crate::core::inline_fn::{InputFn, NO_INPUT, NO_OUTPUT, OutputFn};
+use crate::core::inline_fn::{OutputFn, NO_INPUT, NO_OUTPUT};
 use crate::core::name_mangler::NameMangler;
 use crate::core::type_registry::TypeRegistry;
 use crate::util::is_unit;
@@ -154,42 +154,33 @@ impl FunctionsBuilder {
     }
 
     /// Add or replace a Rust/Wire type pair in the local registry.
-    pub fn add_type_pair(
-        mut self,
-        rust_type: impl AsRef<str>,
-        wire_type: impl AsRef<str>,
-    ) -> Self {
+    pub fn add_type_pair(mut self, rust_type: impl AsRef<str>, wire_type: impl AsRef<str>) -> Self {
         let rust_type = rust_type.as_ref().to_owned();
-        self.types = self.types.type_pair(
-            &rust_type,
-            wire_type,
-            NO_INPUT,
-            NO_OUTPUT,
-        );
+        self.types = self
+            .types
+            .type_pair_internal(&rust_type, wire_type, NO_INPUT, NO_OUTPUT);
         self
     }
 
     /// Add or replace an input conversion function in the local registry.
+    /// Accepts a closure that will be automatically wrapped.
     pub fn add_input_conversion_function(
         mut self,
         rust_type: impl AsRef<str>,
-        decode: InputFn,
+        decode: impl Fn(&syn::Ident) -> proc_macro2::TokenStream + Send + Sync + 'static,
     ) -> Self {
-        self.types = self
-            .types
-            .add_input_conversion_function(rust_type, decode);
+        self.types = self.types.add_input_conversion_function(rust_type, decode);
         self
     }
 
     /// Add or replace an output conversion function in the local registry.
+    /// Accepts a closure that will be automatically wrapped.
     pub fn add_output_conversion_function(
         mut self,
         rust_type: impl AsRef<str>,
-        encode: OutputFn,
+        encode: impl Fn(Option<&syn::Ident>) -> proc_macro2::TokenStream + Send + Sync + 'static,
     ) -> Self {
-        self.types = self
-            .types
-            .add_output_conversion_function(rust_type, encode);
+        self.types = self.types.add_output_conversion_function(rust_type, encode);
         self
     }
 
@@ -277,40 +268,45 @@ impl FunctionsConverter {
             let name = &pat_ident.ident;
             let ty = &*pat_type.ty;
 
-            self.emit_arg(name, ty, loc, &mut prelude, &mut wire_params, &mut call_args);
+            self.emit_arg(
+                name,
+                ty,
+                loc,
+                &mut prelude,
+                &mut wire_params,
+                &mut call_args,
+            );
         }
 
-        let (wire_return_ty, return_encode): (
-            Option<syn::Type>,
-            Option<OutputFn>,
-        ) = match &func.sig.output {
-            syn::ReturnType::Default => (None, None),
-            syn::ReturnType::Type(_, ty) => {
-                if is_unit(ty) {
-                    (None, None)
-                } else {
-                    let key = ty.to_token_stream().to_string();
-                    let binding = self.cfg.types.types.get(&key).unwrap_or_else(|| {
-                        panic!(
-                            "unsupported return type `{}` for `{}` at {loc}: \
-                             register a TypeBinding keyed `{}`",
-                            ty.to_token_stream(),
-                            original_ident,
-                            key
-                        )
-                    });
-                    let wire = binding.wire_type().clone();
-                    let encode = binding.encode().cloned();
-                    // Treat a `()` wire type as the unit case so body
-                    // strategies have a single canonical "no return" shape.
-                    if is_unit(&wire) {
-                        (None, encode)
+        let (wire_return_ty, return_encode): (Option<syn::Type>, Option<OutputFn>) =
+            match &func.sig.output {
+                syn::ReturnType::Default => (None, None),
+                syn::ReturnType::Type(_, ty) => {
+                    if is_unit(ty) {
+                        (None, None)
                     } else {
-                        (Some(wire), encode)
+                        let key = ty.to_token_stream().to_string();
+                        let binding = self.cfg.types.types.get(&key).unwrap_or_else(|| {
+                            panic!(
+                                "unsupported return type `{}` for `{}` at {loc}: \
+                             register a TypeBinding keyed `{}`",
+                                ty.to_token_stream(),
+                                original_ident,
+                                key
+                            )
+                        });
+                        let wire = binding.wire_type().clone();
+                        let encode = binding.encode().cloned();
+                        // Treat a `()` wire type as the unit case so body
+                        // strategies have a single canonical "no return" shape.
+                        if is_unit(&wire) {
+                            (None, encode)
+                        } else {
+                            (Some(wire), encode)
+                        }
                     }
                 }
-            }
-        };
+            };
 
         let call_expr = quote! { #source_module::#original_ident( #(#call_args),* ) };
         let body = self.cfg.body_strategy.build_body(BodyContext {

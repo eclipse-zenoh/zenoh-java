@@ -12,7 +12,7 @@ use quote::ToTokens;
 
 use prebindgen::SourceLocation;
 
-use crate::core::inline_fn::{InputFn, NO_INPUT, NO_OUTPUT, OutputFn};
+use crate::core::inline_fn::{InputFn, OutputFn, NO_INPUT, NO_OUTPUT};
 use crate::core::type_registry::TypeRegistry;
 
 /// Strategy for translating one `#[prebindgen]` struct into output items.
@@ -45,42 +45,35 @@ impl TypesBuilder {
     }
 
     /// Add or replace a Rust/Wire type pair in the local registry.
-    pub fn add_type_pair(
-        mut self,
-        rust_type: impl AsRef<str>,
-        wire_type: impl AsRef<str>,
-    ) -> Self {
+    pub fn add_type_pair(mut self, rust_type: impl AsRef<str>, wire_type: impl AsRef<str>) -> Self {
         let rust_type = rust_type.as_ref().to_owned();
-        self.types = self.types.type_pair(
-            &rust_type,
-            wire_type,
-            NO_INPUT,
-            NO_OUTPUT,
-        );
+        self.types = self
+            .types
+            .type_pair_internal(&rust_type, wire_type, NO_INPUT, NO_OUTPUT);
         self
     }
 
     /// Add or replace an input conversion function in the local registry.
+    /// Accepts a pre-built [`InputFn`].
     pub fn add_input_conversion_function(
         mut self,
         rust_type: impl AsRef<str>,
         decode: InputFn,
     ) -> Self {
-        self.types = self
-            .types
-            .add_input_conversion_function(rust_type, decode);
+        self.types
+            .add_input_conversion_function_mut(rust_type, decode);
         self
     }
 
     /// Add or replace an output conversion function in the local registry.
+    /// Accepts a pre-built [`OutputFn`].
     pub fn add_output_conversion_function(
         mut self,
         rust_type: impl AsRef<str>,
         encode: OutputFn,
     ) -> Self {
-        self.types = self
-            .types
-            .add_output_conversion_function(rust_type, encode);
+        self.types
+            .add_output_conversion_function_mut(rust_type, encode);
         self
     }
 

@@ -56,6 +56,39 @@ impl OutputFn {
 
 pub const NO_OUTPUT: OutputFn = OutputFn(None);
 
+/// Helper to create an [`InputFn`] from a closure.
+///
+/// # Example
+/// ```ignore
+/// input_fn(|input: &syn::Ident| -> TokenStream {
+///     quote! { #input != 0 }
+/// })
+/// ```
+pub fn input_fn<F>(f: F) -> InputFn
+where
+    F: Fn(&syn::Ident) -> TokenStream + Send + Sync + 'static,
+{
+    InputFn::new(f)
+}
+
+/// Helper to create an [`OutputFn`] from a closure.
+///
+/// # Example
+/// ```ignore
+/// output_fn(|output: Option<&syn::Ident>| -> TokenStream {
+///     match output {
+///         Some(output) => quote! { #output },
+///         None => quote! { null },
+///     }
+/// })
+/// ```
+pub fn output_fn<F>(f: F) -> OutputFn
+where
+    F: Fn(Option<&syn::Ident>) -> TokenStream + Send + Sync + 'static,
+{
+    OutputFn::new(f)
+}
+
 /// Wraps an [`InputFn`] for `T` into one for `Option<T>`.
 /// The wire value must expose an `.is_null()` method (e.g. JNI reference types);
 /// a truthy result maps to `None`, otherwise the inner conversion is applied.
@@ -93,4 +126,3 @@ pub fn option_output(inner: OutputFn) -> OutputFn {
         }
     })
 }
-

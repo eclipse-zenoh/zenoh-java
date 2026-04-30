@@ -6,7 +6,9 @@ use std::collections::HashMap;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
-use crate::core::inline_fn::{option_input, option_output, InputFn, OutputFn, NO_OUTPUT};
+use crate::core::inline_fn::{
+    input_fn, option_input, option_output, output_fn, InputFn, OutputFn, NO_OUTPUT,
+};
 use crate::core::type_binding::{canon_type, TypeBinding};
 
 #[derive(Default, Clone)]
@@ -21,7 +23,25 @@ impl TypeRegistry {
 
     /// Add or replace a Rust/Wire type pair together with conversion
     /// functions used for wire-to-Rust (`input`) and Rust-to-wire (`output`).
+    ///
+    /// The closures are automatically wrapped in [`InputFn`] and [`OutputFn`].
     pub fn type_pair(
+        mut self,
+        rust_type: impl AsRef<str>,
+        wire_type: impl AsRef<str>,
+        input: impl Fn(&syn::Ident) -> TokenStream + Send + Sync + 'static,
+        output: impl Fn(Option<&syn::Ident>) -> TokenStream + Send + Sync + 'static,
+    ) -> Self {
+        let rust_type = rust_type.as_ref();
+        self.add_type_pair_mut(rust_type, wire_type);
+        self.add_input_conversion_function_mut(rust_type, input_fn(input));
+        self.add_output_conversion_function_mut(rust_type, output_fn(output));
+        self
+    }
+
+    /// Add or replace a Rust/Wire type pair with pre-built [`InputFn`] and [`OutputFn`].
+    /// This is primarily for internal use; prefer [`type_pair`](Self::type_pair) for external callers.
+    pub(crate) fn type_pair_internal(
         mut self,
         rust_type: impl AsRef<str>,
         wire_type: impl AsRef<str>,
@@ -40,6 +60,17 @@ impl TypeRegistry {
     pub fn add_input_conversion_function(
         mut self,
         rust_type: impl AsRef<str>,
+        decode: impl Fn(&syn::Ident) -> TokenStream + Send + Sync + 'static,
+    ) -> Self {
+        self.add_input_conversion_function_mut(rust_type, input_fn(decode));
+        self
+    }
+
+    /// Add or replace the input conversion function with a pre-built [`InputFn`].
+    /// Primarily for internal use; prefer [`add_input_conversion_function`](Self::add_input_conversion_function).
+    pub(crate) fn add_input_conversion_function_internal(
+        mut self,
+        rust_type: impl AsRef<str>,
         decode: InputFn,
     ) -> Self {
         self.add_input_conversion_function_mut(rust_type, decode);
@@ -51,11 +82,17 @@ impl TypeRegistry {
     pub fn add_output_conversion_function(
         mut self,
         rust_type: impl AsRef<str>,
-        encode: OutputFn,
+        encode: impl Fn(Option<&syn::Ident>) -> TokenStream + Send + Sync + 'static,
     ) -> Self {
-        self.add_output_conversion_function_mut(rust_type, encode);
+        self.add_output_conversion_function_mut(rust_type, output_fn(encode));
         self
     }
+
+    /// Add or replace the output conversion function with a pre-built [`OutputFn`].
+    /// Primarily for internal use; prefer [`add_output_conversion_function`](Self::add_output_conversion_function).
+    pub(crate) fn add_output_conversion_function_internal(
+        mut self,
+        rust_type: impl As
 
     /// Merge another registry into this one. Entries in `other` override
     /// entries with the same key in `self`.
@@ -177,33 +214,33 @@ pub fn primitive_builtins() -> TypeRegistry {
 
     TypeRegistry::new()
         // Strings
-        .type_pair(
+        .type_pair_internal(
             "String",
             "jni::objects::JString",
             string_input,
             string_output,
         )
-        .type_pair(
+        .type_pair_internal(
             "Option<String>",
             "jni::objects::JString",
             string_option_input,
             string_option_output,
         )
-        .type_pair(
+        .type_pair_internal(
             "Vec<u8>",
             "jni::objects::JByteArray",
             bytes_input,
             bytes_output,
         )
-        .type_pair(
+        .type_pair_internal(
             "Option<Vec<u8>>",
             "jni::objects::JByteArray",
             bytes_option_input,
             bytes_option_output,
         )
         // Primitives
-        .type_pair("bool", "jni::sys::jboolean", bool_input, NO_OUTPUT)
-        .type_pair("i64", "jni::sys::jlong", id_input.clone(), NO_OUTPUT)
-        .type_pair("f64", "jni::sys::jdouble", id_input, NO_OUTPUT)
-        .type_pair("Duration", "jni::sys::jlong", duration_input, NO_OUTPUT)
+        .type_pair_internal("bool", "jni::sys::jboolean", bool_input, NO_OUTPUT)
+        .type_pair_internal("i64", "jni::sys::jlong", id_input.clone(), NO_OUTPUT)
+        .type_pair_internal("f64", "jni::sys::jdouble", id_input, NO_OUTPUT)
+        .type_pair_internal("Duration", "jni::sys::jlong", duration_input, NO_OUTPUT)
 }
