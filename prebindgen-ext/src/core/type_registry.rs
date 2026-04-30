@@ -22,18 +22,20 @@ impl TypeRegistry {
     /// Add or replace a Rust/Wire type pair together with conversion
     /// functions used for wire-to-Rust (`input`) and Rust-to-wire (`output`).
     ///
-    /// The closures are automatically wrapped in [`InputFn`] and [`OutputFn`].
+    /// Both `input` and `output` accept anything that converts into
+    /// [`InputFn`] / [`OutputFn`] — a raw closure, a named function, or a
+    /// pre-built `InputFn`/`OutputFn` value.
     pub fn type_pair(
         mut self,
         rust_type: impl AsRef<str>,
         wire_type: impl AsRef<str>,
-        input: impl Fn(&syn::Ident) -> TokenStream + Send + Sync + 'static,
-        output: impl Fn(Option<&syn::Ident>) -> TokenStream + Send + Sync + 'static,
+        input: impl Into<InputFn>,
+        output: impl Into<OutputFn>,
     ) -> Self {
         let rust_type = rust_type.as_ref();
         self.add_type_pair_mut(rust_type, wire_type);
-        self.add_input_conversion_function_mut(rust_type, input_fn(input));
-        self.add_output_conversion_function_mut(rust_type, output_fn(output));
+        self.add_input_conversion_function_mut(rust_type, input.into());
+        self.add_output_conversion_function_mut(rust_type, output.into());
         self
     }
 
@@ -226,16 +228,15 @@ fn no_output_fn(_output: Option<&syn::Ident>) -> TokenStream {
     TokenStream::new()
 }
 
-/// Wraps an `impl Fn` for `T` into an [`InputFn`] for `Option<T>`.
+/// Wraps an [`InputFn`] (or anything that converts into one) for `T` into an
+/// [`InputFn`] for `Option<T>`.
 ///
 /// The wire value must expose an `.is_null()` method (e.g. JNI reference types);
 /// a truthy result maps to `None`, otherwise the inner conversion is applied.
-pub fn option_input<F>(inner: F) -> InputFn
-where
-    F: Fn(&syn::Ident) -> TokenStream + Send + Sync + 'static,
-{
+pub fn option_input(inner: impl Into<InputFn>) -> InputFn {
+    let inner = inner.into();
     InputFn::new(move |input: &syn::Ident| -> TokenStream {
-        let inner_expr = inner(input);
+        let inner_expr = inner.call(input);
         quote! {
             if !#input.is_null() {
                 Some(#inner_expr)
@@ -246,20 +247,19 @@ where
     })
 }
 
-/// Wraps an `impl Fn` for `T` into an [`OutputFn`] for `Option<T>`.
+/// Wraps an [`OutputFn`] (or anything that converts into one) for `T` into an
+/// [`OutputFn`] for `Option<T>`.
 ///
 /// The `None` arm of the inner function is reused as the null wire value,
 /// so no separate null-sentinel helper is needed here.
-pub fn option_output<F>(inner: F) -> OutputFn
-where
-    F: Fn(Option<&syn::Ident>) -> TokenStream + Send + Sync + 'static,
-{
+pub fn option_output(inner: impl Into<OutputFn>) -> OutputFn {
+    let inner = inner.into();
     OutputFn::new(move |output: Option<&syn::Ident>| -> TokenStream {
-        let null_expr = inner(None);
+        let null_expr = inner.call(None);
         match output {
             Some(output) => {
                 let value_ident = syn::Ident::new("value", Span::call_site());
-                let inner_expr = inner(Some(&value_ident));
+                let inner_expr = inner.call(Some(&value_ident));
                 quote! {
                     match &#output {
                         Some(value) => #inner_expr,

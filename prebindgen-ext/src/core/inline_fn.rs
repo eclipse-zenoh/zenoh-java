@@ -31,6 +31,15 @@ impl InputFn {
     }
 }
 
+impl<F> From<F> for InputFn
+where
+    F: Fn(&syn::Ident) -> TokenStream + Send + Sync + 'static,
+{
+    fn from(f: F) -> Self {
+        InputFn::new(f)
+    }
+}
+
 pub const NO_INPUT: InputFn = InputFn(None);
 
 #[derive(Clone)]
@@ -54,6 +63,15 @@ impl OutputFn {
 
     pub(crate) fn is_implemented(&self) -> bool {
         self.0.is_some()
+    }
+}
+
+impl<F> From<F> for OutputFn
+where
+    F: Fn(Option<&syn::Ident>) -> TokenStream + Send + Sync + 'static,
+{
+    fn from(f: F) -> Self {
+        OutputFn::new(f)
     }
 }
 
