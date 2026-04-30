@@ -173,7 +173,11 @@ impl KotlinInterfaceGenerator {
                 )
             });
             let short = register_fqn(kotlin_ty, &mut local_used);
-            let suffix = if binding.is_option() { "?" } else { "" };
+            let suffix = if is_option_type(&binding.rust_type) {
+                "?"
+            } else {
+                ""
+            };
             params.push(format!(
                 "{}: {}{}",
                 kotlin_param_name(&name, binding.is_pointer()),
@@ -359,4 +363,14 @@ fn register_fqn(fqn: &str, used: &mut BTreeSet<String>) -> String {
     } else {
         fqn.to_string()
     }
+}
+
+/// Check if a Rust type is `Option<_>`.
+fn is_option_type(ty: &syn::Type) -> bool {
+    if let syn::Type::Path(tp) = ty {
+        if let Some(last) = tp.path.segments.last() {
+            return last.ident == "Option";
+        }
+    }
+    false
 }

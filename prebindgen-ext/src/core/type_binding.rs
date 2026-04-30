@@ -63,17 +63,6 @@ impl TypeBinding {
     pub(crate) fn is_pointer(&self) -> bool {
         matches!(self.wire_type, syn::Type::Ptr(_))
     }
-    /// `Option<_>` row — destination-language emitters may use this to
-    /// append a nullability marker.
-    pub(crate) fn is_option(&self) -> bool {
-        if let syn::Type::Path(tp) = &self.rust_type {
-            if let Some(last) = tp.path.segments.last() {
-                return last.ident == "Option";
-            }
-        }
-        false
-    }
-
     /// Apply `f` to this binding's `decode` to produce a `TokenStream` for
     /// the given input ident. Used by `FunctionsConverter` to build the
     /// per-arg prelude.
