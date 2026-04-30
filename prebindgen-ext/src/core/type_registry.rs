@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
-use crate::core::inline_fn::{InputFn, NO_OUTPUT, OutputFn, option_input, option_output};
+use crate::core::inline_fn::{option_input, option_output, InputFn, OutputFn, NO_OUTPUT};
 use crate::core::type_binding::{canon_type, TypeBinding};
 
 #[derive(Default, Clone)]
@@ -69,7 +69,9 @@ impl TypeRegistry {
         rust_type: impl AsRef<str>,
         wire_type: impl AsRef<str>,
     ) {
-        let key = canon_type(rust_type.as_ref());
+        let parsed_rust = syn::parse_str::<syn::Type>(rust_type.as_ref())
+            .unwrap_or_else(|e| panic!("invalid rust type `{}`: {}", rust_type.as_ref(), e));
+        let key = parsed_rust.to_token_stream().to_string();
         let parsed_wire = syn::parse_str::<syn::Type>(wire_type.as_ref())
             .unwrap_or_else(|e| panic!("invalid wire type `{}`: {}", wire_type.as_ref(), e));
 
@@ -78,7 +80,7 @@ impl TypeRegistry {
             None => {
                 self.types.insert(
                     key,
-                    TypeBinding::input_output(rust_type, parsed_wire, None, None),
+                    TypeBinding::input_output(parsed_rust, parsed_wire, None, None),
                 );
             }
         }
@@ -200,28 +202,8 @@ pub fn primitive_builtins() -> TypeRegistry {
             bytes_option_output,
         )
         // Primitives
-        .type_pair(
-            "bool",
-            "jni::sys::jboolean",
-            bool_input,
-            NO_OUTPUT,
-        )
-        .type_pair(
-            "i64",
-            "jni::sys::jlong",
-            id_input.clone(),
-            NO_OUTPUT,
-        )
-        .type_pair(
-            "f64",
-            "jni::sys::jdouble",
-            id_input,
-            NO_OUTPUT,
-        )
-        .type_pair(
-            "Duration",
-            "jni::sys::jlong",
-            duration_input,
-            NO_OUTPUT,
-        )
+        .type_pair("bool", "jni::sys::jboolean", bool_input, NO_OUTPUT)
+        .type_pair("i64", "jni::sys::jlong", id_input.clone(), NO_OUTPUT)
+        .type_pair("f64", "jni::sys::jdouble", id_input, NO_OUTPUT)
+        .type_pair("Duration", "jni::sys::jlong", duration_input, NO_OUTPUT)
 }

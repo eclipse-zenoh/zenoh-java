@@ -18,7 +18,7 @@ use crate::core::inline_fn::{InputFn, OutputFn};
 /// Per-row binding from a Rust type-shape to its FFI wire form.
 #[derive(Clone)]
 pub(crate) struct TypeBinding {
-    pub(crate) rust_type: String,
+    pub(crate) rust_type: syn::Type,
     pub(crate) wire_type: syn::Type,
     pub(crate) decode: Option<InputFn>,
     pub(crate) encode: Option<OutputFn>,
@@ -27,13 +27,13 @@ pub(crate) struct TypeBinding {
 impl TypeBinding {
     /// Construct a new binding from raw parts.
     pub(crate) fn input_output(
-        rust_type: impl AsRef<str>,
+        rust_type: syn::Type,
         wire_type: syn::Type,
         decode: Option<InputFn>,
         encode: Option<OutputFn>,
     ) -> Self {
         Self {
-            rust_type: canon_type(rust_type.as_ref()),
+            rust_type,
             wire_type,
             decode,
             encode,
@@ -57,7 +57,7 @@ impl TypeBinding {
 
     /// `&T` row — the wrapped fn receives `&name` instead of `name`.
     pub(crate) fn is_borrow(&self) -> bool {
-        self.rust_type.starts_with('&')
+        matches!(self.rust_type, syn::Type::Reference(_))
     }
     /// `*const _` / `*mut _` wire type — Rust pat ident gets a `_ptr` suffix.
     pub(crate) fn is_pointer(&self) -> bool {
@@ -66,7 +66,12 @@ impl TypeBinding {
     /// `Option<_>` row — destination-language emitters may use this to
     /// append a nullability marker.
     pub(crate) fn is_option(&self) -> bool {
-        self.rust_type.starts_with("Option <")
+        if let syn::Type::Path(tp) = &self.rust_type {
+            if let Some(last) = tp.path.segments.last() {
+                return last.ident == "Option";
+            }
+        }
+        false
     }
 
     /// Apply `f` to this binding's `decode` to produce a `TokenStream` for
@@ -85,4 +90,3 @@ pub(crate) fn canon_type(s: &str) -> String {
         .map(|t| t.to_token_stream().to_string())
         .unwrap_or_else(|e| panic!("TypeBinding: cannot parse `{}` as a type: {}", s, e))
 }
-
