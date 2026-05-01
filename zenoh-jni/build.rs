@@ -3,10 +3,10 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 use zenoh_flat::core::{
-    primitive_builtins, FunctionsConverter, InputFn, NameMangler, OutputFn, TypeRegistry,
-    TypesConverter, NO_INPUT, NO_OUTPUT,
+    primitive_builtins, FunctionsConverter, NameMangler, TypeRegistry, TypesConverter, NO_INPUT,
+    NO_OUTPUT,
 };
-use zenoh_flat::jni::{JniDecoderStruct, JniTryClosureBody};
+use zenoh_flat::jni::{CallbacksConverter, JniDecoderStruct, JniTryClosureBody};
 use zenoh_flat::kotlin::{KotlinInterfaceGenerator, KotlinTypeMap};
 
 macro_rules! decode_pure {
@@ -140,13 +140,8 @@ macro_rules! encode_cast {
 fn shared_bindings() -> TypeRegistry {
     primitive_builtins()
         // String and byte-array converters are in primitive_builtins.
-        // Callbacks.
-        .type_pair(
-            "impl Fn(Sample) + Send + Sync + 'static",
-            "jni::objects::JObject",
-            decode_env_ref_mut!(crate::sample_callback::process_kotlin_sample_callback),
-            NO_OUTPUT,
-        )
+        // Subscriber-callback (`impl Fn(Sample) + …`) is auto-generated
+        // by the callback strategy; Query/Reply/on_close stay manual for now.
         .type_pair(
             "impl Fn(Query) + Send + Sync + 'static",
             "jni::objects::JObject",
@@ -396,10 +391,8 @@ fn shared_kotlin_types() -> KotlinTypeMap {
         .add("Option<String>", "String")
         .add("Vec<u8>", "ByteArray")
         .add("Option<Vec<u8>>", "ByteArray")
-        .add(
-            "impl Fn(Sample) + Send + Sync + 'static",
-            "io.zenoh.jni.callbacks.JNISubscriberCallback",
-        )
+        // `impl Fn(Sample) + …` Kotlin FQN is registered automatically by
+        // CallbacksConverter (alias `Subscriber`).
         .add(
             "impl Fn(Query) + Send + Sync + 'static",
             "io.zenoh.jni.callbacks.JNIQueryableCallback",
@@ -482,6 +475,64 @@ fn main() {
 
     let types = keyexpr_struct_conv.into_type_registry();
 
+    // Phase 1c: process the `#[prebindgen]` struct from zenoh_flat::sample
+    // (the flat `Sample` payload used by subscriber callbacks). Separate
+    // pass because its source module differs from `zenoh_flat::structs`.
+    let mut sample_struct_conv = TypesConverter::builder(
+        JniDecoderStruct::new("zenoh_flat::sample", "crate::errors::ZResult")
+            .java_class_prefix("io/zenoh/jni"),
+    )
+    .type_registry(types)
+    .build();
+
+    let sample_struct_items: Vec<_> = source
+        .items_all()
+        .filter(|(item, loc)| {
+            matches!(item, syn::Item::Struct(_)) && loc.file.ends_with("/sample.rs")
+        })
+        .batching(sample_struct_conv.as_closure())
+        .collect();
+
+    let types = sample_struct_conv.into_type_registry();
+
+    // Phase 1d: scan `#[prebindgen]` fn signatures for `impl Fn(...) +
+    // Send + Sync + 'static` parameter types, auto-generating per-signature
+    // `process_kotlin_<Stem>_callback` Rust closures, registering matching
+    // bindings, and writing `JNI<Stem>Callback.kt` Kotlin fun-interfaces.
+    // The `Subscriber` alias keeps the legacy class name
+    // `io.zenoh.jni.callbacks.JNISubscriberCallback` used by upstream
+    // zenoh-java consumers.
+    let mut cb_conv = CallbacksConverter::builder()
+        .alias(
+            "impl Fn(zenoh_flat::sample::Sample) + Send + Sync + 'static",
+            "Subscriber",
+        )
+        .alias("impl Fn(Sample) + Send + Sync + 'static", "Subscriber")
+        .kotlin_package("io.zenoh.jni.callbacks")
+        .kotlin_output_dir(
+            "../zenoh-jni-runtime/src/commonMain/kotlin/io/zenoh/jni/callbacks",
+        )
+        .type_registry(types)
+        .kotlin_types(shared_kotlin_types().add("Sample", "io.zenoh.jni.Sample"))
+        .build();
+
+    let cb_items: Vec<_> = source
+        .items_all()
+        .filter(|(item, loc)| {
+            matches!(item, syn::Item::Fn(_))
+                && (loc.file.ends_with("/session.rs") || loc.file.ends_with("/keyexpr.rs"))
+        })
+        .batching(cb_conv.as_closure())
+        .collect();
+
+    // Snapshot the auto-populated Kotlin FQNs (e.g. `impl Fn(Sample) + …` →
+    // `io.zenoh.jni.callbacks.JNISubscriberCallback`) before consuming the
+    // converter for its TypeRegistry. The Kotlin generator passes below
+    // need these mappings to resolve callback parameter types.
+    let cb_kotlin_types = cb_conv.kotlin_types().clone();
+
+    let types = cb_conv.into_type_registry();
+
     // Phase 2: process #[prebindgen] fns from zenoh_flat::session and
     // zenoh_flat::keyexpr against the now fully-populated type registry,
     // with a JNI try-closure body strategy. Each module gets its own
@@ -549,6 +600,8 @@ fn main() {
     let bindings_file = struct_items
         .into_iter()
         .chain(keyexpr_struct_items)
+        .chain(sample_struct_items)
+        .chain(cb_items)
         .chain(session_items)
         .chain(keyexpr_items)
         .chain(passthrough)
@@ -568,10 +621,16 @@ fn main() {
         "CacheConfig",
         "MissDetectionConfig",
         "KeyExpr",
+        "Sample",
     ];
     let mut kotlin_types = shared_kotlin_types();
     for s in &struct_names {
         kotlin_types = kotlin_types.add(*s, *s).add(format!("Option<{}>", s), *s);
+    }
+    // Pull in callback-type FQNs registered by `CallbacksConverter` so the
+    // generated `external fun` parameter list resolves them.
+    for (k, v) in cb_kotlin_types.iter() {
+        kotlin_types = kotlin_types.add(k.as_str(), v.as_str());
     }
 
     let mut session_kotlin = KotlinInterfaceGenerator::builder()
@@ -586,7 +645,8 @@ fn main() {
         .build();
 
     for (item, loc) in source.items_all().filter(|(item, loc)| {
-        (matches!(item, syn::Item::Struct(_)) && loc.file.ends_with("/structs.rs"))
+        (matches!(item, syn::Item::Struct(_))
+            && (loc.file.ends_with("/structs.rs") || loc.file.ends_with("/sample.rs")))
             || (matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/session.rs"))
     }) {
         session_kotlin.add_item(&item, &loc);

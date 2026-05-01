@@ -13,6 +13,7 @@ use crate::core::type_registry::TypeRegistry;
 use crate::core::types_converter::StructStrategy;
 use crate::jni::inline_fn_helpers::{env_ref_mut_decode, env_ref_mut_encode};
 use crate::jni::jni_type;
+use crate::jni::wire_access::jni_field_access;
 use crate::util::snake_to_camel;
 
 /// JNI struct decoder strategy.
@@ -270,29 +271,3 @@ fn lookup_field_binding<'a>(
     registry.types.get(&key)
 }
 
-/// Map a JNI wire type to `(jvm_field_descriptor, JValue_accessor_ident, is_object)`.
-///
-/// Primitive types (`jlong`, `jint`, …) set `is_object = false` and the
-/// accessor names the `.j()` / `.i()` / … `JValue` variant.
-///
-/// Object types (`JString`, …) set `is_object = true`; the caller uses
-/// `.l()` to get a `JObject` and then `.into()` to cast to the wire type.
-fn jni_field_access(jni_type: &syn::Type) -> Option<(&'static str, syn::Ident, bool)> {
-    let syn::Type::Path(tp) = jni_type else {
-        return None;
-    };
-    let last = tp.path.segments.last()?;
-    let (sig, accessor, is_obj) = match last.ident.to_string().as_str() {
-        "jboolean" => ("Z", "z", false),
-        "jbyte" => ("B", "b", false),
-        "jchar" => ("C", "c", false),
-        "jshort" => ("S", "s", false),
-        "jint" => ("I", "i", false),
-        "jlong" => ("J", "j", false),
-        "jfloat" => ("F", "f", false),
-        "jdouble" => ("D", "d", false),
-        "JString" => ("Ljava/lang/String;", "l", true),
-        _ => return None,
-    };
-    Some((sig, format_ident!("{}", accessor), is_obj))
-}

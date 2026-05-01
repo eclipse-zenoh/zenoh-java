@@ -129,7 +129,8 @@ impl KotlinInterfaceGenerator {
             // FQN-import bug fix: register FQN-shaped kotlin types so the
             // data class uses the short name and the file gets the import.
             let short = register_fqn(&kotlin_ty, &mut self.used_fqns);
-            field_lines.push(format!("    val {}: {},", camel, short));
+            let nullable = if is_option_type(&field.ty) { "?" } else { "" };
+            field_lines.push(format!("    val {}: {}{},", camel, short, nullable));
         }
 
         let block = format!(

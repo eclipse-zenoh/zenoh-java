@@ -28,7 +28,7 @@ use crate::{
     errors::ZResult,
     key_expr::decode_jni_key_expr,
     owned_object::OwnedObject,
-    sample_callback::{on_reply_error, on_reply_success, process_kotlin_sample_callback},
+    sample_callback::{on_reply_error, on_reply_success},
     throw_exception,
     utils::{get_callback_global_ref, get_java_vm, load_on_close, wrap_with_on_close},
 };
@@ -146,7 +146,13 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareLivelinessSubscribe
         let key_expr = decode_jni_key_expr(&mut env, &key_expr)?;
         tracing::debug!("Declaring liveliness subscriber on '{}'...", key_expr);
 
-        let cb = process_kotlin_sample_callback(&mut env, &callback)?;
+        // Use the auto-generated 1-arg `JNISubscriberCallback` (flat
+        // `Sample` payload). Adapt zenoh's upstream Sample → flat Sample
+        // at the closure boundary.
+        let cb_flat = crate::session::process_kotlin_Subscriber_callback(&mut env, &callback)?;
+        let cb = move |zsample: zenoh::sample::Sample| {
+            cb_flat(zenoh_flat::sample::Sample::from_zenoh(&zsample));
+        };
         let cb = wrap_with_on_close(&mut env, on_close, cb)?;
         let subscriber = session
             .liveliness()

@@ -21,7 +21,6 @@ use zenoh::pubsub::Subscriber;
 use zenoh_ext::SampleMissListener;
 use zenoh_ext::{AdvancedSubscriber, Miss, SampleMissListenerBuilder};
 
-use crate::sample_callback::process_kotlin_sample_callback;
 use jni::objects::JObject;
 
 use crate::errors::ZResult;
@@ -138,7 +137,10 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareDetectPu
             advanced_subscriber.key_expr()
         );
 
-        let cb = process_kotlin_sample_callback(&mut env, &callback)?;
+        let cb_flat = crate::session::process_kotlin_Subscriber_callback(&mut env, &callback)?;
+        let cb = move |zsample: zenoh::sample::Sample| {
+            cb_flat(zenoh_flat::sample::Sample::from_zenoh(&zsample));
+        };
         let cb = wrap_with_on_close(&mut env, on_close, cb)?;
         let detect_publishers_subscriber = advanced_subscriber
             .detect_publishers()
@@ -196,7 +198,10 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareBackgrou
             advanced_subscriber.key_expr()
         );
 
-        let cb = process_kotlin_sample_callback(&mut env, &callback)?;
+        let cb_flat = crate::session::process_kotlin_Subscriber_callback(&mut env, &callback)?;
+        let cb = move |zsample: zenoh::sample::Sample| {
+            cb_flat(zenoh_flat::sample::Sample::from_zenoh(&zsample));
+        };
         let cb = wrap_with_on_close(&mut env, on_close, cb)?;
         advanced_subscriber
             .detect_publishers()

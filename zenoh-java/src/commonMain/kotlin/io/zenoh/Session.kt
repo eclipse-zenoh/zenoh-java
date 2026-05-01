@@ -32,6 +32,7 @@ import io.zenoh.jni.JNIQuerier
 import io.zenoh.jni.JNIQueryable
 import io.zenoh.jni.JNISession
 import io.zenoh.jni.JNISubscriber
+import io.zenoh.jni.toPublic
 import io.zenoh.jni.callbacks.JNIGetCallback
 import io.zenoh.jni.callbacks.JNIQueryableCallback
 import io.zenoh.jni.callbacks.JNISubscriberCallback
@@ -620,21 +621,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         keyExpr: KeyExpr, handler: Handler<Sample, R>
     ): HandlerSubscriber<R> {
         return jniSession?.run {
-            val subCallback =
-                JNISubscriberCallback { keyExpr1, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
-                    val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
-                    handler.handle(
-                        Sample(
-                            KeyExpr(keyExpr1, null),
-                            payload.into(),
-                            Encoding(encodingId, schema = encodingSchema),
-                            SampleKind.fromInt(kind),
-                            timestamp,
-                            QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
-                            attachmentBytes?.into()
-                        )
-                    )
-                }
+            val subCallback = JNISubscriberCallback { sample ->
+                handler.handle(sample.toPublic())
+            }
             val subscriber = HandlerSubscriber(keyExpr, declareSubscriber(keyExpr.jniKeyExpr, keyExpr.keyExpr, subCallback, handler::onClose), handler.receiver())
             strongDeclarations.add(subscriber)
             subscriber
@@ -646,21 +635,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         keyExpr: KeyExpr, callback: Callback<Sample>
     ): CallbackSubscriber {
         return jniSession?.run {
-            val subCallback =
-                JNISubscriberCallback { keyExpr1, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
-                    val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
-                    callback.run(
-                        Sample(
-                            KeyExpr(keyExpr1, null),
-                            payload.into(),
-                            Encoding(encodingId, schema = encodingSchema),
-                            SampleKind.fromInt(kind),
-                            timestamp,
-                            QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
-                            attachmentBytes?.into()
-                        )
-                    )
-                }
+            val subCallback = JNISubscriberCallback { sample ->
+                callback.run(sample.toPublic())
+            }
             val subscriber = CallbackSubscriber(keyExpr, declareSubscriber(keyExpr.jniKeyExpr, keyExpr.keyExpr, subCallback, fun() {}))
             strongDeclarations.add(subscriber)
             subscriber

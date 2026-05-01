@@ -175,6 +175,32 @@ fn id_input(input: &syn::Ident) -> TokenStream {
     quote! { #input }
 }
 
+/// Output encoder for `bool`: deref + cast `&bool` to `jboolean`.
+/// Encoders are always called with a borrowed input (`&value.field` from
+/// the struct encoder, `&__arg<i>` from the callback strategy).
+fn bool_output(output: Option<&syn::Ident>) -> TokenStream {
+    match output {
+        Some(o) => quote! { (*(#o)) as jni::sys::jboolean },
+        None => quote! { 0 as jni::sys::jboolean },
+    }
+}
+
+/// Output encoder for `i64`: deref + cast `&i64` to `jlong`.
+fn i64_output(output: Option<&syn::Ident>) -> TokenStream {
+    match output {
+        Some(o) => quote! { (*(#o)) as jni::sys::jlong },
+        None => quote! { 0 as jni::sys::jlong },
+    }
+}
+
+/// Output encoder for `f64`: deref + cast `&f64` to `jdouble`.
+fn f64_output(output: Option<&syn::Ident>) -> TokenStream {
+    match output {
+        Some(o) => quote! { (*(#o)) as jni::sys::jdouble },
+        None => quote! { 0.0 as jni::sys::jdouble },
+    }
+}
+
 /// Input conversion function for `Duration`: converts milliseconds to Duration.
 fn duration_input(input: &syn::Ident) -> TokenStream {
     quote! { std::time::Duration::from_millis(#input as u64) }
@@ -296,9 +322,10 @@ pub fn primitive_builtins() -> TypeRegistry {
             nullable_to_option(bytes_input),
             option_to_nullable(bytes_output),
         )
-        // Primitives (no output conversion)
-        .type_pair("bool", "jni::sys::jboolean", bool_input, NO_OUTPUT)
-        .type_pair("i64", "jni::sys::jlong", id_input, NO_OUTPUT)
-        .type_pair("f64", "jni::sys::jdouble", id_input, NO_OUTPUT)
+        // Primitives — identity-cast encoders make these usable as
+        // callback args and as fields of auto-encoded structs.
+        .type_pair("bool", "jni::sys::jboolean", bool_input, bool_output)
+        .type_pair("i64", "jni::sys::jlong", id_input, i64_output)
+        .type_pair("f64", "jni::sys::jdouble", id_input, f64_output)
         .type_pair("Duration", "jni::sys::jlong", duration_input, NO_OUTPUT)
 }

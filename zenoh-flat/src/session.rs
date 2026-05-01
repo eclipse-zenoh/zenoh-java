@@ -12,6 +12,7 @@
 //
 
 use crate::keyexpr::KeyExpr;
+use crate::sample::Sample;
 use crate::{errors::ZResult, zerror};
 use std::time::Duration;
 use tracing::{error, trace};
@@ -21,7 +22,6 @@ use zenoh::{
     config::Config,
     pubsub::{Publisher, Subscriber},
     query::{ConsolidationMode, Query, QueryTarget, Queryable, Querier, Reply, ReplyKeyExpr, Selector},
-    sample::Sample,
     qos::{CongestionControl, Priority, Reliability},
     session::{Session, ZenohId},
     Wait,
@@ -161,9 +161,9 @@ pub fn declare_subscriber(
     let guard = CallOnDrop::new(on_close);
     session
         .declare_subscriber(key_expr.as_zenoh())
-        .callback(move |sample| {
+        .callback(move |zsample| {
             let _ = &guard; // capture the guard
-            callback(sample);
+            callback(Sample::from_zenoh(&zsample));
         })
         .wait()
         .map(|subscriber| {
@@ -446,9 +446,9 @@ pub fn declare_advanced_subscriber(
     let guard = CallOnDrop::new(on_close);
     let mut builder = session
         .declare_subscriber(key_expr.as_zenoh())
-        .callback(move |sample| {
+        .callback(move |zsample| {
             let _ = &guard; // capture the guard
-            callback(sample);
+            callback(Sample::from_zenoh(&zsample));
         })
         .advanced();
     if let Some(history) = history {

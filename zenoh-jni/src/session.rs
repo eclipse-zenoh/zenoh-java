@@ -19,6 +19,7 @@ use zenoh::{
     query::{Querier, Queryable},
     session::Session,
 };
+use zenoh_flat::sample::Sample;
 #[cfg(feature = "zenoh-ext")]
 use zenoh_ext::{AdvancedPublisher, AdvancedSubscriber};
 

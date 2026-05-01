@@ -25,6 +25,7 @@ import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
 import io.zenoh.jni.callbacks.JNIGetCallback
 import io.zenoh.jni.callbacks.JNISubscriberCallback
+import io.zenoh.jni.toPublic
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.pubsub.CallbackSubscriber
 import io.zenoh.pubsub.HandlerSubscriber
@@ -213,19 +214,8 @@ class Liveliness internal constructor(private val session: Session) {
     }
 
     private fun buildSubscriberCallback(callback: Callback<Sample>): JNISubscriberCallback =
-        JNISubscriberCallback { keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
-            val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
-            callback.run(
-                Sample(
-                    KeyExpr(keyExpr2, null),
-                    payload.into(),
-                    Encoding(encodingId, schema = encodingSchema),
-                    SampleKind.fromInt(kind),
-                    timestamp,
-                    QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
-                    attachmentBytes?.into()
-                )
-            )
+        JNISubscriberCallback { sample ->
+            callback.run(sample.toPublic())
         }
 }
 

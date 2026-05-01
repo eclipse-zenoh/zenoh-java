@@ -33,6 +33,13 @@ impl KotlinTypeMap {
         self.map.get(&canon_type(rust_type)).map(String::as_str)
     }
 
+    /// Iterate over `(canonical Rust type-shape, Kotlin name)` pairs.
+    /// Useful when callers need to forward an existing map's contents into
+    /// another `KotlinTypeMap`.
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &String)> + '_ {
+        self.map.iter()
+    }
+
     /// Pre-fill primitive language types whose Kotlin name is fixed:
     /// `bool→Boolean`, `i64→Long`, `f64→Double`, `Duration→Long`.
     pub fn with_primitive_builtins(mut self) -> Self {

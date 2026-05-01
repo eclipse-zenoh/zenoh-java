@@ -6,6 +6,7 @@ pub const FEATURES: &str = prebindgen_proc_macro::features!();
 pub mod config;
 pub mod errors;
 pub mod keyexpr;
+pub mod sample;
 #[cfg(feature = "zenoh-ext")]
 pub mod structs;
 pub mod session;

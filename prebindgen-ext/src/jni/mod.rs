@@ -21,14 +21,17 @@
 
 pub mod body_strategy;
 pub mod byte_array_helpers;
+pub mod callback_strategy;
 pub mod inline_fn_helpers;
 pub mod jni_type;
 pub mod jni_type_helper;
 pub mod opaque;
 pub mod string_helpers;
 pub mod struct_strategy;
+pub(crate) mod wire_access;
 
 pub use body_strategy::JniTryClosureBody;
 pub use byte_array_helpers::{decode_byte_array, encode_byte_array, null_byte_array};
+pub use callback_strategy::{CallbackHelpers, CallbacksBuilder, CallbacksConverter};
 pub use string_helpers::{decode_string, encode_string, null_string};
 pub use struct_strategy::JniDecoderStruct;
