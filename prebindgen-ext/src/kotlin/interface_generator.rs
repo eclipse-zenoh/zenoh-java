@@ -129,7 +129,12 @@ impl KotlinInterfaceGenerator {
             // FQN-import bug fix: register FQN-shaped kotlin types so the
             // data class uses the short name and the file gets the import.
             let short = register_fqn(&kotlin_ty, &mut self.used_fqns);
-            let nullable = if is_option_type(&field.ty) { "?" } else { "" };
+            // Kotlin primitives (Long, Int, Boolean, etc.) must stay non-nullable
+            // even when the Rust type is Option<T> — JNI encodes them with a
+            // zero/false sentinel. Appending `?` would box them (java.lang.Long),
+            // causing NoSuchMethodError when the native constructor is called.
+            let nullable =
+                if is_option_type(&field.ty) && !is_kotlin_primitive(&short) { "?" } else { "" };
             field_lines.push(format!("    val {}: {}{},", camel, short, nullable));
         }
 
@@ -374,4 +379,13 @@ fn is_option_type(ty: &syn::Type) -> bool {
         }
     }
     false
+}
+
+/// True for Kotlin types that map to JVM primitives.
+///
+/// These must never be made nullable (`?`) — doing so boxes them into
+/// `java.lang.Long` etc., breaking the JNI field/constructor signatures
+/// that expect the primitive forms.
+fn is_kotlin_primitive(kt: &str) -> bool {
+    matches!(kt, "Long" | "Int" | "Boolean" | "Double" | "Float" | "Short" | "Byte" | "Char")
 }
