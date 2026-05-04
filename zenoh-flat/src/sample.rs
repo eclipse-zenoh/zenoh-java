@@ -35,11 +35,11 @@ pub struct Sample {
     pub congestion_control: i64,
 }
 
-impl Sample {
+impl From<&zenoh::sample::Sample> for Sample {
     /// Build a flat [`Sample`] from a zenoh `Sample`. Mirrors the field
     /// extraction that `process_kotlin_sample_callback` previously did
     /// inline before the JNI call.
-    pub fn from_zenoh(sample: &zenoh::sample::Sample) -> Self {
+    fn from(sample: &zenoh::sample::Sample) -> Self {
         let encoding = sample.encoding();
         let encoding_id = encoding.id() as i64;
         let encoding_schema = encoding

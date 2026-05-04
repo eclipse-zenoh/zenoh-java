@@ -163,7 +163,7 @@ pub fn declare_subscriber(
         .declare_subscriber(key_expr.as_zenoh())
         .callback(move |zsample| {
             let _ = &guard; // capture the guard
-            callback(Sample::from_zenoh(&zsample));
+            callback((&zsample).into());
         })
         .wait()
         .map(|subscriber| {
@@ -448,7 +448,7 @@ pub fn declare_advanced_subscriber(
         .declare_subscriber(key_expr.as_zenoh())
         .callback(move |zsample| {
             let _ = &guard; // capture the guard
-            callback(Sample::from_zenoh(&zsample));
+            callback((&zsample).into());
         })
         .advanced();
     if let Some(history) = history {

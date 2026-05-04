@@ -139,7 +139,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareDetectPu
 
         let cb_flat = crate::session::process_kotlin_Subscriber_callback(&mut env, &callback)?;
         let cb = move |zsample: zenoh::sample::Sample| {
-            cb_flat(zenoh_flat::sample::Sample::from_zenoh(&zsample));
+            cb_flat((&zsample).into());
         };
         let cb = wrap_with_on_close(&mut env, on_close, cb)?;
         let detect_publishers_subscriber = advanced_subscriber
@@ -200,7 +200,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareBackgrou
 
         let cb_flat = crate::session::process_kotlin_Subscriber_callback(&mut env, &callback)?;
         let cb = move |zsample: zenoh::sample::Sample| {
-            cb_flat(zenoh_flat::sample::Sample::from_zenoh(&zsample));
+            cb_flat((&zsample).into());
         };
         let cb = wrap_with_on_close(&mut env, on_close, cb)?;
         advanced_subscriber
