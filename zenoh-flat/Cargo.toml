@@ -9,7 +9,6 @@ build = "build.rs"
 
 [features]
 default = []
-zenoh-ext = ["dep:zenoh-ext"]
 
 [dependencies]
 zenoh = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["unstable", "internal"], default-features = false }

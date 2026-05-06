@@ -25,7 +25,6 @@ name = "zenoh_jni"
 
 [features]
 default = ["zenoh/default", "zenoh-ext"]
-zenoh-ext = ["dep:zenoh-ext", "zenoh-flat/zenoh-ext"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]

@@ -3,8 +3,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 use zenoh_flat::core::{
-    primitive_builtins, FunctionsConverter, NameMangler, TypeRegistry, TypesConverter, NO_INPUT,
-    NO_OUTPUT,
+    FunctionsConverter, NO_INPUT, NO_OUTPUT, NameMangler, TypeRegistry, TypesConverter, primitive_builtins, type_registry
 };
 use zenoh_flat::jni::{CallbacksConverter, JniDecoderStruct, JniTryClosureBody};
 use zenoh_flat::kotlin::{KotlinInterfaceGenerator, KotlinTypeMap};
@@ -435,65 +434,29 @@ fn shared_kotlin_types() -> KotlinTypeMap {
 fn main() {
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
 
-    // Phase 1: process #[prebindgen] structs from zenoh_flat::structs via a
-    // JNI decoder strategy. Each struct registers a type row in the
-    // shared TypeRegistry and emits a `decode_<Name>` Rust fn.
-    let mut struct_conv = TypesConverter::builder(
-        JniDecoderStruct::new("zenoh_flat::structs", "crate::errors::ZResult")
-            .java_class_prefix("io/zenoh/jni"),
-    )
-    .type_registry(shared_bindings())
-    .build();
+    // Type replacements and converters between zenoh-flat Rust types and the JNI wire 
+    // types (e.g. `jobject`, `jint`, `jlong`, `jboolean`)
+    let type_registry = shared_bindings();
 
+    // The structues are compound types containinng either types
+    // defined in the registry or another structs. The code below
+    // parses the structures, generates converters for them and 
+    // adds them to the registry.
+    // The `JniDecoderStruct` is a concrete implementation for convering
+    // structures to/from `jni::objects::JObject`
+    let jni_stragegy = JniDecoderStruct::new("zenoh_flat::structs", "crate::errors::ZResult")
+        .java_class_prefix("io/zenoh/jni");
+    let mut struct_conv = TypesConverter::builder(jni_stragegy)
+        .type_registry(type_registry)
+        .build();
+
+    // process all the `#[prebindgen]` structs from `zenoh_flat::structs` in a single pass, collecting the generated items and the auto-registered type bindings.
     let struct_items: Vec<_> = source
         .items_all()
-        .filter(|(item, loc)| {
-            matches!(item, syn::Item::Struct(_)) && loc.file.ends_with("/structs.rs")
-        })
         .batching(struct_conv.as_closure())
         .collect();
 
     let types = struct_conv.into_type_registry();
-
-    // Phase 1b: process the `#[prebindgen]` struct from zenoh_flat::keyexpr
-    // (the `KeyExpr` flat handle). Separate pass because its source module
-    // path differs from `zenoh_flat::structs`.
-    let mut keyexpr_struct_conv = TypesConverter::builder(
-        JniDecoderStruct::new("zenoh_flat::keyexpr", "crate::errors::ZResult")
-            .java_class_prefix("io/zenoh/jni"),
-    )
-    .type_registry(types)
-    .build();
-
-    let keyexpr_struct_items: Vec<_> = source
-        .items_all()
-        .filter(|(item, loc)| {
-            matches!(item, syn::Item::Struct(_)) && loc.file.ends_with("/keyexpr.rs")
-        })
-        .batching(keyexpr_struct_conv.as_closure())
-        .collect();
-
-    let types = keyexpr_struct_conv.into_type_registry();
-
-    // Phase 1c: process the `#[prebindgen]` struct from zenoh_flat::sample
-    // (the flat `Sample` payload used by subscriber callbacks). Separate
-    // pass because its source module differs from `zenoh_flat::structs`.
-    let mut sample_struct_conv = TypesConverter::builder(
-        JniDecoderStruct::new("zenoh_flat::sample", "crate::errors::ZResult")
-            .java_class_prefix("io/zenoh/jni"),
-    )
-    .type_registry(types)
-    .build();
-
-    let sample_struct_items: Vec<_> = source
-        .items_all()
-        .filter(|(item, loc)| {
-            matches!(item, syn::Item::Struct(_)) && loc.file.ends_with("/sample.rs")
-        })
-        .batching(sample_struct_conv.as_closure())
-        .collect();
-
-    let types = sample_struct_conv.into_type_registry();
 
     // Phase 1d: scan `#[prebindgen]` fn signatures for `impl Fn(...) +
     // Send + Sync + 'static` parameter types, auto-generating per-signature
@@ -599,8 +562,6 @@ fn main() {
 
     let bindings_file = struct_items
         .into_iter()
-        .chain(keyexpr_struct_items)
-        .chain(sample_struct_items)
         .chain(cb_items)
         .chain(session_items)
         .chain(keyexpr_items)
