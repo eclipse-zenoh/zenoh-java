@@ -23,11 +23,9 @@ use crate::util::snake_to_camel;
 /// pub(crate) fn decode_<Name>(
 ///     env: &mut jni::JNIEnv,
 ///     obj: &jni::objects::JObject,
-/// ) -> <zresult><source_module>::<Name> { ... }
+/// ) -> <zresult><crate_prefix>::<module>::<Name> { ... }
 /// ```
-/// and registers a `TypeBinding::param("<Name>", jni_type::jobject(),
-/// env_ref_mut_decode("decode_<Name>"))` so the struct can be passed by value
-/// to a wrapped function.
+/// where `<module>` is derived from the source file stem (e.g. `sample.rs` → `sample`).
 ///
 /// Also emits an `encode_<Name>` function if all struct fields have available
 /// encoders. The encoder creates a JObject and sets all fields from the Rust struct.
@@ -37,20 +35,19 @@ use crate::util::snake_to_camel;
 /// fields written as `pub field: bool` produce the path `bool`, and that
 /// is the lookup key used here.
 pub struct JniDecoderStruct {
-    pub source_module: syn::Path,
+    pub crate_prefix: String,
     pub zresult: syn::Path,
     pub zerror_macro: syn::Path,
     pub java_class_prefix: Option<String>,
 }
 
 impl JniDecoderStruct {
-    /// Build a strategy with the given module and result type, defaulting
-    /// the error macro to bare `zerror` (matches the existing zenoh-jni
-    /// codebase convention).
-    pub fn new(source_module: impl AsRef<str>, zresult: impl AsRef<str>) -> Self {
+    /// Build a strategy with the given crate prefix and result type.
+    /// The module path for each struct is derived from its source file stem
+    /// (e.g. a struct in `sample.rs` gets `<crate_prefix>::sample::<Name>`).
+    pub fn new(crate_prefix: impl AsRef<str>, zresult: impl AsRef<str>) -> Self {
         Self {
-            source_module: syn::parse_str(source_module.as_ref())
-                .expect("invalid source_module path"),
+            crate_prefix: crate_prefix.as_ref().to_owned(),
             zresult: syn::parse_str(zresult.as_ref()).expect("invalid zresult path"),
             zerror_macro: syn::parse_str("zerror").unwrap(),
             java_class_prefix: None,
@@ -84,8 +81,17 @@ impl StructStrategy for JniDecoderStruct {
         let decoder_ident = format_ident!("decode_{}", struct_ident);
         let encoder_ident = format_ident!("encode_{}", struct_ident);
         let zresult = &self.zresult;
-        let struct_module = &self.source_module;
         let zerror = &self.zerror_macro;
+
+        // Derive the module path from the source file stem.
+        let module_path_str = std::path::Path::new(&loc.file)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .filter(|stem| *stem != "lib")
+            .map(|stem| format!("{}::{}", self.crate_prefix, stem))
+            .unwrap_or_else(|| self.crate_prefix.clone());
+        let struct_module: syn::Path =
+            syn::parse_str(&module_path_str).expect("derived module path must parse");
         let java_class_name = match &self.java_class_prefix {
             Some(prefix) => format!("{prefix}/{struct_name}"),
             None => struct_name.clone(),

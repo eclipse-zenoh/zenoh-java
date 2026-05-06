@@ -444,7 +444,7 @@ fn main() {
     // adds them to the registry.
     // The `JniDecoderStruct` is a concrete implementation for convering
     // structures to/from `jni::objects::JObject`
-    let jni_stragegy = JniDecoderStruct::new("zenoh_flat::structs", "crate::errors::ZResult")
+    let jni_stragegy = JniDecoderStruct::new("zenoh_flat", "crate::errors::ZResult")
         .java_class_prefix("io/zenoh/jni");
     let mut struct_conv = TypesConverter::builder(jni_stragegy)
         .type_registry(type_registry)

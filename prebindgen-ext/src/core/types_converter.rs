@@ -8,8 +8,6 @@
 
 use std::collections::VecDeque;
 
-use quote::ToTokens;
-
 use prebindgen::SourceLocation;
 
 use crate::core::inline_fn::{InputFn, OutputFn, NO_INPUT, NO_OUTPUT};
@@ -147,10 +145,7 @@ impl TypesConverter {
                     self.pending.push_back(entry);
                 }
             }
-            other => panic!(
-                "TypesConverter received a non-struct item at {loc}: {}",
-                other.to_token_stream()
-            ),
+            _ => {}
         }
     }
 }
