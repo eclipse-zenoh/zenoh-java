@@ -14,8 +14,9 @@ use crate::core::type_binding::{canon_type, TypeBinding};
 struct WrapPattern {
     prefix: String,
     suffix: String,
-    wrap_input: Arc<dyn Fn(InputFn) -> InputFn + Send + Sync>,
-    wrap_output: Arc<dyn Fn(OutputFn) -> OutputFn + Send + Sync>,
+    wrap_input: Arc<dyn Fn(&TypeBinding) -> InputFn + Send + Sync>,
+    wrap_output: Arc<dyn Fn(&TypeBinding) -> OutputFn + Send + Sync>,
+    wrap_wire: Arc<dyn Fn(&TypeBinding) -> syn::Type + Send + Sync>,
 }
 
 fn find_wildcard(s: &str) -> Option<usize> {
@@ -126,18 +127,34 @@ impl TypeRegistry {
 
     /// Register a wildcard wrapper pattern.
     ///
-    /// `pattern` must contain exactly one `_` token as a type wildcard, e.g.
-    /// `"Option<_>"`. When a type lookup finds no exact match but the key
-    /// matches the pattern's prefix/suffix, `get_binding` synthesises a new
-    /// [`TypeBinding`] by applying `wrap_input`/`wrap_output` to the inner
-    /// type's conversion functions. The inner type must already be (or later
-    /// be) present in the registry; exact registrations always win over
-    /// wildcard synthesis.
+    /// `pattern` must contain exactly one `_` wildcard, e.g. `"Option<_>"`.
+    /// `wrap_input` and `wrap_output` receive the full inner [`TypeBinding`]
+    /// (giving access to the inner wire type) and return the outer conversion
+    /// functions. The outer wire type is inherited from the inner binding;
+    /// use [`wrap_type_wire`](Self::wrap_type_wire) when it must differ.
+    ///
+    /// Exact registrations always win over wildcard synthesis.
     pub fn wrap_type(
+        self,
+        pattern: impl AsRef<str>,
+        wrap_input: impl Fn(&TypeBinding) -> InputFn + Send + Sync + 'static,
+        wrap_output: impl Fn(&TypeBinding) -> OutputFn + Send + Sync + 'static,
+    ) -> Self {
+        self.wrap_type_wire(pattern, wrap_input, wrap_output, |inner| {
+            inner.wire_type.clone()
+        })
+    }
+
+    /// Like [`wrap_type`](Self::wrap_type) but also takes `wrap_wire` to
+    /// override the outer binding's wire type. Use this when the wrapped type
+    /// has a different wire form than the inner type — e.g. `Option<bool>`
+    /// uses `JObject` (boxed `Boolean`) rather than inheriting `jboolean`.
+    pub fn wrap_type_wire(
         mut self,
         pattern: impl AsRef<str>,
-        wrap_input: impl Fn(InputFn) -> InputFn + Send + Sync + 'static,
-        wrap_output: impl Fn(OutputFn) -> OutputFn + Send + Sync + 'static,
+        wrap_input: impl Fn(&TypeBinding) -> InputFn + Send + Sync + 'static,
+        wrap_output: impl Fn(&TypeBinding) -> OutputFn + Send + Sync + 'static,
+        wrap_wire: impl Fn(&TypeBinding) -> syn::Type + Send + Sync + 'static,
     ) -> Self {
         let canonical = canon_type(pattern.as_ref());
         let idx = find_wildcard(&canonical).unwrap_or_else(|| {
@@ -151,6 +168,7 @@ impl TypeRegistry {
             suffix: canonical[idx + 1..].to_string(),
             wrap_input: Arc::new(wrap_input),
             wrap_output: Arc::new(wrap_output),
+            wrap_wire: Arc::new(wrap_wire),
         });
         self
     }
@@ -172,14 +190,10 @@ impl TypeRegistry {
                 if let Some(inner) = self.types.get(inner_key) {
                     let rust_type = syn::parse_str::<syn::Type>(key)
                         .unwrap_or_else(|e| panic!("wrap_type: cannot parse `{}`: {}", key, e));
-                    let decode = (pattern.wrap_input)(inner.decode.clone());
-                    let encode = (pattern.wrap_output)(inner.encode.clone());
-                    return Some(TypeBinding::input_output(
-                        rust_type,
-                        inner.wire_type.clone(),
-                        decode,
-                        encode,
-                    ));
+                    let wire_type = (pattern.wrap_wire)(inner);
+                    let decode = (pattern.wrap_input)(inner);
+                    let encode = (pattern.wrap_output)(inner);
+                    return Some(TypeBinding::input_output(rust_type, wire_type, decode, encode));
                 }
             }
         }
@@ -333,11 +347,45 @@ fn bytes_output(output: Option<&syn::Ident>) -> TokenStream {
     }
 }
 
+/// Returns `true` if `ty` is a JNI primitive type (`jboolean`, `jlong`, …).
+///
+/// JNI primitives live in `jni::sys` and have all-lowercase names starting
+/// with `j`; JNI reference types (`JObject`, `JString`, …) start with an
+/// uppercase `J`.
+fn is_jni_primitive(ty: &syn::Type) -> bool {
+    if let syn::Type::Path(tp) = ty {
+        if let Some(last) = tp.path.segments.last() {
+            let name = last.ident.to_string();
+            return name.starts_with('j')
+                && name.len() > 1
+                && name.chars().nth(1).is_some_and(|c| c.is_ascii_lowercase());
+        }
+    }
+    false
+}
+
+/// Boxing metadata for a JNI primitive: (Java class path, valueOf descriptor,
+/// JValue variant name, unbox method name, unbox descriptor, JValueOwned getter).
+fn jni_box_info(type_name: &str) -> (&'static str, &'static str, &'static str, &'static str, &'static str, &'static str) {
+    match type_name {
+        "jboolean" => ("java/lang/Boolean",   "(Z)Ljava/lang/Boolean;",   "Bool",   "booleanValue", "()Z", "z"),
+        "jbyte"    => ("java/lang/Byte",      "(B)Ljava/lang/Byte;",      "Byte",   "byteValue",    "()B", "b"),
+        "jchar"    => ("java/lang/Character", "(C)Ljava/lang/Character;", "Char",   "charValue",    "()C", "c"),
+        "jshort"   => ("java/lang/Short",     "(S)Ljava/lang/Short;",     "Short",  "shortValue",   "()S", "s"),
+        "jint"     => ("java/lang/Integer",   "(I)Ljava/lang/Integer;",   "Int",    "intValue",     "()I", "i"),
+        "jlong"    => ("java/lang/Long",      "(J)Ljava/lang/Long;",      "Long",   "longValue",    "()J", "j"),
+        "jfloat"   => ("java/lang/Float",     "(F)Ljava/lang/Float;",     "Float",  "floatValue",   "()F", "f"),
+        "jdouble"  => ("java/lang/Double",    "(D)Ljava/lang/Double;",    "Double", "doubleValue",  "()D", "d"),
+        other => panic!("jni_box_info: not a known JNI primitive type `{}`", other),
+    }
+}
+
 /// Wraps an [`InputFn`] (or anything that converts into one) for `T` into an
 /// [`InputFn`] for `Option<T>`.
 ///
-/// The wire value must expose an `.is_null()` method (e.g. JNI reference types);
+/// The wire value must expose an `.is_null()` method (JNI reference types);
 /// a truthy result maps to `None`, otherwise the inner conversion is applied.
+/// For primitive inner types use [`input_option`] instead.
 pub fn nullable_to_option(inner: impl Into<InputFn>) -> InputFn {
     let inner = inner.into();
     InputFn::new(move |input: &syn::Ident| -> TokenStream {
@@ -355,8 +403,8 @@ pub fn nullable_to_option(inner: impl Into<InputFn>) -> InputFn {
 /// Wraps an [`OutputFn`] (or anything that converts into one) for `T` into an
 /// [`OutputFn`] for `Option<T>`.
 ///
-/// The `None` arm of the inner function is reused as the null wire value,
-/// so no separate null-sentinel helper is needed here.
+/// The `None` arm of the inner function is reused as the null wire value.
+/// For primitive inner types use [`output_option`] instead.
 pub fn option_to_nullable(inner: impl Into<OutputFn>) -> OutputFn {
     let inner = inner.into();
     OutputFn::new(move |output: Option<&syn::Ident>| -> TokenStream {
@@ -375,6 +423,112 @@ pub fn option_to_nullable(inner: impl Into<OutputFn>) -> OutputFn {
             None => null_expr,
         }
     })
+}
+
+/// Decoder for `Option<T>` that handles both JNI reference types (checked via
+/// `.is_null()`) and JNI primitive types (unboxed through their Java object
+/// wrappers, e.g. `Boolean`, `Long`).
+///
+/// For reference inner types the generated code is identical to
+/// [`nullable_to_option`]. For primitive inner types (`jboolean`, `jlong`, …)
+/// the incoming wire value is a nullable `JObject` holding the boxed primitive;
+/// unboxing is done via the appropriate Java method (`booleanValue`, etc.).
+pub fn input_option(inner: &TypeBinding) -> InputFn {
+    if is_jni_primitive(&inner.wire_type) {
+        let type_name = if let syn::Type::Path(tp) = &inner.wire_type {
+            tp.path.segments.last().map(|s| s.ident.to_string()).unwrap_or_default()
+        } else {
+            String::new()
+        };
+        let (_, _, _, unbox_method, unbox_sig, jvalue_getter) = jni_box_info(&type_name);
+        let wire_ty_str = {
+            use quote::ToTokens as _;
+            inner.wire_type.to_token_stream().to_string()
+        };
+        let inner_decode = inner.decode.clone();
+        InputFn::new(move |input: &syn::Ident| -> TokenStream {
+            let wire_ty: syn::Type = syn::parse_str(&wire_ty_str).unwrap();
+            let inner_ident = syn::Ident::new("__unboxed", Span::call_site());
+            let jvalue_getter_ident = syn::Ident::new(jvalue_getter, Span::call_site());
+            let inner_expr = inner_decode.call(&inner_ident);
+            quote! {
+                if !#input.is_null() {
+                    let #inner_ident: #wire_ty = env
+                        .call_method(&#input, #unbox_method, #unbox_sig, &[])
+                        .and_then(|v| v.#jvalue_getter_ident())
+                        .map_err(|err| zerror!(err))?;
+                    Some(#inner_expr)
+                } else {
+                    None
+                }
+            }
+        })
+    } else {
+        nullable_to_option(inner.decode.clone())
+    }
+}
+
+/// Encoder for `Option<T>` that handles both JNI reference types and JNI
+/// primitive types (boxed via their Java object wrappers).
+///
+/// For reference inner types the generated code is identical to
+/// [`option_to_nullable`]. For primitive inner types (`jboolean`, `jlong`, …)
+/// `None` maps to `JObject::null()` and `Some(v)` boxes the primitive via the
+/// appropriate Java static factory (`Boolean.valueOf`, `Long.valueOf`, …).
+pub fn output_option(inner: &TypeBinding) -> OutputFn {
+    if is_jni_primitive(&inner.wire_type) {
+        let type_name = if let syn::Type::Path(tp) = &inner.wire_type {
+            tp.path.segments.last().map(|s| s.ident.to_string()).unwrap_or_default()
+        } else {
+            String::new()
+        };
+        let (java_class, box_sig, jvalue_variant, _, _, _) = jni_box_info(&type_name);
+        let wire_ty_str = {
+            use quote::ToTokens as _;
+            inner.wire_type.to_token_stream().to_string()
+        };
+        let inner_encode = inner.encode.clone();
+        OutputFn::new(move |output: Option<&syn::Ident>| -> TokenStream {
+            let wire_ty: syn::Type = syn::parse_str(&wire_ty_str).unwrap();
+            let jvalue_variant_ident = syn::Ident::new(jvalue_variant, Span::call_site());
+            match output {
+                None => quote! { jni::objects::JObject::null() },
+                Some(output) => {
+                    let value_ident = syn::Ident::new("value", Span::call_site());
+                    let inner_expr = inner_encode.call(Some(&value_ident));
+                    quote! {
+                        match &#output {
+                            Some(value) => {
+                                let __raw: #wire_ty = #inner_expr;
+                                env.call_static_method(
+                                    #java_class,
+                                    "valueOf",
+                                    #box_sig,
+                                    &[jni::objects::JValue::#jvalue_variant_ident(__raw)],
+                                )
+                                .and_then(|v| v.l())
+                                .map_err(|err| zerror!(err))?
+                            }
+                            None => jni::objects::JObject::null(),
+                        }
+                    }
+                }
+            }
+        })
+    } else {
+        option_to_nullable(inner.encode.clone())
+    }
+}
+
+/// Wire type for `Option<T>`: returns `JObject` for primitive inner types
+/// (since primitives must be boxed to be nullable) and inherits the inner
+/// wire type for JNI reference types (which are already nullable).
+pub fn option_wire_type(inner: &TypeBinding) -> syn::Type {
+    if is_jni_primitive(&inner.wire_type) {
+        syn::parse_str("jni::objects::JObject").expect("JObject is a valid type")
+    } else {
+        inner.wire_type.clone()
+    }
 }
 
 /// Pre-built registry containing universal language-primitive rows
@@ -405,5 +559,5 @@ pub fn primitive_builtins() -> TypeRegistry {
         .type_pair("i64", "jni::sys::jlong", id_input, i64_output)
         .type_pair("f64", "jni::sys::jdouble", id_input, f64_output)
         .type_pair("Duration", "jni::sys::jlong", duration_input, NO_OUTPUT)
-        .wrap_type("Option<_>", nullable_to_option, option_to_nullable)
+        .wrap_type_wire("Option<_>", input_option, output_option, option_wire_type)
 }

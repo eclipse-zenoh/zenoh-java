@@ -17,7 +17,7 @@ use crate::core::inline_fn::{InputFn, OutputFn};
 
 /// Per-row binding from a Rust type-shape to its FFI wire form.
 #[derive(Clone)]
-pub(crate) struct TypeBinding {
+pub struct TypeBinding {
     pub(crate) rust_type: syn::Type,
     pub(crate) wire_type: syn::Type,
     pub(crate) decode: InputFn,

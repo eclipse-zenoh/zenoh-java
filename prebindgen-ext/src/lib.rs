@@ -15,5 +15,7 @@ pub use core::{
     BodyContext, BodyStrategy, FunctionsBuilder, FunctionsConverter, NameMangler,
     PassThroughBody, StructStrategy, TypeRegistry, TypesBuilder, TypesConverter,
 };
+pub use core::type_binding::TypeBinding;
+pub use core::type_registry::{input_option, output_option, option_wire_type, nullable_to_option, option_to_nullable};
 pub use jni::{JniDecoderStruct, JniTryClosureBody};
 pub use kotlin::{KotlinInterfaceBuilder, KotlinInterfaceGenerator, KotlinTypeMap};
