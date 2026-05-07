@@ -43,7 +43,6 @@ use crate::kotlin::type_map::KotlinTypeMap;
 /// expose them under a different path.
 #[derive(Clone)]
 pub struct CallbackHelpers {
-    pub get_java_vm: syn::Path,
     pub zerror_macro: syn::Path,
     pub zresult: syn::Path,
 }
@@ -51,7 +50,6 @@ pub struct CallbackHelpers {
 impl Default for CallbackHelpers {
     fn default() -> Self {
         Self {
-            get_java_vm: syn::parse_str("crate::utils::get_java_vm").unwrap(),
             zerror_macro: syn::parse_str("zerror").unwrap(),
             zresult: syn::parse_str("crate::errors::ZResult").unwrap(),
         }
@@ -292,7 +290,6 @@ impl CallbacksConverter {
 
         let zresult = &self.cfg.helpers.zresult;
         let zerror = &self.cfg.helpers.zerror_macro;
-        let get_java_vm = &self.cfg.helpers.get_java_vm;
 
         let arg_pat_pairs: Vec<TokenStream> = arg_idents
             .iter()
@@ -313,7 +310,8 @@ impl CallbacksConverter {
                 callback: &jni::objects::JObject,
             ) -> #zresult<impl Fn(#(#return_arg_types),*) + Send + Sync + 'static> {
                 use std::sync::Arc;
-                let java_vm = Arc::new(#get_java_vm(env)?);
+                let java_vm = Arc::new(env.get_java_vm()
+                    .map_err(|err| #zerror!("Unable to retrieve JVM reference: {}", err))?);
                 let callback_global_ref = env.new_global_ref(callback)
                     .map_err(|err| #zerror!("Unable to get reference to the provided callback: {}", err))?;
 
