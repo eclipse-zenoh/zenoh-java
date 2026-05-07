@@ -25,7 +25,7 @@ macro_rules! throw_exception {
     }};
 }
 
-pub(crate) type ZError = zenoh_flat::errors::ZError;
+pub(crate) use zenoh_flat::errors::ZError;
 pub(crate) type ZResult<T> = core::result::Result<T, ZError>;
 
 pub(crate) trait ThrowOnJvm {

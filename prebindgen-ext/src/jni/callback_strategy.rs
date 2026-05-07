@@ -43,14 +43,12 @@ use crate::kotlin::type_map::KotlinTypeMap;
 /// expose them under a different path.
 #[derive(Clone)]
 pub struct CallbackHelpers {
-    pub zerror_macro: syn::Path,
     pub zresult: syn::Path,
 }
 
 impl Default for CallbackHelpers {
     fn default() -> Self {
         Self {
-            zerror_macro: syn::parse_str("zerror").unwrap(),
             zresult: syn::parse_str("crate::errors::ZResult").unwrap(),
         }
     }
@@ -289,7 +287,14 @@ impl CallbacksConverter {
         // ----- Generate the Rust process function -----
 
         let zresult = &self.cfg.helpers.zresult;
-        let zerror = &self.cfg.helpers.zerror_macro;
+        // Derive ZError path from ZResult path by replacing the last segment.
+        let zerror_ty: syn::Path = {
+            let mut p = zresult.clone();
+            if let Some(last) = p.segments.last_mut() {
+                last.ident = syn::Ident::new("ZError", last.ident.span());
+            }
+            p
+        };
 
         let arg_pat_pairs: Vec<TokenStream> = arg_idents
             .iter()
@@ -311,19 +316,19 @@ impl CallbacksConverter {
             ) -> #zresult<impl Fn(#(#return_arg_types),*) + Send + Sync + 'static> {
                 use std::sync::Arc;
                 let java_vm = Arc::new(env.get_java_vm()
-                    .map_err(|err| #zerror!("Unable to retrieve JVM reference: {}", err))?);
+                    .map_err(|err| #zerror_ty(format!("Unable to retrieve JVM reference: {}", err)))?);
                 let callback_global_ref = env.new_global_ref(callback)
-                    .map_err(|err| #zerror!("Unable to get reference to the provided callback: {}", err))?;
+                    .map_err(|err| #zerror_ty(format!("Unable to get reference to the provided callback: {}", err)))?;
 
                 Ok(move |#(#arg_pat_pairs),*| {
                     let _ = || -> #zresult<()> {
                         let mut env = java_vm
                             .attach_current_thread_as_daemon()
-                            .map_err(|err| #zerror!(
+                            .map_err(|err| #zerror_ty(format!(
                                 "Unable to attach thread for {} callback: {}",
                                 #stem_lit,
                                 err
-                            ))?;
+                            )))?;
                         #(#arg_preludes)*
                         env.call_method(
                             &callback_global_ref,
@@ -333,7 +338,7 @@ impl CallbacksConverter {
                         )
                         .map_err(|err| {
                             let _ = env.exception_describe();
-                            #zerror!(err)
+                            #zerror_ty(err.to_string())
                         })?;
                         Ok(())
                     }()
