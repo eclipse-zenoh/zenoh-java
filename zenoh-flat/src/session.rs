@@ -200,9 +200,8 @@ pub fn declare_querier(
         .timeout(timeout)
         .accept_replies(reply_key_expr)
         .wait()
-        .map(|querier| {
+        .inspect(|_| {
             trace!("Declared querier on '{}'.", key_expr_string);
-            querier
         })
         .map_err(|err| {
             error!("Unable to declare querier on '{}': {}", key_expr_string, err);
@@ -229,9 +228,8 @@ pub fn declare_queryable(
         })
         .complete(complete)
         .wait()
-        .map(|queryable| {
+        .inspect(|_| {
             trace!("Declared queryable on '{}'.", key_expr_string);
-            queryable
         })
         .map_err(|err| {
             error!("Unable to declare queryable on '{}': {}", key_expr_string, err);

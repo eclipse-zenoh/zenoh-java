@@ -2,6 +2,7 @@
 //! `to_token_stream()` form of the Rust type-shape.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
@@ -9,9 +10,33 @@ use quote::{quote, ToTokens};
 use crate::core::inline_fn::{input_fn, output_fn, InputFn, OutputFn, NO_INPUT, NO_OUTPUT};
 use crate::core::type_binding::{canon_type, TypeBinding};
 
+#[derive(Clone)]
+struct WrapPattern {
+    prefix: String,
+    suffix: String,
+    wrap_input: Arc<dyn Fn(InputFn) -> InputFn + Send + Sync>,
+    wrap_output: Arc<dyn Fn(OutputFn) -> OutputFn + Send + Sync>,
+}
+
+fn find_wildcard(s: &str) -> Option<usize> {
+    let bytes = s.as_bytes();
+    for (i, &b) in bytes.iter().enumerate() {
+        if b == b'_' {
+            let before_ok = i == 0 || !bytes[i - 1].is_ascii_alphanumeric() && bytes[i - 1] != b'_';
+            let after_ok = i + 1 >= bytes.len()
+                || !bytes[i + 1].is_ascii_alphanumeric() && bytes[i + 1] != b'_';
+            if before_ok && after_ok {
+                return Some(i);
+            }
+        }
+    }
+    None
+}
+
 #[derive(Default, Clone)]
 pub struct TypeRegistry {
     pub(crate) types: HashMap<String, TypeBinding>,
+    wrap_patterns: Vec<WrapPattern>,
 }
 
 impl TypeRegistry {
@@ -99,10 +124,73 @@ impl TypeRegistry {
         self
     }
 
+    /// Register a wildcard wrapper pattern.
+    ///
+    /// `pattern` must contain exactly one `_` token as a type wildcard, e.g.
+    /// `"Option<_>"`. When a type lookup finds no exact match but the key
+    /// matches the pattern's prefix/suffix, `get_binding` synthesises a new
+    /// [`TypeBinding`] by applying `wrap_input`/`wrap_output` to the inner
+    /// type's conversion functions. The inner type must already be (or later
+    /// be) present in the registry; exact registrations always win over
+    /// wildcard synthesis.
+    pub fn wrap_type(
+        mut self,
+        pattern: impl AsRef<str>,
+        wrap_input: impl Fn(InputFn) -> InputFn + Send + Sync + 'static,
+        wrap_output: impl Fn(OutputFn) -> OutputFn + Send + Sync + 'static,
+    ) -> Self {
+        let canonical = canon_type(pattern.as_ref());
+        let idx = find_wildcard(&canonical).unwrap_or_else(|| {
+            panic!(
+                "wrap_type pattern `{}` must contain a standalone `_` wildcard",
+                pattern.as_ref()
+            )
+        });
+        self.wrap_patterns.push(WrapPattern {
+            prefix: canonical[..idx].to_string(),
+            suffix: canonical[idx + 1..].to_string(),
+            wrap_input: Arc::new(wrap_input),
+            wrap_output: Arc::new(wrap_output),
+        });
+        self
+    }
+
+    /// Look up a type binding by its canonical key.
+    ///
+    /// Tries an exact match first; if none is found, iterates wildcard
+    /// patterns registered via [`wrap_type`](Self::wrap_type). For a
+    /// matching pattern the inner type is looked up (exact only) and a new
+    /// [`TypeBinding`] is synthesised on the fly — wire type inherited from
+    /// the inner binding, conversion functions wrapped.
+    pub(crate) fn get_binding(&self, key: &str) -> Option<TypeBinding> {
+        if let Some(b) = self.types.get(key) {
+            return Some(b.clone());
+        }
+        for pattern in &self.wrap_patterns {
+            if key.starts_with(&pattern.prefix) && key.ends_with(&pattern.suffix) {
+                let inner_key = key[pattern.prefix.len()..key.len() - pattern.suffix.len()].trim();
+                if let Some(inner) = self.types.get(inner_key) {
+                    let rust_type = syn::parse_str::<syn::Type>(key)
+                        .unwrap_or_else(|e| panic!("wrap_type: cannot parse `{}`: {}", key, e));
+                    let decode = (pattern.wrap_input)(inner.decode.clone());
+                    let encode = (pattern.wrap_output)(inner.encode.clone());
+                    return Some(TypeBinding::input_output(
+                        rust_type,
+                        inner.wire_type.clone(),
+                        decode,
+                        encode,
+                    ));
+                }
+            }
+        }
+        None
+    }
+
     /// Merge another registry into this one. Entries in `other` override
     /// entries with the same key in `self`.
     pub fn merge(mut self, other: TypeRegistry) -> Self {
         self.types.extend(other.types);
+        self.wrap_patterns.extend(other.wrap_patterns);
         self
     }
 
@@ -162,6 +250,7 @@ impl TypeRegistry {
     /// Used by builder fluent methods that take `TypeRegistry` by value.
     pub(crate) fn extend_from(&mut self, other: TypeRegistry) {
         self.types.extend(other.types);
+        self.wrap_patterns.extend(other.wrap_patterns);
     }
 }
 
@@ -304,23 +393,11 @@ pub fn primitive_builtins() -> TypeRegistry {
             string_input,
             string_output,
         )
-        .type_pair_internal(
-            "Option<String>",
-            "jni::objects::JString",
-            nullable_to_option(string_input),
-            option_to_nullable(string_output),
-        )
         .type_pair(
             "Vec<u8>",
             "jni::objects::JByteArray",
             bytes_input,
             bytes_output,
-        )
-        .type_pair_internal(
-            "Option<Vec<u8>>",
-            "jni::objects::JByteArray",
-            nullable_to_option(bytes_input),
-            option_to_nullable(bytes_output),
         )
         // Primitives — identity-cast encoders make these usable as
         // callback args and as fields of auto-encoded structs.
@@ -328,4 +405,5 @@ pub fn primitive_builtins() -> TypeRegistry {
         .type_pair("i64", "jni::sys::jlong", id_input, i64_output)
         .type_pair("f64", "jni::sys::jdouble", id_input, f64_output)
         .type_pair("Duration", "jni::sys::jlong", duration_input, NO_OUTPUT)
+        .wrap_type("Option<_>", nullable_to_option, option_to_nullable)
 }

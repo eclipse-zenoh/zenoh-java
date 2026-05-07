@@ -165,7 +165,7 @@ impl KotlinInterfaceGenerator {
             let ty = &*pat_type.ty;
 
             let key = ty.to_token_stream().to_string();
-            let binding = self.cfg.types.types.get(&key).unwrap_or_else(|| {
+            let binding = self.cfg.types.get_binding(&key).unwrap_or_else(|| {
                 panic!(
                     "Kotlin: unsupported parameter type `{}` for `{}` at {loc}",
                     ty.to_token_stream(),

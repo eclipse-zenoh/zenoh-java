@@ -556,19 +556,19 @@ fn extract_fn_trait_args(ty: &syn::Type) -> Option<Vec<syn::Type>> {
 /// Look up a callback-arg type in the registry — bare path-tail first,
 /// canonical key as fallback. Mirrors `lookup_field_binding` from the
 /// struct strategy.
-fn lookup_arg_binding<'a>(
-    registry: &'a TypeRegistry,
+fn lookup_arg_binding(
+    registry: &TypeRegistry,
     ty: &syn::Type,
-) -> Option<&'a crate::core::type_binding::TypeBinding> {
+) -> Option<crate::core::type_binding::TypeBinding> {
     if let syn::Type::Path(tp) = ty {
         if let Some(last) = tp.path.segments.last() {
-            if let Some(b) = registry.types.get(&last.ident.to_string()) {
+            if let Some(b) = registry.get_binding(&last.ident.to_string()) {
                 return Some(b);
             }
         }
     }
     let key = canon_type(&ty.to_token_stream().to_string());
-    registry.types.get(&key)
+    registry.get_binding(&key)
 }
 
 fn is_jobject_wire(wire: &syn::Type) -> bool {

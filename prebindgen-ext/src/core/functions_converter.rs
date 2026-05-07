@@ -286,7 +286,7 @@ impl FunctionsConverter {
                         (None, None)
                     } else {
                         let key = ty.to_token_stream().to_string();
-                        let binding = self.cfg.types.types.get(&key).unwrap_or_else(|| {
+                        let binding = self.cfg.types.get_binding(&key).unwrap_or_else(|| {
                             panic!(
                                 "unsupported return type `{}` for `{}` at {loc}: \
                              register a TypeBinding keyed `{}`",
@@ -362,7 +362,7 @@ impl FunctionsConverter {
         call_args: &mut Vec<TokenStream>,
     ) {
         let key = ty.to_token_stream().to_string();
-        let binding = self.cfg.types.types.get(&key).unwrap_or_else(|| {
+        let binding = self.cfg.types.get_binding(&key).unwrap_or_else(|| {
             panic!(
                 "unsupported parameter type `{}` for `{}` at {loc}: \
                  register a TypeBinding keyed `{}`",
