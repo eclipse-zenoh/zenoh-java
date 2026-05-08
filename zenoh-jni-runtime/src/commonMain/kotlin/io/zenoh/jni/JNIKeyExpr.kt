@@ -31,30 +31,30 @@ fun KeyExpr.Companion.of(declared: KeyExpr?, keyExpr: String): KeyExpr =
     declared ?: undeclared(keyExpr)
 
 @Throws(ZError::class)
-fun KeyExpr.Companion.tryFrom(keyExpr: String): KeyExpr = JNIKeyExprNative.tryFromViaJNI(keyExpr)
+fun KeyExpr.Companion.tryFrom(keyExpr: String): KeyExpr = JNINative.tryFromViaJNI(keyExpr)
 
 @Throws(ZError::class)
 fun KeyExpr.Companion.autocanonize(keyExpr: String): KeyExpr =
-    JNIKeyExprNative.autocanonizeViaJNI(keyExpr)
+    JNINative.autocanonizeViaJNI(keyExpr)
 
 @Throws(ZError::class)
 fun KeyExpr.Companion.intersects(a: KeyExpr?, aStr: String, b: KeyExpr?, bStr: String): Boolean =
-    JNIKeyExprNative.intersectsViaJNI(of(a, aStr), of(b, bStr))
+    JNINative.intersectsViaJNI(of(a, aStr), of(b, bStr))
 
 @Throws(ZError::class)
 fun KeyExpr.Companion.includes(a: KeyExpr?, aStr: String, b: KeyExpr?, bStr: String): Boolean =
-    JNIKeyExprNative.includesViaJNI(of(a, aStr), of(b, bStr))
+    JNINative.includesViaJNI(of(a, aStr), of(b, bStr))
 
 @Throws(ZError::class)
 fun KeyExpr.Companion.relationTo(a: KeyExpr?, aStr: String, b: KeyExpr?, bStr: String): Int =
-    JNIKeyExprNative.relationToViaJNI(of(a, aStr), of(b, bStr))
+    JNINative.relationToViaJNI(of(a, aStr), of(b, bStr))
 
 @Throws(ZError::class)
 fun KeyExpr.Companion.join(a: KeyExpr?, aStr: String, other: String): KeyExpr =
-    JNIKeyExprNative.joinViaJNI(of(a, aStr), other)
+    JNINative.joinViaJNI(of(a, aStr), other)
 
 @Throws(ZError::class)
 fun KeyExpr.Companion.concat(a: KeyExpr?, aStr: String, other: String): KeyExpr =
-    JNIKeyExprNative.concatViaJNI(of(a, aStr), other)
+    JNINative.concatViaJNI(of(a, aStr), other)
 
-fun KeyExpr.close() = JNIKeyExprNative.dropKeyExprViaJNI(this)
+fun KeyExpr.close() = JNINative.dropKeyExprViaJNI(this)

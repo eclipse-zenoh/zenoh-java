@@ -3,393 +3,354 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 use zenoh_flat::core::{
-    FunctionsConverter, NO_INPUT, NO_OUTPUT, NameMangler, TypeRegistry, TypesConverter,
-    primitive_builtins, input_result, output_result, result_wire_type,
+    FunctionsConverter, InputFn, NO_INPUT, NO_OUTPUT, NameMangler, OutputFn, TypeRegistry,
+    TypesConverter, input_result, output_result, primitive_builtins, result_wire_type,
 };
 use zenoh_flat::jni::{CallbacksConverter, JniDecoderStruct, JniTryClosureBody};
 use zenoh_flat::kotlin::{KotlinInterfaceGenerator, KotlinTypeMap};
 
-macro_rules! decode_pure {
-    ($path:path) => {
-        |input: &syn::Ident| -> TokenStream {
-            quote! { $path(#input)? }
-        }
-    };
+// =====================================================================
+// Helpers — private constructors returning `InputFn` / `OutputFn`.
+// One closure shape each; replace the previous local `macro_rules!`.
+//
+// Helpers take `&str` because `InputFn::new` / `OutputFn::new` require
+// `Fn + Send + Sync + 'static`, and `syn::Path` / `syn::Type` /
+// `syn::Expr` are not `Sync` (they may carry `proc_macro2::TokenStream`).
+// We capture an owned `String` and parse inside the closure — matches
+// the pattern already used by `prebindgen-ext::jni::inline_fn_helpers`.
+// =====================================================================
+
+fn decode_pure(path: &str) -> InputFn {
+    let s = path.to_string();
+    InputFn::new(move |input: &syn::Ident| -> TokenStream {
+        let p: syn::Path = syn::parse_str(&s).expect("decode_pure: invalid path");
+        quote! { #p(#input)? }
+    })
 }
 
-macro_rules! decode_env_ref_mut {
-    ($path:path) => {
-        |input: &syn::Ident| -> TokenStream {
-            quote! { $path(&mut env, &#input)? }
-        }
-    };
+fn decode_env_ref_mut(path: &str) -> InputFn {
+    let s = path.to_string();
+    InputFn::new(move |input: &syn::Ident| -> TokenStream {
+        let p: syn::Path = syn::parse_str(&s).expect("decode_env_ref_mut: invalid path");
+        quote! { #p(&mut env, &#input)? }
+    })
 }
 
-macro_rules! decode_option_env_ref_mut {
-    ($path:path) => {
-        |input: &syn::Ident| -> TokenStream {
-            quote! {
-                if !#input.is_null() {
-                    Some($path(&mut env, &#input)?)
-                } else {
-                    None
-                }
+fn decode_option_env_ref_mut(path: &str) -> InputFn {
+    let s = path.to_string();
+    InputFn::new(move |input: &syn::Ident| -> TokenStream {
+        let p: syn::Path = syn::parse_str(&s).expect("decode_option_env_ref_mut: invalid path");
+        quote! {
+            if !#input.is_null() {
+                Some(#p(&mut env, &#input)?)
+            } else {
+                None
             }
         }
-    };
+    })
 }
 
-macro_rules! decode_owned_raw {
-    ($owned_object:path) => {
-        |input: &syn::Ident| -> TokenStream {
-            quote! { $owned_object::from_raw(#input) }
-        }
-    };
+fn decode_owned_raw(owned_object: &str) -> InputFn {
+    let s = owned_object.to_string();
+    InputFn::new(move |input: &syn::Ident| -> TokenStream {
+        let p: syn::Path = syn::parse_str(&s).expect("decode_owned_raw: invalid path");
+        quote! { #p::from_raw(#input) }
+    })
 }
 
-/// Reconstruct an `Arc<T>` from a raw pointer, clone the inner `T`, and let
-/// the temporary `Arc` drop at end of scope (releasing the JNI strong
-/// reference).
-macro_rules! decode_arc_from_raw {
-    () => {
-        |input: &syn::Ident| -> TokenStream {
-            quote! { (*std::sync::Arc::from_raw(#input)).clone() }
-        }
-    };
+/// Reconstruct an `Arc<T>` from a raw pointer, clone the inner `T`, and
+/// let the temporary `Arc` drop at end of scope.
+fn decode_arc_from_raw() -> InputFn {
+    InputFn::new(|input: &syn::Ident| -> TokenStream {
+        quote! { (*std::sync::Arc::from_raw(#input)).clone() }
+    })
 }
 
-macro_rules! decode_option_arc_from_raw {
-    ($inner:ty) => {
-        |input: &syn::Ident| -> TokenStream {
-            quote! {
-                if #input != 0 {
-                    Some(unsafe {
-                        let raw = #input as *const $inner;
-                        (*raw).clone()
-                    })
-                } else {
-                    None
-                }
+fn decode_option_arc_from_raw(inner: &str) -> InputFn {
+    let s = inner.to_string();
+    InputFn::new(move |input: &syn::Ident| -> TokenStream {
+        let inner: syn::Type =
+            syn::parse_str(&s).expect("decode_option_arc_from_raw: invalid inner type");
+        quote! {
+            if #input != 0 {
+                Some(unsafe {
+                    let raw = #input as *const #inner;
+                    (*raw).clone()
+                })
+            } else {
+                None
             }
         }
-    };
+    })
 }
 
-macro_rules! encode_wrapper {
-    ($path:path) => {
-        |output: Option<&syn::Ident>| -> TokenStream {
-            match output {
-                Some(output) => quote! { $path(&mut env, #output)? },
-                None => quote! { std::ptr::null_mut() },
-            }
+fn encode_wrapper(path: &str) -> OutputFn {
+    let s = path.to_string();
+    OutputFn::new(move |output: Option<&syn::Ident>| -> TokenStream {
+        let p: syn::Path = syn::parse_str(&s).expect("encode_wrapper: invalid path");
+        match output {
+            Some(o) => quote! { #p(&mut env, #o)? },
+            None => quote! { std::ptr::null_mut() },
         }
-    };
+    })
 }
 
-macro_rules! encode_arc_into_raw {
-    () => {
-        |output: Option<&syn::Ident>| -> TokenStream {
-            match output {
-                Some(output) => {
-                    quote! { std::sync::Arc::into_raw(std::sync::Arc::new(#output)) }
-                }
-                None => quote! { std::ptr::null() },
-            }
+fn encode_arc_into_raw() -> OutputFn {
+    OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
+        match output {
+            Some(o) => quote! { std::sync::Arc::into_raw(std::sync::Arc::new(#o)) },
+            None => quote! { std::ptr::null() },
         }
-    };
+    })
 }
 
-/// Encode an `Option<T>` (where `T: Clone`) into a `jlong` Arc-handle.
-///
-/// `Some(v)` becomes `Arc::into_raw(Arc::new(v.clone())) as i64`.
-/// `None` maps to `0`.
-macro_rules! encode_option_clone_into_arc_raw_jlong {
-    () => {
-        |output: Option<&syn::Ident>| -> TokenStream {
-            match output {
-                Some(output) => quote! {
-                    #output
-                        .as_ref()
-                        .map(|value| std::sync::Arc::into_raw(std::sync::Arc::new(value.clone())) as i64)
-                        .unwrap_or(0)
-                },
-                None => quote! { 0 },
-            }
+/// `Some(v)` → `Arc::into_raw(Arc::new(v.clone())) as i64`; `None` → `0`.
+fn encode_option_clone_into_arc_raw_jlong() -> OutputFn {
+    OutputFn::new(|output: Option<&syn::Ident>| -> TokenStream {
+        match output {
+            Some(o) => quote! {
+                #o.as_ref()
+                    .map(|value| std::sync::Arc::into_raw(std::sync::Arc::new(value.clone())) as i64)
+                    .unwrap_or(0)
+            },
+            None => quote! { 0 },
         }
-    };
+    })
 }
 
-/// Emit `<result> as <wire>` on success and `<on_err> as <wire>` on the
-/// throw-path. Used for primitive wire types that map straight from the
-/// Rust return value (e.g. `bool` → `jboolean`, `i32` → `jint`).
-macro_rules! encode_cast {
-    ($wire:path, $on_err:expr) => {
-        |output: Option<&syn::Ident>| -> TokenStream {
-            match output {
-                Some(output) => quote! { #output as $wire },
-                None => quote! { $on_err as $wire },
-            }
+/// `<value> as <wire>` on success, `<on_err> as <wire>` on the throw path.
+fn encode_cast(wire: &str, on_err: &str) -> OutputFn {
+    let wire = wire.to_string();
+    let on_err = on_err.to_string();
+    OutputFn::new(move |output: Option<&syn::Ident>| -> TokenStream {
+        let wire: syn::Type = syn::parse_str(&wire).expect("encode_cast: invalid wire type");
+        let on_err: syn::Expr =
+            syn::parse_str(&on_err).expect("encode_cast: invalid on_err expr");
+        match output {
+            Some(o) => quote! { #o as #wire },
+            None => quote! { #on_err as #wire },
         }
-    };
+    })
 }
 
-/// Wire-side `TypeRegistry` shared across every JNI surface
-/// generated in this crate. Defined once, threaded into the struct-phase
-/// converter, then forwarded — together with the auto-registered struct
-/// bindings — into the methods phase and the Kotlin generator.
-fn shared_bindings() -> TypeRegistry {
+// =====================================================================
+// Bindings — split into two passes for visual clarity.
+//   * primitive_bindings — universal primitives + ZResult<_> wildcard
+//   * legacy_bindings    — hand-written zenoh-jni decoders/encoders
+//                          and zenoh-specific opaque-handle types.
+// =====================================================================
+
+fn primitive_bindings() -> TypeRegistry {
     primitive_builtins()
-        // String and byte-array converters are in primitive_builtins.
-        // Subscriber-callback (`impl Fn(Sample) + …`) is auto-generated
-        // by the callback strategy; Query/Reply/on_close stay manual for now.
+        // ZResult<T> wildcard. The body strategy's `?` already unwraps the
+        // result, so the inner encoder receives the unwrapped T directly.
+        .wrap_type_wire("ZResult<_>", input_result, output_result, result_wire_type)
+        // Unit return — no encoder/decoder.
+        .type_pair("ZResult<()>", "()", NO_INPUT, NO_OUTPUT)
+        // ZResult<bool>: explicit row because bool_output uses the
+        // struct-encoder reference convention. The wildcard would
+        // synthesize the wrong shape for return values.
         .type_pair(
-            "impl Fn(Query) + Send + Sync + 'static",
-            "jni::objects::JObject",
-            decode_env_ref_mut!(crate::sample_callback::process_kotlin_query_callback),
-            NO_OUTPUT,
+            "ZResult<bool>",
+            "jni::sys::jboolean",
+            NO_INPUT,
+            encode_cast("jni::sys::jboolean", "false"),
         )
-        .type_pair(
-            "impl Fn(Reply) + Send + Sync + 'static",
-            "jni::objects::JObject",
-            decode_env_ref_mut!(crate::sample_callback::process_kotlin_reply_callback),
-            NO_OUTPUT,
-        )
-        .type_pair(
-            "impl Fn() + Send + Sync + 'static",
-            "jni::objects::JObject",
-            decode_env_ref_mut!(crate::sample_callback::process_kotlin_on_close_callback),
-            NO_OUTPUT,
-        )
-        // Java-enum-shaped types.
+}
+
+/// Hand-written decoders/encoders that point at symbols in the zenoh-jni
+/// source tree (`crate::utils::*`, `crate::sample_callback::*`,
+/// `crate::zenoh_id::*`, `crate::owned_object::*`) plus opaque-handle
+/// types declared by `zenoh` itself. Each row is a candidate for removal
+/// once the matching auto-generation strategy lands in `prebindgen-ext`
+/// (see the long-term plan).
+fn legacy_bindings() -> TypeRegistry {
+    TypeRegistry::new()
+        // Java-enum-shaped types (decode `jint` → enum). Future:
+        // auto-generate from `#[prebindgen]` enums in zenoh-flat.
         .type_pair(
             "CongestionControl",
             "jni::sys::jint",
-            decode_pure!(crate::utils::decode_congestion_control),
+            decode_pure("crate::utils::decode_congestion_control"),
             NO_OUTPUT,
         )
         .type_pair(
             "Priority",
             "jni::sys::jint",
-            decode_pure!(crate::utils::decode_priority),
+            decode_pure("crate::utils::decode_priority"),
             NO_OUTPUT,
         )
         .type_pair(
             "Reliability",
             "jni::sys::jint",
-            decode_pure!(crate::utils::decode_reliability),
+            decode_pure("crate::utils::decode_reliability"),
             NO_OUTPUT,
         )
         .type_pair(
             "QueryTarget",
             "jni::sys::jint",
-            decode_pure!(crate::utils::decode_query_target),
+            decode_pure("crate::utils::decode_query_target"),
             NO_OUTPUT,
         )
         .type_pair(
             "ConsolidationMode",
             "jni::sys::jint",
-            decode_pure!(crate::utils::decode_consolidation),
+            decode_pure("crate::utils::decode_consolidation"),
             NO_OUTPUT,
         )
         .type_pair(
             "ReplyKeyExpr",
             "jni::sys::jint",
-            decode_pure!(crate::utils::decode_reply_key_expr),
+            decode_pure("crate::utils::decode_reply_key_expr"),
             NO_OUTPUT,
         )
-        // FlatKeyExpr (zenoh_flat::keyexpr::KeyExpr) — auto-generated as a
-        // Kotlin data class; `ptr: Long` carries the raw Arc pointer (0 =
-        // string-only). The flat Rust struct now stores
-        // `Option<ZKeyExpr<'static>>`, so decode the primitive field by
-        // temporarily materializing an Arc-handle (from raw), cloning the
-        // inner key expression, then dropping the temporary Arc.
-        //
-        // `"KeyExpr"` (by-value) is auto-registered by the struct_conv pass
-        // below, so only the borrow and return variants need manual entries.
+        // Manual callback signatures. CallbacksConverter skips signatures
+        // already in the type registry, which lets these stay opt-out.
+        // Future: drop them and let CallbacksConverter own the symbol shape.
+        .type_pair(
+            "impl Fn(Query) + Send + Sync + 'static",
+            "jni::objects::JObject",
+            decode_env_ref_mut("crate::sample_callback::process_kotlin_query_callback"),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "impl Fn(Reply) + Send + Sync + 'static",
+            "jni::objects::JObject",
+            decode_env_ref_mut("crate::sample_callback::process_kotlin_reply_callback"),
+            NO_OUTPUT,
+        )
+        .type_pair(
+            "impl Fn() + Send + Sync + 'static",
+            "jni::objects::JObject",
+            decode_env_ref_mut("crate::sample_callback::process_kotlin_on_close_callback"),
+            NO_OUTPUT,
+        )
+        // KeyExpr `ptr: Long` field round-trip. Future: a generic
+        // Arc-handle field strategy in JniDecoderStruct.
         .type_pair(
             "Option<ZKeyExpr<'static>>",
             "jni::sys::jlong",
-            decode_option_arc_from_raw!(zenoh::key_expr::KeyExpr<'static>),
-            encode_option_clone_into_arc_raw_jlong!(),
+            decode_option_arc_from_raw("zenoh::key_expr::KeyExpr<'static>"),
+            encode_option_clone_into_arc_raw_jlong(),
         )
+        // KeyExpr borrows / returns. The by-value `KeyExpr` row is
+        // auto-registered by JniDecoderStruct from keyexpr.rs's struct,
+        // so only borrow + result variants are manual.
         .type_pair(
             "&KeyExpr",
             "jni::objects::JObject",
-            decode_env_ref_mut!(decode_KeyExpr),
+            decode_env_ref_mut("decode_KeyExpr"),
             NO_OUTPUT,
         )
         .type_pair(
             "ZResult<KeyExpr>",
             "jni::sys::jobject",
             NO_INPUT,
-            encode_wrapper!(encode_KeyExpr),
+            encode_wrapper("encode_KeyExpr"),
         )
-        // Set-intersection level returned by `relation_to`. Cast zenoh's
-        // enum (variants 0/1/2/3 in declaration order) directly to `jint`.
+        // `relation_to`'s SetIntersectionLevel — zenoh enum cast to jint.
         .type_pair(
             "ZResult<SetIntersectionLevel>",
             "jni::sys::jint",
             NO_INPUT,
-            encode_cast!(jni::sys::jint, -1),
+            encode_cast("jni::sys::jint", "-1"),
         )
-        // Encoding via JObject + custom decoder.
+        // Encoding via JObject + custom decoder. Future: declare
+        // Encoding as a flat #[prebindgen] struct in zenoh-flat.
         .type_pair(
             "Encoding",
             "jni::objects::JObject",
-            decode_env_ref_mut!(crate::utils::decode_jni_encoding),
+            decode_env_ref_mut("crate::utils::decode_jni_encoding"),
             NO_OUTPUT,
         )
         .type_pair(
             "Option<Encoding>",
             "jni::objects::JObject",
-            decode_option_env_ref_mut!(crate::utils::decode_jni_encoding),
+            decode_option_env_ref_mut("crate::utils::decode_jni_encoding"),
             NO_OUTPUT,
         )
-        // Borrows: opaque Arc handles received as `*const T`.
+        // Opaque borrows: `Arc<T>` handles received as `*const T`. Future:
+        // prebindgen-ext::jni::opaque::OwnedObject.
         .type_pair(
             "&Session",
             "*const Session",
-            decode_owned_raw!(crate::owned_object::OwnedObject),
+            decode_owned_raw("crate::owned_object::OwnedObject"),
             NO_OUTPUT,
         )
         .type_pair(
             "&Config",
             "*const Config",
-            decode_owned_raw!(crate::owned_object::OwnedObject),
+            decode_owned_raw("crate::owned_object::OwnedObject"),
             NO_OUTPUT,
         )
-        // Owning take by value: the wire side reconstructs the `Arc<Session>`
-        // (releasing its strong reference at end of scope) and hands a cloned
-        // `Session` to the wrapped fn. Used by `drop_session`.
+        // `drop_session(session: Session)` consumes the Arc.
         .type_pair(
             "Session",
             "*const Session",
-            decode_arc_from_raw!(),
+            decode_arc_from_raw(),
             NO_OUTPUT,
         )
-        // Returns: ZenohId / Vec<ZenohId> via custom encoders.
+        // ZenohId encoders. Future: byte-array struct strategy + a
+        // generic `Vec<T>` → `List<wire-of-T>` wildcard.
         .type_pair(
             "ZResult<ZenohId>",
             "jni::sys::jbyteArray",
             NO_INPUT,
-            encode_wrapper!(crate::zenoh_id::zenoh_id_to_byte_array),
+            encode_wrapper("crate::zenoh_id::zenoh_id_to_byte_array"),
         )
         .type_pair(
             "ZResult<Vec<ZenohId>>",
             "jni::sys::jobject",
             NO_INPUT,
-            encode_wrapper!(crate::zenoh_id::zenoh_ids_to_java_list),
+            encode_wrapper("crate::zenoh_id::zenoh_ids_to_java_list"),
         )
-        // Returns: opaque Arc handles.
+        // Opaque returns: `Arc::into_raw` for every handle shape. Future:
+        // a generic Arc<T> return wildcard pattern.
         .type_pair(
             "ZResult<Session>",
             "*const Session",
             NO_INPUT,
-            encode_arc_into_raw!(),
+            encode_arc_into_raw(),
         )
         .type_pair(
             "ZResult<Publisher<'static>>",
             "*const Publisher<'static>",
             NO_INPUT,
-            encode_arc_into_raw!(),
+            encode_arc_into_raw(),
         )
         .type_pair(
             "ZResult<Subscriber<()>>",
             "*const Subscriber<()>",
             NO_INPUT,
-            encode_arc_into_raw!(),
+            encode_arc_into_raw(),
         )
         .type_pair(
             "ZResult<Querier<'static>>",
             "*const Querier<'static>",
             NO_INPUT,
-            encode_arc_into_raw!(),
+            encode_arc_into_raw(),
         )
         .type_pair(
             "ZResult<Queryable<()>>",
             "*const Queryable<()>",
             NO_INPUT,
-            encode_arc_into_raw!(),
+            encode_arc_into_raw(),
         )
         .type_pair(
             "ZResult<AdvancedSubscriber<()>>",
             "*const AdvancedSubscriber<()>",
             NO_INPUT,
-            encode_arc_into_raw!(),
+            encode_arc_into_raw(),
         )
         .type_pair(
             "ZResult<AdvancedPublisher<'static>>",
             "*const AdvancedPublisher<'static>",
             NO_INPUT,
-            encode_arc_into_raw!(),
-        )
-        // Returns: bool primitive (wire matches Java's `boolean`).
-        // Explicit registration needed because bool_output uses the struct-encoder's
-        // reference convention (*(#o)); the wildcard ZResult<_> would synthesise the wrong code.
-        .type_pair(
-            "ZResult<bool>",
-            "jni::sys::jboolean",
-            NO_INPUT,
-            encode_cast!(jni::sys::jboolean, false),
-        )
-        // Unit returns: ZResult<()> with `()` wire type so the converter treats it as a no-return shape.
-        .type_pair("ZResult<()>", "()", NO_INPUT, NO_OUTPUT)
-        // ZResult<T> wildcard: synthesises a ZResult<T> binding from T's binding when no
-        // explicit ZResult<T> registration exists. The body strategy's `?` already unwraps
-        // the ZResult, so the inner encoder receives the unwrapped T directly.
-        .wrap_type_wire("ZResult<_>", input_result, output_result, result_wire_type)
-        // Structs from ext.rs and nullable wrappers.
-        .type_pair(
-            "HistoryConfig",
-            "jni::objects::JObject",
-            decode_env_ref_mut!(decode_HistoryConfig),
-            NO_OUTPUT,
-        )
-        .type_pair(
-            "Option<HistoryConfig>",
-            "jni::objects::JObject",
-            decode_option_env_ref_mut!(decode_HistoryConfig),
-            NO_OUTPUT,
-        )
-        .type_pair(
-            "RecoveryConfig",
-            "jni::objects::JObject",
-            decode_env_ref_mut!(decode_RecoveryConfig),
-            NO_OUTPUT,
-        )
-        .type_pair(
-            "Option<RecoveryConfig>",
-            "jni::objects::JObject",
-            decode_option_env_ref_mut!(decode_RecoveryConfig),
-            NO_OUTPUT,
-        )
-        .type_pair(
-            "CacheConfig",
-            "jni::objects::JObject",
-            decode_env_ref_mut!(decode_CacheConfig),
-            NO_OUTPUT,
-        )
-        .type_pair(
-            "Option<CacheConfig>",
-            "jni::objects::JObject",
-            decode_option_env_ref_mut!(decode_CacheConfig),
-            NO_OUTPUT,
-        )
-        .type_pair(
-            "MissDetectionConfig",
-            "jni::objects::JObject",
-            decode_env_ref_mut!(decode_MissDetectionConfig),
-            NO_OUTPUT,
-        )
-        .type_pair(
-            "Option<MissDetectionConfig>",
-            "jni::objects::JObject",
-            decode_option_env_ref_mut!(decode_MissDetectionConfig),
-            NO_OUTPUT,
+            encode_arc_into_raw(),
         )
 }
 
-/// Rust → Kotlin name mappings consumed by `KotlinInterfaceGenerator`.
+/// Rust → Kotlin name map consumed by `KotlinInterfaceGenerator`.
 fn shared_kotlin_types() -> KotlinTypeMap {
     KotlinTypeMap::new()
         .with_primitive_builtins()
@@ -397,8 +358,8 @@ fn shared_kotlin_types() -> KotlinTypeMap {
         .add("Option<String>", "String")
         .add("Vec<u8>", "ByteArray")
         .add("Option<Vec<u8>>", "ByteArray")
-        // `impl Fn(Sample) + …` Kotlin FQN is registered automatically by
-        // CallbacksConverter (alias `Subscriber`).
+        // `impl Fn(Sample) + …` Kotlin FQN is registered automatically
+        // by `CallbacksConverter` (alias `Subscriber`).
         .add(
             "impl Fn(Query) + Send + Sync + 'static",
             "io.zenoh.jni.callbacks.JNIQueryableCallback",
@@ -438,40 +399,37 @@ fn shared_kotlin_types() -> KotlinTypeMap {
         .add("ZResult<bool>", "Boolean")
 }
 
+// =====================================================================
+// main — single flat pipeline. Every #[prebindgen] item lands in one
+// `JNINative` Kotlin class and one Rust bindings file. zenoh-flat's
+// `pub use` re-exports make `source_module = "zenoh_flat"` resolve
+// regardless of the declaring sub-module, so build.rs needs no
+// awareness of where each item lives.
+// =====================================================================
+
 fn main() {
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
+    let registry = primitive_bindings().merge(legacy_bindings());
 
-    // Type replacements and converters between zenoh-flat Rust types and the JNI wire 
-    // types (e.g. `jobject`, `jint`, `jlong`, `jboolean`)
-    let type_registry = shared_bindings();
-
-    // The structues are compound types containinng either types
-    // defined in the registry or another structs. The code below
-    // parses the structures, generates converters for them and 
-    // adds them to the registry.
-    // The `JniDecoderStruct` is a concrete implementation for convering
-    // structures to/from `jni::objects::JObject`
-    let jni_stragegy = JniDecoderStruct::new("zenoh_flat", "crate::errors::ZResult")
-        .java_class_prefix("io/zenoh/jni");
-    let mut struct_conv = TypesConverter::builder(jni_stragegy)
-        .type_registry(type_registry)
-        .build();
-
-    // process all the `#[prebindgen]` structs from `zenoh_flat::structs` in a single pass, collecting the generated items and the auto-registered type bindings.
+    // (1) Struct pass — JniDecoderStruct emits decode_/encode_ fns for
+    //     each #[prebindgen] struct and registers the binding.
+    let mut struct_conv = TypesConverter::builder(
+        JniDecoderStruct::new("zenoh_flat", "crate::errors::ZResult")
+            .java_class_prefix("io/zenoh/jni"),
+    )
+    .type_registry(registry)
+    .build();
     let struct_items: Vec<_> = source
         .items_all()
         .batching(struct_conv.as_closure())
         .collect();
+    let registry = struct_conv.into_type_registry();
 
-    let types = struct_conv.into_type_registry();
-
-    // Phase 1d: scan `#[prebindgen]` fn signatures for `impl Fn(...) +
-    // Send + Sync + 'static` parameter types, auto-generating per-signature
-    // `process_kotlin_<Stem>_callback` Rust closures, registering matching
-    // bindings, and writing `JNI<Stem>Callback.kt` Kotlin fun-interfaces.
-    // The `Subscriber` alias keeps the legacy class name
-    // `io.zenoh.jni.callbacks.JNISubscriberCallback` used by upstream
-    // zenoh-java consumers.
+    // (2) Callback pass — scans every fn signature for `impl Fn(...)`
+    //     parameter types not already in the registry, emits
+    //     `process_kotlin_<Stem>_callback` Rust fns, writes Kotlin
+    //     fun-interface files. The "Subscriber" alias preserves the
+    //     legacy class name `JNISubscriberCallback`.
     let mut cb_conv = CallbacksConverter::builder()
         .alias(
             "impl Fn(zenoh_flat::sample::Sample) + Send + Sync + 'static",
@@ -479,36 +437,15 @@ fn main() {
         )
         .alias("impl Fn(Sample) + Send + Sync + 'static", "Subscriber")
         .kotlin_package("io.zenoh.jni.callbacks")
-        .kotlin_output_dir(
-            "../zenoh-jni-runtime/src/commonMain/kotlin/io/zenoh/jni/callbacks",
-        )
-        .type_registry(types)
+        .kotlin_output_dir("../zenoh-jni-runtime/src/commonMain/kotlin/io/zenoh/jni/callbacks")
+        .type_registry(registry)
         .kotlin_types(shared_kotlin_types().add("Sample", "io.zenoh.jni.Sample"))
         .build();
-
-    let cb_items: Vec<_> = source
-        .items_all()
-        .filter(|(item, loc)| {
-            matches!(item, syn::Item::Fn(_))
-                && (loc.file.ends_with("/session.rs") || loc.file.ends_with("/keyexpr.rs"))
-        })
-        .batching(cb_conv.as_closure())
-        .collect();
-
-    // Snapshot the auto-populated Kotlin FQNs (e.g. `impl Fn(Sample) + …` →
-    // `io.zenoh.jni.callbacks.JNISubscriberCallback`) before consuming the
-    // converter for its TypeRegistry. The Kotlin generator passes below
-    // need these mappings to resolve callback parameter types.
+    let cb_items: Vec<_> = source.items_all().batching(cb_conv.as_closure()).collect();
     let cb_kotlin_types = cb_conv.kotlin_types().clone();
+    let registry = cb_conv.into_type_registry();
 
-    let types = cb_conv.into_type_registry();
-
-    // Phase 2: process #[prebindgen] fns from zenoh_flat::session and
-    // zenoh_flat::keyexpr against the now fully-populated type registry,
-    // with a JNI try-closure body strategy. Each module gets its own
-    // FunctionsConverter pass so that the JNI symbol prefix can target a
-    // distinct destination Kotlin object (`JNISessionNative` vs
-    // `JNIKeyExprNative`).
+    // (3) Function pass — single FunctionsConverter for the whole crate.
     let extra_leading: TokenStream = quote! {
         mut env: jni::JNIEnv,
         _class: jni::objects::JClass
@@ -517,50 +454,26 @@ fn main() {
         syn::parse_quote!(#[no_mangle]),
         syn::parse_quote!(#[allow(non_snake_case, unused_mut, unused_variables)]),
     ];
-    let mut session_conv = FunctionsConverter::builder(JniTryClosureBody::new(
-        "crate::throw_exception",
-    ))
-    .source_module("zenoh_flat::session")
-    .name_mangler(NameMangler::CamelPrefixSuffix {
-        prefix: "Java_io_zenoh_jni_JNISessionNative_".into(),
-        suffix: "ViaJNI".into(),
-    })
-    .extra_leading_params(extra_leading.clone())
-    .extra_attrs(extra_attrs.clone())
-    .extern_abi(syn::parse_quote!(extern "C"))
-    .unsafety(true)
-    .type_registry(types.clone())
-    .build();
-
-    let session_items: Vec<_> = source
+    let mut fn_conv = FunctionsConverter::builder(JniTryClosureBody::new("crate::throw_exception"))
+        .source_module("zenoh_flat")
+        .name_mangler(NameMangler::CamelPrefixSuffix {
+            prefix: "Java_io_zenoh_jni_JNINative_".into(),
+            suffix: "ViaJNI".into(),
+        })
+        .extra_leading_params(extra_leading)
+        .extra_attrs(extra_attrs)
+        .extern_abi(syn::parse_quote!(extern "C"))
+        .unsafety(true)
+        .type_registry(registry.clone())
+        .build();
+    let fn_items: Vec<_> = source
         .items_all()
-        .filter(|(item, loc)| matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/session.rs"))
-        .batching(session_conv.as_closure())
+        .filter(|(item, _)| matches!(item, syn::Item::Fn(_)))
+        .batching(fn_conv.as_closure())
         .collect();
 
-    let mut keyexpr_conv = FunctionsConverter::builder(JniTryClosureBody::new(
-        "crate::throw_exception",
-    ))
-    .source_module("zenoh_flat::keyexpr")
-    .name_mangler(NameMangler::CamelPrefixSuffix {
-        prefix: "Java_io_zenoh_jni_JNIKeyExprNative_".into(),
-        suffix: "ViaJNI".into(),
-    })
-    .extra_leading_params(extra_leading)
-    .extra_attrs(extra_attrs)
-    .extern_abi(syn::parse_quote!(extern "C"))
-    .unsafety(true)
-    .type_registry(types.clone())
-    .build();
-
-    let keyexpr_items: Vec<_> = source
-        .items_all()
-        .filter(|(item, loc)| matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/keyexpr.rs"))
-        .batching(keyexpr_conv.as_closure())
-        .collect();
-
-    // Pass-through: items that are neither `#[prebindgen]` structs nor fns
-    // (e.g. the prebindgen feature-mismatch assertion `const _: () = { ... };`).
+    // (4) Pass-through: items that are neither structs nor fns
+    //     (e.g. the prebindgen feature-mismatch assertion).
     let passthrough = source
         .items_all()
         .filter(|(item, _)| !matches!(item, syn::Item::Fn(_) | syn::Item::Struct(_)));
@@ -568,19 +481,16 @@ fn main() {
     let bindings_file = struct_items
         .into_iter()
         .chain(cb_items)
-        .chain(session_items)
-        .chain(keyexpr_items)
+        .chain(fn_items)
         .chain(passthrough)
         .collect::<prebindgen::collect::Destination>()
         .write("zenoh_flat_jni.rs");
-
     println!(
         "cargo:warning=Generated bindings at: {}",
         bindings_file.display()
     );
 
-    // Phase 3: Kotlin interface declaration. Walks the same items in a
-    // separate pass.
+    // (5) Kotlin interface — one class fed every item.
     let struct_names = [
         "HistoryConfig",
         "RecoveryConfig",
@@ -593,52 +503,24 @@ fn main() {
     for s in &struct_names {
         kotlin_types = kotlin_types.add(*s, *s).add(format!("Option<{}>", s), *s);
     }
-    // Pull in callback-type FQNs registered by `CallbacksConverter` so the
-    // generated `external fun` parameter list resolves them.
     for (k, v) in cb_kotlin_types.iter() {
         kotlin_types = kotlin_types.add(k.as_str(), v.as_str());
     }
 
-    let mut session_kotlin = KotlinInterfaceGenerator::builder()
-        .output_path("../zenoh-jni/generated-kotlin/io/zenoh/jni/JNISessionNative.kt")
+    let mut kotlin = KotlinInterfaceGenerator::builder()
+        .output_path("../zenoh-jni/generated-kotlin/io/zenoh/jni/JNINative.kt")
         .package("io.zenoh.jni")
-        .class_name("JNISessionNative")
+        .class_name("JNINative")
         .throws_class("io.zenoh.exceptions.ZError")
         .init_load("io.zenoh.ZenohLoad")
         .function_suffix("ViaJNI")
-        .type_registry(types.clone())
-        .kotlin_types(kotlin_types.clone())
-        .build();
-
-    for (item, loc) in source.items_all().filter(|(item, loc)| {
-        (matches!(item, syn::Item::Struct(_))
-            && (loc.file.ends_with("/structs.rs") || loc.file.ends_with("/sample.rs")))
-            || (matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/session.rs"))
-    }) {
-        session_kotlin.add_item(&item, &loc);
-    }
-    session_kotlin
-        .write()
-        .expect("failed to write generated JNISessionNative.kt");
-
-    let mut keyexpr_kotlin = KotlinInterfaceGenerator::builder()
-        .output_path("../zenoh-jni/generated-kotlin/io/zenoh/jni/JNIKeyExprNative.kt")
-        .package("io.zenoh.jni")
-        .class_name("JNIKeyExprNative")
-        .throws_class("io.zenoh.exceptions.ZError")
-        .init_load("io.zenoh.ZenohLoad")
-        .function_suffix("ViaJNI")
-        .type_registry(types)
+        .type_registry(registry)
         .kotlin_types(kotlin_types)
         .build();
-
-    for (item, loc) in source.items_all().filter(|(item, loc)| {
-        (matches!(item, syn::Item::Struct(_)) && loc.file.ends_with("/keyexpr.rs"))
-            || (matches!(item, syn::Item::Fn(_)) && loc.file.ends_with("/keyexpr.rs"))
-    }) {
-        keyexpr_kotlin.add_item(&item, &loc);
+    for (item, loc) in source.items_all() {
+        kotlin.add_item(&item, &loc);
     }
-    keyexpr_kotlin
+    kotlin
         .write()
-        .expect("failed to write generated JNIKeyExprNative.kt");
+        .expect("failed to write generated JNINative.kt");
 }
