@@ -3,7 +3,8 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 use zenoh_flat::core::{
-    FunctionsConverter, NO_INPUT, NO_OUTPUT, NameMangler, TypeRegistry, TypesConverter, primitive_builtins, type_registry
+    FunctionsConverter, NO_INPUT, NO_OUTPUT, NameMangler, TypeRegistry, TypesConverter,
+    primitive_builtins, input_result, output_result, result_wire_type,
 };
 use zenoh_flat::jni::{CallbacksConverter, JniDecoderStruct, JniTryClosureBody};
 use zenoh_flat::kotlin::{KotlinInterfaceGenerator, KotlinTypeMap};
@@ -323,6 +324,8 @@ fn shared_bindings() -> TypeRegistry {
             encode_arc_into_raw!(),
         )
         // Returns: bool primitive (wire matches Java's `boolean`).
+        // Explicit registration needed because bool_output uses the struct-encoder's
+        // reference convention (*(#o)); the wildcard ZResult<_> would synthesise the wrong code.
         .type_pair(
             "ZResult<bool>",
             "jni::sys::jboolean",
@@ -331,6 +334,10 @@ fn shared_bindings() -> TypeRegistry {
         )
         // Unit returns: ZResult<()> with `()` wire type so the converter treats it as a no-return shape.
         .type_pair("ZResult<()>", "()", NO_INPUT, NO_OUTPUT)
+        // ZResult<T> wildcard: synthesises a ZResult<T> binding from T's binding when no
+        // explicit ZResult<T> registration exists. The body strategy's `?` already unwraps
+        // the ZResult, so the inner encoder receives the unwrapped T directly.
+        .wrap_type_wire("ZResult<_>", input_result, output_result, result_wire_type)
         // Structs from ext.rs and nullable wrappers.
         .type_pair(
             "HistoryConfig",
@@ -511,7 +518,6 @@ fn main() {
         syn::parse_quote!(#[allow(non_snake_case, unused_mut, unused_variables)]),
     ];
     let mut session_conv = FunctionsConverter::builder(JniTryClosureBody::new(
-        "crate::errors::ZResult",
         "crate::throw_exception",
     ))
     .source_module("zenoh_flat::session")
@@ -533,7 +539,6 @@ fn main() {
         .collect();
 
     let mut keyexpr_conv = FunctionsConverter::builder(JniTryClosureBody::new(
-        "crate::errors::ZResult",
         "crate::throw_exception",
     ))
     .source_module("zenoh_flat::keyexpr")

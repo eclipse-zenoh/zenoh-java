@@ -11,7 +11,7 @@ use crate::core::functions_converter::{BodyContext, BodyStrategy};
 /// Produces:
 /// ```ignore
 /// {
-///     (|| -> <zresult>(<wire_return or ()>) {
+///     (|| {
 ///         <prelude>
 ///         let __result = <call_expr>?;
 ///         <wrap_ok>
@@ -23,16 +23,14 @@ use crate::core::functions_converter::{BodyContext, BodyStrategy};
 /// }
 /// ```
 /// where `wrap_ok` and `on_err` are derived from the return-direction
-/// `TypeBinding`'s `encode`.
+/// `TypeBinding`'s `encode`. The closure return type is inferred by Rust.
 pub struct JniTryClosureBody {
-    pub zresult: syn::Path,
     pub throw_exception: syn::Path,
 }
 
 impl JniTryClosureBody {
-    pub fn new(zresult: impl AsRef<str>, throw_exception: impl AsRef<str>) -> Self {
+    pub fn new(throw_exception: impl AsRef<str>) -> Self {
         Self {
-            zresult: syn::parse_str(zresult.as_ref()).expect("invalid zresult path"),
             throw_exception: syn::parse_str(throw_exception.as_ref())
                 .expect("invalid throw_exception path"),
         }
@@ -43,22 +41,19 @@ impl BodyStrategy for JniTryClosureBody {
     fn build_body(&self, ctx: BodyContext) -> TokenStream {
         let prelude = ctx.prelude;
         let call = &ctx.call_expr;
-        let zresult = &self.zresult;
         let throw = &self.throw_exception;
         let result_ident = format_ident!("__result");
 
-        let (closure_ret, wrap_ok, on_err): (TokenStream, TokenStream, TokenStream) =
+        let (wrap_ok, on_err): (TokenStream, TokenStream) =
             match (ctx.wire_return, ctx.return_encode) {
                 (None, _) => (
-                    quote! { #zresult<()> },
                     quote! { Ok(()) },
                     quote! { () },
                 ),
-                (Some(wire), Some(encode)) => {
+                (Some(_wire), Some(encode)) => {
                     let encoded = encode.call(Some(&result_ident));
                     let on_err = encode.call(None);
                     (
-                        quote! { #zresult<#wire> },
                         quote! { Ok(#encoded) },
                         quote! { #on_err },
                     )
@@ -74,7 +69,7 @@ impl BodyStrategy for JniTryClosureBody {
 
         quote! {
             {
-                (|| -> #closure_ret {
+                (|| {
                     #(#prelude)*
                     let #result_ident = #call?;
                     #wrap_ok

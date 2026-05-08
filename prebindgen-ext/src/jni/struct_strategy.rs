@@ -37,7 +37,6 @@ use crate::util::snake_to_camel;
 pub struct JniDecoderStruct {
     pub crate_prefix: String,
     pub zresult: syn::Path,
-    pub zerror_macro: syn::Path,
     pub java_class_prefix: Option<String>,
 }
 
@@ -49,14 +48,8 @@ impl JniDecoderStruct {
         Self {
             crate_prefix: crate_prefix.as_ref().to_owned(),
             zresult: syn::parse_str(zresult.as_ref()).expect("invalid zresult path"),
-            zerror_macro: syn::parse_str("zerror").unwrap(),
             java_class_prefix: None,
         }
-    }
-
-    pub fn zerror_macro(mut self, path: impl AsRef<str>) -> Self {
-        self.zerror_macro = syn::parse_str(path.as_ref()).expect("invalid zerror_macro path");
-        self
     }
 
     /// Set destination Java package prefix (slash-separated, e.g. `io/zenoh/jni`).
@@ -81,7 +74,6 @@ impl StructStrategy for JniDecoderStruct {
         let decoder_ident = format_ident!("decode_{}", struct_ident);
         let encoder_ident = format_ident!("encode_{}", struct_ident);
         let zresult = &self.zresult;
-        let zerror = &self.zerror_macro;
 
         // Derive the module path from the source file stem.
         let module_path_str = std::path::Path::new(&loc.file)
@@ -137,7 +129,7 @@ impl StructStrategy for JniDecoderStruct {
                     field_preludes.push(quote! {
                         let #raw_ident: #jni_type = env.get_field(obj, #camel_fname, #jni_sig)
                             .and_then(|v| v.#jvalue_method())
-                            .map_err(|err| #zerror!(#err_prefix, err))? as _;
+                            .map_err(|err| zerror!(#err_prefix, err))? as _;
                         let #fname_ident = #decode_expr;
                     });
                 }
@@ -146,7 +138,7 @@ impl StructStrategy for JniDecoderStruct {
                     field_preludes.push(quote! {
                         let #tmp_ident: jni::objects::JObject = env.get_field(obj, #camel_fname, #jni_sig)
                             .and_then(|v| v.l())
-                            .map_err(|err| #zerror!(#err_prefix, err))?;
+                            .map_err(|err| zerror!(#err_prefix, err))?;
                         let #raw_ident: #jni_type = #tmp_ident.into();
                         let #fname_ident = #decode_expr;
                     });
@@ -239,7 +231,7 @@ impl StructStrategy for JniDecoderStruct {
                         #ctor_sig_lit,
                         &[#(#ctor_args),*],
                     )
-                    .map_err(|err| #zerror!(err))?;
+                    .map_err(|err| zerror!(err))?;
                     Ok(obj.as_raw())
                 }
             };

@@ -531,6 +531,26 @@ pub fn option_wire_type(inner: &TypeBinding) -> syn::Type {
     }
 }
 
+/// Input function for `ZResult<T>` — always `NO_INPUT`.
+///
+/// `ZResult<T>` is only ever a return type, never a function parameter.
+pub fn input_result(_inner: &TypeBinding) -> InputFn {
+    NO_INPUT
+}
+
+/// Output function for `ZResult<T>` — delegates to the inner type's encoder.
+///
+/// The body strategy's `?` operator on the wrapped-fn call already unwraps
+/// `ZResult<T>` to `T`, so the encoder receives the unwrapped value directly.
+pub fn output_result(inner: &TypeBinding) -> OutputFn {
+    inner.encode.clone()
+}
+
+/// Wire type for `ZResult<T>` — same as `T`'s wire type.
+pub fn result_wire_type(inner: &TypeBinding) -> syn::Type {
+    inner.wire_type.clone()
+}
+
 /// Pre-built registry containing universal language-primitive rows
 /// (`bool`, `i64`, `f64`). These have JNI-shaped wire forms today; if a
 /// non-JNI destination is added, callers should construct their own
