@@ -146,10 +146,10 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareLivelinessSubscribe
         let key_expr = decode_jni_key_expr(&mut env, &key_expr)?;
         tracing::debug!("Declaring liveliness subscriber on '{}'...", key_expr);
 
-        // Use the auto-generated 1-arg `JNISubscriberCallback` (flat
+        // Use the auto-generated 1-arg `JNISampleCallback` (flat
         // `Sample` payload). Adapt zenoh's upstream Sample → flat Sample
         // at the closure boundary.
-        let cb_flat = crate::session::process_kotlin_Subscriber_callback(&mut env, &callback)?;
+        let cb_flat = crate::session::process_kotlin_Sample_callback(&mut env, &callback)?;
         let cb = move |zsample: zenoh::sample::Sample| {
             cb_flat((&zsample).into());
         };

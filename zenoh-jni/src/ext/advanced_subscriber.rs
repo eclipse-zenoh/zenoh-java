@@ -103,7 +103,7 @@ impl<'a> SetJniSampleMissListenerCallback for SampleMissListenerBuilder<'a, Defa
 /// - `env`: The JNI environment.
 /// - `_class`: The JNI class.
 /// - `advanced_subscriber_ptr`: The raw pointer to the [AdvancedSubscriber].
-/// - `callback`: The callback function as an instance of the `JNISubscriberCallback` interface in Java/Kotlin.
+/// - `callback`: The callback function as an instance of the `JNISampleCallback` interface in Java/Kotlin.
 /// - `on_close`: A Java/Kotlin `JNIOnCloseCallback` function interface to be called upon closing the subscriber.
 ///
 /// Returns:
@@ -114,7 +114,7 @@ impl<'a> SetJniSampleMissListenerCallback for SampleMissListenerBuilder<'a, Defa
 /// - It assumes that the provided [AdvancedSubscriber] pointer is valid and has not been modified or freed.
 /// - The [AdvancedSubscriber] pointer remains valid and the ownership of the [AdvancedSubscriber] is not transferred,
 ///   allowing safe usage of the [AdvancedSubscriber] after this function call.
-/// - The callback function passed as `callback` must be a valid instance of the `JNISubscriberCallback` interface
+/// - The callback function passed as `callback` must be a valid instance of the `JNISampleCallback` interface
 ///   in Java/Kotlin, matching the specified signature.
 /// - The function may throw a JNI exception in case of failure, which should be handled by the caller.
 ///
@@ -137,7 +137,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareDetectPu
             advanced_subscriber.key_expr()
         );
 
-        let cb_flat = crate::session::process_kotlin_Subscriber_callback(&mut env, &callback)?;
+        let cb_flat = crate::session::process_kotlin_Sample_callback(&mut env, &callback)?;
         let cb = move |zsample: zenoh::sample::Sample| {
             cb_flat((&zsample).into());
         };
@@ -167,7 +167,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareDetectPu
 /// - `env`: The JNI environment.
 /// - `_class`: The JNI class.
 /// - `advanced_subscriber_ptr`: The raw pointer to the [AdvancedSubscriber].
-/// - `callback`: The callback function as an instance of the `JNISubscriberCallback` interface in Java/Kotlin.
+/// - `callback`: The callback function as an instance of the `JNISampleCallback` interface in Java/Kotlin.
 /// - `on_close`: A Java/Kotlin `JNIOnCloseCallback` function interface to be called upon closing the subscriber.
 ///
 /// Safety:
@@ -175,7 +175,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareDetectPu
 /// - It assumes that the provided [AdvancedSubscriber] pointer is valid and has not been modified or freed.
 /// - The [AdvancedSubscriber] pointer remains valid and the ownership of the [AdvancedSubscriber] is not transferred,
 ///   allowing safe usage of the [AdvancedSubscriber] after this function call.
-/// - The callback function passed as `callback` must be a valid instance of the `JNISubscriberCallback` interface
+/// - The callback function passed as `callback` must be a valid instance of the `JNISampleCallback` interface
 ///   in Java/Kotlin, matching the specified signature.
 /// - The function may throw a JNI exception in case of failure, which should be handled by the caller.
 ///
@@ -198,7 +198,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareBackgrou
             advanced_subscriber.key_expr()
         );
 
-        let cb_flat = crate::session::process_kotlin_Subscriber_callback(&mut env, &callback)?;
+        let cb_flat = crate::session::process_kotlin_Sample_callback(&mut env, &callback)?;
         let cb = move |zsample: zenoh::sample::Sample| {
             cb_flat((&zsample).into());
         };

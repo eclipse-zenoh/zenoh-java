@@ -24,7 +24,7 @@ import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
 import io.zenoh.jni.callbacks.JNIGetCallback
-import io.zenoh.jni.callbacks.JNISubscriberCallback
+import io.zenoh.jni.callbacks.JNISampleCallback
 import io.zenoh.jni.toPublic
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.pubsub.CallbackSubscriber
@@ -213,8 +213,8 @@ class Liveliness internal constructor(private val session: Session) {
         return HandlerSubscriber(keyExpr, jniSession.declareLivelinessSubscriber(keyExpr.jniKeyExpr, keyExpr.keyExpr, subCallback, options.history, handler::onClose), handler.receiver())
     }
 
-    private fun buildSubscriberCallback(callback: Callback<Sample>): JNISubscriberCallback =
-        JNISubscriberCallback { sample ->
+    private fun buildSubscriberCallback(callback: Callback<Sample>): JNISampleCallback =
+        JNISampleCallback { sample ->
             callback.run(sample.toPublic())
         }
 }

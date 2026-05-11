@@ -36,7 +36,7 @@ import io.zenoh.jni.JNINative.undeclareKeyExprViaJNI
 import io.zenoh.jni.callbacks.JNIGetCallback
 import io.zenoh.jni.callbacks.JNIOnCloseCallback
 import io.zenoh.jni.callbacks.JNIQueryableCallback
-import io.zenoh.jni.callbacks.JNISubscriberCallback
+import io.zenoh.jni.callbacks.JNISampleCallback
 
 /** Adapter class to handle communication with the Zenoh JNI code for a Session. */
 public class JNISession(internal val sessionPtr: Long) {
@@ -67,7 +67,7 @@ public class JNISession(internal val sessionPtr: Long) {
     fun declareSubscriber(
         jniKeyExpr: JNIKeyExpr?,
         keyExprString: String,
-        callback: JNISubscriberCallback,
+        callback: JNISampleCallback,
         onClose: JNIOnCloseCallback,
     ): JNISubscriber = JNISubscriber(declareSubscriberViaJNI(sessionPtr, JNIKeyExpr.of(jniKeyExpr, keyExprString), callback, onClose))
 
@@ -155,7 +155,7 @@ public class JNISession(internal val sessionPtr: Long) {
     fun declareAdvancedSubscriber(
         jniKeyExpr: JNIKeyExpr?,
         keyExprStr: String,
-        callback: JNISubscriberCallback,
+        callback: JNISampleCallback,
         onClose: JNIOnCloseCallback,
         history: HistoryConfig?,
         recovery: RecoveryConfig?,
@@ -208,7 +208,7 @@ public class JNISession(internal val sessionPtr: Long) {
     fun declareLivelinessSubscriber(
         jniKeyExpr: JNIKeyExpr?,
         keyExprString: String,
-        callback: JNISubscriberCallback,
+        callback: JNISampleCallback,
         history: Boolean,
         onClose: JNIOnCloseCallback,
     ): JNISubscriber = JNISubscriber(declareLivelinessSubscriberViaJNI(sessionPtr, JNIKeyExpr.of(jniKeyExpr, keyExprString), callback, history, onClose))
@@ -217,7 +217,7 @@ public class JNISession(internal val sessionPtr: Long) {
     private external fun declareLivelinessSubscriberViaJNI(
         sessionPtr: Long,
         keyExpr: JNIKeyExpr,
-        callback: JNISubscriberCallback,
+        callback: JNISampleCallback,
         history: Boolean,
         onClose: JNIOnCloseCallback,
     ): Long

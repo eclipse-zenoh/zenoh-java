@@ -3,7 +3,7 @@ package io.zenoh.jni.callbacks
 
 import io.zenoh.jni.Sample
 
-public fun interface JNISubscriberCallback {
+public fun interface JNISampleCallback {
     fun run(
         p0: Sample,
     )

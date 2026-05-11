@@ -22,7 +22,7 @@
 //! attach thread inside the closure, encode each arg via its registered
 //! `OutputFn`, call `callback.run(...)` with the assembled JNI signature).
 
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeSet, HashSet, VecDeque};
 use std::path::PathBuf;
 
 use proc_macro2::TokenStream;
@@ -56,7 +56,6 @@ impl Default for CallbackHelpers {
 
 /// Builder for [`CallbacksConverter`].
 pub struct CallbacksBuilder {
-    aliases: HashMap<String, String>,
     kotlin_package: String,
     kotlin_output_dir: PathBuf,
     types: TypeRegistry,
@@ -67,7 +66,6 @@ pub struct CallbacksBuilder {
 impl Default for CallbacksBuilder {
     fn default() -> Self {
         Self {
-            aliases: HashMap::new(),
             kotlin_package: String::new(),
             kotlin_output_dir: PathBuf::new(),
             types: TypeRegistry::new(),
@@ -78,20 +76,6 @@ impl Default for CallbacksBuilder {
 }
 
 impl CallbacksBuilder {
-    /// Override the auto-derived stem for a specific callback signature so
-    /// the generated symbols / Kotlin file land at fixed names. The stem
-    /// `Subscriber` produces `process_kotlin_Subscriber_callback` and
-    /// `JNISubscriberCallback.kt`.
-    pub fn alias(
-        mut self,
-        rust_signature: impl AsRef<str>,
-        stem: impl Into<String>,
-    ) -> Self {
-        self.aliases
-            .insert(canon_type(rust_signature.as_ref()), stem.into());
-        self
-    }
-
     pub fn kotlin_package(mut self, p: impl Into<String>) -> Self {
         self.kotlin_package = p.into();
         self
@@ -215,7 +199,7 @@ impl CallbacksConverter {
         args: &[syn::Type],
         loc: &SourceLocation,
     ) {
-        let stem = self.derive_stem(canon, args);
+        let stem = derive_stem(args);
         let process_fn_ident = format_ident!("process_kotlin_{}_callback", stem);
         let kotlin_class_name = format!("JNI{}Callback", stem);
         let kotlin_fqn = if self.cfg.kotlin_package.is_empty() {
@@ -374,21 +358,6 @@ impl CallbacksConverter {
             let contents =
                 render_kotlin_interface(&self.cfg.kotlin_package, &kotlin_class_name, &kotlin_params, &used_kotlin_fqns);
             let _ = std::fs::write(&path, contents);
-        }
-    }
-
-    fn derive_stem(&self, canon: &str, args: &[syn::Type]) -> String {
-        if let Some(alias) = self.cfg.aliases.get(canon) {
-            return alias.clone();
-        }
-        let mut s = String::new();
-        for a in args {
-            s.push_str(&type_short_ident(a));
-        }
-        if s.is_empty() {
-            "Empty".into()
-        } else {
-            s
         }
     }
 
@@ -578,6 +547,18 @@ fn is_jobject_wire(wire: &syn::Type) -> bool {
         }
     }
     false
+}
+
+fn derive_stem(args: &[syn::Type]) -> String {
+    let mut s = String::new();
+    for a in args {
+        s.push_str(&type_short_ident(a));
+    }
+    if s.is_empty() {
+        "Empty".into()
+    } else {
+        s
+    }
 }
 
 fn type_short_ident(ty: &syn::Type) -> String {

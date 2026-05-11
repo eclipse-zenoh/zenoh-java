@@ -35,7 +35,7 @@ import io.zenoh.jni.JNISubscriber
 import io.zenoh.jni.toPublic
 import io.zenoh.jni.callbacks.JNIGetCallback
 import io.zenoh.jni.callbacks.JNIQueryableCallback
-import io.zenoh.jni.callbacks.JNISubscriberCallback
+import io.zenoh.jni.callbacks.JNISampleCallback
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.liveliness.Liveliness
 import io.zenoh.pubsub.*
@@ -621,7 +621,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         keyExpr: KeyExpr, handler: Handler<Sample, R>
     ): HandlerSubscriber<R> {
         return jniSession?.run {
-            val subCallback = JNISubscriberCallback { sample ->
+            val subCallback = JNISampleCallback { sample ->
                 handler.handle(sample.toPublic())
             }
             val subscriber = HandlerSubscriber(keyExpr, declareSubscriber(keyExpr.jniKeyExpr, keyExpr.keyExpr, subCallback, handler::onClose), handler.receiver())
@@ -635,7 +635,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         keyExpr: KeyExpr, callback: Callback<Sample>
     ): CallbackSubscriber {
         return jniSession?.run {
-            val subCallback = JNISubscriberCallback { sample ->
+            val subCallback = JNISampleCallback { sample ->
                 callback.run(sample.toPublic())
             }
             val subscriber = CallbackSubscriber(keyExpr, declareSubscriber(keyExpr.jniKeyExpr, keyExpr.keyExpr, subCallback, fun() {}))

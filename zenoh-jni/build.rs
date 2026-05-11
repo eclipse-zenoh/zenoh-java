@@ -359,7 +359,7 @@ fn shared_kotlin_types() -> KotlinTypeMap {
         .add("Vec<u8>", "ByteArray")
         .add("Option<Vec<u8>>", "ByteArray")
         // `impl Fn(Sample) + …` Kotlin FQN is registered automatically
-        // by `CallbacksConverter` (alias `Subscriber`).
+        // by `CallbacksConverter`.
         .add(
             "impl Fn(Query) + Send + Sync + 'static",
             "io.zenoh.jni.callbacks.JNIQueryableCallback",
@@ -428,14 +428,9 @@ fn main() {
     // (2) Callback pass — scans every fn signature for `impl Fn(...)`
     //     parameter types not already in the registry, emits
     //     `process_kotlin_<Stem>_callback` Rust fns, writes Kotlin
-    //     fun-interface files. The "Subscriber" alias preserves the
-    //     legacy class name `JNISubscriberCallback`.
+    //     fun-interface files. The stem is derived from the callback's
+    //     parameter types (e.g. `impl Fn(Sample)` → `JNISampleCallback`).
     let mut cb_conv = CallbacksConverter::builder()
-        .alias(
-            "impl Fn(zenoh_flat::sample::Sample) + Send + Sync + 'static",
-            "Subscriber",
-        )
-        .alias("impl Fn(Sample) + Send + Sync + 'static", "Subscriber")
         .kotlin_package("io.zenoh.jni.callbacks")
         .kotlin_output_dir("../zenoh-jni-runtime/src/commonMain/kotlin/io/zenoh/jni/callbacks")
         .type_registry(registry)

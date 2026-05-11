@@ -17,7 +17,7 @@ package io.zenoh.jni
 import io.zenoh.exceptions.ZError
 import io.zenoh.jni.callbacks.JNIOnCloseCallback
 import io.zenoh.jni.callbacks.JNISampleMissListenerCallback
-import io.zenoh.jni.callbacks.JNISubscriberCallback
+import io.zenoh.jni.callbacks.JNISampleCallback
 
 /**
  * Adapter class for a native Zenoh AdvancedSubscriber.
@@ -29,14 +29,14 @@ public class JNIAdvancedSubscriber(private val ptr: Long) {
     @Throws(ZError::class)
     fun declareDetectPublishersSubscriber(
         history: Boolean,
-        callback: JNISubscriberCallback,
+        callback: JNISampleCallback,
         onClose: JNIOnCloseCallback,
     ): JNISubscriber = JNISubscriber(declareDetectPublishersSubscriberViaJNI(ptr, history, callback, onClose))
 
     @Throws(ZError::class)
     fun declareBackgroundDetectPublishersSubscriber(
         history: Boolean,
-        callback: JNISubscriberCallback,
+        callback: JNISampleCallback,
         onClose: JNIOnCloseCallback,
     ) = declareBackgroundDetectPublishersSubscriberViaJNI(ptr, history, callback, onClose)
 
@@ -58,12 +58,12 @@ public class JNIAdvancedSubscriber(private val ptr: Long) {
 
     @Throws(ZError::class)
     private external fun declareDetectPublishersSubscriberViaJNI(
-        ptr: Long, history: Boolean, callback: JNISubscriberCallback, onClose: JNIOnCloseCallback
+        ptr: Long, history: Boolean, callback: JNISampleCallback, onClose: JNIOnCloseCallback
     ): Long
 
     @Throws(ZError::class)
     private external fun declareBackgroundDetectPublishersSubscriberViaJNI(
-        ptr: Long, history: Boolean, callback: JNISubscriberCallback, onClose: JNIOnCloseCallback
+        ptr: Long, history: Boolean, callback: JNISampleCallback, onClose: JNIOnCloseCallback
     )
 
     @Throws(ZError::class)

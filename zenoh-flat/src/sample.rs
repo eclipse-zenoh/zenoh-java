@@ -16,7 +16,7 @@ use prebindgen_proc_macro::prebindgen;
 /// Flat sample shape carried across the FFI boundary.
 ///
 /// Field order matches the positional arguments of the legacy
-/// `JNISubscriberCallback.run(...)` Kotlin interface so the auto-generated
+/// `JNISampleCallback.run(...)` Kotlin interface so the auto-generated
 /// `Sample` data class constructor is a drop-in replacement for the prior
 /// 11-arg method.
 #[prebindgen]
