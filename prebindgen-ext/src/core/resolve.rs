@@ -23,7 +23,6 @@
 use std::collections::VecDeque;
 
 use prebindgen::SourceLocation;
-use quote::ToTokens;
 
 use crate::core::prebindgen_ext::PrebindgenExt;
 use crate::core::registry::{
@@ -560,6 +559,7 @@ fn final_invariant_check(registry: &Registry) -> Result<(), ResolveError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use quote::ToTokens;
 
     fn ty(s: &str) -> syn::Type {
         syn::parse_str(s).unwrap()

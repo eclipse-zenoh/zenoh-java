@@ -8,7 +8,9 @@
 //! `internal object`.
 
 pub mod interface_generator;
+pub mod kotlin_ext;
 pub mod type_map;
 
 pub use interface_generator::{KotlinInterfaceBuilder, KotlinInterfaceGenerator};
+pub use kotlin_ext::{write_kotlin, KotlinExt, KotlinFile, WriteKotlinError};
 pub use type_map::KotlinTypeMap;
