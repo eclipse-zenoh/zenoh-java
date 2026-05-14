@@ -30,6 +30,7 @@ pub mod resolve;
 pub mod type_binding;
 pub mod type_registry;
 pub mod types_converter;
+pub mod write;
 
 pub use functions_converter::{
     BodyContext, BodyStrategy, FunctionsBuilder, FunctionsConverter, PassThroughBody,

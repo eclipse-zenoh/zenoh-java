@@ -117,4 +117,29 @@ pub trait PrebindgenExt {
         t3: &syn::Type,
         registry: &Registry,
     ) -> Option<(syn::Type, syn::Expr)>;
+
+    // ── Wrapper assembly ───────────────────────────────────────────
+
+    /// Build the full converter `fn` for an input entry. The ext is
+    /// responsible for the signature shape (e.g. JNI adds `env: &mut JNIEnv`
+    /// as a leading parameter and wraps the body in an error-conversion
+    /// closure). `body` assumes in-scope parameter `v` of type `wire`;
+    /// returns a value of type `rust`.
+    fn wrap_input_converter(
+        &self,
+        name: &syn::Ident,
+        rust: &syn::Type,
+        wire: &syn::Type,
+        body: &syn::Expr,
+    ) -> syn::ItemFn;
+
+    /// Build the full converter `fn` for an output entry. `body` assumes
+    /// in-scope parameter `v: &<rust>`; returns a value of type `wire`.
+    fn wrap_output_converter(
+        &self,
+        name: &syn::Ident,
+        rust: &syn::Type,
+        wire: &syn::Type,
+        body: &syn::Expr,
+    ) -> syn::ItemFn;
 }
