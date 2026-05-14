@@ -17,12 +17,15 @@
 
 pub mod inline_fn;
 pub mod name_mangler;
+pub mod niches;
 pub mod prebindgen_ext;
 pub mod registry;
 pub mod resolve;
 pub mod type_binding;
 pub mod type_registry;
 pub mod write;
+
+pub use niches::{NicheSlot, Niches};
 
 pub use type_registry::{
     input_option, input_result, nullable_to_option, option_to_nullable, option_wire_type,

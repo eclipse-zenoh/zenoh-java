@@ -28,6 +28,7 @@ use std::path::PathBuf;
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 
+use crate::core::niches::Niches;
 use crate::core::prebindgen_ext::{ConverterImpl, PrebindgenExt};
 use crate::core::registry::{extract_fn_trait_args, Registry, TypeKey};
 use crate::jni::wire_access::jni_field_access;
@@ -208,17 +209,21 @@ impl PrebindgenExt for JniExt {
         registry: &Registry,
     ) -> Option<ConverterImpl> {
         if let Some((wire, body)) = primitive_input(ty) {
+            let niches = default_niches_for_wire(&wire);
             return Some(ConverterImpl {
                 function: self.input_wrapper(ty, &wire, &body),
                 destination: wire,
+                niches,
             });
         }
         if let Some(name) = bare_path_ident(ty) {
             if let Some((s, _)) = registry.structs.get(&name) {
                 let (wire, body) = struct_input_body(self, s, registry)?;
+                let niches = default_niches_for_wire(&wire);
                 return Some(ConverterImpl {
                     function: self.input_wrapper(ty, &wire, &body),
                     destination: wire,
+                    niches,
                 });
             }
             // Bare-ident enum: leave to the consuming crate to override
@@ -249,14 +254,16 @@ impl PrebindgenExt for JniExt {
             return Some(ConverterImpl {
                 destination: inner.destination.clone(),
                 function: inner.function.clone(),
+                niches: inner.niches.clone(),
             });
         }
         if pat_match(pat, "Option < _ >") {
             let outer_ty: syn::Type = syn::parse_quote!(Option<#t1>);
-            let (wire, body) = option_input(t1, registry)?;
+            let (wire, body, niches) = option_input(t1, registry)?;
             return Some(ConverterImpl {
                 function: self.input_wrapper(&outer_ty, &wire, &body),
                 destination: wire,
+                niches,
             });
         }
         if let Some(args) = extract_fn_trait_args(pat) {
@@ -264,9 +271,11 @@ impl PrebindgenExt for JniExt {
                 let arg_tys = std::slice::from_ref(t1);
                 let outer_ty = build_fn_type(arg_tys);
                 let (wire, body) = callback_input(self, arg_tys, registry)?;
+                let niches = default_niches_for_wire(&wire);
                 return Some(ConverterImpl {
                     function: self.input_wrapper(&outer_ty, &wire, &body),
                     destination: wire,
+                    niches,
                 });
             }
         }
@@ -285,9 +294,11 @@ impl PrebindgenExt for JniExt {
                 let arg_tys = [t1.clone(), t2.clone()];
                 let outer_ty = build_fn_type(&arg_tys);
                 let (wire, body) = callback_input(self, &arg_tys, registry)?;
+                let niches = default_niches_for_wire(&wire);
                 return Some(ConverterImpl {
                     function: self.input_wrapper(&outer_ty, &wire, &body),
                     destination: wire,
+                    niches,
                 });
             }
         }
@@ -307,9 +318,11 @@ impl PrebindgenExt for JniExt {
                 let arg_tys = [t1.clone(), t2.clone(), t3.clone()];
                 let outer_ty = build_fn_type(&arg_tys);
                 let (wire, body) = callback_input(self, &arg_tys, registry)?;
+                let niches = default_niches_for_wire(&wire);
                 return Some(ConverterImpl {
                     function: self.input_wrapper(&outer_ty, &wire, &body),
                     destination: wire,
+                    niches,
                 });
             }
         }
@@ -332,20 +345,25 @@ impl PrebindgenExt for JniExt {
             return Some(ConverterImpl {
                 function: self.output_wrapper(ty, &wire, &body),
                 destination: wire,
+                niches: Niches::empty(),
             });
         }
         if let Some((wire, body)) = primitive_output(ty) {
+            let niches = default_niches_for_wire(&wire);
             return Some(ConverterImpl {
                 function: self.output_wrapper(ty, &wire, &body),
                 destination: wire,
+                niches,
             });
         }
         if let Some(name) = bare_path_ident(ty) {
             if let Some((s, _)) = registry.structs.get(&name) {
                 let (wire, body) = struct_output_body(self, s, registry)?;
+                let niches = default_niches_for_wire(&wire);
                 return Some(ConverterImpl {
                     function: self.output_wrapper(ty, &wire, &body),
                     destination: wire,
+                    niches,
                 });
             }
         }
@@ -373,6 +391,12 @@ impl PrebindgenExt for JniExt {
             let inner = registry.output_entry(t1)?;
             let inner_wire = inner.destination.clone();
             let inner_conv = inner.function.sig.ident.clone();
+            // `ZResult<T>` propagates `Err` via `?` and emits inner's wire
+            // on `Ok`. The success path produces exactly the same set of
+            // wire values as the inner converter, so the wrapper exposes
+            // inner's niches verbatim — an enclosing `Option<ZResult<T>>`
+            // can carve from them just as if it wrapped `T` directly.
+            let inherited_niches = inner.niches.clone();
             let zresult_path = &self.zresult;
             let outer_ty: syn::Type = syn::parse_quote!(#zresult_path<#t1>);
             let body: syn::Expr = syn::parse_quote!({
@@ -382,14 +406,16 @@ impl PrebindgenExt for JniExt {
             return Some(ConverterImpl {
                 function: self.output_wrapper(&outer_ty, &inner_wire, &body),
                 destination: inner_wire,
+                niches: inherited_niches,
             });
         }
         if pat_match(pat, "Option < _ >") {
             let outer_ty: syn::Type = syn::parse_quote!(Option<#t1>);
-            let (wire, body) = option_output(t1, registry)?;
+            let (wire, body, niches) = option_output(t1, registry)?;
             return Some(ConverterImpl {
                 function: self.output_wrapper(&outer_ty, &wire, &body),
                 destination: wire,
+                niches,
             });
         }
         None
@@ -641,14 +667,45 @@ fn primitive_output(ty: &syn::Type) -> Option<(syn::Type, syn::Expr)> {
 // Option<_> wrappers
 // ──────────────────────────────────────────────────────────────────────
 
-fn option_input(t1: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn::Expr)> {
+/// Build `Option<T>`'s input converter.
+///
+/// Two paths, picked in this order:
+///
+/// 1. **Niche path** (preferred). If `T`'s converter exposes any niche
+///    slots, carve the first one and use it as the `None` discriminator.
+///    The wrapper keeps `T`'s wire unchanged — no boxing, no extra
+///    allocation, ABI-identical to a hand-written `if v == sentinel`.
+///    The `rest` of the niche set is re-exported on the wrapper so an
+///    enclosing wrapper (e.g. `Option<Option<T>>`) can keep carving.
+///
+/// 2. **Boxed-primitive fallback**. If `T`'s wire is a JNI primitive
+///    (`jlong`, `jint`, …) and there is no niche, the wrapper widens
+///    the wire to `JObject` carrying a Java boxed type (`java.lang.Long`,
+///    `java.lang.Integer`, …). `null` denotes `None`. The wrapper
+///    exposes no further niches — every `JObject` value already carries
+///    meaning (null = None, non-null = Some).
+///
+/// If neither path applies (non-primitive wire, no niche), the wrap
+/// fails and the resolver falls through to other rank-1 attempts.
+fn option_input(
+    t1: &syn::Type,
+    registry: &Registry,
+) -> Option<(syn::Type, syn::Expr, Niches)> {
     let inner_entry = registry.input_entry(t1)?;
     let inner_wire = inner_entry.destination.clone();
     let inner_conv = inner_entry.function.sig.ident.clone();
 
+    // 1. Niche path.
+    if let Some((slot, rest)) = inner_entry.niches.clone().carve() {
+        let pred = &slot.matches;
+        let body: syn::Expr = syn::parse_quote!({
+            if #pred { None } else { Some(#inner_conv(env, v)?) }
+        });
+        return Some((inner_wire, body, rest));
+    }
+
+    // 2. Boxed-primitive fallback.
     if is_jni_primitive(&inner_wire) {
-        // Boxed primitive: receive JObject, unbox via Java method, then
-        // delegate to the primitive's converter.
         let unbox_method = jni_unbox_method(&inner_wire);
         let unbox_sig = jni_unbox_sig(&inner_wire);
         let getter = jni_unbox_getter(&inner_wire);
@@ -659,37 +716,45 @@ fn option_input(t1: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn::
                     .call_method(&v, #unbox_method, #unbox_sig, &[])
                     .and_then(|val| val.#getter_id())
                     .map_err(|e| crate::errors::ZError(format!("Option unbox: {}", e)))?;
-                Some(#inner_conv(env, __unboxed)?)
+                Some(#inner_conv(env, &__unboxed)?)
             } else {
                 None
             }
         });
-        return Some((syn::parse_quote!(jni::objects::JObject), body));
+        let wire: syn::Type = syn::parse_quote!(jni::objects::JObject);
+        return Some((wire, body, Niches::empty()));
     }
 
-    // Reference inner — pass-through .is_null() check.
-    let body: syn::Expr = syn::parse_quote!({
-        if !v.is_null() {
-            Some(#inner_conv(env, v)?)
-        } else {
-            None
-        }
-    });
-    // Use a fresh value of the inner wire type for the JObject form.
-    Some((inner_wire, body))
+    None
 }
 
-fn option_output(t1: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn::Expr)> {
+/// Build `Option<T>`'s output converter — symmetric to [`option_input`].
+fn option_output(
+    t1: &syn::Type,
+    registry: &Registry,
+) -> Option<(syn::Type, syn::Expr, Niches)> {
     let inner_entry = registry.output_entry(t1)?;
     let inner_wire = inner_entry.destination.clone();
     let inner_conv = inner_entry.function.sig.ident.clone();
 
+    // 1. Niche path.
+    if let Some((slot, rest)) = inner_entry.niches.clone().carve() {
+        let none_value = &slot.value;
+        let body: syn::Expr = syn::parse_quote!({
+            match v {
+                Some(value) => #inner_conv(env, value)?,
+                None => #none_value,
+            }
+        });
+        return Some((inner_wire, body, rest));
+    }
+
+    // 2. Boxed-primitive fallback.
     if is_jni_primitive(&inner_wire) {
         let java_class = jni_box_class(&inner_wire);
         let box_sig = jni_box_sig(&inner_wire);
         let variant = jni_box_variant(&inner_wire);
         let variant_id = format_ident!("{}", variant);
-        // v is Option<T> by value; consume via match.
         let body: syn::Expr = syn::parse_quote!({
             match v {
                 Some(value) => {
@@ -706,16 +771,11 @@ fn option_output(t1: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn:
                 None => jni::objects::JObject::null(),
             }
         });
-        return Some((syn::parse_quote!(jni::objects::JObject), body));
+        let wire: syn::Type = syn::parse_quote!(jni::objects::JObject);
+        return Some((wire, body, Niches::empty()));
     }
 
-    let body: syn::Expr = syn::parse_quote!({
-        match v {
-            Some(value) => #inner_conv(env, value)?,
-            None => jni::objects::JObject::null().into(),
-        }
-    });
-    Some((inner_wire, body))
+    None
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -902,6 +962,40 @@ fn is_jobject_wire(wire: &syn::Type) -> bool {
         }
     }
     false
+}
+
+/// True if `wire` is a JNI handle (`JObject`, `JString`, `JByteArray`,
+/// `JClass`) that natively supports a `null` discriminator. These types
+/// all impl `is_null()` and accept `JObject::null().into()` for
+/// construction.
+fn is_jobject_shaped_wire(wire: &syn::Type) -> bool {
+    if let syn::Type::Path(tp) = wire {
+        if let Some(last) = tp.path.segments.last() {
+            return matches!(
+                last.ident.to_string().as_str(),
+                "JObject" | "JString" | "JByteArray" | "JClass"
+            );
+        }
+    }
+    false
+}
+
+/// Default niche set for a JNI wrapper wire: every `J*` handle has a
+/// genuine `null` value that no live conversion ever produces, so wrap
+/// it as a single niche; everything else (`jlong`, `jint`, `()`, …) has
+/// no implicit niche.
+///
+/// Plugins are free to declare *additional* niches on top of this for
+/// pointer-shape primitives like `Arc::into_raw`-as-`jlong`.
+fn default_niches_for_wire(wire: &syn::Type) -> Niches {
+    if is_jobject_shaped_wire(wire) {
+        Niches::one(
+            syn::parse_quote!(jni::objects::JObject::null().into()),
+            syn::parse_quote!(v.is_null()),
+        )
+    } else {
+        Niches::empty()
+    }
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -1318,4 +1412,278 @@ fn hash_pair(rust: &syn::Type, wire: &syn::Type) -> u64 {
 fn build_fn_type(args: &[syn::Type]) -> syn::Type {
     let arg_iter = args.iter();
     syn::parse_quote!(impl Fn( #(#arg_iter),* ) + Send + Sync + 'static)
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Tests
+// ──────────────────────────────────────────────────────────────────────
+//
+// These tests exercise the niche cascade by hand-building registry
+// entries with deliberate niche shapes, then driving `option_input` /
+// `option_output` directly. They mirror the documented `Niches`
+// semantics: each `Option<_>` layer carves one slot and re-exports the
+// rest; once the rest is exhausted, the next layer falls back to the
+// boxed-Java-primitive scheme.
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::niches::{NicheSlot, Niches};
+    use crate::core::registry::{Registry, TypeEntry, TypeKey};
+    use quote::ToTokens;
+
+    /// Build a `TypeEntry` for use in tests. The function body is not
+    /// inspected by `option_input` / `option_output`; only the ident,
+    /// destination, and niches matter, so we use a stub `ItemFn`.
+    fn entry(wire: syn::Type, conv_name: &str, niches: Niches) -> TypeEntry {
+        let ident = syn::Ident::new(conv_name, proc_macro2::Span::call_site());
+        let func: syn::ItemFn = syn::parse_quote!(
+            unsafe fn #ident<'env, 'v>(
+                env: &mut jni::JNIEnv<'env>,
+                v: &#wire,
+            ) -> crate::errors::ZResult<()> {
+                Ok(())
+            }
+        );
+        TypeEntry {
+            destination: wire,
+            function: func,
+            subs: vec![],
+            required: false,
+            niches,
+        }
+    }
+
+    fn install_input(reg: &mut Registry, ty_str: &str, rank: usize, e: TypeEntry) {
+        reg.input_types[rank].insert(TypeKey::parse(ty_str), Some(e));
+    }
+    fn install_output(reg: &mut Registry, ty_str: &str, rank: usize, e: TypeEntry) {
+        reg.output_types[rank].insert(TypeKey::parse(ty_str), Some(e));
+    }
+
+    /// Single niche, single Option layer — wire stays the inner wire,
+    /// remainder is empty. No widening to JObject.
+    #[test]
+    fn option_carves_single_niche() {
+        let mut reg = Registry::default();
+        install_input(
+            &mut reg,
+            "TestType",
+            0,
+            entry(
+                syn::parse_quote!(jni::sys::jlong),
+                "jlong_to_TestType_aaaa",
+                Niches::one(syn::parse_quote!(0i64), syn::parse_quote!(*v == 0)),
+            ),
+        );
+
+        let inner_ty: syn::Type = syn::parse_quote!(TestType);
+        let (wire, _body, niches) = option_input(&inner_ty, &reg).expect("Option<TestType> resolves");
+
+        assert_eq!(
+            wire.to_token_stream().to_string(),
+            "jni :: sys :: jlong",
+            "wire stays jlong (no JObject widening)"
+        );
+        assert!(niches.is_empty(), "single niche fully consumed");
+    }
+
+    /// Two niches, two cascading Option layers, both stay on the same
+    /// wire. The third layer hits empty niches and falls back to box.
+    #[test]
+    fn option_cascades_through_multi_niche() {
+        let mut reg = Registry::default();
+
+        // TestType: jint with two niches (MIN, MAX).
+        install_input(
+            &mut reg,
+            "TestType",
+            0,
+            entry(
+                syn::parse_quote!(jni::sys::jint),
+                "jint_to_TestType_aaaa",
+                Niches::from_slots([
+                    NicheSlot {
+                        value: syn::parse_quote!(jni::sys::jint::MIN),
+                        matches: syn::parse_quote!(*v == jni::sys::jint::MIN),
+                    },
+                    NicheSlot {
+                        value: syn::parse_quote!(jni::sys::jint::MAX),
+                        matches: syn::parse_quote!(*v == jni::sys::jint::MAX),
+                    },
+                ]),
+            ),
+        );
+
+        // Layer 1: Option<TestType>.
+        let layer1_ty: syn::Type = syn::parse_quote!(TestType);
+        let (w1, _, n1) = option_input(&layer1_ty, &reg).expect("layer 1 resolves");
+        assert_eq!(w1.to_token_stream().to_string(), "jni :: sys :: jint");
+        assert_eq!(n1.len(), 1, "first carve leaves one niche");
+
+        // Install the layer-1 wrapper as a rank-1 entry so layer-2 can
+        // look it up. (In the real resolver this happens automatically;
+        // here we mimic it by installing the produced ConverterImpl.)
+        install_input(
+            &mut reg,
+            "Option < TestType >",
+            1,
+            entry(w1.clone(), "jint_to_OptionTestType_bbbb", n1),
+        );
+
+        // Layer 2: Option<Option<TestType>>.
+        let layer2_ty: syn::Type = syn::parse_quote!(Option<TestType>);
+        let (w2, _, n2) = option_input(&layer2_ty, &reg).expect("layer 2 resolves");
+        assert_eq!(
+            w2.to_token_stream().to_string(),
+            "jni :: sys :: jint",
+            "wire still jint at layer 2 — no widening"
+        );
+        assert!(n2.is_empty(), "second carve consumes the last niche");
+
+        // Install layer-2 wrapper for the layer-3 lookup.
+        install_input(
+            &mut reg,
+            "Option < Option < TestType > >",
+            1,
+            entry(w2.clone(), "jint_to_OptionOptionTestType_cccc", n2),
+        );
+
+        // Layer 3: Option<Option<Option<TestType>>>. No niches left,
+        // inner wire is jint (a JNI primitive) → boxed-Long fallback.
+        let layer3_ty: syn::Type = syn::parse_quote!(Option<Option<TestType>>);
+        let (w3, _, n3) = option_input(&layer3_ty, &reg).expect("layer 3 resolves via box fallback");
+        assert_eq!(
+            w3.to_token_stream().to_string(),
+            "jni :: objects :: JObject",
+            "layer 3 widens to JObject (box fallback)"
+        );
+        assert!(
+            n3.is_empty(),
+            "boxed wrapper exposes no further niches — every JObject carries meaning"
+        );
+    }
+
+    /// Output side mirrors input: niche values are emitted in the
+    /// `None` arm of the match, and the remainder is re-exported.
+    #[test]
+    fn option_output_cascades_through_multi_niche() {
+        let mut reg = Registry::default();
+        install_output(
+            &mut reg,
+            "TestType",
+            0,
+            entry(
+                syn::parse_quote!(jni::sys::jint),
+                "TestType_to_jint_aaaa",
+                Niches::from_slots([
+                    NicheSlot {
+                        value: syn::parse_quote!(-1i32),
+                        matches: syn::parse_quote!(*v == -1),
+                    },
+                    NicheSlot {
+                        value: syn::parse_quote!(-2i32),
+                        matches: syn::parse_quote!(*v == -2),
+                    },
+                ]),
+            ),
+        );
+
+        let inner_ty: syn::Type = syn::parse_quote!(TestType);
+        let (w1, body1, n1) =
+            option_output(&inner_ty, &reg).expect("Option<TestType> output resolves");
+        assert_eq!(w1.to_token_stream().to_string(), "jni :: sys :: jint");
+        assert_eq!(n1.len(), 1, "one slot left after carving the first");
+        // The body must reference the carved value (-1) in the None arm.
+        let body_str = body1.to_token_stream().to_string();
+        assert!(
+            body_str.contains("None => - 1i32") || body_str.contains("None => -1i32"),
+            "expected `None => -1i32` in body; got:\n{}",
+            body_str,
+        );
+
+        install_output(
+            &mut reg,
+            "Option < TestType >",
+            1,
+            entry(w1.clone(), "OptionTestType_to_jint_bbbb", n1),
+        );
+
+        let layer2_ty: syn::Type = syn::parse_quote!(Option<TestType>);
+        let (w2, body2, n2) =
+            option_output(&layer2_ty, &reg).expect("Option<Option<TestType>> output resolves");
+        assert_eq!(w2.to_token_stream().to_string(), "jni :: sys :: jint");
+        assert!(n2.is_empty());
+        let body2_str = body2.to_token_stream().to_string();
+        assert!(
+            body2_str.contains("None => - 2i32") || body2_str.contains("None => -2i32"),
+            "second layer must use the second niche (-2); got:\n{}",
+            body2_str,
+        );
+    }
+
+    /// JObject-shaped wires get the implicit `null` niche via
+    /// [`default_niches_for_wire`], so `Option<T>` over a struct
+    /// decoder stays on `JObject` (no boxing).
+    #[test]
+    fn option_over_jobject_uses_default_null_niche() {
+        let mut reg = Registry::default();
+        install_input(
+            &mut reg,
+            "MyStruct",
+            0,
+            entry(
+                syn::parse_quote!(jni::objects::JObject),
+                "JObject_to_MyStruct_aaaa",
+                default_niches_for_wire(&syn::parse_quote!(jni::objects::JObject)),
+            ),
+        );
+
+        let ty: syn::Type = syn::parse_quote!(MyStruct);
+        let (wire, _, rest) = option_input(&ty, &reg).expect("Option<MyStruct> resolves");
+        assert_eq!(wire.to_token_stream().to_string(), "jni :: objects :: JObject");
+        assert!(rest.is_empty(), "JObject's single null niche is consumed");
+    }
+
+    /// No niche AND non-primitive wire → wrap fails (resolver falls
+    /// through). Demonstrates that the boxed fallback only kicks in for
+    /// JNI primitives.
+    #[test]
+    fn option_fails_when_no_niche_and_non_primitive_wire() {
+        let mut reg = Registry::default();
+        install_input(
+            &mut reg,
+            "MyStruct",
+            0,
+            entry(
+                syn::parse_quote!(jni::objects::JObject),
+                "JObject_to_MyStruct_aaaa",
+                Niches::empty(), // explicit empty — author opted out
+            ),
+        );
+        let ty: syn::Type = syn::parse_quote!(MyStruct);
+        assert!(option_input(&ty, &reg).is_none());
+    }
+
+    /// Boxed fallback widens to `JObject` and exposes no further
+    /// niches — protects callers from cascading when a layer has had
+    /// to widen.
+    #[test]
+    fn option_box_fallback_exposes_no_niches() {
+        let mut reg = Registry::default();
+        install_input(
+            &mut reg,
+            "i64",
+            0,
+            entry(
+                syn::parse_quote!(jni::sys::jlong),
+                "jlong_to_i64_aaaa",
+                Niches::empty(), // primitive `i64` — no niche
+            ),
+        );
+        let ty: syn::Type = syn::parse_quote!(i64);
+        let (wire, _, rest) = option_input(&ty, &reg).expect("Option<i64> via box fallback");
+        assert_eq!(wire.to_token_stream().to_string(), "jni :: objects :: JObject");
+        assert!(rest.is_empty());
+    }
 }

@@ -156,6 +156,7 @@ mod tests {
                 ),
                 subs: vec![],
                 required: true,
+                niches: crate::core::niches::Niches::empty(),
             }),
         );
         reg.input_types[0].insert(
@@ -167,6 +168,7 @@ mod tests {
                 ),
                 subs: vec![],
                 required: true,
+                niches: crate::core::niches::Niches::empty(),
             }),
         );
 

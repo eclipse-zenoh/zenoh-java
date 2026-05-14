@@ -19,6 +19,7 @@
 
 use proc_macro2::TokenStream;
 
+use crate::core::niches::Niches;
 use crate::core::registry::Registry;
 
 /// Result of resolving one converter — the wire (destination) type the rest
@@ -40,6 +41,12 @@ pub struct ConverterImpl {
     /// return type, `unsafe`/`pub` modifiers, lifetime parameters, and any
     /// attribute annotations.
     pub function: syn::ItemFn,
+    /// Bit-patterns the wire type can represent but this converter never
+    /// produces (output) and rejects (input). Wrapper handlers like
+    /// `Option<_>` consume one slot for their own discriminant and
+    /// re-export the rest — see [`Niches`] for the cascade model.
+    /// Default is empty (no niche optimisation).
+    pub niches: Niches,
 }
 
 /// Implemented by destination-language back-ends (e.g. JNI). The resolver

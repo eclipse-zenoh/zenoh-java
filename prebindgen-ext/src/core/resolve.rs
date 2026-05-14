@@ -176,6 +176,7 @@ fn try_resolve_entry<E: PrebindgenExt>(
             function: c.function,
             subs: vec![],
             required: scan_required,
+            niches: c.niches,
         });
     }
 
@@ -204,6 +205,7 @@ fn try_resolve_entry<E: PrebindgenExt>(
                 function: c.function,
                 subs: sub_keys,
                 required: scan_required,
+                niches: c.niches,
             });
         }
     }

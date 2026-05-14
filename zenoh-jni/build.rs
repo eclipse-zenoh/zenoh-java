@@ -11,6 +11,7 @@ use std::path::PathBuf;
 
 use proc_macro2::TokenStream;
 
+use zenoh_flat::core::niches::Niches;
 use zenoh_flat::core::prebindgen_ext::{ConverterImpl, PrebindgenExt};
 use zenoh_flat::core::registry::{Registry, TypeKey};
 use zenoh_flat::core::{resolve, write};
@@ -32,34 +33,59 @@ impl ZenohJniExt {
         Self { base }
     }
 
-    /// Wrap a `(wire, body)` pair into a full `ConverterImpl` using the
-    /// JniExt input wrapper convention.
+    /// Wrap a `(wire, body, niches)` triple into a full `ConverterImpl`
+    /// using the JniExt input wrapper convention. Most arms have no
+    /// extra niche to declare beyond what the wire form implies, so we
+    /// also offer the convenience [`Self::input_converter`] that fills
+    /// `niches = Niches::empty()`.
+    fn input_converter_with_niches(
+        &self,
+        ty: &syn::Type,
+        wire: syn::Type,
+        body: syn::Expr,
+        niches: Niches,
+    ) -> ConverterImpl {
+        let function = self.base.input_wrapper(ty, &wire, &body);
+        ConverterImpl {
+            destination: wire,
+            function,
+            niches,
+        }
+    }
+
+    /// Convenience: empty niches (no `Option<T>` cascade benefit).
     fn input_converter(
         &self,
         ty: &syn::Type,
         wire: syn::Type,
         body: syn::Expr,
     ) -> ConverterImpl {
-        let function = self.base.input_wrapper(ty, &wire, &body);
+        self.input_converter_with_niches(ty, wire, body, Niches::empty())
+    }
+
+    /// Output equivalent of [`Self::input_converter_with_niches`].
+    fn output_converter_with_niches(
+        &self,
+        ty: &syn::Type,
+        wire: syn::Type,
+        body: syn::Expr,
+        niches: Niches,
+    ) -> ConverterImpl {
+        let function = self.base.output_wrapper(ty, &wire, &body);
         ConverterImpl {
             destination: wire,
             function,
+            niches,
         }
     }
 
-    /// Wrap a `(wire, body)` pair into a full `ConverterImpl` using the
-    /// JniExt output wrapper convention.
     fn output_converter(
         &self,
         ty: &syn::Type,
         wire: syn::Type,
         body: syn::Expr,
     ) -> ConverterImpl {
-        let function = self.base.output_wrapper(ty, &wire, &body);
-        ConverterImpl {
-            destination: wire,
-            function,
-        }
+        self.output_converter_with_niches(ty, wire, body, Niches::empty())
     }
 
     /// jint→enum decode helpers exposed by `crate::utils` in zenoh-jni.
@@ -135,19 +161,22 @@ impl PrebindgenExt for ZenohJniExt {
             return Some(self.input_converter(ty, wire, body));
         }
 
-        // Option<ZKeyExpr<'static>> — special pointer-as-jlong shape
-        if key == "Option < ZKeyExpr < 'static > >" {
-            return Some(self.input_converter(
+        // ZKeyExpr<'static> as a jlong-pointer (Arc::into_raw).
+        // The body assumes `*v != 0` — the Option<_> wrapper takes care
+        // of the null discriminator via the niche we declare here.
+        // `Option<ZKeyExpr<'static>>` therefore resolves automatically:
+        // JniExt's universal `Option<_>` rank-1 handler carves this
+        // niche and emits `if *v == 0 { None } else { Some(...) }`,
+        // keeping the wire as `jlong` and matching the legacy ABI.
+        if key == "ZKeyExpr < 'static >" {
+            return Some(self.input_converter_with_niches(
                 ty,
                 syn::parse_quote!(jni::sys::jlong),
-                syn::parse_quote!(if *v != 0 {
-                    Some(unsafe {
-                        let raw = *v as *const zenoh::key_expr::KeyExpr<'static>;
-                        (*raw).clone()
-                    })
-                } else {
-                    None
+                syn::parse_quote!(unsafe {
+                    let raw = *v as *const zenoh::key_expr::KeyExpr<'static>;
+                    (*raw).clone()
                 }),
+                Niches::one(syn::parse_quote!(0i64), syn::parse_quote!(*v == 0)),
             ));
         }
         // Encoding (zenoh-specific)
@@ -208,14 +237,17 @@ impl PrebindgenExt for ZenohJniExt {
     fn on_output_type_rank_0(&self, ty: &syn::Type, registry: &Registry) -> Option<ConverterImpl> {
         let key = TypeKey::from_type(ty).as_str().to_string();
 
-        // Option<ZKeyExpr<'static>> output (v: Option<ZKeyExpr<'static>>, by value)
-        if key == "Option < ZKeyExpr < 'static > >" {
-            return Some(self.output_converter(
+        // ZKeyExpr<'static> output (v: ZKeyExpr<'static>, by value).
+        // Wraps the value in an Arc and leaks it as a raw pointer cast
+        // to `jlong`. Declared niche `0i64` matches the input arm above:
+        // `Option<ZKeyExpr<'static>>` is now JniExt-synthesised and
+        // emits `match v { Some(t) => Arc::into_raw(...) as i64, None => 0i64 }`.
+        if key == "ZKeyExpr < 'static >" {
+            return Some(self.output_converter_with_niches(
                 ty,
                 syn::parse_quote!(jni::sys::jlong),
-                syn::parse_quote!(v
-                    .map(|val| std::sync::Arc::into_raw(std::sync::Arc::new(val)) as i64)
-                    .unwrap_or(0)),
+                syn::parse_quote!(std::sync::Arc::into_raw(std::sync::Arc::new(v)) as i64),
+                Niches::one(syn::parse_quote!(0i64), syn::parse_quote!(*v == 0)),
             ));
         }
         // KeyExpr — auto-generated by JniExt's struct path

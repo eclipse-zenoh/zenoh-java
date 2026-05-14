@@ -19,6 +19,8 @@ use std::fmt;
 use prebindgen::{Source, SourceLocation};
 use quote::ToTokens;
 
+use crate::core::niches::Niches;
+
 /// Canonical type-shape key — the `to_token_stream().to_string()` form of a
 /// `syn::Type`. Whitespace-normalised (`"Vec<u8>"` and `"Vec < u8 >"` produce
 /// the same key after parse-and-restringify).
@@ -77,6 +79,10 @@ pub struct TypeEntry {
     /// signature; false for sub-positions. Promoted true by the propagation
     /// pass for any type reachable via `subs` from another required type.
     pub required: bool,
+    /// Wire bit-patterns this converter never produces / always rejects.
+    /// Wrappers (`Option<_>`, sum-typed enums) carve from this set for
+    /// their own discriminants. See [`Niches`] for the cascade model.
+    pub niches: Niches,
 }
 
 /// Direction of a converter pair.
