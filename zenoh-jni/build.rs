@@ -150,17 +150,6 @@ impl PrebindgenExt for ZenohJniExt {
                 }),
             ));
         }
-        // &KeyExpr — delegate to auto-generated KeyExpr decoder
-        if key == "& KeyExpr" {
-            let key_expr_ty: syn::Type = syn::parse_quote!(KeyExpr);
-            let inner = registry.input_entry(&key_expr_ty)?;
-            let conv = inner.function.sig.ident.clone();
-            return Some(self.input_converter(
-                ty,
-                syn::parse_quote!(jni::objects::JObject),
-                syn::parse_quote!(#conv(env, v)?),
-            ));
-        }
         // Encoding (zenoh-specific)
         if key == "Encoding" {
             return Some(self.input_converter(
