@@ -26,6 +26,7 @@ pub mod inline_fn;
 pub mod name_mangler;
 pub mod prebindgen_ext;
 pub mod registry;
+pub mod resolve;
 pub mod type_binding;
 pub mod type_registry;
 pub mod types_converter;
