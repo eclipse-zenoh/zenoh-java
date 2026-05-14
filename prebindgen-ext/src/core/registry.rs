@@ -300,6 +300,12 @@ impl Registry {
     }
 
     fn scan_fn_signature(&mut self, f: &syn::ItemFn, loc: &SourceLocation) -> Result<(), ScanError> {
+        // Mechanical: register every fn-signature type as the user wrote it.
+        // No semantic transformations (no &T→T strip, no ZResult<T>→T strip,
+        // no skip for () / ZResult<()>). The plugin handles those via rank
+        // handlers; propagation through `subs` then marks transitive deps
+        // (e.g. &Foo's `& _` rank-1 handler returns subs=[Foo], so Foo
+        // becomes required).
         for input in &f.sig.inputs {
             match input {
                 syn::FnArg::Receiver(_) => {
@@ -309,33 +315,15 @@ impl Registry {
                     if !matches!(&*pt.pat, syn::Pat::Ident(_)) {
                         return Err(ScanError::UnsupportedParamPattern { loc: loc.clone() });
                     }
-                    // `&T` borrow params register the inner T (not &T):
-                    // a converter can never return `&T` because it would
-                    // have nowhere to borrow from. The on_function wrapper
-                    // synthesizes `&decoded` at the call site.
-                    let register_ty: syn::Type = match &*pt.ty {
-                        syn::Type::Reference(r) => (*r.elem).clone(),
-                        _ => (*pt.ty).clone(),
-                    };
-                    self.register_type_recursive(Direction::Input, &register_ty, true, loc)?;
+                    self.register_type_recursive(Direction::Input, &*pt.ty, true, loc)?;
                 }
             }
         }
-        match &f.sig.output {
-            syn::ReturnType::Default => {}
-            syn::ReturnType::Type(_, ty) => {
-                if is_unit(ty) || is_result_of_unit(ty) {
-                    // No output to register.
-                } else if let Some(inner) = result_inner(ty) {
-                    // ZResult<T>: the body strategy unwraps via `?` and
-                    // passes the inner T to the encoder. Register T,
-                    // not ZResult<T>.
-                    self.register_type_recursive(Direction::Output, &inner, true, loc)?;
-                } else {
-                    self.register_type_recursive(Direction::Output, ty, true, loc)?;
-                }
-            }
-        }
+        let ret_ty: syn::Type = match &f.sig.output {
+            syn::ReturnType::Default => syn::parse_quote!(()),
+            syn::ReturnType::Type(_, ty) => (**ty).clone(),
+        };
+        self.register_type_recursive(Direction::Output, &ret_ty, true, loc)?;
         Ok(())
     }
 
@@ -514,32 +502,6 @@ pub fn immediate_subtype_positions(ty: &syn::Type) -> Vec<syn::Type> {
     }
 }
 
-fn is_unit(ty: &syn::Type) -> bool {
-    matches!(ty, syn::Type::Tuple(t) if t.elems.is_empty())
-}
-
-/// True iff `ty` is `ZResult<()>` (or any `<...>::ZResult<()>` path).
-fn is_result_of_unit(ty: &syn::Type) -> bool {
-    result_inner(ty).map(|t| is_unit(&t)).unwrap_or(false)
-}
-
-/// If `ty` is `ZResult<T>` (any path ending in `ZResult`), return T.
-pub fn result_inner(ty: &syn::Type) -> Option<syn::Type> {
-    if let syn::Type::Path(tp) = ty {
-        if let Some(last) = tp.path.segments.last() {
-            if last.ident == "ZResult" {
-                if let syn::PathArguments::AngleBracketed(ab) = &last.arguments {
-                    if ab.args.len() == 1 {
-                        if let Some(syn::GenericArgument::Type(inner)) = ab.args.first() {
-                            return Some(inner.clone());
-                        }
-                    }
-                }
-            }
-        }
-    }
-    None
-}
 
 /// If `ty` is `impl Fn(T1, T2, ...) + Send + Sync + 'static`, return the
 /// `Fn` argument types in declaration order. Otherwise None.

@@ -29,7 +29,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 
 use crate::core::prebindgen_ext::{ConverterImpl, PrebindgenExt};
-use crate::core::registry::{extract_fn_trait_args, result_inner, Registry, TypeKey};
+use crate::core::registry::{extract_fn_trait_args, Registry, TypeKey};
 use crate::jni::wire_access::jni_field_access;
 use crate::util::snake_to_camel;
 
@@ -234,6 +234,23 @@ impl PrebindgenExt for JniExt {
         t1: &syn::Type,
         registry: &Registry,
     ) -> Option<ConverterImpl> {
+        // `& _` borrow: a free-fn converter can't return `&T` (no borrow
+        // source), so we *share* T's resolved converter — `&T`'s entry
+        // points at the same `ItemFn`. The fn returns owned `T`; the
+        // call site in `emit_jni_function_wrapper` adds `&decoded` when
+        // the original param was `&T`. write.rs's dedup-by-name keeps
+        // the function emitted exactly once.
+        //
+        // This handler exists to make the wildcard-substitution machinery
+        // fire: it returns subs=[t1] (via the resolver), so propagation
+        // marks T as required transitively from `&T`.
+        if pat_match(pat, "& _") {
+            let inner = registry.input_entry(t1)?;
+            return Some(ConverterImpl {
+                destination: inner.destination.clone(),
+                function: inner.function.clone(),
+            });
+        }
         if pat_match(pat, "Option < _ >") {
             let outer_ty: syn::Type = syn::parse_quote!(Option<#t1>);
             let (wire, body) = option_input(t1, registry)?;
@@ -306,6 +323,17 @@ impl PrebindgenExt for JniExt {
         ty: &syn::Type,
         registry: &Registry,
     ) -> Option<ConverterImpl> {
+        // `()` — identity converter so `fn foo()` and `fn foo() -> ()`
+        // funnel through the same uniform output path as everything else.
+        // Wire is `()`. Body just returns `v`.
+        if pat_match(ty, "()") {
+            let wire: syn::Type = syn::parse_quote!(());
+            let body: syn::Expr = syn::parse_quote!(v);
+            return Some(ConverterImpl {
+                function: self.output_wrapper(ty, &wire, &body),
+                destination: wire,
+            });
+        }
         if let Some((wire, body)) = primitive_output(ty) {
             return Some(ConverterImpl {
                 function: self.output_wrapper(ty, &wire, &body),
@@ -330,6 +358,32 @@ impl PrebindgenExt for JniExt {
         t1: &syn::Type,
         registry: &Registry,
     ) -> Option<ConverterImpl> {
+        // `ZResult<_>` — unwrap via `?`, then delegate to inner T's output
+        // converter. Wire is T's wire; the body calls T's converter on the
+        // unwrapped value. Subs=[T] is recorded by the resolver so
+        // propagation marks T required.
+        //
+        // Note: the source-side type the user wrote is the bare-name
+        // `ZResult` (matching the prebindgen scan key). The wrapper takes
+        // `v: <zresult-path>< T >` so it resolves at compile time in the
+        // host crate even though `ZResult` isn't in scope at the include
+        // site — we use the configured `self.zresult` path instead of
+        // bare `ZResult`.
+        if pat_match(pat, "ZResult < _ >") {
+            let inner = registry.output_entry(t1)?;
+            let inner_wire = inner.destination.clone();
+            let inner_conv = inner.function.sig.ident.clone();
+            let zresult_path = &self.zresult;
+            let outer_ty: syn::Type = syn::parse_quote!(#zresult_path<#t1>);
+            let body: syn::Expr = syn::parse_quote!({
+                let __inner = v?;
+                #inner_conv(env, __inner)?
+            });
+            return Some(ConverterImpl {
+                function: self.output_wrapper(&outer_ty, &inner_wire, &body),
+                destination: inner_wire,
+            });
+        }
         if pat_match(pat, "Option < _ >") {
             let outer_ty: syn::Type = syn::parse_quote!(Option<#t1>);
             let (wire, body) = option_output(t1, registry)?;
@@ -377,27 +431,21 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry)
     let mut prelude: Vec<TokenStream> = Vec::new();
     let mut call_args: Vec<TokenStream> = Vec::new();
 
+    // Input parameters: look up converter for the param type AS WRITTEN.
+    // No strip — a `&T` param looks up `&T`'s entry (which the `& _`
+    // rank-1 handler resolved by sharing `T`'s function). Call site adds
+    // `&decoded` only for `&T`-shaped originals; that's a Rust call-
+    // convention concern, not a converter concern.
     for input in &f.sig.inputs {
         let syn::FnArg::Typed(pt) = input else { continue };
         let syn::Pat::Ident(pat_id) = &*pt.pat else { continue };
         let arg_ident = &pat_id.ident;
         let arg_ty = &*pt.ty;
 
-        // For `&T` borrow params: look up T's converter (not &T's), then
-        // synthesize the borrow at the call site. Avoids the impossible
-        // task of having a converter return a `&T` (it has nowhere to
-        // borrow from). ZenohJniExt's `&Config`/`&Session` etc. arms
-        // become unnecessary — KeyExpr/Config/Session's own input arms
-        // (or auto-generation) cover them.
-        let lookup_ty: syn::Type = match arg_ty {
-            syn::Type::Reference(r) => (*r.elem).clone(),
-            _ => arg_ty.clone(),
-        };
-        let entry = registry.input_entry(&lookup_ty).unwrap_or_else(|| {
+        let entry = registry.input_entry(arg_ty).unwrap_or_else(|| {
             panic!(
-                "JniExt::on_function: input type `{}` (lookup for `{}`) for `{}` is unresolved",
-                TypeKey::from_type(&lookup_ty),
-                arg_ty.to_token_stream(),
+                "JniExt::on_function: input type `{}` for `{}` is unresolved",
+                TypeKey::from_type(arg_ty),
                 original_ident,
             )
         });
@@ -423,95 +471,47 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry)
         }
     }
 
-    let (wire_return, wrap_ok, on_err): (TokenStream, TokenStream, TokenStream) =
-        match &f.sig.output {
-            syn::ReturnType::Default => (quote!(()), quote!(Ok(())), quote!(())),
-            syn::ReturnType::Type(_, ty) if is_unit(ty) || is_result_of_unit(ty) => {
-                (quote!(()), quote!(Ok(())), quote!(()))
-            }
-            syn::ReturnType::Type(_, ty) => {
-                // The body strategy unwraps ZResult<T> via `?`, so the
-                // encoder receives the unwrapped T. Look up T's converter,
-                // not ZResult<T>'s.
-                let lookup_ty = result_inner(ty).unwrap_or_else(|| (**ty).clone());
-                let entry = registry.output_entry(&lookup_ty).unwrap_or_else(|| {
-                    panic!(
-                        "JniExt::on_function: return type `{}` (encoder for `{}`) for `{}` is unresolved",
-                        TypeKey::from_type(&lookup_ty),
-                        ty.to_token_stream(),
-                        original_ident,
-                    )
-                });
-                let wire = entry.destination.clone();
-                let conv = entry.function.sig.ident.clone();
-                // Output wrapper takes v by value; pass __result by move.
-                let wire_with_lifetime = annotate_jobject_with_lifetime(&wire, "a");
-                let wire_tokens = wire_with_lifetime.to_token_stream();
-                let on_err_expr: TokenStream = sentinel_for_wire(&wire);
-                (
-                    wire_tokens,
-                    quote!(Ok(#conv(&mut env, __result)?)),
-                    on_err_expr,
-                )
-            }
-        };
+    // Output: uniform path. Look up the registered converter for the
+    // return type as-written (ReturnType::Default → `()`). The plugin's
+    // own rank handlers cover `()`, `ZResult<T>`, `ZResult<()>`, etc.
+    // No special branching here.
+    let return_ty: syn::Type = match &f.sig.output {
+        syn::ReturnType::Default => syn::parse_quote!(()),
+        syn::ReturnType::Type(_, ty) => (**ty).clone(),
+    };
+    let output_entry = registry.output_entry(&return_ty).unwrap_or_else(|| {
+        panic!(
+            "JniExt::on_function: return type `{}` for `{}` is unresolved",
+            TypeKey::from_type(&return_ty),
+            original_ident,
+        )
+    });
+    let wire_return_ty = output_entry.destination.clone();
+    let conv = output_entry.function.sig.ident.clone();
+    let wire_with_lifetime = annotate_jobject_with_lifetime(&wire_return_ty, "a");
+    let wire_return = wire_with_lifetime.to_token_stream();
+    let on_err: TokenStream = sentinel_for_wire(&wire_return_ty);
 
     let zresult = &ext.zresult;
     let call_expr = quote!(#source_module::#original_ident(#(#call_args),*));
 
-    let body = match &f.sig.output {
-        syn::ReturnType::Default => quote! {
-            {
-                (|| -> #zresult<()> {
-                    #(#prelude)*
-                    #call_expr;
-                    #wrap_ok
-                })()
-                .unwrap_or_else(|err| {
-                    #throw!(env, err);
-                    #on_err
-                })
-            }
-        },
-        syn::ReturnType::Type(_, ty) if is_unit(ty) => quote! {
-            {
-                (|| -> #zresult<()> {
-                    #(#prelude)*
-                    #call_expr;
-                    #wrap_ok
-                })()
-                .unwrap_or_else(|err| {
-                    #throw!(env, err);
-                    #on_err
-                })
-            }
-        },
-        syn::ReturnType::Type(_, ty) if is_result_of_unit(ty) => quote! {
-            {
-                (|| -> #zresult<()> {
-                    #(#prelude)*
-                    #call_expr?;
-                    Ok(())
-                })()
-                .unwrap_or_else(|err| {
-                    #throw!(env, err);
-                    ()
-                })
-            }
-        },
-        syn::ReturnType::Type(_, _) => quote! {
-            {
-                (|| -> #zresult<#wire_return> {
-                    #(#prelude)*
-                    let __result = #call_expr?;
-                    #wrap_ok
-                })()
-                .unwrap_or_else(|err| {
-                    #throw!(env, err);
-                    #on_err
-                })
-            }
-        },
+    // Single body shape: bind `__result` to the source-fn return value
+    // (whatever its type — `()`, `T`, `ZResult<T>`, etc.) and feed it
+    // straight into the registered output converter, which handles any
+    // unwrap / encode in one step. The closure return matches the
+    // converter return.
+    let body = quote! {
+        {
+            (|| -> #zresult<#wire_return> {
+                #(#prelude)*
+                let __result = #call_expr;
+                #conv(&mut env, __result)
+            })()
+            .unwrap_or_else(|err| {
+                #throw!(env, err);
+                #on_err
+            })
+        }
     };
 
     quote! {
@@ -1228,26 +1228,6 @@ fn bare_path_ident(ty: &syn::Type) -> Option<syn::Ident> {
     None
 }
 
-fn is_unit(ty: &syn::Type) -> bool {
-    matches!(ty, syn::Type::Tuple(t) if t.elems.is_empty())
-}
-
-fn is_result_of_unit(ty: &syn::Type) -> bool {
-    if let syn::Type::Path(tp) = ty {
-        if let Some(last) = tp.path.segments.last() {
-            if last.ident == "ZResult" {
-                if let syn::PathArguments::AngleBracketed(ab) = &last.arguments {
-                    if ab.args.len() == 1 {
-                        if let Some(syn::GenericArgument::Type(inner)) = ab.args.first() {
-                            return is_unit(inner);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    false
-}
 
 // ──────────────────────────────────────────────────────────────────────
 // JNI-internal naming convention. Hand-written code in zenoh-jni
@@ -1282,6 +1262,11 @@ fn output_name(rust: &syn::Type, wire: &syn::Type) -> syn::Ident {
 }
 
 fn sanitize_for_ident(s: &str) -> String {
+    // Special-case the empty tuple — the all-punctuation token stream
+    // would sanitize to a meaningless fallback. `unit` is recognisable.
+    if s.trim() == "()" {
+        return "unit".to_string();
+    }
     let mut out = String::with_capacity(s.len());
     let mut prev_underscore = false;
     for c in s.chars() {
