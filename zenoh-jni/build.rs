@@ -10,9 +10,8 @@
 use std::path::PathBuf;
 
 use proc_macro2::TokenStream;
-use quote::ToTokens;
 
-use zenoh_flat::core::converter_name::{input_name, output_name};
+use zenoh_flat::core::converter_name::input_name;
 use zenoh_flat::core::prebindgen_ext::PrebindgenExt;
 use zenoh_flat::core::registry::{Registry, TypeKey};
 use zenoh_flat::core::{resolve, write};

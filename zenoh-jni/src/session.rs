@@ -20,7 +20,7 @@ use zenoh::{
     key_expr::{KeyExpr as ZKeyExpr, SetIntersectionLevel},
     pubsub::{Publisher, Subscriber},
     qos::{CongestionControl, Priority, Reliability},
-    query::{ConsolidationMode, Querier, Query, Queryable, QueryTarget, Reply, ReplyKeyExpr, Selector},
+    query::{ConsolidationMode, Querier, Query, Queryable, QueryTarget, Reply, ReplyKeyExpr},
     session::{Session, ZenohId},
 };
 use zenoh_flat::keyexpr::KeyExpr;

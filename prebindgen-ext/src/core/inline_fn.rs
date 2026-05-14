@@ -2,6 +2,12 @@
 //!
 //! * `InputFn` always receives a concrete `syn::Ident` for the input value.
 //! * `OutputFn` optionally receives a `syn::Ident` for return-value encoding.
+//!
+//! Transitional: kept alive only because [`crate::core::type_registry`] and
+//! [`crate::kotlin::KotlinInterfaceGenerator`] still consume it. Will be
+//! removed once Kotlin gen lands on the new Registry.
+
+#![allow(dead_code)]
 
 use std::sync::Arc;
 

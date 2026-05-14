@@ -136,14 +136,14 @@ impl PrebindgenExt for JniExt {
         let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "v");
         if matches!(wire, syn::Type::Ptr(_)) {
             syn::parse_quote!(
-                #[allow(non_snake_case, unused_mut, unused_variables, dead_code)]
+                #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
                 pub(crate) unsafe fn #name<'env>(env: &mut jni::JNIEnv<'env>, v: #wire) -> #zresult<#rust_with_lifetime> {
                     Ok(#body)
                 }
             )
         } else {
             syn::parse_quote!(
-                #[allow(non_snake_case, unused_mut, unused_variables, dead_code)]
+                #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
                 pub(crate) unsafe fn #name<'env, 'v>(env: &mut jni::JNIEnv<'env>, v: &#wire_with_lifetime) -> #zresult<#rust_with_lifetime> {
                     Ok(#body)
                 }
@@ -164,7 +164,7 @@ impl PrebindgenExt for JniExt {
         // Subscriber<()> don't implement Clone, so body can't go through
         // (*v).clone(). Bodies that need to consume v can move it.
         syn::parse_quote!(
-            #[allow(non_snake_case, unused_mut, unused_variables, dead_code)]
+            #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
             pub(crate) unsafe fn #name<'a>(env: &mut jni::JNIEnv<'a>, v: #rust) -> #zresult<#wire_with_lifetime> {
                 Ok(#body)
             }

@@ -44,7 +44,7 @@ zenoh-flat = { path = "../zenoh-flat" }
 konst = "0.3.0"
 [lib]
 name = "zenoh_jni"
-crate_type = ["staticlib", "dylib"]
+crate-type = ["staticlib", "dylib"]
 
 [build-dependencies]
 rustc_version = "0.4.0"
