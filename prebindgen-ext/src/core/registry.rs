@@ -290,7 +290,7 @@ impl Registry {
         match &f.sig.output {
             syn::ReturnType::Default => {}
             syn::ReturnType::Type(_, ty) => {
-                if !is_unit(ty) {
+                if !is_unit(ty) && !is_result_of_unit(ty) {
                     self.register_type_recursive(Direction::Output, ty, true, loc)?;
                 }
             }
@@ -475,6 +475,27 @@ pub fn immediate_subtype_positions(ty: &syn::Type) -> Vec<syn::Type> {
 
 fn is_unit(ty: &syn::Type) -> bool {
     matches!(ty, syn::Type::Tuple(t) if t.elems.is_empty())
+}
+
+/// True iff `ty` is `ZResult<()>` (or any `<...>::ZResult<()>` path).
+/// Treated as a no-output return at scan time — like bare `()` — so it
+/// doesn't pollute `output_types` with an entry that has no meaningful
+/// converter.
+fn is_result_of_unit(ty: &syn::Type) -> bool {
+    if let syn::Type::Path(tp) = ty {
+        if let Some(last) = tp.path.segments.last() {
+            if last.ident == "ZResult" {
+                if let syn::PathArguments::AngleBracketed(ab) = &last.arguments {
+                    if ab.args.len() == 1 {
+                        if let Some(syn::GenericArgument::Type(inner)) = ab.args.first() {
+                            return is_unit(inner);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 /// If `ty` is `impl Fn(T1, T2, ...) + Send + Sync + 'static`, return the

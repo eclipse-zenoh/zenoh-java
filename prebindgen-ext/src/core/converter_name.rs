@@ -15,6 +15,8 @@ use std::hash::{Hash, Hasher};
 use proc_macro2::Span;
 use quote::ToTokens;
 
+use crate::core::registry::extract_fn_trait_args;
+
 /// Build the converter name for converting from `rust` to `wire` (input
 /// direction: wire → rust). Format: `<rust_id>_to_<wire_id>_<hash>`.
 pub fn input_name(rust: &syn::Type, wire: &syn::Type) -> syn::Ident {
@@ -32,11 +34,38 @@ pub fn output_name(rust: &syn::Type, wire: &syn::Type) -> syn::Ident {
 }
 
 fn name(rust: &syn::Type, wire: &syn::Type) -> syn::Ident {
+    // Special case: `impl Fn(T1, T2, ...) + Send + Sync + 'static` keeps the
+    // legacy naming `process_kotlin_<Stem>_callback` so existing downstream
+    // call sites continue to resolve. Stem = concatenated bare ident of
+    // each Fn arg's last path segment (matches today's
+    // `CallbacksConverter::derive_stem`).
+    if let Some(args) = extract_fn_trait_args(rust) {
+        let stem = derive_callback_stem(&args);
+        let s = format!("process_kotlin_{}_callback", stem);
+        return syn::Ident::new(&s, Span::call_site());
+    }
     let rust_id = sanitize(&rust.to_token_stream().to_string());
     let wire_id = wire_short(wire);
     let h = hash_pair(rust, wire);
     let s = format!("{}_to_{}_{:08x}", rust_id, wire_id, h & 0xffff_ffff);
     syn::Ident::new(&s, Span::call_site())
+}
+
+fn derive_callback_stem(args: &[syn::Type]) -> String {
+    if args.is_empty() {
+        return "Empty".into();
+    }
+    let mut s = String::new();
+    for a in args {
+        if let syn::Type::Path(tp) = a {
+            if let Some(last) = tp.path.segments.last() {
+                s.push_str(&last.ident.to_string());
+                continue;
+            }
+        }
+        s.push_str("Unknown");
+    }
+    s
 }
 
 /// Sanitise a type's canonical token stream into a Rust ident fragment:

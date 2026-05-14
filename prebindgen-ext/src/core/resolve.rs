@@ -70,42 +70,37 @@ impl std::fmt::Display for ResolveError {
 impl std::error::Error for ResolveError {}
 
 /// Top-level resolution entry point.
+///
+/// Runs ONE big fixed-point loop covering both directions and all ranks.
+/// Each iteration sweeps every unresolved entry (both input and output) at
+/// every rank; deltas are collected without mutating the registry, then
+/// applied at the end of the iteration. Loops until a full sweep produces
+/// zero deltas.
+///
+/// The single-loop design lets cross-direction dependencies converge: e.g.
+/// `impl Fn(Sample)` is an INPUT entry whose callback wrapper needs
+/// `Sample`'s OUTPUT converter (callback args flow Rust→Kotlin). Sample's
+/// output resolves in the same iteration as everything else, then
+/// `impl Fn(Sample)`'s rank-1 attempt succeeds in the next.
 pub fn resolve<E: PrebindgenExt>(
     registry: &mut Registry,
     ext: &E,
 ) -> Result<(), ResolveError> {
-    for &dir in &[Direction::Input, Direction::Output] {
-        resolve_direction(registry, ext, dir);
+    loop {
+        let mut deltas_in: Vec<(usize, TypeKey, TypeEntry)> = Vec::new();
+        let mut deltas_out: Vec<(usize, TypeKey, TypeEntry)> = Vec::new();
+        for n in 0..=MAX_RANK {
+            deltas_in.extend(collect_phase_deltas(registry, Direction::Input, n, ext));
+            deltas_out.extend(collect_phase_deltas(registry, Direction::Output, n, ext));
+        }
+        if deltas_in.is_empty() && deltas_out.is_empty() {
+            break;
+        }
+        apply_deltas(registry, Direction::Input, deltas_in);
+        apply_deltas(registry, Direction::Output, deltas_out);
     }
     propagate_required(registry);
     final_invariant_check(registry)
-}
-
-/// Run rank phases 0..=3 on a single direction.
-fn resolve_direction<E: PrebindgenExt>(registry: &mut Registry, ext: &E, dir: Direction) {
-    // Phase 0 — try rank_0 on every unresolved type, regardless of bucket.
-    fixed_point_phase(registry, dir, 0, ext);
-    // Phases 1..3 — wildcard substitutions.
-    for n in 1..=MAX_RANK {
-        fixed_point_phase(registry, dir, n, ext);
-    }
-}
-
-/// One rank-N phase, with the PASS A (read) / PASS B (apply) loop until
-/// no progress.
-fn fixed_point_phase<E: PrebindgenExt>(
-    registry: &mut Registry,
-    dir: Direction,
-    n: usize,
-    ext: &E,
-) {
-    loop {
-        let deltas = collect_phase_deltas(registry, dir, n, ext);
-        if deltas.is_empty() {
-            break;
-        }
-        apply_deltas(registry, dir, deltas);
-    }
 }
 
 /// PASS A — walk every unresolved entry in buckets `n..=MAX_RANK`, ask the

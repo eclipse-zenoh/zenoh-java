@@ -13,14 +13,21 @@
 //
 
 // Types referenced by the generated `zenoh_flat_jni.rs` below must be in scope.
+use std::time::Duration;
 use zenoh::{
+    bytes::Encoding,
     config::Config,
+    key_expr::KeyExpr as ZKeyExpr,
     pubsub::{Publisher, Subscriber},
-    query::{Querier, Queryable},
-    session::Session,
+    qos::{CongestionControl, Priority, Reliability},
+    query::{ConsolidationMode, Querier, Queryable, QueryTarget, ReplyKeyExpr, Selector, SetIntersectionLevel},
+    session::{Session, ZenohId},
 };
+use zenoh_flat::keyexpr::KeyExpr;
 use zenoh_flat::sample::Sample;
 #[cfg(feature = "zenoh-ext")]
 use zenoh_ext::{AdvancedPublisher, AdvancedSubscriber};
+#[cfg(feature = "zenoh-ext")]
+use zenoh_flat::structs::{CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig};
 
 include!(concat!(env!("OUT_DIR"), "/zenoh_flat_jni.rs"));

@@ -132,12 +132,27 @@ impl PrebindgenExt for JniExt {
         body: &syn::Expr,
     ) -> syn::ItemFn {
         let zresult = &self.zresult;
-        syn::parse_quote!(
-            #[allow(non_snake_case, unused_mut, unused_variables, dead_code)]
-            pub(crate) unsafe fn #name(env: &mut jni::JNIEnv, v: #wire) -> #zresult<#rust> {
-                Ok(#body)
-            }
-        )
+        // Wire is taken by reference to match the existing JNI calling
+        // convention (downstream code passes `&JObject`, `&JString`, etc).
+        // Primitive jXxx wires are Copy so &jlong dereferences ergonomically
+        // in expressions.
+        if matches!(wire, syn::Type::Ptr(_)) {
+            // Raw pointers (e.g. `*const Session`) take by value — they're
+            // Copy and don't benefit from the &ref convention.
+            syn::parse_quote!(
+                #[allow(non_snake_case, unused_mut, unused_variables, dead_code)]
+                pub(crate) unsafe fn #name<'a>(env: &mut jni::JNIEnv<'a>, v: #wire) -> #zresult<#rust> {
+                    Ok(#body)
+                }
+            )
+        } else {
+            syn::parse_quote!(
+                #[allow(non_snake_case, unused_mut, unused_variables, dead_code)]
+                pub(crate) unsafe fn #name<'a>(env: &mut jni::JNIEnv<'a>, v: &#wire) -> #zresult<#rust> {
+                    Ok(#body)
+                }
+            )
+        }
     }
 
     fn wrap_output_converter(
@@ -150,7 +165,7 @@ impl PrebindgenExt for JniExt {
         let zresult = &self.zresult;
         syn::parse_quote!(
             #[allow(non_snake_case, unused_mut, unused_variables, dead_code)]
-            pub(crate) unsafe fn #name(env: &mut jni::JNIEnv, v: &#rust) -> #zresult<#wire> {
+            pub(crate) unsafe fn #name<'a>(env: &mut jni::JNIEnv<'a>, v: &#rust) -> #zresult<#wire> {
                 Ok(#body)
             }
         )
@@ -191,7 +206,7 @@ impl PrebindgenExt for JniExt {
         // Bare-ident type that names a #[prebindgen] struct → build decode.
         if let Some(name) = bare_path_ident(ty) {
             if let Some((s, _)) = registry.structs.get(&name) {
-                return Some(struct_input_body(self, s, registry));
+                return struct_input_body(self, s, registry);
             }
             // Bare-ident enum: leave to the consuming crate to override
             // (today's CongestionControl etc. fall here — caller's wrapper
@@ -262,7 +277,7 @@ impl PrebindgenExt for JniExt {
         }
         if let Some(name) = bare_path_ident(ty) {
             if let Some((s, _)) = registry.structs.get(&name) {
-                return Some(struct_output_body(self, s, registry));
+                return struct_output_body(self, s, registry);
             }
         }
         None
@@ -359,7 +374,7 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry)
     let (wire_return, wrap_ok, on_err): (TokenStream, TokenStream, TokenStream) =
         match &f.sig.output {
             syn::ReturnType::Default => (quote!(()), quote!(Ok(())), quote!(())),
-            syn::ReturnType::Type(_, ty) if is_unit(ty) => {
+            syn::ReturnType::Type(_, ty) if is_unit(ty) || is_result_of_unit(ty) => {
                 (quote!(()), quote!(Ok(())), quote!(()))
             }
             syn::ReturnType::Type(_, ty) => {
@@ -412,6 +427,19 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry)
                 .unwrap_or_else(|err| {
                     #throw!(env, err);
                     #on_err
+                })
+            }
+        },
+        syn::ReturnType::Type(_, ty) if is_result_of_unit(ty) => quote! {
+            {
+                (|| -> #zresult<()> {
+                    #(#prelude)*
+                    #call_expr?;
+                    Ok(())
+                })()
+                .unwrap_or_else(|err| {
+                    #throw!(env, err);
+                    ()
                 })
             }
         },
@@ -480,28 +508,29 @@ fn sentinel_for_wire(wire: &syn::Type) -> TokenStream {
 
 fn primitive_input(ty: &syn::Type) -> Option<(syn::Type, syn::Expr)> {
     let key = TypeKey::from_type(ty).as_str().to_string();
+    // Bodies receive `v: &<wire>`; primitives are Copy so `*v` works.
     Some(match key.as_str() {
         "bool" => (
             syn::parse_quote!(jni::sys::jboolean),
-            syn::parse_quote!(v != 0),
+            syn::parse_quote!(*v != 0),
         ),
         "i64" => (
             syn::parse_quote!(jni::sys::jlong),
-            syn::parse_quote!(v),
+            syn::parse_quote!(*v),
         ),
         "f64" => (
             syn::parse_quote!(jni::sys::jdouble),
-            syn::parse_quote!(v),
+            syn::parse_quote!(*v),
         ),
         "Duration" | "std :: time :: Duration" => (
             syn::parse_quote!(jni::sys::jlong),
-            syn::parse_quote!(std::time::Duration::from_millis(v as u64)),
+            syn::parse_quote!(std::time::Duration::from_millis(*v as u64)),
         ),
         "String" => (
             syn::parse_quote!(jni::objects::JString),
             syn::parse_quote!({
                 let s = env
-                    .get_string(&v)
+                    .get_string(v)
                     .map_err(|e| crate::errors::ZError(format!("decode_string: {}", e)))?;
                 s.into()
             }),
@@ -509,7 +538,7 @@ fn primitive_input(ty: &syn::Type) -> Option<(syn::Type, syn::Expr)> {
         "Vec < u8 >" => (
             syn::parse_quote!(jni::objects::JByteArray),
             syn::parse_quote!({
-                env.convert_byte_array(&v)
+                env.convert_byte_array(v)
                     .map_err(|e| crate::errors::ZError(format!("decode_byte_array: {}", e)))?
             }),
         ),
@@ -823,13 +852,13 @@ fn struct_input_body(
     ext: &JniExt,
     s: &syn::ItemStruct,
     registry: &Registry,
-) -> (syn::Type, syn::Expr) {
+) -> Option<(syn::Type, syn::Expr)> {
     let struct_name = s.ident.to_string();
     let struct_module = struct_module_path(ext, s);
     let struct_ident = &s.ident;
 
     let syn::Fields::Named(named) = &s.fields else {
-        panic!("JniExt: struct `{struct_name}` is not named-field");
+        return None;
     };
 
     let mut field_preludes: Vec<TokenStream> = Vec::new();
@@ -842,14 +871,9 @@ fn struct_input_body(
         let err_prefix = format!("{struct_name}.{camel}: {{}}");
         let raw_ident = format_ident!("__{}_raw", fname_ident);
 
-        let field_entry = lookup_input_resolved(registry, &field.ty).unwrap_or_else(|| {
-            panic!(
-                "JniExt: struct `{}` field `{}: {}` is unresolved as input",
-                struct_name,
-                fname,
-                field.ty.to_token_stream()
-            )
-        });
+        // Defer if any field's input converter isn't resolved yet — the
+        // fixed-point loop will retry on the next iteration.
+        let field_entry = lookup_input_resolved(registry, &field.ty)?;
         let field_wire = field_entry.destination.clone();
         let field_conv = input_name(&field.ty, &field_wire);
 
@@ -889,14 +913,14 @@ fn struct_input_body(
         #(#field_preludes)*
         #struct_module::#struct_ident { #(#field_init),* }
     });
-    (syn::parse_quote!(jni::objects::JObject), body)
+    Some((syn::parse_quote!(jni::objects::JObject), body))
 }
 
 fn struct_output_body(
     ext: &JniExt,
     s: &syn::ItemStruct,
     registry: &Registry,
-) -> (syn::Type, syn::Expr) {
+) -> Option<(syn::Type, syn::Expr)> {
     let struct_name = s.ident.to_string();
     let java_class_name = if ext.java_class_prefix.is_empty() {
         struct_name.clone()
@@ -905,7 +929,7 @@ fn struct_output_body(
     };
 
     let syn::Fields::Named(named) = &s.fields else {
-        panic!("JniExt: struct `{struct_name}` is not named-field");
+        return None;
     };
 
     let mut field_preludes: Vec<TokenStream> = Vec::new();
@@ -918,14 +942,8 @@ fn struct_output_body(
         let encoded_ident = format_ident!("__{}_encoded", fname_ident);
         let encoded_obj_ident = format_ident!("__{}_encoded_obj", fname_ident);
 
-        let field_entry = lookup_output_resolved(registry, &field.ty).unwrap_or_else(|| {
-            panic!(
-                "JniExt: struct `{}` field `{}: {}` is unresolved as output",
-                struct_name,
-                fname_ident,
-                field.ty.to_token_stream()
-            )
-        });
+        // Defer if any field's output converter isn't resolved yet.
+        let field_entry = lookup_output_resolved(registry, &field.ty)?;
         let field_wire = field_entry.destination.clone();
         let field_conv = output_name(&field.ty, &field_wire);
 
@@ -968,7 +986,7 @@ fn struct_output_body(
         .map_err(|e| crate::errors::ZError(format!("encode struct: {}", e)))?;
         __obj
     });
-    (syn::parse_quote!(jni::objects::JObject), body)
+    Some((syn::parse_quote!(jni::objects::JObject), body))
 }
 
 fn struct_module_path(ext: &JniExt, s: &syn::ItemStruct) -> syn::Path {
@@ -1113,6 +1131,23 @@ fn bare_path_ident(ty: &syn::Type) -> Option<syn::Ident> {
 
 fn is_unit(ty: &syn::Type) -> bool {
     matches!(ty, syn::Type::Tuple(t) if t.elems.is_empty())
+}
+
+fn is_result_of_unit(ty: &syn::Type) -> bool {
+    if let syn::Type::Path(tp) = ty {
+        if let Some(last) = tp.path.segments.last() {
+            if last.ident == "ZResult" {
+                if let syn::PathArguments::AngleBracketed(ab) = &last.arguments {
+                    if ab.args.len() == 1 {
+                        if let Some(syn::GenericArgument::Type(inner)) = ab.args.first() {
+                            return is_unit(inner);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 fn lookup_input_resolved<'a>(
