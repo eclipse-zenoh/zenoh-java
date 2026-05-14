@@ -1,27 +1,21 @@
-//! Universal, language-agnostic primitives for converting `#[prebindgen]`
-//! items into a destination Rust include file.
+//! Core: language-agnostic primitives for the Registry-based pipeline.
 //!
-//! Two converters split the work along the natural axis:
+//! Pipeline shape:
+//!   1. [`registry::Registry::from_source`] — scan a `prebindgen::Source`
+//!      into a flat type table.
+//!   2. [`resolve::resolve`] — fixed-point loop driving the configured
+//!      [`prebindgen_ext::PrebindgenExt`] across all rank phases and both
+//!      directions.
+//!   3. [`write::write_rust`] — emit the resolved bindings file.
+//!   4. (Destination-language Kotlin emission lives in `crate::kotlin`.)
 //!
-//! * [`TypesConverter`] consumes `#[prebindgen]` `syn::ItemStruct`s and
-//!   delegates per-struct emission to a [`StructStrategy`].
-//! * [`FunctionsConverter`] consumes `#[prebindgen]` `syn::ItemFn`s and
-//!   delegates per-function body emission to a [`BodyStrategy`].
-//!
-//! Both converters share a [`TypeRegistry`] of [`TypeBinding`]s that
-//! describes how each Rust type-shape is carried across the FFI boundary.
-//!
-//! Two reference targets are expected to be expressible as configurations
-//! of these converters:
-//!
-//! 1. JNI/Kotlin (today), via the `prebindgen-ext::jni` and
-//!    `prebindgen-ext::kotlin` modules.
-//! 2. C/cbindgen (future), via a `ReprCStruct` strategy + `PassThroughBody`
-//!    body strategy + `NameMangler::Identity`. See the doc comment on
-//!    [`FunctionsConverter`] for the mapping sketch.
+//! `inline_fn`, `name_mangler`, `type_binding`, `type_registry` are kept
+//! transitionally; they're only referenced by the unmigrated
+//! [`crate::kotlin::KotlinInterfaceGenerator`] which still consumes the
+//! old `TypeRegistry` shape. They will be removed once that generator
+//! lands on the new `Registry`.
 
 pub mod converter_name;
-pub mod functions_converter;
 pub mod inline_fn;
 pub mod name_mangler;
 pub mod prebindgen_ext;
@@ -29,16 +23,9 @@ pub mod registry;
 pub mod resolve;
 pub mod type_binding;
 pub mod type_registry;
-pub mod types_converter;
 pub mod write;
 
-pub use functions_converter::{
-    BodyContext, BodyStrategy, FunctionsBuilder, FunctionsConverter, PassThroughBody,
-};
-pub use inline_fn::{InputFn, OutputFn, NO_INPUT, NO_OUTPUT};
-pub use name_mangler::NameMangler;
 pub use type_registry::{
-    primitive_builtins, TypeRegistry,
-    input_result, output_result, result_wire_type,
+    input_option, input_result, nullable_to_option, option_to_nullable, option_wire_type,
+    output_option, output_result, primitive_builtins, result_wire_type, TypeRegistry,
 };
-pub use types_converter::{StructStrategy, TypesBuilder, TypesConverter};

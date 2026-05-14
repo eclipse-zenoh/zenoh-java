@@ -1,24 +1,24 @@
-//! Universal converters for `#[prebindgen]` items, plus destination-
-//! language helpers (JNI strategies and Kotlin interface generation).
+//! Registry-based universal converter pipeline for `#[prebindgen]` items.
 //!
-//! See [`core`] for the language-agnostic `TypesConverter` /
-//! `FunctionsConverter` primitives, [`jni`] for the JNI-flavoured
-//! strategies and convenience builders, and [`kotlin`] for the
-//! Kotlin interface declaration generator.
+//! Pipeline:
+//!   1. [`core::registry::Registry::from_source`] scans a `prebindgen::Source`.
+//!   2. [`core::resolve::resolve`] drives a [`core::prebindgen_ext::PrebindgenExt`]
+//!      until every required type has a converter.
+//!   3. [`core::write::write_rust`] emits the bindings file.
+//!   4. [`kotlin::write_kotlin`] (optional) emits Kotlin output via a
+//!      [`kotlin::KotlinExt`] implementation.
+//!
+//! The [`jni::JniExt`] back-end implements both traits and is the
+//! reference language module.
 
 pub mod core;
 pub mod jni;
 pub mod kotlin;
 mod util;
 
-pub use core::{
-    BodyContext, BodyStrategy, FunctionsBuilder, FunctionsConverter, NameMangler,
-    PassThroughBody, StructStrategy, TypeRegistry, TypesBuilder, TypesConverter,
-};
+// Re-exports kept alive transitionally for the unmigrated
+// `KotlinInterfaceGenerator`. They will go away once Kotlin gen lands on
+// the new Registry.
 pub use core::type_binding::TypeBinding;
-pub use core::type_registry::{
-    input_option, output_option, option_wire_type, nullable_to_option, option_to_nullable,
-    input_result, output_result, result_wire_type,
-};
-pub use jni::{JniDecoderStruct, JniTryClosureBody};
+pub use core::TypeRegistry;
 pub use kotlin::{KotlinInterfaceBuilder, KotlinInterfaceGenerator, KotlinTypeMap};
