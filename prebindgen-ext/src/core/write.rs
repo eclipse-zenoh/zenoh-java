@@ -193,9 +193,10 @@ mod tests {
         }
         let items = collect_converter_items(&reg, &Stub);
         assert_eq!(items.len(), 2);
-        // Sorted by name string: Sample_to_JObject_<hash> vs u64_to_jlong_<hash>.
-        // Capital S < lowercase u in ASCII so Sample comes first.
-        assert!(items[0].0.to_string().starts_with("Sample_to_JObject_"));
-        assert!(items[1].0.to_string().starts_with("u64_to_jlong_"));
+        // Input names use <wire>_to_<rust>_<hash>. Sorted ASCII:
+        //   JObject_to_Sample_xxxx  (uppercase J < lowercase j)
+        //   jlong_to_u64_xxxx
+        assert!(items[0].0.to_string().starts_with("JObject_to_Sample_"));
+        assert!(items[1].0.to_string().starts_with("jlong_to_u64_"));
     }
 }

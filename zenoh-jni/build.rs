@@ -35,6 +35,7 @@ impl ZenohJniExt {
     }
 
     /// jint→enum decode helpers exposed by `crate::utils` in zenoh-jni.
+    /// Wrapper takes v: &jint, but the decode helpers want a jint by value.
     fn jint_enum_decode(&self, ty_name: &str) -> Option<(syn::Type, syn::Expr)> {
         let path: syn::Path = match ty_name {
             "CongestionControl" => syn::parse_quote!(crate::utils::decode_congestion_control),
@@ -47,7 +48,7 @@ impl ZenohJniExt {
         };
         Some((
             syn::parse_quote!(jni::sys::jint),
-            syn::parse_quote!(#path(v)?),
+            syn::parse_quote!(#path(*v)?),
         ))
     }
 
@@ -119,9 +120,9 @@ impl PrebindgenExt for ZenohJniExt {
         if key == "Option < ZKeyExpr < 'static > >" {
             return Some((
                 syn::parse_quote!(jni::sys::jlong),
-                syn::parse_quote!(if v != 0 {
+                syn::parse_quote!(if *v != 0 {
                     Some(unsafe {
-                        let raw = v as *const zenoh::key_expr::KeyExpr<'static>;
+                        let raw = *v as *const zenoh::key_expr::KeyExpr<'static>;
                         (*raw).clone()
                     })
                 } else {
@@ -157,25 +158,22 @@ impl PrebindgenExt for ZenohJniExt {
             ));
         }
 
-        // Opaque borrows / consumes (Arc<T> as *const T pointers)
+        // Opaque inputs — `&Session`, `&Config` are stripped to bare
+        // `Session` / `Config` in scan/on_function. Register the bare
+        // type's input here.
         for (key_pat, ty_path) in [
-            ("& Session",    "Session"),
-            ("& Config",     "Config"),
+            ("Session", "Session"),
+            ("Config",  "Config"),
         ] {
             if key == key_pat {
                 let path: syn::Path = syn::parse_str(ty_path).unwrap();
                 return Some((
                     syn::parse_quote!(*const #path),
-                    syn::parse_quote!(crate::owned_object::OwnedObject::from_raw(v)),
+                    // Wire is *const T (Copy ptr). Consume Arc and clone the
+                    // inner T so callers get an owned value they can borrow.
+                    syn::parse_quote!((*std::sync::Arc::from_raw(v)).clone()),
                 ));
             }
-        }
-        if key == "Session" {
-            // drop_session(session: Session) consumes the Arc.
-            return Some((
-                syn::parse_quote!(*const Session),
-                syn::parse_quote!((*std::sync::Arc::from_raw(v)).clone()),
-            ));
         }
 
         // Fall through to base
@@ -197,13 +195,12 @@ impl PrebindgenExt for ZenohJniExt {
     fn on_output_type_rank_0(&self, ty: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn::Expr)> {
         let key = TypeKey::from_type(ty).as_str().to_string();
 
-        // Option<ZKeyExpr<'static>> output
+        // Option<ZKeyExpr<'static>> output (v: Option<ZKeyExpr<'static>>, by value)
         if key == "Option < ZKeyExpr < 'static > >" {
             return Some((
                 syn::parse_quote!(jni::sys::jlong),
                 syn::parse_quote!(v
-                    .as_ref()
-                    .map(|val| std::sync::Arc::into_raw(std::sync::Arc::new(val.clone())) as i64)
+                    .map(|val| std::sync::Arc::into_raw(std::sync::Arc::new(val)) as i64)
                     .unwrap_or(0)),
             ));
         }
@@ -218,25 +215,26 @@ impl PrebindgenExt for ZenohJniExt {
         if key == "SetIntersectionLevel" {
             return Some((
                 syn::parse_quote!(jni::sys::jint),
-                syn::parse_quote!(*v as jni::sys::jint),
+                syn::parse_quote!(v as jni::sys::jint),
             ));
         }
         // ZenohId → byte array
         if key == "ZenohId" {
             return Some((
                 syn::parse_quote!(jni::sys::jbyteArray),
-                syn::parse_quote!(crate::zenoh_id::zenoh_id_to_byte_array(env, v.clone())?),
+                syn::parse_quote!(crate::zenoh_id::zenoh_id_to_byte_array(env, v)?),
             ));
         }
         // Vec<ZenohId> → java.util.List<ByteArray>
         if key == "Vec < ZenohId >" {
             return Some((
                 syn::parse_quote!(jni::sys::jobject),
-                syn::parse_quote!(crate::zenoh_id::zenoh_ids_to_java_list(env, v.clone())?),
+                syn::parse_quote!(crate::zenoh_id::zenoh_ids_to_java_list(env, v)?),
             ));
         }
 
-        // Arc-into-raw returns: every opaque handle.
+        // Arc-into-raw returns: every opaque handle. Output wrapper takes
+        // v by value (move) — handles like Subscriber<()> aren't Clone.
         for opaque in [
             "Session",
             "Publisher < 'static >",
@@ -250,7 +248,7 @@ impl PrebindgenExt for ZenohJniExt {
                 let inner: syn::Type = syn::parse_str(opaque).unwrap();
                 return Some((
                     syn::parse_quote!(*const #inner),
-                    syn::parse_quote!(std::sync::Arc::into_raw(std::sync::Arc::new(v.clone()))),
+                    syn::parse_quote!(std::sync::Arc::into_raw(std::sync::Arc::new(v))),
                 ));
             }
         }

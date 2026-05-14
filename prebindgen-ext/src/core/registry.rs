@@ -283,14 +283,29 @@ impl Registry {
                     if !matches!(&*pt.pat, syn::Pat::Ident(_)) {
                         return Err(ScanError::UnsupportedParamPattern { loc: loc.clone() });
                     }
-                    self.register_type_recursive(Direction::Input, &pt.ty, true, loc)?;
+                    // `&T` borrow params register the inner T (not &T):
+                    // a converter can never return `&T` because it would
+                    // have nowhere to borrow from. The on_function wrapper
+                    // synthesizes `&decoded` at the call site.
+                    let register_ty: syn::Type = match &*pt.ty {
+                        syn::Type::Reference(r) => (*r.elem).clone(),
+                        _ => (*pt.ty).clone(),
+                    };
+                    self.register_type_recursive(Direction::Input, &register_ty, true, loc)?;
                 }
             }
         }
         match &f.sig.output {
             syn::ReturnType::Default => {}
             syn::ReturnType::Type(_, ty) => {
-                if !is_unit(ty) && !is_result_of_unit(ty) {
+                if is_unit(ty) || is_result_of_unit(ty) {
+                    // No output to register.
+                } else if let Some(inner) = result_inner(ty) {
+                    // ZResult<T>: the body strategy unwraps via `?` and
+                    // passes the inner T to the encoder. Register T,
+                    // not ZResult<T>.
+                    self.register_type_recursive(Direction::Output, &inner, true, loc)?;
+                } else {
                     self.register_type_recursive(Direction::Output, ty, true, loc)?;
                 }
             }
@@ -478,24 +493,26 @@ fn is_unit(ty: &syn::Type) -> bool {
 }
 
 /// True iff `ty` is `ZResult<()>` (or any `<...>::ZResult<()>` path).
-/// Treated as a no-output return at scan time — like bare `()` — so it
-/// doesn't pollute `output_types` with an entry that has no meaningful
-/// converter.
 fn is_result_of_unit(ty: &syn::Type) -> bool {
+    result_inner(ty).map(|t| is_unit(&t)).unwrap_or(false)
+}
+
+/// If `ty` is `ZResult<T>` (any path ending in `ZResult`), return T.
+pub fn result_inner(ty: &syn::Type) -> Option<syn::Type> {
     if let syn::Type::Path(tp) = ty {
         if let Some(last) = tp.path.segments.last() {
             if last.ident == "ZResult" {
                 if let syn::PathArguments::AngleBracketed(ab) = &last.arguments {
                     if ab.args.len() == 1 {
                         if let Some(syn::GenericArgument::Type(inner)) = ab.args.first() {
-                            return is_unit(inner);
+                            return Some(inner.clone());
                         }
                     }
                 }
             }
         }
     }
-    false
+    None
 }
 
 /// If `ty` is `impl Fn(T1, T2, ...) + Send + Sync + 'static`, return the

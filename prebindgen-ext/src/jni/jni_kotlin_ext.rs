@@ -50,7 +50,12 @@ impl KotlinExt for JniExt {
                     let ty = key.to_type();
                     if let Some(args) = extract_fn_trait_args(&ty) {
                         let file = build_callback_kotlin_file(self, &args, registry);
-                        let path = file.write(&target_dir)?;
+                        // Write directly under target_dir (which is already
+                        // the package-qualified callbacks directory),
+                        // bypassing KotlinFile::write's package-nesting.
+                        std::fs::create_dir_all(&target_dir)?;
+                        let path = target_dir.join(format!("{}.kt", file.class_name));
+                        std::fs::write(&path, &file.contents)?;
                         written.push(path);
                     }
                 }

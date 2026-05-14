@@ -30,7 +30,7 @@ use quote::{format_ident, quote, ToTokens};
 
 use crate::core::converter_name::{input_name, output_name};
 use crate::core::prebindgen_ext::PrebindgenExt;
-use crate::core::registry::{extract_fn_trait_args, Registry, TypeKey};
+use crate::core::registry::{extract_fn_trait_args, result_inner, Registry, TypeKey};
 use crate::jni::wire_access::jni_field_access;
 use crate::util::snake_to_camel;
 
@@ -132,23 +132,19 @@ impl PrebindgenExt for JniExt {
         body: &syn::Expr,
     ) -> syn::ItemFn {
         let zresult = &self.zresult;
-        // Wire is taken by reference to match the existing JNI calling
-        // convention (downstream code passes `&JObject`, `&JString`, etc).
-        // Primitive jXxx wires are Copy so &jlong dereferences ergonomically
-        // in expressions.
+        let rust_with_lifetime = annotate_borrow_with_lifetime(rust, "env");
+        let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "v");
         if matches!(wire, syn::Type::Ptr(_)) {
-            // Raw pointers (e.g. `*const Session`) take by value — they're
-            // Copy and don't benefit from the &ref convention.
             syn::parse_quote!(
                 #[allow(non_snake_case, unused_mut, unused_variables, dead_code)]
-                pub(crate) unsafe fn #name<'a>(env: &mut jni::JNIEnv<'a>, v: #wire) -> #zresult<#rust> {
+                pub(crate) unsafe fn #name<'env>(env: &mut jni::JNIEnv<'env>, v: #wire) -> #zresult<#rust_with_lifetime> {
                     Ok(#body)
                 }
             )
         } else {
             syn::parse_quote!(
                 #[allow(non_snake_case, unused_mut, unused_variables, dead_code)]
-                pub(crate) unsafe fn #name<'a>(env: &mut jni::JNIEnv<'a>, v: &#wire) -> #zresult<#rust> {
+                pub(crate) unsafe fn #name<'env, 'v>(env: &mut jni::JNIEnv<'env>, v: &#wire_with_lifetime) -> #zresult<#rust_with_lifetime> {
                     Ok(#body)
                 }
             )
@@ -163,9 +159,13 @@ impl PrebindgenExt for JniExt {
         body: &syn::Expr,
     ) -> syn::ItemFn {
         let zresult = &self.zresult;
+        let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "a");
+        // Output wrappers take rust by value (move) — handles like
+        // Subscriber<()> don't implement Clone, so body can't go through
+        // (*v).clone(). Bodies that need to consume v can move it.
         syn::parse_quote!(
             #[allow(non_snake_case, unused_mut, unused_variables, dead_code)]
-            pub(crate) unsafe fn #name<'a>(env: &mut jni::JNIEnv<'a>, v: &#rust) -> #zresult<#wire> {
+            pub(crate) unsafe fn #name<'a>(env: &mut jni::JNIEnv<'a>, v: #rust) -> #zresult<#wire_with_lifetime> {
                 Ok(#body)
             }
         )
@@ -289,16 +289,7 @@ impl PrebindgenExt for JniExt {
         t1: &syn::Type,
         registry: &Registry,
     ) -> Option<(syn::Type, syn::Expr)> {
-        // ZResult<_> — body strategy in on_function already unwraps via `?`,
-        // so the encoder sees the inner T directly. The output converter
-        // for ZResult<T> just delegates to T's output converter.
-        if pat_match(pat, "ZResult < _ >") {
-            let inner_entry = lookup_output_resolved(registry, t1)?;
-            let wire = inner_entry.destination.clone();
-            let inner_name = output_name(t1, &wire);
-            let body: syn::Expr = syn::parse_quote!(#inner_name(env, v)?);
-            return Some((wire, body));
-        }
+        // ZResult<T> never appears as an output entry — scan unwraps it.
         // Option<_> output
         if pat_match(pat, "Option < _ >") {
             return option_output(t1, registry);
@@ -348,22 +339,40 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry)
         let arg_ident = &pat_id.ident;
         let arg_ty = &*pt.ty;
 
-        let key = TypeKey::from_type(arg_ty);
+        // For `&T` borrow params: look up T's converter (not &T's), then
+        // synthesize the borrow at the call site. Avoids the impossible
+        // task of having a converter return a `&T` (it has nowhere to
+        // borrow from). ZenohJniExt's `&Config`/`&Session` etc. arms
+        // become unnecessary — KeyExpr/Config/Session's own input arms
+        // (or auto-generation) cover them.
+        let lookup_ty: syn::Type = match arg_ty {
+            syn::Type::Reference(r) => (*r.elem).clone(),
+            _ => arg_ty.clone(),
+        };
+        let key = TypeKey::from_type(&lookup_ty);
         let entry = lookup_input_resolved_by_key(registry, &key).unwrap_or_else(|| {
             panic!(
-                "JniExt::on_function: input type `{}` for `{}` is unresolved",
-                key, original_ident
+                "JniExt::on_function: input type `{}` (lookup for `{}`) for `{}` is unresolved",
+                key,
+                arg_ty.to_token_stream(),
+                original_ident,
             )
         });
         let wire = &entry.destination;
-        let conv = input_name(arg_ty, wire);
+        let conv = input_name(&lookup_ty, wire);
         let wire_ident = if matches!(wire, syn::Type::Ptr(_)) {
             format_ident!("{}_ptr", arg_ident)
         } else {
             arg_ident.clone()
         };
-        wire_params.push(quote!(#wire_ident: #wire));
-        prelude.push(quote!(let #arg_ident = #conv(&mut env, #wire_ident)?;));
+        let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "a");
+        wire_params.push(quote!(#wire_ident: #wire_with_lifetime));
+        // Input wrapper takes wires by ref except for raw pointers.
+        if matches!(wire, syn::Type::Ptr(_)) {
+            prelude.push(quote!(let #arg_ident = #conv(&mut env, #wire_ident)?;));
+        } else {
+            prelude.push(quote!(let #arg_ident = #conv(&mut env, &#wire_ident)?;));
+        }
         if matches!(arg_ty, syn::Type::Reference(_)) {
             call_args.push(quote!(&#arg_ident));
         } else {
@@ -378,23 +387,28 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry)
                 (quote!(()), quote!(Ok(())), quote!(()))
             }
             syn::ReturnType::Type(_, ty) => {
-                let key = TypeKey::from_type(ty);
+                // The body strategy unwraps ZResult<T> via `?`, so the
+                // encoder receives the unwrapped T. Look up T's converter,
+                // not ZResult<T>'s.
+                let lookup_ty = result_inner(ty).unwrap_or_else(|| (**ty).clone());
+                let key = TypeKey::from_type(&lookup_ty);
                 let entry = lookup_output_resolved_by_key(registry, &key).unwrap_or_else(|| {
                     panic!(
-                        "JniExt::on_function: return type `{}` for `{}` is unresolved",
-                        key, original_ident
+                        "JniExt::on_function: return type `{}` (encoder for `{}`) for `{}` is unresolved",
+                        key,
+                        ty.to_token_stream(),
+                        original_ident,
                     )
                 });
                 let wire = entry.destination.clone();
-                let conv = output_name(ty, &wire);
-                // The wrapper body assumes the source-module call is the
-                // value being encoded. The body strategy unwraps ZResult<T>
-                // via `?`, so the encoder receives the raw T.
-                let wire_tokens = wire.to_token_stream();
+                let conv = output_name(&lookup_ty, &wire);
+                // Output wrapper takes v by value; pass __result by move.
+                let wire_with_lifetime = annotate_jobject_with_lifetime(&wire, "a");
+                let wire_tokens = wire_with_lifetime.to_token_stream();
                 let on_err_expr: TokenStream = sentinel_for_wire(&wire);
                 (
                     wire_tokens,
-                    quote!(Ok(#conv(&mut env, &__result)?)),
+                    quote!(Ok(#conv(&mut env, __result)?)),
                     on_err_expr,
                 )
             }
@@ -461,9 +475,9 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry)
     quote! {
         #[no_mangle]
         #[allow(non_snake_case, unused_mut, unused_variables, dead_code)]
-        pub unsafe extern "C" fn #wrapper_ident(
-            mut env: jni::JNIEnv,
-            _class: jni::objects::JClass,
+        pub unsafe extern "C" fn #wrapper_ident<'a>(
+            mut env: jni::JNIEnv<'a>,
+            _class: jni::objects::JClass<'a>,
             #(#wire_params),*
         ) -> #wire_return #body
     }
@@ -548,18 +562,20 @@ fn primitive_input(ty: &syn::Type) -> Option<(syn::Type, syn::Expr)> {
 
 fn primitive_output(ty: &syn::Type) -> Option<(syn::Type, syn::Expr)> {
     let key = TypeKey::from_type(ty).as_str().to_string();
+    // Output wrappers take v by value (move). Primitives are Copy, so
+    // `v as wire` works. String/Vec consume v.
     Some(match key.as_str() {
         "bool" => (
             syn::parse_quote!(jni::sys::jboolean),
-            syn::parse_quote!((*v) as jni::sys::jboolean),
+            syn::parse_quote!(v as jni::sys::jboolean),
         ),
         "i64" => (
             syn::parse_quote!(jni::sys::jlong),
-            syn::parse_quote!((*v) as jni::sys::jlong),
+            syn::parse_quote!(v as jni::sys::jlong),
         ),
         "f64" => (
             syn::parse_quote!(jni::sys::jdouble),
-            syn::parse_quote!((*v) as jni::sys::jdouble),
+            syn::parse_quote!(v as jni::sys::jdouble),
         ),
         "String" => (
             syn::parse_quote!(jni::objects::JString),
@@ -631,8 +647,9 @@ fn option_output(t1: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn:
         let box_sig = jni_box_sig(&inner_wire);
         let variant = jni_box_variant(&inner_wire);
         let variant_id = format_ident!("{}", variant);
+        // v is Option<T> by value; consume via match.
         let body: syn::Expr = syn::parse_quote!({
-            match v.as_ref() {
+            match v {
                 Some(value) => {
                     let __raw: #inner_wire = #inner_conv(env, value)?;
                     env.call_static_method(
@@ -651,7 +668,7 @@ fn option_output(t1: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn:
     }
 
     let body: syn::Expr = syn::parse_quote!({
-        match v.as_ref() {
+        match v {
             Some(value) => #inner_conv(env, value)?,
             None => jni::objects::JObject::null().into(),
         }
@@ -761,22 +778,23 @@ fn callback_input(
         let arg_entry = lookup_output_resolved(registry, arg_ty)?;
         let arg_wire = arg_entry.destination.clone();
         let conv = output_name(arg_ty, &arg_wire);
+        // Output wrappers take rust by value (move). cb_arg is the
+        // closure parameter (by value), so pass it directly.
         match jni_field_access(&arg_wire) {
             Some((_, _, false)) => fixed_preludes.push(quote! {
-                let #raw_ident = #cb_arg;
-                let #enc_ident = #conv(&mut env, &#raw_ident)?;
+                let #enc_ident = #conv(&mut env, #cb_arg)?;
             }),
             Some((_, _, true)) => fixed_preludes.push(quote! {
-                let #raw_ident = #cb_arg;
-                let #enc_ident = #conv(&mut env, &#raw_ident)?;
+                let #enc_ident = #conv(&mut env, #cb_arg)?;
                 let #obj_ident: jni::objects::JObject = #enc_ident.into();
             }),
             None if is_jobject_wire(&arg_wire) => fixed_preludes.push(quote! {
-                let #enc_ident = #conv(&mut env, &#cb_arg)?;
+                let #enc_ident = #conv(&mut env, #cb_arg)?;
                 let #obj_ident: jni::objects::JObject = #enc_ident;
             }),
             None => return None,
         }
+        let _ = raw_ident; // unused with by-value flow
     }
 
     let body: syn::Expr = syn::parse_quote!({
@@ -880,29 +898,29 @@ fn struct_input_body(
         match jni_field_access(&field_wire) {
             Some((sig, accessor, false)) => {
                 field_preludes.push(quote! {
-                    let #raw_ident: #field_wire = env.get_field(&v, #camel, #sig)
+                    let #raw_ident: #field_wire = env.get_field(v, #camel, #sig)
                         .and_then(|val| val.#accessor())
                         .map_err(|e| crate::errors::ZError(format!(#err_prefix, e)))? as _;
-                    let #fname_ident = #field_conv(env, #raw_ident)?;
+                    let #fname_ident = #field_conv(env, &#raw_ident)?;
                 });
             }
             Some((sig, _, true)) => {
                 let tmp_ident = format_ident!("__{}_jobj", fname_ident);
                 field_preludes.push(quote! {
-                    let #tmp_ident: jni::objects::JObject = env.get_field(&v, #camel, #sig)
+                    let #tmp_ident: jni::objects::JObject = env.get_field(v, #camel, #sig)
                         .and_then(|val| val.l())
                         .map_err(|e| crate::errors::ZError(format!(#err_prefix, e)))?;
                     let #raw_ident: #field_wire = #tmp_ident.into();
-                    let #fname_ident = #field_conv(env, #raw_ident)?;
+                    let #fname_ident = #field_conv(env, &#raw_ident)?;
                 });
             }
             None => {
-                // Wire is JObject — fetch via .l() and pass directly.
+                // Wire is JObject — fetch via .l() and pass by reference.
                 field_preludes.push(quote! {
-                    let #raw_ident: jni::objects::JObject = env.get_field(&v, #camel, "Ljava/lang/Object;")
+                    let #raw_ident: jni::objects::JObject = env.get_field(v, #camel, "Ljava/lang/Object;")
                         .and_then(|val| val.l())
                         .map_err(|e| crate::errors::ZError(format!(#err_prefix, e)))?;
-                    let #fname_ident = #field_conv(env, #raw_ident)?;
+                    let #fname_ident = #field_conv(env, &#raw_ident)?;
                 });
             }
         }
@@ -948,7 +966,7 @@ fn struct_output_body(
         let field_conv = output_name(&field.ty, &field_wire);
 
         field_preludes.push(quote! {
-            let #field_value_ident = &v.#fname_ident;
+            let #field_value_ident = v.#fname_ident.clone();
             let #encoded_ident = #field_conv(env, #field_value_ident)?;
         });
 
@@ -1108,6 +1126,45 @@ fn jni_prim_name(wire: &syn::Type) -> &str {
         }
     }
     "<not a path>"
+}
+
+/// If `ty` is a `&T` borrow with no explicit lifetime, splice in `'<life>`.
+/// Otherwise return `ty` unchanged.
+fn annotate_borrow_with_lifetime(ty: &syn::Type, life: &str) -> syn::Type {
+    if let syn::Type::Reference(r) = ty {
+        if r.lifetime.is_none() {
+            let mut new = r.clone();
+            new.lifetime = Some(syn::Lifetime::new(&format!("'{}", life), proc_macro2::Span::call_site()));
+            return syn::Type::Reference(new);
+        }
+    }
+    ty.clone()
+}
+
+/// If `ty` is `JObject` / `JString` / `JByteArray` (no explicit angle args),
+/// splice in `<'<life>>`. Otherwise return `ty` unchanged.
+fn annotate_jobject_with_lifetime(ty: &syn::Type, life: &str) -> syn::Type {
+    if let syn::Type::Path(tp) = ty {
+        if let Some(last) = tp.path.segments.last() {
+            let name = last.ident.to_string();
+            if matches!(name.as_str(), "JObject" | "JString" | "JByteArray" | "JClass") {
+                if matches!(last.arguments, syn::PathArguments::None) {
+                    let mut new = tp.clone();
+                    if let Some(last) = new.path.segments.last_mut() {
+                        let lt = syn::Lifetime::new(&format!("'{}", life), proc_macro2::Span::call_site());
+                        last.arguments = syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
+                            colon2_token: None,
+                            lt_token: syn::token::Lt::default(),
+                            args: syn::punctuated::Punctuated::from_iter(std::iter::once(syn::GenericArgument::Lifetime(lt))),
+                            gt_token: syn::token::Gt::default(),
+                        });
+                    }
+                    return syn::Type::Path(new);
+                }
+            }
+        }
+    }
+    ty.clone()
 }
 
 // ──────────────────────────────────────────────────────────────────────

@@ -17,33 +17,27 @@ use quote::ToTokens;
 
 use crate::core::registry::extract_fn_trait_args;
 
-/// Build the converter name for converting from `rust` to `wire` (input
-/// direction: wire → rust). Format: `<rust_id>_to_<wire_id>_<hash>`.
+/// Build the converter name for INPUT direction: wire → rust.
+/// Format: `<wire_id>_to_<rust_id>_<hash>`.
 pub fn input_name(rust: &syn::Type, wire: &syn::Type) -> syn::Ident {
-    name(rust, wire)
-}
-
-/// Build the converter name for converting from `rust` to `wire` (output
-/// direction: rust → wire). Same format as [`input_name`]; the direction is
-/// distinguished by where the resolver places the entry, not by the name.
-/// The hash includes the wire type, so input and output names for the same
-/// rust type rarely collide (they share the rust_id and wire_id only when
-/// the wire type happens to match).
-pub fn output_name(rust: &syn::Type, wire: &syn::Type) -> syn::Ident {
-    name(rust, wire)
-}
-
-fn name(rust: &syn::Type, wire: &syn::Type) -> syn::Ident {
     // Special case: `impl Fn(T1, T2, ...) + Send + Sync + 'static` keeps the
     // legacy naming `process_kotlin_<Stem>_callback` so existing downstream
-    // call sites continue to resolve. Stem = concatenated bare ident of
-    // each Fn arg's last path segment (matches today's
-    // `CallbacksConverter::derive_stem`).
+    // call sites continue to resolve. Callbacks are input-only in practice.
     if let Some(args) = extract_fn_trait_args(rust) {
         let stem = derive_callback_stem(&args);
         let s = format!("process_kotlin_{}_callback", stem);
         return syn::Ident::new(&s, Span::call_site());
     }
+    let rust_id = sanitize(&rust.to_token_stream().to_string());
+    let wire_id = wire_short(wire);
+    let h = hash_pair(rust, wire);
+    let s = format!("{}_to_{}_{:08x}", wire_id, rust_id, h & 0xffff_ffff);
+    syn::Ident::new(&s, Span::call_site())
+}
+
+/// Build the converter name for OUTPUT direction: rust → wire.
+/// Format: `<rust_id>_to_<wire_id>_<hash>`.
+pub fn output_name(rust: &syn::Type, wire: &syn::Type) -> syn::Ident {
     let rust_id = sanitize(&rust.to_token_stream().to_string());
     let wire_id = wire_short(wire);
     let h = hash_pair(rust, wire);
@@ -129,8 +123,11 @@ mod tests {
     fn name_format() {
         let n = input_name(&ty("Sample"), &ty("jni::objects::JObject"));
         let s = n.to_string();
+        assert!(s.starts_with("JObject_to_Sample_"), "got {}", s);
+        assert_eq!(s.len(), "JObject_to_Sample_".len() + 8);
+        let m = output_name(&ty("Sample"), &ty("jni::objects::JObject"));
+        let s = m.to_string();
         assert!(s.starts_with("Sample_to_JObject_"), "got {}", s);
-        assert_eq!(s.len(), "Sample_to_JObject_".len() + 8);
     }
 
     #[test]
