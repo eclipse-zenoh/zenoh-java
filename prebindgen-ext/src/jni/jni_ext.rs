@@ -173,6 +173,64 @@ impl JniExt {
             }
         )
     }
+
+    /// Universal "opaque Arc-handle as `jlong`" pair — input side.
+    ///
+    /// Use for any Rust type whose lifecycle is owned by the Java side:
+    /// Java holds the master `Arc` as a `Long`, calls Rust passing the
+    /// pointer, and explicitly destroys via a separate `dropXxxViaJNI`
+    /// JNI fn that does one matching `Arc::from_raw(v)` drop.
+    ///
+    /// **Convention** (single rule for both input and output):
+    /// * Wire: `jni::sys::jlong` — the same width JNI hands across
+    ///   the boundary on every platform (`*const T` would mismatch
+    ///   on 32-bit, where ptr size is 4 but jlong is 8).
+    /// * Output: `Arc::into_raw(Arc::new(v)) as i64` — wrap once, leak
+    ///   the pointer to Java. Refcount = 1 sitting in the leaked state.
+    /// * Input: `unsafe { (*( *v as *const T)).clone() }` — non-Arc
+    ///   read. The pointer is bit-cast, dereferenced, and the inner
+    ///   value cloned. The outer `Arc<T>` refcount is **never** touched
+    ///   by per-call decoding, so Java may pass the same handle as
+    ///   many times as it likes.
+    /// * Niche: `0i64` / `*v == 0` — `Arc::into_raw` never returns 0,
+    ///   so `Option<T>` automatically synthesises `0` = `None`,
+    ///   matching the legacy "null pointer" ABI for nullable handles.
+    ///
+    /// Requires `T: Clone` — almost always satisfied for opaque
+    /// handles, since they typically wrap an internal `Arc<Inner>`
+    /// whose `Clone` just bumps the inner refcount.
+    pub fn opaque_arc_input(&self, ty: &syn::Type) -> ConverterImpl {
+        let wire: syn::Type = syn::parse_quote!(jni::sys::jlong);
+        let body: syn::Expr = syn::parse_quote!(unsafe {
+            let raw = *v as *const #ty;
+            (*raw).clone()
+        });
+        ConverterImpl {
+            function: self.input_wrapper(ty, &wire, &body),
+            destination: wire,
+            niches: Niches::one(
+                syn::parse_quote!(0i64),
+                syn::parse_quote!(*v == 0),
+            ),
+        }
+    }
+
+    /// Output side of [`Self::opaque_arc_input`] — see that method's
+    /// docs for the full convention.
+    pub fn opaque_arc_output(&self, ty: &syn::Type) -> ConverterImpl {
+        let wire: syn::Type = syn::parse_quote!(jni::sys::jlong);
+        let body: syn::Expr = syn::parse_quote!(
+            std::sync::Arc::into_raw(std::sync::Arc::new(v)) as i64
+        );
+        ConverterImpl {
+            function: self.output_wrapper(ty, &wire, &body),
+            destination: wire,
+            niches: Niches::one(
+                syn::parse_quote!(0i64),
+                syn::parse_quote!(*v == 0),
+            ),
+        }
+    }
 }
 
 // ──────────────────────────────────────────────────────────────────────
