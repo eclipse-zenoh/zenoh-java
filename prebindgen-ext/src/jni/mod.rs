@@ -24,6 +24,7 @@ pub mod byte_array_helpers;
 pub mod callback_strategy;
 pub mod inline_fn_helpers;
 pub mod jni_ext;
+pub mod jni_kotlin_ext;
 pub mod jni_type;
 pub mod jni_type_helper;
 pub mod opaque;
