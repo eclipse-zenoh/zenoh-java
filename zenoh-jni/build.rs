@@ -11,8 +11,7 @@ use std::path::PathBuf;
 
 use proc_macro2::TokenStream;
 
-use zenoh_flat::core::converter_name::input_name;
-use zenoh_flat::core::prebindgen_ext::PrebindgenExt;
+use zenoh_flat::core::prebindgen_ext::{ConverterImpl, PrebindgenExt};
 use zenoh_flat::core::registry::{Registry, TypeKey};
 use zenoh_flat::core::{resolve, write};
 use zenoh_flat::jni::JniExt;
@@ -31,6 +30,36 @@ struct ZenohJniExt {
 impl ZenohJniExt {
     fn new(base: JniExt) -> Self {
         Self { base }
+    }
+
+    /// Wrap a `(wire, body)` pair into a full `ConverterImpl` using the
+    /// JniExt input wrapper convention.
+    fn input_converter(
+        &self,
+        ty: &syn::Type,
+        wire: syn::Type,
+        body: syn::Expr,
+    ) -> ConverterImpl {
+        let function = self.base.input_wrapper(ty, &wire, &body);
+        ConverterImpl {
+            destination: wire,
+            function,
+        }
+    }
+
+    /// Wrap a `(wire, body)` pair into a full `ConverterImpl` using the
+    /// JniExt output wrapper convention.
+    fn output_converter(
+        &self,
+        ty: &syn::Type,
+        wire: syn::Type,
+        body: syn::Expr,
+    ) -> ConverterImpl {
+        let function = self.base.output_wrapper(ty, &wire, &body);
+        ConverterImpl {
+            destination: wire,
+            function,
+        }
     }
 
     /// jint→enum decode helpers exposed by `crate::utils` in zenoh-jni.
@@ -90,34 +119,26 @@ impl PrebindgenExt for ZenohJniExt {
         self.base.on_const(c, registry)
     }
 
-    // ── Wrapper assembly — delegate ──
-
-    fn wrap_input_converter(&self, name: &syn::Ident, rust: &syn::Type, wire: &syn::Type, body: &syn::Expr) -> syn::ItemFn {
-        self.base.wrap_input_converter(name, rust, wire, body)
-    }
-    fn wrap_output_converter(&self, name: &syn::Ident, rust: &syn::Type, wire: &syn::Type, body: &syn::Expr) -> syn::ItemFn {
-        self.base.wrap_output_converter(name, rust, wire, body)
-    }
-
     // ── Input rank-0 — zenoh-specific arms first, then delegate ──
 
-    fn on_input_type_rank_0(&self, ty: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn::Expr)> {
+    fn on_input_type_rank_0(&self, ty: &syn::Type, registry: &Registry) -> Option<ConverterImpl> {
         let key = TypeKey::from_type(ty).as_str().to_string();
 
         // jint→enum group
         if let Some(name) = bare_path_ident(ty) {
-            if let Some(b) = self.jint_enum_decode(&name.to_string()) {
-                return Some(b);
+            if let Some((wire, body)) = self.jint_enum_decode(&name.to_string()) {
+                return Some(self.input_converter(ty, wire, body));
             }
         }
         // Manual callback overrides
-        if let Some(b) = self.manual_callback_decode(&key) {
-            return Some(b);
+        if let Some((wire, body)) = self.manual_callback_decode(&key) {
+            return Some(self.input_converter(ty, wire, body));
         }
 
         // Option<ZKeyExpr<'static>> — special pointer-as-jlong shape
         if key == "Option < ZKeyExpr < 'static > >" {
-            return Some((
+            return Some(self.input_converter(
+                ty,
                 syn::parse_quote!(jni::sys::jlong),
                 syn::parse_quote!(if *v != 0 {
                     Some(unsafe {
@@ -132,22 +153,25 @@ impl PrebindgenExt for ZenohJniExt {
         // &KeyExpr — delegate to auto-generated KeyExpr decoder
         if key == "& KeyExpr" {
             let key_expr_ty: syn::Type = syn::parse_quote!(KeyExpr);
-            let inner = lookup_input_resolved(registry, &key_expr_ty)?;
-            let conv = input_name(&key_expr_ty, &inner.destination);
-            return Some((
+            let inner = registry.input_entry(&key_expr_ty)?;
+            let conv = inner.function.sig.ident.clone();
+            return Some(self.input_converter(
+                ty,
                 syn::parse_quote!(jni::objects::JObject),
                 syn::parse_quote!(#conv(env, v)?),
             ));
         }
         // Encoding (zenoh-specific)
         if key == "Encoding" {
-            return Some((
+            return Some(self.input_converter(
+                ty,
                 syn::parse_quote!(jni::objects::JObject),
                 syn::parse_quote!(crate::utils::decode_jni_encoding(env, &v)?),
             ));
         }
         if key == "Option < Encoding >" {
-            return Some((
+            return Some(self.input_converter(
+                ty,
                 syn::parse_quote!(jni::objects::JObject),
                 syn::parse_quote!(if !v.is_null() {
                     Some(crate::utils::decode_jni_encoding(env, &v)?)
@@ -166,7 +190,8 @@ impl PrebindgenExt for ZenohJniExt {
         ] {
             if key == key_pat {
                 let path: syn::Path = syn::parse_str(ty_path).unwrap();
-                return Some((
+                return Some(self.input_converter(
+                    ty,
                     syn::parse_quote!(*const #path),
                     // Wire is *const T (Copy ptr). Consume Arc and clone the
                     // inner T so callers get an owned value they can borrow.
@@ -179,54 +204,55 @@ impl PrebindgenExt for ZenohJniExt {
         self.base.on_input_type_rank_0(ty, registry)
     }
 
-    fn on_input_type_rank_1(&self, pat: &syn::Type, t1: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn::Expr)> {
+    fn on_input_type_rank_1(&self, pat: &syn::Type, t1: &syn::Type, registry: &Registry) -> Option<ConverterImpl> {
         self.base.on_input_type_rank_1(pat, t1, registry)
     }
-    fn on_input_type_rank_2(&self, pat: &syn::Type, t1: &syn::Type, t2: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn::Expr)> {
+    fn on_input_type_rank_2(&self, pat: &syn::Type, t1: &syn::Type, t2: &syn::Type, registry: &Registry) -> Option<ConverterImpl> {
         self.base.on_input_type_rank_2(pat, t1, t2, registry)
     }
-    fn on_input_type_rank_3(&self, pat: &syn::Type, t1: &syn::Type, t2: &syn::Type, t3: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn::Expr)> {
+    fn on_input_type_rank_3(&self, pat: &syn::Type, t1: &syn::Type, t2: &syn::Type, t3: &syn::Type, registry: &Registry) -> Option<ConverterImpl> {
         self.base.on_input_type_rank_3(pat, t1, t2, t3, registry)
     }
 
     // ── Output rank-0 — zenoh-specific arms first ──
 
-    fn on_output_type_rank_0(&self, ty: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn::Expr)> {
+    fn on_output_type_rank_0(&self, ty: &syn::Type, registry: &Registry) -> Option<ConverterImpl> {
         let key = TypeKey::from_type(ty).as_str().to_string();
 
         // Option<ZKeyExpr<'static>> output (v: Option<ZKeyExpr<'static>>, by value)
         if key == "Option < ZKeyExpr < 'static > >" {
-            return Some((
+            return Some(self.output_converter(
+                ty,
                 syn::parse_quote!(jni::sys::jlong),
                 syn::parse_quote!(v
                     .map(|val| std::sync::Arc::into_raw(std::sync::Arc::new(val)) as i64)
                     .unwrap_or(0)),
             ));
         }
-        // KeyExpr output (returned by value)
+        // KeyExpr — auto-generated by JniExt's struct path
         if key == "KeyExpr" {
-            let key_expr_ty: syn::Type = syn::parse_quote!(KeyExpr);
-            let inner_input = lookup_output_resolved(registry, &key_expr_ty);
-            let _ = inner_input; // KeyExpr struct is auto-generated by JniExt
             return self.base.on_output_type_rank_0(ty, registry);
         }
         // SetIntersectionLevel — returned as jint via cast
         if key == "SetIntersectionLevel" {
-            return Some((
+            return Some(self.output_converter(
+                ty,
                 syn::parse_quote!(jni::sys::jint),
                 syn::parse_quote!(v as jni::sys::jint),
             ));
         }
         // ZenohId → byte array
         if key == "ZenohId" {
-            return Some((
+            return Some(self.output_converter(
+                ty,
                 syn::parse_quote!(jni::sys::jbyteArray),
                 syn::parse_quote!(crate::zenoh_id::zenoh_id_to_byte_array(env, v)?),
             ));
         }
         // Vec<ZenohId> → java.util.List<ByteArray>
         if key == "Vec < ZenohId >" {
-            return Some((
+            return Some(self.output_converter(
+                ty,
                 syn::parse_quote!(jni::sys::jobject),
                 syn::parse_quote!(crate::zenoh_id::zenoh_ids_to_java_list(env, v)?),
             ));
@@ -245,7 +271,8 @@ impl PrebindgenExt for ZenohJniExt {
         ] {
             if key == opaque {
                 let inner: syn::Type = syn::parse_str(opaque).unwrap();
-                return Some((
+                return Some(self.output_converter(
+                    ty,
                     syn::parse_quote!(*const #inner),
                     syn::parse_quote!(std::sync::Arc::into_raw(std::sync::Arc::new(v))),
                 ));
@@ -255,13 +282,13 @@ impl PrebindgenExt for ZenohJniExt {
         self.base.on_output_type_rank_0(ty, registry)
     }
 
-    fn on_output_type_rank_1(&self, pat: &syn::Type, t1: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn::Expr)> {
+    fn on_output_type_rank_1(&self, pat: &syn::Type, t1: &syn::Type, registry: &Registry) -> Option<ConverterImpl> {
         self.base.on_output_type_rank_1(pat, t1, registry)
     }
-    fn on_output_type_rank_2(&self, pat: &syn::Type, t1: &syn::Type, t2: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn::Expr)> {
+    fn on_output_type_rank_2(&self, pat: &syn::Type, t1: &syn::Type, t2: &syn::Type, registry: &Registry) -> Option<ConverterImpl> {
         self.base.on_output_type_rank_2(pat, t1, t2, registry)
     }
-    fn on_output_type_rank_3(&self, pat: &syn::Type, t1: &syn::Type, t2: &syn::Type, t3: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn::Expr)> {
+    fn on_output_type_rank_3(&self, pat: &syn::Type, t1: &syn::Type, t2: &syn::Type, t3: &syn::Type, registry: &Registry) -> Option<ConverterImpl> {
         self.base.on_output_type_rank_3(pat, t1, t2, t3, registry)
     }
 }
@@ -287,36 +314,6 @@ fn bare_path_ident(ty: &syn::Type) -> Option<syn::Ident> {
     }
     None
 }
-
-fn lookup_input_resolved<'a>(
-    registry: &'a Registry,
-    ty: &syn::Type,
-) -> Option<&'a zenoh_flat::core::registry::TypeEntry> {
-    let key = TypeKey::from_type(ty);
-    for bucket in &registry.input_types {
-        if let Some(slot) = bucket.get(&key) {
-            return slot.as_ref();
-        }
-    }
-    None
-}
-
-fn lookup_output_resolved<'a>(
-    registry: &'a Registry,
-    ty: &syn::Type,
-) -> Option<&'a zenoh_flat::core::registry::TypeEntry> {
-    let key = TypeKey::from_type(ty);
-    for bucket in &registry.output_types {
-        if let Some(slot) = bucket.get(&key) {
-            return slot.as_ref();
-        }
-    }
-    None
-}
-
-// Suppress unused-import warning if the helper isn't called above.
-#[allow(dead_code)]
-fn _unused(_: TokenStream) {}
 
 // ─────────────────────────────────────────────────────────────────────
 // Pipeline driver

@@ -24,7 +24,7 @@ use std::collections::VecDeque;
 
 use prebindgen::SourceLocation;
 
-use crate::core::prebindgen_ext::PrebindgenExt;
+use crate::core::prebindgen_ext::{ConverterImpl, PrebindgenExt};
 use crate::core::registry::{
     immediate_subtype_positions, Direction, Registry, TypeEntry, TypeKey, MAX_RANK,
 };
@@ -167,20 +167,20 @@ fn try_resolve_entry<E: PrebindgenExt>(
     registry: &Registry,
 ) -> Option<TypeEntry> {
     if n == 0 {
-        let res = match dir {
+        let res: Option<ConverterImpl> = match dir {
             Direction::Input => ext.on_input_type_rank_0(key_ty, registry),
             Direction::Output => ext.on_output_type_rank_0(key_ty, registry),
         };
-        return res.map(|(wire, body)| TypeEntry {
-            destination: wire,
-            body,
+        return res.map(|c| TypeEntry {
+            destination: c.destination,
+            function: c.function,
             subs: vec![],
             required: scan_required,
         });
     }
 
     for (pattern, subs) in enumerate_wildcard_subs(key_ty, n) {
-        let result = match (dir, n) {
+        let result: Option<ConverterImpl> = match (dir, n) {
             (Direction::Input, 1) => ext.on_input_type_rank_1(&pattern, &subs[0], registry),
             (Direction::Input, 2) => {
                 ext.on_input_type_rank_2(&pattern, &subs[0], &subs[1], registry)
@@ -197,11 +197,11 @@ fn try_resolve_entry<E: PrebindgenExt>(
             }
             _ => unreachable!("rank N is bounded to 0..=3 by MAX_RANK"),
         };
-        if let Some((wire, body)) = result {
+        if let Some(c) = result {
             let sub_keys: Vec<TypeKey> = subs.iter().map(TypeKey::from_type).collect();
             return Some(TypeEntry {
-                destination: wire,
-                body,
+                destination: c.destination,
+                function: c.function,
                 subs: sub_keys,
                 required: scan_required,
             });

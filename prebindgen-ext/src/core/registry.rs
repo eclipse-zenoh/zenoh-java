@@ -62,14 +62,15 @@ impl fmt::Display for TypeKey {
 /// Per-cell registry entry.
 #[derive(Clone)]
 pub struct TypeEntry {
-    /// Wire/destination type (e.g. `jni::sys::jlong`).
+    /// Wire/destination type (e.g. `jni::sys::jlong`). Other converters
+    /// that ask "what's the wire form of this rust type?" read this.
     pub destination: syn::Type,
-    /// Body of the converter function. Assumes in-scope parameter `v` of the
-    /// source type (input) or destination type (output); produces a value of
-    /// the opposite type.
-    pub body: syn::Expr,
-    /// Inner types whose converters this body delegates to. Empty for rank-0
-    /// resolutions; equal to the rank-N `subs` array for rank-N≥1
+    /// Complete generated function for the converter (signature, body,
+    /// attributes, lifetimes). Plugin owns the shape. Callers compute the
+    /// converter's name via `function.sig.ident`.
+    pub function: syn::ItemFn,
+    /// Inner types whose function delegates to their converters. Empty for
+    /// rank-0 resolutions; equal to the rank-N `subs` array for rank-N≥1
     /// resolutions. Used by the post-resolution propagation pass.
     pub subs: Vec<TypeKey>,
     /// Initially true for types that appear directly in a `#[prebindgen]` fn
@@ -223,6 +224,31 @@ impl Registry {
     }
     pub fn is_required_output_at_scan(&self, key: &TypeKey) -> bool {
         self.required_outputs_scan.contains(key)
+    }
+
+    /// Look up the resolved input entry for `ty`, returning `None` if it
+    /// was never registered or is still unresolved. The returned entry's
+    /// `function.sig.ident` is the converter's call name; `destination` is
+    /// its wire form.
+    pub fn input_entry(&self, ty: &syn::Type) -> Option<&TypeEntry> {
+        let key = TypeKey::from_type(ty);
+        for bucket in &self.input_types {
+            if let Some(slot) = bucket.get(&key) {
+                return slot.as_ref();
+            }
+        }
+        None
+    }
+
+    /// Look up the resolved output entry for `ty`. See [`Self::input_entry`].
+    pub fn output_entry(&self, ty: &syn::Type) -> Option<&TypeEntry> {
+        let key = TypeKey::from_type(ty);
+        for bucket in &self.output_types {
+            if let Some(slot) = bucket.get(&key) {
+                return slot.as_ref();
+            }
+        }
+        None
     }
 
     fn index_item(&mut self, item: syn::Item, loc: SourceLocation) -> Result<(), ScanError> {

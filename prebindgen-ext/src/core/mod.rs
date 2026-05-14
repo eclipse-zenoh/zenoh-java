@@ -15,7 +15,6 @@
 //! old `TypeRegistry` shape. They will be removed once that generator
 //! lands on the new `Registry`.
 
-pub mod converter_name;
 pub mod inline_fn;
 pub mod name_mangler;
 pub mod prebindgen_ext;

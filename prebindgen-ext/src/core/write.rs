@@ -1,10 +1,10 @@
 //! Rust file emission for the resolved `Registry`.
 //!
-//! `write_rust` collects every resolved input/output converter (wrapped via
-//! `PrebindgenExt::wrap_input_converter` / `wrap_output_converter`), every
-//! per-item `on_<kind>` output, and every passthrough item; concatenates
-//! them; and hands them to `prebindgen::collect::Destination::write` (which
-//! does prettyplease formatting and resolves the path against `OUT_DIR`).
+//! `write_rust` collects every resolved input/output converter (each entry
+//! already carries its full `ItemFn`), every per-item `on_<kind>` output,
+//! and every passthrough item; concatenates them; and hands them to
+//! `prebindgen::collect::Destination::write` (which does prettyplease
+//! formatting and resolves the path against `OUT_DIR`).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -12,15 +12,14 @@ use std::path::{Path, PathBuf};
 use prebindgen::collect::Destination;
 use proc_macro2::TokenStream;
 
-use crate::core::converter_name::{input_name, output_name};
 use crate::core::prebindgen_ext::PrebindgenExt;
 use crate::core::registry::{Registry, TypeEntry, TypeKey};
 
 /// Errors surfaced by the file-emission phase.
 #[derive(Debug)]
 pub enum WriteError {
-    /// A `TokenStream` produced by an `on_*` trait method or a wrapper fn
-    /// failed to parse as `syn::Item`s. Indicates a codegen bug in the ext.
+    /// A `TokenStream` produced by an `on_*` trait method failed to parse
+    /// as `syn::Item`s. Indicates a codegen bug in the ext.
     BadTokens(syn::Error),
 }
 
@@ -46,7 +45,7 @@ pub fn write_rust<P: AsRef<Path>, E: PrebindgenExt>(
     let mut items: Vec<syn::Item> = Vec::new();
 
     // 1. Auto-generated converter wrappers (sorted by ident, deduped).
-    for (_, item_fn) in collect_converter_items(registry, ext) {
+    for (_, item_fn) in collect_converter_items(registry) {
         items.push(syn::Item::Fn(item_fn));
     }
 
@@ -85,24 +84,22 @@ pub fn write_rust<P: AsRef<Path>, E: PrebindgenExt>(
     Ok(dest.write(out_path))
 }
 
-/// Walk both type tables, build wrapper `ItemFn`s, dedupe by name, sort
-/// for determinism.
-pub fn collect_converter_items<E: PrebindgenExt>(
-    registry: &Registry,
-    ext: &E,
-) -> Vec<(syn::Ident, syn::ItemFn)> {
+/// Walk both type tables, dedupe each entry's stored `function` by name,
+/// sort for determinism. Names are read directly off `entry.function.sig.ident`
+/// — the plugin owns the naming.
+pub fn collect_converter_items(registry: &Registry) -> Vec<(syn::Ident, syn::ItemFn)> {
     let mut by_name: BTreeMap<String, (syn::Ident, syn::ItemFn)> = BTreeMap::new();
-    walk_resolved(&registry.input_types, |key, entry| {
-        let rust = key.to_type();
-        let name = input_name(&rust, &entry.destination);
-        let item_fn = ext.wrap_input_converter(&name, &rust, &entry.destination, &entry.body);
-        by_name.entry(name.to_string()).or_insert((name, item_fn));
+    walk_resolved(&registry.input_types, |_, entry| {
+        let name = entry.function.sig.ident.clone();
+        by_name
+            .entry(name.to_string())
+            .or_insert((name, entry.function.clone()));
     });
-    walk_resolved(&registry.output_types, |key, entry| {
-        let rust = key.to_type();
-        let name = output_name(&rust, &entry.destination);
-        let item_fn = ext.wrap_output_converter(&name, &rust, &entry.destination, &entry.body);
-        by_name.entry(name.to_string()).or_insert((name, item_fn));
+    walk_resolved(&registry.output_types, |_, entry| {
+        let name = entry.function.sig.ident.clone();
+        by_name
+            .entry(name.to_string())
+            .or_insert((name, entry.function.clone()));
     });
     by_name.into_values().collect()
 }
@@ -132,9 +129,7 @@ fn parse_items_from_tokens<I: IntoIterator<Item = TokenStream>>(
         if ts.is_empty() {
             continue;
         }
-        // Wrap into a synthetic file to parse a sequence of items.
-        let file: syn::File =
-            syn::parse2(ts.clone()).map_err(|e| WriteError::BadTokens(e))?;
+        let file: syn::File = syn::parse2(ts.clone()).map_err(WriteError::BadTokens)?;
         out.extend(file.items);
     }
     Ok(out)
@@ -156,7 +151,9 @@ mod tests {
             key_a.clone(),
             Some(TypeEntry {
                 destination: wire.clone(),
-                body: syn::parse_quote!(v as u64),
+                function: syn::parse_quote!(
+                    fn jlong_to_u64_aaaa(v: jni::sys::jlong) -> u64 { v as u64 }
+                ),
                 subs: vec![],
                 required: true,
             }),
@@ -165,38 +162,19 @@ mod tests {
             key_b.clone(),
             Some(TypeEntry {
                 destination: wire2.clone(),
-                body: syn::parse_quote!(decode_sample(v)),
+                function: syn::parse_quote!(
+                    fn JObject_to_Sample_bbbb(v: jni::objects::JObject) -> Sample { decode_sample(v) }
+                ),
                 subs: vec![],
                 required: true,
             }),
         );
 
-        struct Stub;
-        impl crate::core::prebindgen_ext::PrebindgenExt for Stub {
-            fn on_function(&self, _: &syn::ItemFn, _: &Registry) -> proc_macro2::TokenStream { Default::default() }
-            fn on_struct(&self, _: &syn::ItemStruct, _: &Registry) -> proc_macro2::TokenStream { Default::default() }
-            fn on_enum(&self, _: &syn::ItemEnum, _: &Registry) -> proc_macro2::TokenStream { Default::default() }
-            fn on_input_type_rank_0(&self, _: &syn::Type, _: &Registry) -> Option<(syn::Type, syn::Expr)> { None }
-            fn on_input_type_rank_1(&self, _: &syn::Type, _: &syn::Type, _: &Registry) -> Option<(syn::Type, syn::Expr)> { None }
-            fn on_input_type_rank_2(&self, _: &syn::Type, _: &syn::Type, _: &syn::Type, _: &Registry) -> Option<(syn::Type, syn::Expr)> { None }
-            fn on_input_type_rank_3(&self, _: &syn::Type, _: &syn::Type, _: &syn::Type, _: &syn::Type, _: &Registry) -> Option<(syn::Type, syn::Expr)> { None }
-            fn on_output_type_rank_0(&self, _: &syn::Type, _: &Registry) -> Option<(syn::Type, syn::Expr)> { None }
-            fn on_output_type_rank_1(&self, _: &syn::Type, _: &syn::Type, _: &Registry) -> Option<(syn::Type, syn::Expr)> { None }
-            fn on_output_type_rank_2(&self, _: &syn::Type, _: &syn::Type, _: &syn::Type, _: &Registry) -> Option<(syn::Type, syn::Expr)> { None }
-            fn on_output_type_rank_3(&self, _: &syn::Type, _: &syn::Type, _: &syn::Type, _: &syn::Type, _: &Registry) -> Option<(syn::Type, syn::Expr)> { None }
-            fn wrap_input_converter(&self, name: &syn::Ident, rust: &syn::Type, wire: &syn::Type, body: &syn::Expr) -> syn::ItemFn {
-                syn::parse_quote!(fn #name(v: #wire) -> #rust { #body })
-            }
-            fn wrap_output_converter(&self, name: &syn::Ident, rust: &syn::Type, wire: &syn::Type, body: &syn::Expr) -> syn::ItemFn {
-                syn::parse_quote!(fn #name(v: &#rust) -> #wire { #body })
-            }
-        }
-        let items = collect_converter_items(&reg, &Stub);
+        let items = collect_converter_items(&reg);
         assert_eq!(items.len(), 2);
-        // Input names use <wire>_to_<rust>_<hash>. Sorted ASCII:
-        //   JObject_to_Sample_xxxx  (uppercase J < lowercase j)
-        //   jlong_to_u64_xxxx
-        assert!(items[0].0.to_string().starts_with("JObject_to_Sample_"));
-        assert!(items[1].0.to_string().starts_with("jlong_to_u64_"));
+        // Sorted ASCII: "JObject_to_Sample_bbbb" < "jlong_to_u64_aaaa"
+        // (uppercase J < lowercase j).
+        assert_eq!(items[0].0.to_string(), "JObject_to_Sample_bbbb");
+        assert_eq!(items[1].0.to_string(), "jlong_to_u64_aaaa");
     }
 }

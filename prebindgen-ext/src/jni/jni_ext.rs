@@ -28,8 +28,7 @@ use std::path::PathBuf;
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 
-use crate::core::converter_name::{input_name, output_name};
-use crate::core::prebindgen_ext::PrebindgenExt;
+use crate::core::prebindgen_ext::{ConverterImpl, PrebindgenExt};
 use crate::core::registry::{extract_fn_trait_args, result_inner, Registry, TypeKey};
 use crate::jni::wire_access::jni_field_access;
 use crate::util::snake_to_camel;
@@ -118,19 +117,22 @@ impl Default for JniExt {
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// PrebindgenExt impl
+// Inherent helpers — wrapper builders (used by both PrebindgenExt impl
+// and consuming-crate wrapper exts like ZenohJniExt).
 // ──────────────────────────────────────────────────────────────────────
 
-impl PrebindgenExt for JniExt {
-    // ── Wrapper assembly ─────────────────────────────────────────────
-
-    fn wrap_input_converter(
+impl JniExt {
+    /// Build the standard JNI input-converter `fn`. Body assumes in-scope
+    /// `env: &mut JNIEnv` and `v: &<wire>` (or `v: <wire>` for raw-pointer
+    /// wires); produces a value of `rust`. Returned function has its name
+    /// already set per the JNI plugin's naming convention.
+    pub fn input_wrapper(
         &self,
-        name: &syn::Ident,
         rust: &syn::Type,
         wire: &syn::Type,
         body: &syn::Expr,
     ) -> syn::ItemFn {
+        let name = input_name(rust, wire);
         let zresult = &self.zresult;
         let rust_with_lifetime = annotate_borrow_with_lifetime(rust, "env");
         let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "v");
@@ -151,18 +153,18 @@ impl PrebindgenExt for JniExt {
         }
     }
 
-    fn wrap_output_converter(
+    /// Build the standard JNI output-converter `fn`. Body assumes in-scope
+    /// `env: &mut JNIEnv` and `v: <rust>` (by value — handles like
+    /// `Subscriber<()>` aren't `Clone`, so callers move into the converter).
+    pub fn output_wrapper(
         &self,
-        name: &syn::Ident,
         rust: &syn::Type,
         wire: &syn::Type,
         body: &syn::Expr,
     ) -> syn::ItemFn {
+        let name = output_name(rust, wire);
         let zresult = &self.zresult;
         let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "a");
-        // Output wrappers take rust by value (move) — handles like
-        // Subscriber<()> don't implement Clone, so body can't go through
-        // (*v).clone(). Bodies that need to consume v can move it.
         syn::parse_quote!(
             #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
             pub(crate) unsafe fn #name<'a>(env: &mut jni::JNIEnv<'a>, v: #rust) -> #zresult<#wire_with_lifetime> {
@@ -170,7 +172,13 @@ impl PrebindgenExt for JniExt {
             }
         )
     }
+}
 
+// ──────────────────────────────────────────────────────────────────────
+// PrebindgenExt impl
+// ──────────────────────────────────────────────────────────────────────
+
+impl PrebindgenExt for JniExt {
     // ── Item methods ─────────────────────────────────────────────────
 
     fn on_function(&self, f: &syn::ItemFn, registry: &Registry) -> TokenStream {
@@ -198,15 +206,20 @@ impl PrebindgenExt for JniExt {
         &self,
         ty: &syn::Type,
         registry: &Registry,
-    ) -> Option<(syn::Type, syn::Expr)> {
-        // Primitives.
-        if let Some(b) = primitive_input(ty) {
-            return Some(b);
+    ) -> Option<ConverterImpl> {
+        if let Some((wire, body)) = primitive_input(ty) {
+            return Some(ConverterImpl {
+                function: self.input_wrapper(ty, &wire, &body),
+                destination: wire,
+            });
         }
-        // Bare-ident type that names a #[prebindgen] struct → build decode.
         if let Some(name) = bare_path_ident(ty) {
             if let Some((s, _)) = registry.structs.get(&name) {
-                return struct_input_body(self, s, registry);
+                let (wire, body) = struct_input_body(self, s, registry)?;
+                return Some(ConverterImpl {
+                    function: self.input_wrapper(ty, &wire, &body),
+                    destination: wire,
+                });
             }
             // Bare-ident enum: leave to the consuming crate to override
             // (today's CongestionControl etc. fall here — caller's wrapper
@@ -220,15 +233,24 @@ impl PrebindgenExt for JniExt {
         pat: &syn::Type,
         t1: &syn::Type,
         registry: &Registry,
-    ) -> Option<(syn::Type, syn::Expr)> {
-        // Option<_>
+    ) -> Option<ConverterImpl> {
         if pat_match(pat, "Option < _ >") {
-            return option_input(t1, registry);
+            let outer_ty: syn::Type = syn::parse_quote!(Option<#t1>);
+            let (wire, body) = option_input(t1, registry)?;
+            return Some(ConverterImpl {
+                function: self.input_wrapper(&outer_ty, &wire, &body),
+                destination: wire,
+            });
         }
-        // impl Fn(_) + Send + Sync + 'static
         if let Some(args) = extract_fn_trait_args(pat) {
             if args.len() == 1 {
-                return callback_input(self, std::slice::from_ref(t1), registry);
+                let arg_tys = std::slice::from_ref(t1);
+                let outer_ty = build_fn_type(arg_tys);
+                let (wire, body) = callback_input(self, arg_tys, registry)?;
+                return Some(ConverterImpl {
+                    function: self.input_wrapper(&outer_ty, &wire, &body),
+                    destination: wire,
+                });
             }
         }
         None
@@ -240,10 +262,16 @@ impl PrebindgenExt for JniExt {
         t1: &syn::Type,
         t2: &syn::Type,
         registry: &Registry,
-    ) -> Option<(syn::Type, syn::Expr)> {
+    ) -> Option<ConverterImpl> {
         if let Some(args) = extract_fn_trait_args(pat) {
             if args.len() == 2 {
-                return callback_input(self, &[t1.clone(), t2.clone()], registry);
+                let arg_tys = [t1.clone(), t2.clone()];
+                let outer_ty = build_fn_type(&arg_tys);
+                let (wire, body) = callback_input(self, &arg_tys, registry)?;
+                return Some(ConverterImpl {
+                    function: self.input_wrapper(&outer_ty, &wire, &body),
+                    destination: wire,
+                });
             }
         }
         None
@@ -256,10 +284,16 @@ impl PrebindgenExt for JniExt {
         t2: &syn::Type,
         t3: &syn::Type,
         registry: &Registry,
-    ) -> Option<(syn::Type, syn::Expr)> {
+    ) -> Option<ConverterImpl> {
         if let Some(args) = extract_fn_trait_args(pat) {
             if args.len() == 3 {
-                return callback_input(self, &[t1.clone(), t2.clone(), t3.clone()], registry);
+                let arg_tys = [t1.clone(), t2.clone(), t3.clone()];
+                let outer_ty = build_fn_type(&arg_tys);
+                let (wire, body) = callback_input(self, &arg_tys, registry)?;
+                return Some(ConverterImpl {
+                    function: self.input_wrapper(&outer_ty, &wire, &body),
+                    destination: wire,
+                });
             }
         }
         None
@@ -271,13 +305,20 @@ impl PrebindgenExt for JniExt {
         &self,
         ty: &syn::Type,
         registry: &Registry,
-    ) -> Option<(syn::Type, syn::Expr)> {
-        if let Some(b) = primitive_output(ty) {
-            return Some(b);
+    ) -> Option<ConverterImpl> {
+        if let Some((wire, body)) = primitive_output(ty) {
+            return Some(ConverterImpl {
+                function: self.output_wrapper(ty, &wire, &body),
+                destination: wire,
+            });
         }
         if let Some(name) = bare_path_ident(ty) {
             if let Some((s, _)) = registry.structs.get(&name) {
-                return struct_output_body(self, s, registry);
+                let (wire, body) = struct_output_body(self, s, registry)?;
+                return Some(ConverterImpl {
+                    function: self.output_wrapper(ty, &wire, &body),
+                    destination: wire,
+                });
             }
         }
         None
@@ -288,11 +329,14 @@ impl PrebindgenExt for JniExt {
         pat: &syn::Type,
         t1: &syn::Type,
         registry: &Registry,
-    ) -> Option<(syn::Type, syn::Expr)> {
-        // ZResult<T> never appears as an output entry — scan unwraps it.
-        // Option<_> output
+    ) -> Option<ConverterImpl> {
         if pat_match(pat, "Option < _ >") {
-            return option_output(t1, registry);
+            let outer_ty: syn::Type = syn::parse_quote!(Option<#t1>);
+            let (wire, body) = option_output(t1, registry)?;
+            return Some(ConverterImpl {
+                function: self.output_wrapper(&outer_ty, &wire, &body),
+                destination: wire,
+            });
         }
         None
     }
@@ -303,7 +347,7 @@ impl PrebindgenExt for JniExt {
         _t1: &syn::Type,
         _t2: &syn::Type,
         _registry: &Registry,
-    ) -> Option<(syn::Type, syn::Expr)> {
+    ) -> Option<ConverterImpl> {
         None
     }
 
@@ -314,7 +358,7 @@ impl PrebindgenExt for JniExt {
         _t2: &syn::Type,
         _t3: &syn::Type,
         _registry: &Registry,
-    ) -> Option<(syn::Type, syn::Expr)> {
+    ) -> Option<ConverterImpl> {
         None
     }
 }
@@ -349,17 +393,16 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry)
             syn::Type::Reference(r) => (*r.elem).clone(),
             _ => arg_ty.clone(),
         };
-        let key = TypeKey::from_type(&lookup_ty);
-        let entry = lookup_input_resolved_by_key(registry, &key).unwrap_or_else(|| {
+        let entry = registry.input_entry(&lookup_ty).unwrap_or_else(|| {
             panic!(
                 "JniExt::on_function: input type `{}` (lookup for `{}`) for `{}` is unresolved",
-                key,
+                TypeKey::from_type(&lookup_ty),
                 arg_ty.to_token_stream(),
                 original_ident,
             )
         });
         let wire = &entry.destination;
-        let conv = input_name(&lookup_ty, wire);
+        let conv = entry.function.sig.ident.clone();
         let wire_ident = if matches!(wire, syn::Type::Ptr(_)) {
             format_ident!("{}_ptr", arg_ident)
         } else {
@@ -391,17 +434,16 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry)
                 // encoder receives the unwrapped T. Look up T's converter,
                 // not ZResult<T>'s.
                 let lookup_ty = result_inner(ty).unwrap_or_else(|| (**ty).clone());
-                let key = TypeKey::from_type(&lookup_ty);
-                let entry = lookup_output_resolved_by_key(registry, &key).unwrap_or_else(|| {
+                let entry = registry.output_entry(&lookup_ty).unwrap_or_else(|| {
                     panic!(
                         "JniExt::on_function: return type `{}` (encoder for `{}`) for `{}` is unresolved",
-                        key,
+                        TypeKey::from_type(&lookup_ty),
                         ty.to_token_stream(),
                         original_ident,
                     )
                 });
                 let wire = entry.destination.clone();
-                let conv = output_name(&lookup_ty, &wire);
+                let conv = entry.function.sig.ident.clone();
                 // Output wrapper takes v by value; pass __result by move.
                 let wire_with_lifetime = annotate_jobject_with_lifetime(&wire, "a");
                 let wire_tokens = wire_with_lifetime.to_token_stream();
@@ -600,9 +642,9 @@ fn primitive_output(ty: &syn::Type) -> Option<(syn::Type, syn::Expr)> {
 // ──────────────────────────────────────────────────────────────────────
 
 fn option_input(t1: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn::Expr)> {
-    let inner_entry = lookup_input_resolved(registry, t1)?;
+    let inner_entry = registry.input_entry(t1)?;
     let inner_wire = inner_entry.destination.clone();
-    let inner_conv = input_name(t1, &inner_wire);
+    let inner_conv = inner_entry.function.sig.ident.clone();
 
     if is_jni_primitive(&inner_wire) {
         // Boxed primitive: receive JObject, unbox via Java method, then
@@ -638,9 +680,9 @@ fn option_input(t1: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn::
 }
 
 fn option_output(t1: &syn::Type, registry: &Registry) -> Option<(syn::Type, syn::Expr)> {
-    let inner_entry = lookup_output_resolved(registry, t1)?;
+    let inner_entry = registry.output_entry(t1)?;
     let inner_wire = inner_entry.destination.clone();
-    let inner_conv = output_name(t1, &inner_wire);
+    let inner_conv = inner_entry.function.sig.ident.clone();
 
     if is_jni_primitive(&inner_wire) {
         let java_class = jni_box_class(&inner_wire);
@@ -706,9 +748,9 @@ fn callback_input(
         let obj_ident = format_ident!("__arg{}_obj", i);
 
         // Args are output-direction (encoded outbound). Look up output entry.
-        let arg_entry = lookup_output_resolved(registry, arg_ty)?;
+        let arg_entry = registry.output_entry(arg_ty)?;
         let arg_wire = arg_entry.destination.clone();
-        let conv = output_name(arg_ty, &arg_wire);
+        let conv = arg_entry.function.sig.ident.clone();
 
         match jni_field_access(&arg_wire) {
             Some((s, _, false)) => {
@@ -775,9 +817,9 @@ fn callback_input(
         let enc_ident = format_ident!("__arg{}_encoded", i);
         let obj_ident = format_ident!("__arg{}_obj", i);
         let cb_arg = &arg_names[i];
-        let arg_entry = lookup_output_resolved(registry, arg_ty)?;
+        let arg_entry = registry.output_entry(arg_ty)?;
         let arg_wire = arg_entry.destination.clone();
-        let conv = output_name(arg_ty, &arg_wire);
+        let conv = arg_entry.function.sig.ident.clone();
         // Output wrappers take rust by value (move). cb_arg is the
         // closure parameter (by value), so pass it directly.
         match jni_field_access(&arg_wire) {
@@ -891,9 +933,9 @@ fn struct_input_body(
 
         // Defer if any field's input converter isn't resolved yet — the
         // fixed-point loop will retry on the next iteration.
-        let field_entry = lookup_input_resolved(registry, &field.ty)?;
+        let field_entry = registry.input_entry(&field.ty)?;
         let field_wire = field_entry.destination.clone();
-        let field_conv = input_name(&field.ty, &field_wire);
+        let field_conv = field_entry.function.sig.ident.clone();
 
         match jni_field_access(&field_wire) {
             Some((sig, accessor, false)) => {
@@ -961,9 +1003,9 @@ fn struct_output_body(
         let encoded_obj_ident = format_ident!("__{}_encoded_obj", fname_ident);
 
         // Defer if any field's output converter isn't resolved yet.
-        let field_entry = lookup_output_resolved(registry, &field.ty)?;
+        let field_entry = registry.output_entry(&field.ty)?;
         let field_wire = field_entry.destination.clone();
-        let field_conv = output_name(&field.ty, &field_wire);
+        let field_conv = field_entry.function.sig.ident.clone();
 
         field_preludes.push(quote! {
             let #field_value_ident = v.#fname_ident.clone();
@@ -1207,42 +1249,88 @@ fn is_result_of_unit(ty: &syn::Type) -> bool {
     false
 }
 
-fn lookup_input_resolved<'a>(
-    registry: &'a Registry,
-    ty: &syn::Type,
-) -> Option<&'a crate::core::registry::TypeEntry> {
-    let key = TypeKey::from_type(ty);
-    lookup_input_resolved_by_key(registry, &key)
+// ──────────────────────────────────────────────────────────────────────
+// JNI-internal naming convention. Hand-written code in zenoh-jni
+// (e.g. liveliness.rs, advanced_subscriber.rs) calls auto-generated
+// converters by these computed names — so the convention is part of the
+// JNI plugin's public contract, not a private implementation detail.
+// ──────────────────────────────────────────────────────────────────────
+
+/// INPUT: wire → rust. Format `<wire_id>_to_<rust_id>_<hash>`. Special
+/// case: `impl Fn(...)` keeps the legacy `process_kotlin_<Stem>_callback`
+/// name so existing hand-written call sites continue to resolve.
+fn input_name(rust: &syn::Type, wire: &syn::Type) -> syn::Ident {
+    if let Some(args) = extract_fn_trait_args(rust) {
+        let stem = derive_callback_stem(&args);
+        let s = format!("process_kotlin_{}_callback", stem);
+        return syn::Ident::new(&s, Span::call_site());
+    }
+    let rust_id = sanitize_for_ident(&rust.to_token_stream().to_string());
+    let wire_id = wire_short(wire);
+    let h = hash_pair(rust, wire);
+    let s = format!("{}_to_{}_{:08x}", wire_id, rust_id, h & 0xffff_ffff);
+    syn::Ident::new(&s, Span::call_site())
 }
 
-fn lookup_output_resolved<'a>(
-    registry: &'a Registry,
-    ty: &syn::Type,
-) -> Option<&'a crate::core::registry::TypeEntry> {
-    let key = TypeKey::from_type(ty);
-    lookup_output_resolved_by_key(registry, &key)
+/// OUTPUT: rust → wire. Format `<rust_id>_to_<wire_id>_<hash>`.
+fn output_name(rust: &syn::Type, wire: &syn::Type) -> syn::Ident {
+    let rust_id = sanitize_for_ident(&rust.to_token_stream().to_string());
+    let wire_id = wire_short(wire);
+    let h = hash_pair(rust, wire);
+    let s = format!("{}_to_{}_{:08x}", rust_id, wire_id, h & 0xffff_ffff);
+    syn::Ident::new(&s, Span::call_site())
 }
 
-fn lookup_input_resolved_by_key<'a>(
-    registry: &'a Registry,
-    key: &TypeKey,
-) -> Option<&'a crate::core::registry::TypeEntry> {
-    for bucket in &registry.input_types {
-        if let Some(slot) = bucket.get(key) {
-            return slot.as_ref();
+fn sanitize_for_ident(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut prev_underscore = false;
+    for c in s.chars() {
+        if c.is_ascii_alphanumeric() {
+            out.push(c);
+            prev_underscore = false;
+        } else if !prev_underscore {
+            out.push('_');
+            prev_underscore = true;
         }
     }
-    None
+    while out.starts_with('_') {
+        out.remove(0);
+    }
+    while out.ends_with('_') {
+        out.pop();
+    }
+    if out.is_empty() {
+        out.push_str("ty");
+    }
+    if out.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+        out.insert(0, '_');
+    }
+    out
 }
 
-fn lookup_output_resolved_by_key<'a>(
-    registry: &'a Registry,
-    key: &TypeKey,
-) -> Option<&'a crate::core::registry::TypeEntry> {
-    for bucket in &registry.output_types {
-        if let Some(slot) = bucket.get(key) {
-            return slot.as_ref();
+fn wire_short(wire: &syn::Type) -> String {
+    if let syn::Type::Path(tp) = wire {
+        if let Some(last) = tp.path.segments.last() {
+            return sanitize_for_ident(&last.ident.to_string());
         }
     }
-    None
+    sanitize_for_ident(&wire.to_token_stream().to_string())
+}
+
+fn hash_pair(rust: &syn::Type, wire: &syn::Type) -> u64 {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut h = DefaultHasher::new();
+    rust.to_token_stream().to_string().hash(&mut h);
+    "::".hash(&mut h);
+    wire.to_token_stream().to_string().hash(&mut h);
+    h.finish()
+}
+
+/// Reconstruct the `impl Fn(args...) + Send + Sync + 'static` syn::Type
+/// from a flat slice of arg types. Used by the rank-1/2/3 callback impls
+/// to feed `input_wrapper` the original outer type.
+fn build_fn_type(args: &[syn::Type]) -> syn::Type {
+    let arg_iter = args.iter();
+    syn::parse_quote!(impl Fn( #(#arg_iter),* ) + Send + Sync + 'static)
 }
