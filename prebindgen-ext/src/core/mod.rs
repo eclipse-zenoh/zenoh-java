@@ -20,6 +20,7 @@
 //!    body strategy + `NameMangler::Identity`. See the doc comment on
 //!    [`FunctionsConverter`] for the mapping sketch.
 
+pub mod converter_name;
 pub mod functions_converter;
 pub mod inline_fn;
 pub mod name_mangler;
