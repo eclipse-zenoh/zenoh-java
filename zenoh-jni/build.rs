@@ -130,10 +130,8 @@ impl ZenohJniExt {
 }
 
 impl PrebindgenExt for ZenohJniExt {
-    // ── Setup — forward base prerequisites (OwnedObject etc.) ──
-
-    fn install_prerequisites(&self, registry: &mut Registry) {
-        self.base.install_prerequisites(registry);
+    fn prerequisites(&self) -> Vec<syn::Item> {
+        self.base.prerequisites()
     }
 
     // ── Item methods — delegate ──

@@ -86,12 +86,6 @@ pub fn resolve<E: PrebindgenExt>(
     registry: &mut Registry,
     ext: &E,
 ) -> Result<(), ResolveError> {
-    // One-time hook: let the plugin install prerequisite Rust items
-    // (helper structs, runtime support) referenced by its emitted
-    // converters. Plugins that don't need anything override this with
-    // a default no-op.
-    ext.install_prerequisites(registry);
-
     loop {
         let mut deltas_in: Vec<(usize, TypeKey, TypeEntry)> = Vec::new();
         let mut deltas_out: Vec<(usize, TypeKey, TypeEntry)> = Vec::new();

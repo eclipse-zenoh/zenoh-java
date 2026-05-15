@@ -288,17 +288,13 @@ impl JniExt {
 // ──────────────────────────────────────────────────────────────────────
 
 impl PrebindgenExt for JniExt {
-    // ── Setup ──────────────────────────────────────────────────────
-
     /// Emit the `OwnedObject<T>` borrow wrapper used by
     /// [`Self::opaque_arc_borrow_input`] into the destination file.
     /// The struct is referenced by an unqualified `OwnedObject` from
     /// the same generated file, so no `use` paths leak into the host
     /// crate's source tree.
-    fn install_prerequisites(&self, registry: &mut Registry) {
-        for item in owned_object_prerequisite_items() {
-            registry.add_prerequisite(item);
-        }
+    fn prerequisites(&self) -> Vec<syn::Item> {
+        owned_object_prerequisite_items()
     }
 
     // ── Item methods ─────────────────────────────────────────────────

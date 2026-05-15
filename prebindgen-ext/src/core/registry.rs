@@ -129,13 +129,6 @@ pub struct Registry {
     /// into `TypeEntry::required` once an entry is filled).
     pub required_inputs_scan: HashSet<TypeKey>,
     pub required_outputs_scan: HashSet<TypeKey>,
-
-    /// Plugin-supplied Rust items emitted **before** every auto-generated
-    /// converter in the destination file. Use for runtime-support types
-    /// the converter bodies depend on (e.g. JNI's `OwnedObject<T>` borrow
-    /// wrapper). Plugins typically populate this from
-    /// [`crate::core::prebindgen_ext::PrebindgenExt::install_prerequisites`].
-    pub prerequisites: Vec<syn::Item>,
 }
 
 impl Default for Registry {
@@ -151,7 +144,6 @@ impl Default for Registry {
             type_locations: HashMap::new(),
             required_inputs_scan: HashSet::new(),
             required_outputs_scan: HashSet::new(),
-            prerequisites: Vec::new(),
         }
     }
 }
@@ -238,20 +230,6 @@ impl Registry {
     }
     pub fn is_required_output_at_scan(&self, key: &TypeKey) -> bool {
         self.required_outputs_scan.contains(key)
-    }
-
-    /// Append a Rust item to be emitted at the top of the destination
-    /// file, before all auto-generated converters. Used by language
-    /// plugins to install runtime-support types referenced by their
-    /// emitted converter bodies — see
-    /// [`crate::core::prebindgen_ext::PrebindgenExt::install_prerequisites`].
-    pub fn add_prerequisite(&mut self, item: syn::Item) {
-        self.prerequisites.push(item);
-    }
-
-    /// All prerequisite items in insertion order.
-    pub fn prerequisites(&self) -> &[syn::Item] {
-        &self.prerequisites
     }
 
     /// Look up the resolved input entry for `ty`, returning `None` if it
