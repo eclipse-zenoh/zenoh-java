@@ -227,6 +227,29 @@ impl PrebindgenExt for ZenohJniExt {
         self.base.on_input_type_rank_3(pat, t1, t2, t3, registry)
     }
 
+    // ── Into-source dispatch — zenoh-specific extras ──
+    //
+    // Sources are listed identity-first (when the target has a
+    // registered decoder) followed by zenoh-side extras. Same match-arm
+    // shape as `jint_enum_decode` / `manual_callback_decode` above.
+    fn dispatch_into_input(&self, target: &syn::Type, registry: &Registry) -> Option<ConverterImpl> {
+        let mut sources: Vec<syn::Type> = Vec::new();
+        if registry.input_entry(target).is_some() {
+            sources.push(target.clone());
+        }
+        match TypeKey::from_type(target).as_str() {
+            // `impl Into<KeyExpr<'static>>` accepts a Kotlin String at
+            // the JNI boundary; `TryFrom<String> for KeyExpr<'_>`
+            // drives the fallible conversion in the dispatcher.
+            "ZKeyExpr < 'static >" => sources.push(syn::parse_quote!(String)),
+            _ => {}
+        }
+        if sources.is_empty() {
+            return None;
+        }
+        self.base.emit_into_dispatcher(target, &sources, registry)
+    }
+
     // ── Output rank-0 — zenoh-specific arms first ──
 
     fn on_output_type_rank_0(&self, ty: &syn::Type, registry: &Registry) -> Option<ConverterImpl> {
@@ -378,12 +401,7 @@ fn main() {
         // still compile, so we point them at `kotlin.Any`).
         .kotlin_type_fqn("Sample", "io.zenoh.jni.Sample")
         .kotlin_type_fqn("Query", "kotlin.Any")
-        .kotlin_type_fqn("Reply", "kotlin.Any")
-        // `impl Into<KeyExpr<'static>>` accepts the identity arm
-        // automatically (Arc-handle via jlong → java.lang.Long); String
-        // is the extra source — TryFrom<String> for KeyExpr<'_> drives
-        // the fallible conversion in the auto-generated dispatcher.
-        .into_source("ZKeyExpr<'static>", "String");
+        .kotlin_type_fqn("Reply", "kotlin.Any");
     let ext = ZenohJniExt::new(jni);
     resolve::resolve(&mut registry, &ext).expect("unresolved required types");
 

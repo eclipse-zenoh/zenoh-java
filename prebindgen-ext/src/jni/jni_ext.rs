@@ -23,7 +23,6 @@
 //! NOT in this module — keeps `prebindgen-ext` reusable for any JNI/Kotlin
 //! project.
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use proc_macro2::{Span, TokenStream};
@@ -31,7 +30,7 @@ use quote::{format_ident, quote, ToTokens};
 
 use crate::core::niches::Niches;
 use crate::core::prebindgen_ext::{ConverterImpl, PrebindgenExt};
-use crate::core::registry::{extract_fn_trait_args, extract_into_trait_arg, Registry, TypeKey};
+use crate::core::registry::{extract_fn_trait_args, Registry, TypeKey};
 use crate::jni::wire_access::jni_field_access;
 use crate::util::snake_to_camel;
 
@@ -67,13 +66,6 @@ pub struct JniExt {
     /// the emitter at data classes / typealiases that don't show up in
     /// `extract_fn_trait_args` (e.g. `Sample` → `io.zenoh.jni.Sample`).
     pub kotlin_type_fqns: Vec<(String, String)>,
-    /// Per-target `impl Into<T>` dispatch table: canonical key of `T` →
-    /// ordered list of canonical source-type keys (extras beyond `T`
-    /// itself; the identity arm `T → T` is always emitted automatically
-    /// when `T` has a registered input decoder). Each source's wire
-    /// shape determines the instanceof Java class and the JObject→wire
-    /// adapter at code-emit time — see [`Self::impl_into_input`].
-    pub into_sources: HashMap<String, Vec<String>>,
 }
 
 impl JniExt {
@@ -90,7 +82,6 @@ impl JniExt {
             kotlin_callback_package: String::new(),
             kotlin_callback_dir: PathBuf::new(),
             kotlin_type_fqns: Vec::new(),
-            into_sources: HashMap::new(),
         }
     }
     pub fn source_module(mut self, p: impl AsRef<str>) -> Self {
@@ -131,28 +122,6 @@ impl JniExt {
     /// (e.g. `"Sample"`, `"Option < String >"`).
     pub fn kotlin_type_fqn(mut self, rust_canon: impl Into<String>, fqn: impl Into<String>) -> Self {
         self.kotlin_type_fqns.push((rust_canon.into(), fqn.into()));
-        self
-    }
-
-    /// Declare that values of `source` are accepted at the JNI boundary
-    /// wherever `impl Into<target> + Send + 'static` appears. The framework
-    /// will emit an instanceof arm for `source` in the auto-generated
-    /// dispatcher for `target`, reusing `source`'s already-registered
-    /// input decoder. The identity arm (`target` itself) is automatic
-    /// when `target` has a registered input decoder, so callers only need
-    /// to declare *extra* sources.
-    ///
-    /// Both arguments are canonicalised via `TypeKey::parse` so callers
-    /// may pass either spacing form (`"KeyExpr<'static>"` ≡
-    /// `"KeyExpr < 'static >"`).
-    pub fn into_source(
-        mut self,
-        target: impl AsRef<str>,
-        source: impl AsRef<str>,
-    ) -> Self {
-        let t = TypeKey::parse(target.as_ref()).as_str().to_string();
-        let s = TypeKey::parse(source.as_ref()).as_str().to_string();
-        self.into_sources.entry(t).or_default().push(s);
         self
     }
 }
@@ -342,50 +311,43 @@ impl JniExt {
         }
     }
 
-    /// Build the JObject-typed dispatching input converter for
-    /// `impl Into<T> + Send + 'static`. Emits an `instanceof` chain over
-    /// every accepted source `S` (the identity arm `T → T` plus any
-    /// declared via [`Self::into_source`]); each arm calls `S`'s already-
-    /// registered input decoder (wire-narrowed from the parameter's
-    /// `JObject`) and converts to `T` via `TryInto`, so both `From<S> for T`
-    /// (zero-cost) and `TryFrom<S> for T` (fallible) work uniformly.
+    /// Emit the JObject-typed dispatching input converter for
+    /// `impl Into<target> + Send + 'static` given an already-assembled
+    /// source list. The caller — typically a
+    /// [`PrebindgenExt::dispatch_into_input`] implementation —
+    /// decides which sources to include (identity arm first if
+    /// applicable, then project-specific extras).
     ///
-    /// Returns `None` when no source has a registered decoder — caller
-    /// (the rank-1 dispatcher) treats this as "let another ext handle
-    /// `impl Into<T>` itself."
-    pub fn impl_into_input(
+    /// Emits an `instanceof` chain over each source `S`: every arm
+    /// calls `S`'s already-registered input decoder (wire-narrowed
+    /// from the parameter's `JObject`) and converts to `target` via
+    /// `TryInto`, so both `From<S> for target` (zero-cost) and
+    /// `TryFrom<S> for target` (fallible) work uniformly.
+    ///
+    /// Returns `None` when `sources` is empty or any source lacks a
+    /// registered input decoder; the resolver iterates to a fixed
+    /// point and will retry on a later round once all decoders exist.
+    pub fn emit_into_dispatcher(
         &self,
-        pat: &syn::Type,
         target: &syn::Type,
+        sources: &[syn::Type],
         registry: &Registry,
     ) -> Option<ConverterImpl> {
-        let target_key = TypeKey::from_type(target).as_str().to_string();
-        let extras = self.into_sources.get(&target_key).cloned().unwrap_or_default();
-        let has_self = registry.input_entry(target).is_some();
-        if !has_self && extras.is_empty() {
+        if sources.is_empty() {
             return None;
         }
-
-        let mut sources: Vec<String> = Vec::with_capacity(extras.len() + 1);
-        if has_self {
-            sources.push(target_key.clone());
-        }
-        sources.extend(extras);
+        let target_key = TypeKey::from_type(target).as_str().to_string();
 
         let mut arms: Vec<TokenStream> = Vec::with_capacity(sources.len());
-        for src_key in &sources {
-            let src_ty = TypeKey::parse(src_key).to_type();
-            // Returning None when any source's decoder isn't yet
-            // resolved is intentional: the resolver iterates to a fixed
-            // point, and the same convention is used by `& _` (line 430)
-            // and `Option < _ >` (line 437) above.
-            let src_entry = registry.input_entry(&src_ty)?;
+        for src_ty in sources {
+            let src_key = TypeKey::from_type(src_ty).as_str().to_string();
+            let src_entry = registry.input_entry(src_ty)?;
             let decoder = src_entry.function.sig.ident.clone();
             let wire = src_entry.destination.clone();
             let (java_class, prelude, decoded_ref) =
-                jobject_to_wire_adapter(&wire, &src_ty, &self.kotlin_type_fqns).unwrap_or_else(|| {
+                jobject_to_wire_adapter(&wire, src_ty, &self.kotlin_type_fqns).unwrap_or_else(|| {
                     panic!(
-                        "impl_into_input: source `{}` has wire `{}` which is not a supported \
+                        "emit_into_dispatcher: source `{}` has wire `{}` which is not a supported \
                          Into-source wire shape (target = `{}`)",
                         src_key,
                         wire.to_token_stream(),
@@ -413,7 +375,8 @@ impl JniExt {
         }
 
         let wire: syn::Type = syn::parse_quote!(jni::objects::JObject);
-        let name = input_name(pat, &wire);
+        let pat: syn::Type = syn::parse_quote!(impl Into<#target> + Send + 'static);
+        let name = input_name(&pat, &wire);
         let zresult = &self.zresult;
         let target_label = target_key.clone();
         let function: syn::ItemFn = syn::parse_quote!(
@@ -549,20 +512,23 @@ impl PrebindgenExt for JniExt {
                 });
             }
         }
-        // `impl Into<T> + Send + 'static` — auto-dispatch over the
-        // identity arm (T → T) plus any sources declared via
-        // `.into_source(T, S)`. The resolver gives us the wildcard
-        // pattern (`impl Into<_> + Send + 'static`) plus the substituted
-        // `t1`; rebuild the concrete outer type so the emitted
-        // converter is named after `impl Into<T>` (not the placeholder).
-        if extract_into_trait_arg(pat).is_some() {
-            let outer_ty: syn::Type =
-                syn::parse_quote!(impl Into<#t1> + Send + 'static);
-            if let Some(c) = self.impl_into_input(&outer_ty, t1, registry) {
-                return Some(c);
-            }
-        }
         None
+    }
+
+    /// Identity-only Into dispatch: emit a dispatcher whose only arm
+    /// accepts `target` itself (via its already-registered input
+    /// decoder). Wrappers that need extra source types override this
+    /// to assemble a richer source list and call
+    /// [`Self::emit_into_dispatcher`] directly.
+    fn dispatch_into_input(
+        &self,
+        target: &syn::Type,
+        registry: &Registry,
+    ) -> Option<ConverterImpl> {
+        if registry.input_entry(target).is_none() {
+            return None;
+        }
+        self.emit_into_dispatcher(target, std::slice::from_ref(target), registry)
     }
 
     fn on_input_type_rank_2(

@@ -119,6 +119,31 @@ pub trait PrebindgenExt {
         registry: &Registry,
     ) -> Option<ConverterImpl>;
 
+    /// Build the dispatcher converter for an
+    /// `impl Into<target> + Send + 'static` parameter. The resolver
+    /// calls this only after [`Self::on_input_type_rank_1`] has
+    /// returned `None` for the Into pattern, so wrappers that need
+    /// full custom dispatch can intercept earlier and skip this path.
+    ///
+    /// Implementers decide which source types to accept (typically
+    /// the identity arm `target → target` when
+    /// `registry.input_entry(target).is_some()`, plus any project-
+    /// specific extras such as `String → KeyExpr` via `TryFrom`) and
+    /// emit the converter — usually by delegating to a backend helper
+    /// such as [`crate::jni::JniExt::emit_into_dispatcher`].
+    ///
+    /// Default: `None` — backends with no Into-source support and
+    /// wrappers that decline a given `target` fall through to the
+    /// resolver's "unresolved required type" path.
+    fn dispatch_into_input(
+        &self,
+        target: &syn::Type,
+        registry: &Registry,
+    ) -> Option<ConverterImpl> {
+        let _ = (target, registry);
+        None
+    }
+
     // ── Output direction (rust → wire) ─────────────────────────────
 
     /// Whole-type output converter.

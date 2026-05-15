@@ -198,6 +198,21 @@ fn try_resolve_entry<E: PrebindgenExt>(
             }
             _ => unreachable!("rank N is bounded to 0..=3 by MAX_RANK"),
         };
+        // Last-step fallback for `impl Into<_> + Send + 'static`:
+        // after the implementer's own rank-1 handler returns None,
+        // route to the dedicated trait method so wrappers can supply
+        // their own source list (identity + extras) without having to
+        // re-implement the surrounding pattern-match boilerplate.
+        let result = result.or_else(|| {
+            if dir == Direction::Input
+                && n == 1
+                && crate::core::registry::extract_into_trait_arg(&pattern).is_some()
+            {
+                ext.dispatch_into_input(&subs[0], registry)
+            } else {
+                None
+            }
+        });
         if let Some(c) = result {
             let sub_keys: Vec<TypeKey> = subs.iter().map(TypeKey::from_type).collect();
             return Some(TypeEntry {
