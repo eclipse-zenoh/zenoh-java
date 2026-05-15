@@ -200,15 +200,27 @@ fn try_resolve_entry<E: PrebindgenExt>(
         };
         // Last-step fallback for `impl Into<_> + Send + 'static`:
         // after the implementer's own rank-1 handler returns None,
-        // route to the dedicated trait method so wrappers can supply
-        // their own source list (identity + extras) without having to
-        // re-implement the surrounding pattern-match boilerplate.
+        // assemble the source list (identity arm first when `target`
+        // has a registered decoder, then extras from
+        // `ext.into_sources(target)`) and route to the dedicated
+        // dispatcher method so wrappers only have to declare the
+        // extras — the boilerplate lives here.
         let result = result.or_else(|| {
             if dir == Direction::Input
                 && n == 1
                 && crate::core::registry::extract_into_trait_arg(&pattern).is_some()
             {
-                ext.dispatch_into_input(&subs[0], registry)
+                let target = &subs[0];
+                let mut sources: Vec<syn::Type> = Vec::new();
+                if registry.input_entry(target).is_some() {
+                    sources.push(target.clone());
+                }
+                sources.extend(ext.into_sources(target));
+                if sources.is_empty() {
+                    None
+                } else {
+                    ext.dispatch_into_input(target, &sources, registry)
+                }
             } else {
                 None
             }

@@ -515,20 +515,13 @@ impl PrebindgenExt for JniExt {
         None
     }
 
-    /// Identity-only Into dispatch: emit a dispatcher whose only arm
-    /// accepts `target` itself (via its already-registered input
-    /// decoder). Wrappers that need extra source types override this
-    /// to assemble a richer source list and call
-    /// [`Self::emit_into_dispatcher`] directly.
     fn dispatch_into_input(
         &self,
         target: &syn::Type,
+        sources: &[syn::Type],
         registry: &Registry,
     ) -> Option<ConverterImpl> {
-        if registry.input_entry(target).is_none() {
-            return None;
-        }
-        self.emit_into_dispatcher(target, std::slice::from_ref(target), registry)
+        self.emit_into_dispatcher(target, sources, registry)
     }
 
     fn on_input_type_rank_2(

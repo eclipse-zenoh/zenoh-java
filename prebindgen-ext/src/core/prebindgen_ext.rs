@@ -119,28 +119,41 @@ pub trait PrebindgenExt {
         registry: &Registry,
     ) -> Option<ConverterImpl>;
 
+    /// Extra source types accepted at
+    /// `impl Into<target> + Send + 'static` parameters, **in addition
+    /// to** the identity arm `target → target` (the resolver inserts
+    /// the identity arm automatically whenever `target` has a
+    /// registered input decoder).
+    ///
+    /// Default: no extras. Wrappers override (match on `target`) to
+    /// declare project-specific source types, e.g. `String → KeyExpr`
+    /// via `TryFrom<String>`. The returned vector's order determines
+    /// the runtime dispatch order in the emitted converter.
+    fn into_sources(&self, target: &syn::Type) -> Vec<syn::Type> {
+        let _ = target;
+        Vec::new()
+    }
+
     /// Build the dispatcher converter for an
-    /// `impl Into<target> + Send + 'static` parameter. The resolver
-    /// calls this only after [`Self::on_input_type_rank_1`] has
-    /// returned `None` for the Into pattern, so wrappers that need
-    /// full custom dispatch can intercept earlier and skip this path.
+    /// `impl Into<target> + Send + 'static` parameter, given the
+    /// already-assembled source list (identity arm first if
+    /// applicable, then extras returned by [`Self::into_sources`]).
+    /// The resolver calls this only after
+    /// [`Self::on_input_type_rank_1`] has returned `None` for the
+    /// Into pattern, so wrappers that need full custom dispatch can
+    /// intercept earlier and skip this path.
     ///
-    /// Implementers decide which source types to accept (typically
-    /// the identity arm `target → target` when
-    /// `registry.input_entry(target).is_some()`, plus any project-
-    /// specific extras such as `String → KeyExpr` via `TryFrom`) and
-    /// emit the converter — usually by delegating to a backend helper
-    /// such as [`crate::jni::JniExt::emit_into_dispatcher`].
-    ///
-    /// Default: `None` — backends with no Into-source support and
-    /// wrappers that decline a given `target` fall through to the
-    /// resolver's "unresolved required type" path.
+    /// Default: `None`. Backends that support Into-source dispatch
+    /// (e.g. [`crate::jni::JniExt`]) override this to delegate to
+    /// their own emitter such as
+    /// [`crate::jni::JniExt::emit_into_dispatcher`].
     fn dispatch_into_input(
         &self,
         target: &syn::Type,
+        sources: &[syn::Type],
         registry: &Registry,
     ) -> Option<ConverterImpl> {
-        let _ = (target, registry);
+        let _ = (target, sources, registry);
         None
     }
 
