@@ -15,6 +15,8 @@
 package io.zenoh.jni
 
 import io.zenoh.exceptions.ZError
+import io.zenoh.jni.JNINative.deletePublisherViaJNI
+import io.zenoh.jni.JNINative.putPublisherViaJNI
 
 /**
  * Adapter class for a native Zenoh publisher. Uses primitive types for put/delete.
@@ -25,25 +27,20 @@ public class JNIPublisher(private val ptr: Long) {
 
     @Throws(ZError::class)
     fun put(payload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?) {
-        putViaJNI(ptr, payload, encoding, attachment)
+        putPublisherViaJNI(ptr, payload, encoding, attachment)
     }
 
     @Throws(ZError::class)
     fun delete(attachment: ByteArray?) {
-        deleteViaJNI(ptr, attachment)
+        deletePublisherViaJNI(ptr, attachment)
     }
 
     fun close() {
         freePtrViaJNI(ptr)
     }
 
-    @Throws(ZError::class)
-    private external fun putViaJNI(
-        ptr: Long, valuePayload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?
-    )
-
-    @Throws(ZError::class)
-    private external fun deleteViaJNI(ptr: Long, attachment: ByteArray?)
-
+    // freePtrViaJNI is hand-written in zenoh-jni/src/publisher.rs because
+    // the auto-generated `opaque_arc_borrow_input` convention forgets the
+    // outer Arc on drop (so it would leak on a migrated drop_publisher).
     private external fun freePtrViaJNI(ptr: Long)
 }

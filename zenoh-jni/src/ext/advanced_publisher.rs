@@ -23,8 +23,8 @@ use zenoh::handlers::{Callback, DefaultHandler};
 use zenoh::Wait;
 use zenoh_ext::AdvancedPublisher;
 
-use crate::owned_object::OwnedObject;
 use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close};
+use zenoh_flat::owned_object::OwnedObject;
 
 use crate::throw_exception;
 

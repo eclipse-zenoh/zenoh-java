@@ -215,6 +215,58 @@ impl JniExt {
         }
     }
 
+    /// Variant of [`Self::opaque_arc_input`] for opaque handles whose
+    /// rust type is **not** `Clone` (e.g. zenoh's `Publisher<'a>`).
+    ///
+    /// Instead of returning the bare `T` (which requires `T: Clone` to
+    /// produce by `(*ptr).clone()`), this returns
+    /// `<source_module>::owned_object::OwnedObject<T>` — a wrapper that
+    /// implements `Deref<Target = T>` and *forgets* the inner `Arc` on
+    /// drop, leaving Java's master strong count untouched.
+    ///
+    /// Function signatures of the form `&T` work transparently: the
+    /// generated wrapper hands the call site an `OwnedObject<T>`, the
+    /// call site adds `&` for the `&T` parameter, and Rust's auto-deref
+    /// turns `&OwnedObject<T>` into `&T`.
+    ///
+    /// **Convention** (otherwise identical to [`Self::opaque_arc_input`]):
+    /// * Wire: `jni::sys::jlong`.
+    /// * Body: `OwnedObject::from_raw(*v as *const T)`.
+    /// * Niche: `0i64` / `*v == 0`.
+    ///
+    /// **Requires**: the host crate's `<source_module>` (the path passed
+    /// to [`Self::source_module`]) must expose
+    /// `owned_object::OwnedObject<T>`. `zenoh-flat` does this; other
+    /// host crates can copy `zenoh_flat::owned_object` verbatim.
+    ///
+    /// **Does not** support by-value parameters (`fn drop_t(t: T)`) —
+    /// the function would receive `OwnedObject<T>` instead of `T` and
+    /// fail to compile. By-value drops should be hand-written using
+    /// `Arc::from_raw` directly.
+    pub fn opaque_arc_borrow_input(&self, ty: &syn::Type) -> ConverterImpl {
+        let wire: syn::Type = syn::parse_quote!(jni::sys::jlong);
+        let name = input_name(ty, &wire);
+        let zresult = &self.zresult;
+        let source_module = &self.source_module;
+        let function: syn::ItemFn = syn::parse_quote!(
+            #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
+            pub(crate) unsafe fn #name<'env, 'v>(
+                env: &mut jni::JNIEnv<'env>,
+                v: &jni::sys::jlong,
+            ) -> #zresult<#source_module::owned_object::OwnedObject<#ty>> {
+                Ok(unsafe { #source_module::owned_object::OwnedObject::from_raw(*v as *const #ty) })
+            }
+        );
+        ConverterImpl {
+            function,
+            destination: wire,
+            niches: Niches::one(
+                syn::parse_quote!(0i64),
+                syn::parse_quote!(*v == 0),
+            ),
+        }
+    }
+
     /// Output side of [`Self::opaque_arc_input`] — see that method's
     /// docs for the full convention.
     pub fn opaque_arc_output(&self, ty: &syn::Type) -> ConverterImpl {

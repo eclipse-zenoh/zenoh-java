@@ -27,11 +27,11 @@ use zenoh::{
 use crate::{
     errors::ZResult,
     key_expr::decode_jni_key_expr,
-    owned_object::OwnedObject,
     sample_callback::{on_reply_error, on_reply_success},
     throw_exception,
     utils::{get_callback_global_ref, get_java_vm, load_on_close, wrap_with_on_close},
 };
+use zenoh_flat::owned_object::OwnedObject;
 
 #[no_mangle]
 #[allow(non_snake_case)]

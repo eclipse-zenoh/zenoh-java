@@ -22,9 +22,9 @@ use jni::{
 use zenoh::Config;
 
 use crate::errors::ZResult;
-use crate::owned_object::OwnedObject;
 use crate::throw_exception;
 use zenoh_flat::jni::decode_string;
+use zenoh_flat::owned_object::OwnedObject;
 
 /// Loads the default configuration, returning a raw pointer to it.
 ///

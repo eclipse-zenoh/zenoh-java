@@ -23,7 +23,6 @@ use zenoh::{query::Querier, Wait};
 use crate::{
     errors::ZResult,
     key_expr::decode_jni_key_expr,
-    owned_object::OwnedObject,
     sample_callback::{on_reply_error, on_reply_success},
     throw_exception,
     utils::{
@@ -31,6 +30,7 @@ use crate::{
         load_on_close,
     },
 };
+use zenoh_flat::owned_object::OwnedObject;
 use zenoh_flat::jni::decode_string;
 
 /// Perform a Zenoh GET through a querier.

@@ -22,7 +22,6 @@ pub(crate) mod ext;
 mod key_expr;
 mod liveliness;
 mod logger;
-pub(crate) mod owned_object;
 mod publisher;
 mod querier;
 mod query;

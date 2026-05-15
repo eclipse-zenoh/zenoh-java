@@ -27,7 +27,7 @@ use crate::errors::ZResult;
 use jni::objects::JValue;
 use zenoh::Wait;
 
-use crate::owned_object::OwnedObject;
+use zenoh_flat::owned_object::OwnedObject;
 
 use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close, wrap_with_on_close};
 use std::ptr::null;

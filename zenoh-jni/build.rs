@@ -162,9 +162,12 @@ impl PrebindgenExt for ZenohJniExt {
         }
 
         // Opaque Arc-handle inputs — universal "jlong-pointer-to-Arc"
-        // convention via JniExt::opaque_arc_input. `Option<T>` derives
-        // automatically through the niche the helper declares (`0` =
-        // None), so no separate `Option<…>` arms are needed.
+        // convention via JniExt::opaque_arc_input (Clone-based) for
+        // types that implement Clone (Session/Config/ZKeyExpr), and
+        // JniExt::opaque_arc_borrow_input (OwnedObject-based) for
+        // non-Clone handles like Publisher<'a>. Both expose the same
+        // niche so `Option<T>` derives automatically; only the body
+        // differs (clone vs OwnedObject<T>).
         for opaque_key in [
             "ZKeyExpr < 'static >",
             "Session",
@@ -172,6 +175,11 @@ impl PrebindgenExt for ZenohJniExt {
         ] {
             if key == opaque_key {
                 return Some(self.base.opaque_arc_input(ty));
+            }
+        }
+        for opaque_key in ["Publisher < 'static >"] {
+            if key == opaque_key {
+                return Some(self.base.opaque_arc_borrow_input(ty));
             }
         }
         // Encoding (zenoh-specific)

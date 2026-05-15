@@ -6,10 +6,12 @@ pub const FEATURES: &str = prebindgen_proc_macro::features!();
 pub mod config;
 pub mod errors;
 pub mod keyexpr;
+pub mod owned_object;
+pub mod publisher;
 pub mod sample;
+pub mod session;
 #[cfg(feature = "zenoh-ext")]
 pub mod structs;
-pub mod session;
 
 // Flat re-exports: every `#[prebindgen]` item is reachable as
 // `zenoh_flat::<name>`, so the JNI wrapper generator can call back via a
@@ -17,6 +19,7 @@ pub mod session;
 // declaring sub-module.
 pub use config::*;
 pub use keyexpr::*;
+pub use publisher::*;
 pub use sample::*;
 pub use session::*;
 #[cfg(feature = "zenoh-ext")]
