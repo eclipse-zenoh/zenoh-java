@@ -11,124 +11,93 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+//! Key-expression operations exposed to the JNI / Kotlin layer.
+//!
+//! No wrapper struct: pure validators (`try_from`, `autocanonize`) return a
+//! `String`; constructors that produce a registered handle (`join`, `concat`,
+//! see also `session::declare_key_expr`) return zenoh's native
+//! [`KeyExpr<'static>`] treated as an opaque Arc handle.
+//!
+//! Functions that consume a key-expression accept
+//! `impl Into<KeyExpr<'static>> + Send + 'static`. The JNI plugin provides
+//! the input converter that decodes the Java `KeyExpr(ptr, string)` data
+//! class — non-zero `ptr` clones the Arc, otherwise the string is
+//! validated and converted to an owned key expression.
+
 use crate::{errors::ZResult, zerror};
 use prebindgen_proc_macro::prebindgen;
 use zenoh::key_expr::{KeyExpr as ZKeyExpr, SetIntersectionLevel};
 
-/// Universal key-expression handle shared across the flat layer.
-///
-/// `ptr` is `None` for string-only expressions built via [`try_from`] /
-/// [`autocanonize`]. `Some(md)` holds a session-declared zenoh
-/// `ZKeyExpr<'static>`.
-///
-/// Field order (`ptr` first) matches the `KeyExpr(ptr: Long, string: String)`
-/// Kotlin constructor so positional call sites need no update.
-#[prebindgen_proc_macro::prebindgen]
-#[derive(Debug)]
-pub struct KeyExpr {
-    pub ptr: Option<ZKeyExpr<'static>>,
-    pub string: String,
-}
-
-impl KeyExpr {
-    /// Materialize a borrowed zenoh `KeyExpr` for one-shot zenoh calls.
-    ///
-    /// When `ptr != 0`, clones the stored `ZKeyExpr`.
-    /// When `ptr == 0`, constructs from the already-validated string.
-    pub(crate) fn as_zenoh(&self) -> ZKeyExpr<'static> {
-        if let Some(md) = &self.ptr {
-            md.clone()
-        } else {
-            // SAFETY: every `KeyExpr` is built via the validating
-            // constructors (`try_from`, `autocanonize`, join, concat).
-            unsafe { ZKeyExpr::from_string_unchecked(self.string.clone()) }
-        }
-    }
-}
-
 /// Validate that `s` is a syntactically valid Zenoh key expression and
-/// return it as a string-only [`KeyExpr`].
+/// return it (unchanged). The Kotlin side wraps the result as an
+/// undeclared `KeyExpr(ptr=0, string=s)`.
 #[prebindgen]
-pub fn try_from(s: String) -> ZResult<KeyExpr> {
+pub fn try_from(s: String) -> ZResult<String> {
     ZKeyExpr::try_from(s.as_str())
         .map_err(|err| zerror!("Unable to create key expression: '{}'.", err))?;
-    Ok(KeyExpr { ptr: None, string: s })
+    Ok(s)
 }
 
-/// Auto-canonize `s` and return the canonized form as a string-only
-/// [`KeyExpr`].
+/// Auto-canonize `s` and return the canonized string form.
 #[prebindgen]
-pub fn autocanonize(s: String) -> ZResult<KeyExpr> {
-    let canonized = ZKeyExpr::autocanonize(s)
-        .map_err(|err| zerror!("Unable to create key expression: '{}'", err))?;
-    Ok(KeyExpr {
-        ptr: None,
-        string: canonized.to_string(),
-    })
+pub fn autocanonize(s: String) -> ZResult<String> {
+    ZKeyExpr::autocanonize(s.clone())
+        .map(|ke| ke.to_string())
+        .map_err(|err| zerror!("Unable to create key expression: '{}'", err))
 }
 
 /// True if `a` and `b` intersect.
 #[prebindgen]
-pub fn intersects(a: &KeyExpr, b: &KeyExpr) -> ZResult<bool> {
-    Ok(a.as_zenoh().intersects(&b.as_zenoh()))
+pub fn intersects(
+    a: impl Into<ZKeyExpr<'static>> + Send + 'static,
+    b: impl Into<ZKeyExpr<'static>> + Send + 'static,
+) -> ZResult<bool> {
+    let a = a.into();
+    let b = b.into();
+    Ok(a.intersects(&b))
 }
 
 /// True if `a` includes `b`.
 #[prebindgen]
-pub fn includes(a: &KeyExpr, b: &KeyExpr) -> ZResult<bool> {
-    Ok(a.as_zenoh().includes(&b.as_zenoh()))
+pub fn includes(
+    a: impl Into<ZKeyExpr<'static>> + Send + 'static,
+    b: impl Into<ZKeyExpr<'static>> + Send + 'static,
+) -> ZResult<bool> {
+    let a = a.into();
+    let b = b.into();
+    Ok(a.includes(&b))
 }
 
 /// Set-intersection level of `a` and `b` from `a`'s perspective.
-/// Returns zenoh's [`SetIntersectionLevel`]; the JNI wrapper casts to
-/// `i32` to match `io.zenoh.keyexpr.SetIntersectionLevel`
-/// (0=DISJOINT, 1=INTERSECTS, 2=INCLUDES, 3=EQUALS).
 #[prebindgen]
-pub fn relation_to(a: &KeyExpr, b: &KeyExpr) -> ZResult<SetIntersectionLevel> {
-    Ok(a.as_zenoh().relation_to(&b.as_zenoh()))
+pub fn relation_to(
+    a: impl Into<ZKeyExpr<'static>> + Send + 'static,
+    b: impl Into<ZKeyExpr<'static>> + Send + 'static,
+) -> ZResult<SetIntersectionLevel> {
+    let a = a.into();
+    let b = b.into();
+    Ok(a.relation_to(&b))
 }
 
-/// Join `a` with `other` using `/` and return the joined key expression.
-/// Mirrors zenoh's `KeyExpr::join(&self, other: &str)`. When `a` is
-/// session-declared the result also carries a fresh Arc (new registration).
+/// Join `a` with `other` using `/` and return the resulting key
+/// expression. The result inherits `a`'s declaration registration when
+/// present; either way Kotlin sees an Arc-backed handle.
 #[prebindgen]
-pub fn join(a: &KeyExpr, other: String) -> ZResult<KeyExpr> {
-    let joined = a
-        .as_zenoh()
-        .join(other.as_str())
-        .map_err(|err| zerror!(err))?;
-    let string = joined.to_string();
-    let ptr = if a.ptr.is_some() {
-        Some(ZKeyExpr::from(joined))
-    } else {
-        None
-    };
-    Ok(KeyExpr { ptr, string })
+pub fn join(
+    a: impl Into<ZKeyExpr<'static>> + Send + 'static,
+    other: String,
+) -> ZResult<ZKeyExpr<'static>> {
+    let a = a.into();
+    a.join(other.as_str()).map_err(|err| zerror!(err))
 }
 
-/// Concatenate `a` with `other` (raw string concat) and return the result.
-/// Mirrors zenoh's `KeyExpr::concat(&self, other: &str)`. Same handle-
-/// preservation rule as [`join`].
+/// Concatenate `a` with `other` (raw string concat) and return the
+/// result. Same handle-preservation rule as [`join`].
 #[prebindgen]
-pub fn concat(a: &KeyExpr, other: String) -> ZResult<KeyExpr> {
-    let concatenated = a
-        .as_zenoh()
-        .concat(other.as_str())
-        .map_err(|err| zerror!(err))?;
-    let string = concatenated.to_string();
-    let ptr = if a.ptr.is_some() {
-        Some(ZKeyExpr::from(concatenated))
-    } else {
-        None
-    };
-    Ok(KeyExpr { ptr, string })
-}
-
-/// Drop a [`KeyExpr`] handle obtained from a session-declared key
-/// expression. With value-owned storage, this is always a no-op because the
-/// wrapper drops naturally when consumed.
-#[prebindgen]
-pub fn drop_key_expr(key_expr: KeyExpr) -> ZResult<()> {
-    let _ = key_expr;
-    Ok(())
+pub fn concat(
+    a: impl Into<ZKeyExpr<'static>> + Send + 'static,
+    other: String,
+) -> ZResult<ZKeyExpr<'static>> {
+    let a = a.into();
+    a.concat(other.as_str()).map_err(|err| zerror!(err))
 }

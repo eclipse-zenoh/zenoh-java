@@ -265,11 +265,15 @@ fn collect_positions(ty: &syn::Type, prefix: &mut Vec<usize>, out: &mut Vec<Posi
     }
 }
 
-/// Same as `immediate_subtype_positions` but for `impl Fn(args)` returns
-/// the args (since we substitute at that level too).
+/// Same as `immediate_subtype_positions` but for the impl-Trait
+/// exceptions (`impl Fn(args)`, `impl Into<T> + Send + 'static`)
+/// returns the substitutable inner positions.
 fn positions_for_traversal(ty: &syn::Type) -> Vec<syn::Type> {
     if let Some(args) = crate::core::registry::extract_fn_trait_args(ty) {
         return args;
+    }
+    if let Some(t) = crate::core::registry::extract_into_trait_arg(ty) {
+        return vec![t];
     }
     immediate_subtype_positions(ty)
 }
@@ -370,6 +374,12 @@ fn rebuild_type_with_positions(ty: &syn::Type, new_subs: &[syn::Type]) -> syn::T
         let args = new_subs;
         let tokens = quote::quote!(impl Fn(#(#args),*) + Send + Sync + 'static);
         return syn::parse2(tokens).expect("rebuild impl Fn must parse");
+    }
+    if crate::core::registry::extract_into_trait_arg(ty).is_some() {
+        // Reconstruct `impl Into<new_subs[0]> + Send + 'static`.
+        let t = &new_subs[0];
+        let tokens = quote::quote!(impl Into<#t> + Send + 'static);
+        return syn::parse2(tokens).expect("rebuild impl Into must parse");
     }
     match ty {
         syn::Type::Path(p) => {
@@ -630,5 +640,41 @@ mod tests {
     fn rank_0_no_variants() {
         let t = ty("u64");
         assert!(enumerate_wildcard_subs(&t, 1).is_empty());
+    }
+
+    #[test]
+    fn impl_into_decomposition_rebuilds_pattern() {
+        let t = ty("impl Into<KeyExpr<'static>> + Send + 'static");
+        let v = enumerate_wildcard_subs(&t, 1);
+        let s = variant_strs(&v);
+        assert_eq!(s.len(), 1);
+        // Pattern keeps the bound triple, with the wildcard at the
+        // Into target slot. tokens-to-string roundtrips with spaces.
+        assert!(
+            s[0].0.contains("impl Into < _ >") && s[0].0.contains("+ Send + 'static"),
+            "expected `impl Into<_> + Send + 'static`, got `{}`",
+            s[0].0,
+        );
+        assert_eq!(s[0].1, vec!["KeyExpr < 'static >"]);
+    }
+
+    #[test]
+    fn impl_into_recognized_only_with_send_static() {
+        use crate::core::registry::extract_into_trait_arg;
+        // Accepted: bare `Into<T> + Send + 'static`.
+        assert!(extract_into_trait_arg(&ty("impl Into<KeyExpr<'static>> + Send + 'static")).is_some());
+        // Order doesn't matter (parser preserves bound order, but extractor walks all).
+        assert!(extract_into_trait_arg(&ty("impl Send + Into<KeyExpr<'static>> + 'static")).is_some());
+
+        // Rejected: missing Send.
+        assert!(extract_into_trait_arg(&ty("impl Into<KeyExpr<'static>> + 'static")).is_none());
+        // Rejected: missing 'static.
+        assert!(extract_into_trait_arg(&ty("impl Into<KeyExpr<'static>> + Send")).is_none());
+        // Rejected: missing Into entirely.
+        assert!(extract_into_trait_arg(&ty("impl Send + 'static")).is_none());
+        // Rejected: extra unrelated trait.
+        assert!(extract_into_trait_arg(&ty("impl Into<u64> + Send + Sync + 'static")).is_none());
+        // Rejected: not impl-Trait at all.
+        assert!(extract_into_trait_arg(&ty("KeyExpr<'static>")).is_none());
     }
 }

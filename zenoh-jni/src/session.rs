@@ -23,7 +23,6 @@ use zenoh::{
     query::{ConsolidationMode, Querier, Query, Queryable, QueryTarget, Reply, ReplyKeyExpr},
     session::{Session, ZenohId},
 };
-use zenoh_flat::keyexpr::KeyExpr;
 use zenoh_flat::sample::Sample;
 #[cfg(feature = "zenoh-ext")]
 use zenoh_ext::{AdvancedPublisher, AdvancedSubscriber};

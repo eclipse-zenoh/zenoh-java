@@ -31,11 +31,12 @@ fun KeyExpr.Companion.of(declared: KeyExpr?, keyExpr: String): KeyExpr =
     declared ?: undeclared(keyExpr)
 
 @Throws(ZError::class)
-fun KeyExpr.Companion.tryFrom(keyExpr: String): KeyExpr = JNINative.tryFromViaJNI(keyExpr)
+fun KeyExpr.Companion.tryFrom(keyExpr: String): KeyExpr =
+    undeclared(JNINative.tryFromViaJNI(keyExpr))
 
 @Throws(ZError::class)
 fun KeyExpr.Companion.autocanonize(keyExpr: String): KeyExpr =
-    JNINative.autocanonizeViaJNI(keyExpr)
+    undeclared(JNINative.autocanonizeViaJNI(keyExpr))
 
 @Throws(ZError::class)
 fun KeyExpr.Companion.intersects(a: KeyExpr?, aStr: String, b: KeyExpr?, bStr: String): Boolean =
@@ -57,4 +58,13 @@ fun KeyExpr.Companion.join(a: KeyExpr?, aStr: String, other: String): KeyExpr =
 fun KeyExpr.Companion.concat(a: KeyExpr?, aStr: String, other: String): KeyExpr =
     JNINative.concatViaJNI(of(a, aStr), other)
 
-fun KeyExpr.close() = JNINative.dropKeyExprViaJNI(this)
+/**
+ * Release the native `Arc<KeyExpr>` registration referenced by `this.ptr`.
+ *
+ * No-op when `ptr == 0` (string-only KeyExpr never allocated an Arc).
+ * The hand-written `Java_io_zenoh_jni_JNINative_dropKeyExprViaJNI` lives
+ * in `zenoh-jni/src/key_expr.rs`.
+ */
+fun KeyExpr.close() {
+    if (ptr != 0L) JNINative.dropKeyExprViaJNI(ptr)
+}

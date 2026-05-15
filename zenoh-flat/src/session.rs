@@ -11,7 +11,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use crate::keyexpr::KeyExpr;
 use crate::sample::Sample;
 use crate::{errors::ZResult, zerror};
 use std::time::Duration;
@@ -20,6 +19,7 @@ use tracing::{error, trace};
 use zenoh::{
     bytes::Encoding,
     config::Config,
+    key_expr::KeyExpr as ZKeyExpr,
     pubsub::{Publisher, Subscriber},
     query::{ConsolidationMode, Query, QueryTarget, Queryable, Querier, Reply, ReplyKeyExpr, Selector},
     qos::{CongestionControl, Priority, Reliability},
@@ -71,15 +71,16 @@ pub fn open_session(config: &Config) -> ZResult<Session> {
 #[prebindgen_proc_macro::prebindgen]
 pub fn declare_publisher(
     session: &Session,
-    key_expr: &KeyExpr,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     congestion_control: CongestionControl,
     priority: Priority,
     express: bool,
     reliability: Reliability,
 ) -> ZResult<Publisher<'static>> {
-    let key_expr_string = key_expr.string.clone();
+    let ke: ZKeyExpr<'static> = key_expr.into();
+    let key_expr_string = ke.to_string();
     session
-        .declare_publisher(key_expr.as_zenoh())
+        .declare_publisher(ke)
         .congestion_control(congestion_control)
         .priority(priority)
         .express(express)
@@ -97,22 +98,16 @@ pub fn declare_publisher(
 
 /// Declare a key expression through an existing Zenoh session.
 ///
-/// Returns a [`KeyExpr`] whose `ptr` field carries the `Arc<KeyExpr>`
-/// holding zenoh's hidden registration id; the `string` field carries the
-/// validated text form for cheap host-side inspection.
+/// Returns a session-declared [`ZKeyExpr<'static>`] (Arc-backed handle).
+/// The Kotlin side wraps it as `KeyExpr(ptr, string)` via the JNI
+/// output converter.
 #[prebindgen_proc_macro::prebindgen]
-pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<KeyExpr> {
+pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<ZKeyExpr<'static>> {
     let key_expr_clone = key_expr.clone();
     session
-        .declare_keyexpr(key_expr.clone())
+        .declare_keyexpr(key_expr)
         .wait()
-        .map(|ke| {
-            trace!("Declared key expression '{}'.", key_expr_clone);
-            KeyExpr {
-                ptr: Some(ke),
-                string: key_expr,
-            }
-        })
+        .inspect(|_| trace!("Declared key expression '{}'.", key_expr_clone))
         .map_err(|err| {
             error!(
                 "Unable to declare key expression '{}': {}",
@@ -128,22 +123,20 @@ pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<KeyExpr>
 
 /// Undeclare a previously-declared key expression on a Zenoh session.
 ///
-/// Takes the wrapper by value: the network registration is undeclared and
-/// the inner `Arc<KeyExpr>` is dropped at end of scope (releasing the JNI
-/// strong reference). Returns an error when the wrapper carries no
-/// declaration handle (`ptr` is `None`) — undeclaring a non-declared key
-/// expression is a programming error and must surface to the caller.
+/// Consumes the [`ZKeyExpr<'static>`] handle. The hand-written
+/// `freePtrViaJNI` is responsible for actually decrementing the outer
+/// `Arc`; this fn just performs the network-side undeclare.
 #[prebindgen_proc_macro::prebindgen]
-pub fn undeclare_key_expr(session: &Session, key_expr: KeyExpr) -> ZResult<()> {
-    let ke = key_expr.as_zenoh();
-    session.undeclare(ke).wait().map_err(|err| {
+pub fn undeclare_key_expr(session: &Session, key_expr: ZKeyExpr<'static>) -> ZResult<()> {
+    let key_expr_string = key_expr.to_string();
+    session.undeclare(key_expr).wait().map_err(|err| {
         error!(
             "Unable to undeclare key expression '{}': {}",
-            key_expr.string, err
+            key_expr_string, err
         );
         zerror!(
             "Unable to undeclare key expression '{}': {}",
-            key_expr.string,
+            key_expr_string,
             err
         )
     })
@@ -153,14 +146,15 @@ pub fn undeclare_key_expr(session: &Session, key_expr: KeyExpr) -> ZResult<()> {
 #[prebindgen_proc_macro::prebindgen]
 pub fn declare_subscriber(
     session: &Session,
-    key_expr: &KeyExpr,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     callback: impl Fn(Sample) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> ZResult<Subscriber<()>> {
-    let key_expr_string = key_expr.string.clone();
+    let ke: ZKeyExpr<'static> = key_expr.into();
+    let key_expr_string = ke.to_string();
     let guard = CallOnDrop::new(on_close);
     session
-        .declare_subscriber(key_expr.as_zenoh())
+        .declare_subscriber(ke)
         .callback(move |zsample| {
             let _ = &guard; // capture the guard
             callback((&zsample).into());
@@ -180,7 +174,7 @@ pub fn declare_subscriber(
 #[prebindgen_proc_macro::prebindgen]
 pub fn declare_querier(
     session: &Session,
-    key_expr: &KeyExpr,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     query_target: QueryTarget,
     consolidation: ConsolidationMode,
     congestion_control: CongestionControl,
@@ -189,9 +183,10 @@ pub fn declare_querier(
     timeout: Duration,
     reply_key_expr: ReplyKeyExpr,
 ) -> ZResult<Querier<'static>> {
-    let key_expr_string = key_expr.string.clone();
+    let ke: ZKeyExpr<'static> = key_expr.into();
+    let key_expr_string = ke.to_string();
     session
-        .declare_querier(key_expr.as_zenoh())
+        .declare_querier(ke)
         .congestion_control(congestion_control)
         .consolidation(consolidation)
         .express(express)
@@ -213,15 +208,16 @@ pub fn declare_querier(
 #[prebindgen_proc_macro::prebindgen]
 pub fn declare_queryable(
     session: &Session,
-    key_expr: &KeyExpr,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     callback: impl Fn(Query) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
     complete: bool,
 ) -> ZResult<Queryable<()>> {
-    let key_expr_string = key_expr.string.clone();
+    let ke: ZKeyExpr<'static> = key_expr.into();
+    let key_expr_string = ke.to_string();
     let guard = CallOnDrop::new(on_close);
     session
-        .declare_queryable(key_expr.as_zenoh())
+        .declare_queryable(ke)
         .callback(move |query| {
             let _ = &guard; // capture the guard
             callback(query);
@@ -250,7 +246,7 @@ pub fn declare_queryable(
 #[prebindgen_proc_macro::prebindgen]
 pub fn get(
     session: &Session,
-    key_expr: &KeyExpr,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     selector_params: Option<String>,
     callback: impl Fn(Reply) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
@@ -265,8 +261,8 @@ pub fn get(
     express: bool,
     reply_key_expr: ReplyKeyExpr,
 ) -> ZResult<()> {
-    let key_expr_string = key_expr.string.clone();
-    let key_expr_zenoh = key_expr.as_zenoh();
+    let key_expr_zenoh: ZKeyExpr<'static> = key_expr.into();
+    let key_expr_string = key_expr_zenoh.to_string();
     let selector = Selector::owned(&key_expr_zenoh, selector_params.unwrap_or_default());
     let guard = CallOnDrop::new(on_close);
     let mut get_builder = session
@@ -309,7 +305,7 @@ pub fn get(
 #[prebindgen_proc_macro::prebindgen]
 pub fn put(
     session: &Session,
-    key_expr: &KeyExpr,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     payload: Vec<u8>,
     encoding: Encoding,
     congestion_control: CongestionControl,
@@ -318,8 +314,8 @@ pub fn put(
     attachment: Option<Vec<u8>>,
     reliability: Reliability,
 ) -> ZResult<()> {
-    let key_expr_string = key_expr.string.clone();
-    let key_expr_zenoh = key_expr.as_zenoh();
+    let key_expr_zenoh: ZKeyExpr<'static> = key_expr.into();
+    let key_expr_string = key_expr_zenoh.to_string();
     let mut put_builder = session
         .put(&key_expr_zenoh, payload)
         .congestion_control(congestion_control)
@@ -347,15 +343,15 @@ pub fn put(
 #[prebindgen_proc_macro::prebindgen]
 pub fn delete(
     session: &Session,
-    key_expr: &KeyExpr,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     congestion_control: CongestionControl,
     priority: Priority,
     express: bool,
     attachment: Option<Vec<u8>>,
     reliability: Reliability,
 ) -> ZResult<()> {
-    let key_expr_string = key_expr.string.clone();
-    let key_expr_zenoh = key_expr.as_zenoh();
+    let key_expr_zenoh: ZKeyExpr<'static> = key_expr.into();
+    let key_expr_string = key_expr_zenoh.to_string();
     let mut delete_builder = session
         .delete(&key_expr_zenoh)
         .congestion_control(congestion_control)
@@ -433,17 +429,18 @@ pub fn close_session(session: &Session) -> ZResult<()> {
 #[prebindgen_proc_macro::prebindgen]
 pub fn declare_advanced_subscriber(
     session: &Session,
-    key_expr: &KeyExpr,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     callback: impl Fn(Sample) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
     history: Option<HistoryConfig>,
     recovery: Option<RecoveryConfig>,
     subscriber_detection: bool,
 ) -> ZResult<AdvancedSubscriber<()>> {
-    let key_expr_string = key_expr.string.clone();
+    let ke: ZKeyExpr<'static> = key_expr.into();
+    let key_expr_string = ke.to_string();
     let guard = CallOnDrop::new(on_close);
     let mut builder = session
-        .declare_subscriber(key_expr.as_zenoh())
+        .declare_subscriber(ke)
         .callback(move |zsample| {
             let _ = &guard; // capture the guard
             callback((&zsample).into());
@@ -483,7 +480,7 @@ pub fn declare_advanced_subscriber(
 #[prebindgen_proc_macro::prebindgen]
 pub fn declare_advanced_publisher(
     session: &Session,
-    key_expr: &KeyExpr,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     congestion_control: CongestionControl,
     priority: Priority,
     express: bool,
@@ -492,9 +489,10 @@ pub fn declare_advanced_publisher(
     sample_miss_detection: Option<MissDetectionConfig>,
     publisher_detection: bool,
 ) -> ZResult<AdvancedPublisher<'static>> {
-    let key_expr_string = key_expr.string.clone();
+    let ke: ZKeyExpr<'static> = key_expr.into();
+    let key_expr_string = ke.to_string();
     let mut builder = session
-        .declare_publisher(key_expr.as_zenoh())
+        .declare_publisher(ke)
         .congestion_control(congestion_control)
         .priority(priority)
         .express(express)

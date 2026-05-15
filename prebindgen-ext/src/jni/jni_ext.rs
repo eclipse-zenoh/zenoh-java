@@ -265,6 +265,20 @@ impl JniExt {
         }
     }
 
+    /// Canonical input-converter name for `(rust, wire)` — exposed
+    /// for plugin wrapper exts that build `ConverterImpl::function`
+    /// manually with a non-standard return type (e.g.
+    /// `impl Into<…>` parameters that can't be expressed via
+    /// [`Self::input_wrapper`]'s fixed signature shape).
+    pub fn input_converter_name(&self, rust: &syn::Type, wire: &syn::Type) -> syn::Ident {
+        input_name(rust, wire)
+    }
+
+    /// Symmetric to [`Self::input_converter_name`].
+    pub fn output_converter_name(&self, rust: &syn::Type, wire: &syn::Type) -> syn::Ident {
+        output_name(rust, wire)
+    }
+
     /// Output side of [`Self::opaque_arc_input`] — see that method's
     /// docs for the full convention.
     pub fn opaque_arc_output(&self, ty: &syn::Type) -> ConverterImpl {

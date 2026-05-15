@@ -384,9 +384,10 @@ impl Registry {
         loc: &SourceLocation,
         visited: &mut HashSet<TypeKey>,
     ) -> Result<(), ScanError> {
-        // Reject `impl Trait` except `impl Fn(...) + Send + Sync + 'static`.
+        // Reject `impl Trait` except `impl Fn(...) + Send + Sync + 'static`
+        // and `impl Into<T> + Send + 'static`.
         if let syn::Type::ImplTrait(it) = ty {
-            if extract_fn_trait_args(ty).is_none() {
+            if extract_fn_trait_args(ty).is_none() && extract_into_trait_arg(ty).is_none() {
                 return Err(ScanError::DisallowedImplTrait {
                     ty: it.to_token_stream().to_string(),
                     loc: loc.clone(),
@@ -503,11 +504,64 @@ pub fn immediate_subtype_positions(ty: &syn::Type) -> Vec<syn::Type> {
         syn::Type::Ptr(p) => vec![(*p.elem).clone()],
         syn::Type::Group(g) => immediate_subtype_positions(&g.elem),
         syn::Type::Paren(p) => immediate_subtype_positions(&p.elem),
-        syn::Type::ImplTrait(_) => extract_fn_trait_args(ty).unwrap_or_default(),
+        syn::Type::ImplTrait(_) => extract_fn_trait_args(ty)
+            .or_else(|| extract_into_trait_arg(ty).map(|t| vec![t]))
+            .unwrap_or_default(),
         _ => vec![],
     }
 }
 
+
+/// If `ty` is exactly `impl Into<T> + Send + 'static`, return `T`. Any
+/// other bound combination (missing `Send`/`'static`, extra traits, no
+/// `Into`) returns `None` — the framework rejects bare `impl Into<T>`
+/// at scan time.
+///
+/// Mirrors [`extract_fn_trait_args`] in shape and intent: a single
+/// well-formed exception to the otherwise-blanket "no `impl Trait`"
+/// rule, picked up by every framework helper that handles parameter
+/// type recognition (scan, rank, wildcard enumeration, rebuild).
+pub fn extract_into_trait_arg(ty: &syn::Type) -> Option<syn::Type> {
+    let syn::Type::ImplTrait(it) = ty else {
+        return None;
+    };
+    let mut target: Option<syn::Type> = None;
+    let mut has_send = false;
+    let mut has_static = false;
+    for bound in &it.bounds {
+        match bound {
+            syn::TypeParamBound::Trait(tb) => {
+                let last = tb.path.segments.last()?;
+                let name = last.ident.to_string();
+                match name.as_str() {
+                    "Into" => {
+                        let syn::PathArguments::AngleBracketed(ab) = &last.arguments else {
+                            return None;
+                        };
+                        let mut tys = ab.args.iter().filter_map(|a| match a {
+                            syn::GenericArgument::Type(t) => Some(t.clone()),
+                            _ => None,
+                        });
+                        let t = tys.next()?;
+                        if tys.next().is_some() {
+                            return None;
+                        }
+                        target = Some(t);
+                    }
+                    "Send" => has_send = true,
+                    _ => return None,
+                }
+            }
+            syn::TypeParamBound::Lifetime(lt) if lt.ident == "static" => has_static = true,
+            _ => return None,
+        }
+    }
+    if has_send && has_static {
+        target
+    } else {
+        None
+    }
+}
 
 /// If `ty` is `impl Fn(T1, T2, ...) + Send + Sync + 'static`, return the
 /// `Fn` argument types in declaration order. Otherwise None.
