@@ -60,6 +60,12 @@ pub struct JniExt {
     pub kotlin_callback_package: String,
     /// On-disk directory the per-callback `.kt` files are written to.
     pub kotlin_callback_dir: PathBuf,
+    /// Extra `<rust-type-canonical-string> → <kotlin FQN>` map applied
+    /// when resolving callback parameter types in
+    /// [`crate::jni::jni_kotlin_ext`]. Lets the consuming crate point
+    /// the emitter at data classes / typealiases that don't show up in
+    /// `extract_fn_trait_args` (e.g. `Sample` → `io.zenoh.jni.Sample`).
+    pub kotlin_type_fqns: Vec<(String, String)>,
 }
 
 impl JniExt {
@@ -75,6 +81,7 @@ impl JniExt {
             jni_method_suffix: String::new(),
             kotlin_callback_package: String::new(),
             kotlin_callback_dir: PathBuf::new(),
+            kotlin_type_fqns: Vec::new(),
         }
     }
     pub fn source_module(mut self, p: impl AsRef<str>) -> Self {
@@ -107,6 +114,14 @@ impl JniExt {
     }
     pub fn kotlin_callback_dir(mut self, d: impl Into<PathBuf>) -> Self {
         self.kotlin_callback_dir = d.into();
+        self
+    }
+    /// Register a `<rust-type-canonical> → <kotlin FQN>` mapping used
+    /// when emitting callback `JNI<Stem>Callback.kt` files. The
+    /// canonical string is `syn::Type::to_token_stream().to_string()`
+    /// (e.g. `"Sample"`, `"Option < String >"`).
+    pub fn kotlin_type_fqn(mut self, rust_canon: impl Into<String>, fqn: impl Into<String>) -> Self {
+        self.kotlin_type_fqns.push((rust_canon.into(), fqn.into()));
         self
     }
 }

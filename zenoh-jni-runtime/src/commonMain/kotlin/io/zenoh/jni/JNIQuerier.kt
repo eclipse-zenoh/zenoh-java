@@ -23,7 +23,7 @@ public class JNIQuerier(private val ptr: Long) {
 
     @Throws(ZError::class)
     fun get(
-        jniKeyExpr: JNIKeyExpr?,
+        keyExprHandle: Long?,
         keyExprString: String,
         parameters: String?,
         callback: JNIGetCallback,
@@ -32,13 +32,13 @@ public class JNIQuerier(private val ptr: Long) {
         payload: ByteArray?,
         encoding: JNIEncoding?,
     ) {
-        getViaJNI(ptr, JNIKeyExpr.of(jniKeyExpr, keyExprString), parameters, callback, onClose, attachmentBytes, payload, encoding)
+        getViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), parameters, callback, onClose, attachmentBytes, payload, encoding)
     }
 
     @Throws(ZError::class)
     private external fun getViaJNI(
         querierPtr: Long,
-        keyExpr: JNIKeyExpr,
+        keyExpr: Any,
         parameters: String?,
         callback: JNIGetCallback,
         onClose: JNIOnCloseCallback,

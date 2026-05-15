@@ -108,8 +108,14 @@ impl ZenohJniExt {
 
     /// Build the dispatching input converter for
     /// `impl Into<zenoh::key_expr::KeyExpr<'static>> + Send + 'static`.
-    /// Reads the Java `KeyExpr(ptr, string)` data class fields and
-    /// chooses Arc-clone vs string-validate + into_owned.
+    ///
+    /// The Java parameter type is `Object` (`jni::objects::JObject` on
+    /// the wire). Dispatches at runtime:
+    /// * `instanceof java.lang.Long` — unbox to `long`, treat as the
+    ///   `Arc<KeyExpr<'static>>` raw pointer, clone the inner `KeyExpr`
+    ///   (Java retains its strong reference).
+    /// * Otherwise — treat as `java.lang.String`, validate via
+    ///   `KeyExpr::try_from` and `into_owned()`.
     fn impl_into_keyexpr_input(&self, pat: &syn::Type) -> ConverterImpl {
         let zresult = &self.base.zresult;
         let wire: syn::Type = syn::parse_quote!(jni::objects::JObject);
@@ -120,67 +126,38 @@ impl ZenohJniExt {
                 env: &mut jni::JNIEnv<'env>,
                 v: &jni::objects::JObject<'v>,
             ) -> #zresult<zenoh::key_expr::KeyExpr<'static>> {
-                let ptr: jni::sys::jlong = env
-                    .get_field(v, "ptr", "J")
-                    .and_then(|j| j.j())
-                    .map_err(|e| crate::errors::ZError(format!("KeyExpr.ptr: {}", e)))?;
-                if ptr != 0 {
+                let long_class = env
+                    .find_class("java/lang/Long")
+                    .map_err(|e| crate::errors::ZError(format!("find java.lang.Long: {}", e)))?;
+                let is_long = env
+                    .is_instance_of(v, &long_class)
+                    .map_err(|e| crate::errors::ZError(format!("instanceof Long: {}", e)))?;
+                if is_long {
+                    let ptr = env
+                        .call_method(v, "longValue", "()J", &[])
+                        .and_then(|val| val.j())
+                        .map_err(|e| crate::errors::ZError(format!("Long.longValue: {}", e)))?;
+                    if ptr == 0 {
+                        return Err(crate::errors::ZError(
+                            "KeyExpr handle pointer is null".to_string(),
+                        ));
+                    }
                     let raw = ptr as *const zenoh::key_expr::KeyExpr<'static>;
                     Ok(unsafe { (*raw).clone() })
                 } else {
-                    let str_obj = env
-                        .get_field(v, "string", "Ljava/lang/String;")
-                        .and_then(|j| j.l())
-                        .map_err(|e| crate::errors::ZError(format!("KeyExpr.string: {}", e)))?;
-                    let s: jni::objects::JString = str_obj.into();
+                    let s: jni::objects::JString = unsafe {
+                        jni::objects::JString::from_raw(v.as_raw())
+                    };
                     let bind = env
                         .get_string(&s)
-                        .map_err(|e| crate::errors::ZError(format!("KeyExpr.string decode: {}", e)))?;
+                        .map_err(|e| crate::errors::ZError(format!("KeyExpr String: {}", e)))?;
                     let value = bind
                         .to_str()
-                        .map_err(|e| crate::errors::ZError(format!("KeyExpr.string utf8: {}", e)))?;
+                        .map_err(|e| crate::errors::ZError(format!("KeyExpr utf8: {}", e)))?;
                     zenoh::key_expr::KeyExpr::try_from(value)
                         .map(|ke| ke.into_owned())
                         .map_err(|e| crate::errors::ZError(format!("KeyExpr parse: {}", e)))
                 }
-            }
-        );
-        ConverterImpl {
-            function,
-            destination: wire,
-            niches: zenoh_flat::core::niches::Niches::empty(),
-        }
-    }
-
-    /// Custom output converter for `zenoh::key_expr::KeyExpr<'static>`:
-    /// builds a Java `io.zenoh.jni.KeyExpr(ptr, string)` data class
-    /// rather than emitting a raw `jlong` (which `opaque_arc_output`
-    /// would do). Capture `to_string()` first so the value can then
-    /// be moved into the Arc.
-    fn key_expr_output(&self, ty: &syn::Type) -> ConverterImpl {
-        let zresult = &self.base.zresult;
-        let wire: syn::Type = syn::parse_quote!(jni::objects::JObject);
-        let name = self.base.output_converter_name(ty, &wire);
-        let function: syn::ItemFn = syn::parse_quote!(
-            #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
-            pub(crate) unsafe fn #name<'a>(
-                env: &mut jni::JNIEnv<'a>,
-                v: zenoh::key_expr::KeyExpr<'static>,
-            ) -> #zresult<jni::objects::JObject<'a>> {
-                let string = v.to_string();
-                let raw_ptr = std::sync::Arc::into_raw(std::sync::Arc::new(v)) as i64;
-                let jstr = env
-                    .new_string(string)
-                    .map_err(|e| crate::errors::ZError(format!("encode KeyExpr.string: {}", e)))?;
-                env.new_object(
-                    "io/zenoh/jni/KeyExpr",
-                    "(JLjava/lang/String;)V",
-                    &[
-                        jni::objects::JValue::Long(raw_ptr),
-                        jni::objects::JValue::Object(&jstr),
-                    ],
-                )
-                .map_err(|e| crate::errors::ZError(format!("encode KeyExpr: {}", e)))
             }
         );
         ConverterImpl {
@@ -334,15 +311,12 @@ impl PrebindgenExt for ZenohJniExt {
     fn on_output_type_rank_0(&self, ty: &syn::Type, registry: &Registry) -> Option<ConverterImpl> {
         let key = TypeKey::from_type(ty).as_str().to_string();
 
-        // ZKeyExpr<'static> output: build a Java `KeyExpr(ptr, string)`
-        // data class (not bare jlong) so Kotlin sees the full info.
-        if key == "ZKeyExpr < 'static >" {
-            return Some(self.key_expr_output(ty));
-        }
-        // Other opaque Arc-handle outputs — universal jlong convention.
-        // `Option<T>` derives automatically via the niche the helper
-        // declares.
+        // Opaque Arc-handle outputs — universal jlong convention.
+        // ZKeyExpr<'static> belongs here too: the Kotlin side computes
+        // the canonical string locally from input args, so we just
+        // hand back the Arc pointer.
         for opaque_key in [
+            "ZKeyExpr < 'static >",
             "Session",
             "Publisher < 'static >",
             "Subscriber < () >",
@@ -473,7 +447,17 @@ fn main() {
         .jni_class_path("Java_io_zenoh_jni_JNINative")
         .jni_method_suffix("ViaJNI")
         .kotlin_callback_package("io.zenoh.jni.callbacks")
-        .kotlin_callback_dir("../zenoh-jni-runtime/src/commonMain/kotlin/io/zenoh/jni/callbacks");
+        .kotlin_callback_dir("../zenoh-jni-runtime/src/commonMain/kotlin/io/zenoh/jni/callbacks")
+        // Kotlin FQNs for callback parameter types that aren't `impl Fn`
+        // shapes themselves. `Sample` is the data class in JNINative.kt;
+        // `Query` and `Reply` are zenoh-side types whose Kotlin
+        // representation is the all-primitive hand-written
+        // JNIQueryableCallback / JNIGetCallback (the auto-emitted
+        // JNIQueryCallback / JNIReplyCallback stubs are dead but must
+        // still compile, so we point them at `kotlin.Any`).
+        .kotlin_type_fqn("Sample", "io.zenoh.jni.Sample")
+        .kotlin_type_fqn("Query", "kotlin.Any")
+        .kotlin_type_fqn("Reply", "kotlin.Any");
     let ext = ZenohJniExt::new(jni);
     resolve::resolve(&mut registry, &ext).expect("unresolved required types");
 

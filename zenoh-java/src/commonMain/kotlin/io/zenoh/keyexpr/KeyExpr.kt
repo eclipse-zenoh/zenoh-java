@@ -17,15 +17,14 @@ package io.zenoh.keyexpr
 import io.zenoh.Session
 import io.zenoh.session.SessionDeclaration
 import io.zenoh.exceptions.ZError
-import io.zenoh.jni.JNIKeyExpr
-import io.zenoh.jni.tryFrom
-import io.zenoh.jni.autocanonize
-import io.zenoh.jni.intersects
-import io.zenoh.jni.includes
-import io.zenoh.jni.relationTo
-import io.zenoh.jni.join
-import io.zenoh.jni.concat
-import io.zenoh.jni.close
+import io.zenoh.jni.keyExprAutocanonize
+import io.zenoh.jni.keyExprConcat
+import io.zenoh.jni.keyExprDrop
+import io.zenoh.jni.keyExprIncludes
+import io.zenoh.jni.keyExprIntersects
+import io.zenoh.jni.keyExprJoin
+import io.zenoh.jni.keyExprRelationTo
+import io.zenoh.jni.keyExprTryFrom
 import io.zenoh.query.IntoSelector
 import io.zenoh.query.Selector
 
@@ -67,15 +66,15 @@ import io.zenoh.query.Selector
  * ensures that [close] is automatically called, safely managing the lifecycle of the [KeyExpr] instance.
  *
  */
-class KeyExpr internal constructor(internal val keyExpr: String, internal var jniKeyExpr: JNIKeyExpr? = null): AutoCloseable, IntoSelector,
-    SessionDeclaration {
-
+class KeyExpr internal constructor(
+    internal val keyExpr: String,
     /**
-     * Adapter constructor used by factories that already produce a fully
-     * formed [JNIKeyExpr] (carrying both the validated string and any
-     * declaration handle).
+     * Native `Arc<KeyExpr<'static>>` handle when this expression was
+     * session-declared; `null` otherwise. The Kotlin/JNI bridge uses
+     * this to short-circuit string validation on the native side.
      */
-    internal constructor(jni: JNIKeyExpr) : this(jni.string, jni)
+    internal var jniKeyExprHandle: Long? = null,
+) : AutoCloseable, IntoSelector, SessionDeclaration {
 
     companion object {
 
@@ -93,9 +92,7 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun tryFrom(keyExpr: String): KeyExpr {
-            return KeyExpr(JNIKeyExpr.tryFrom(keyExpr))
-        }
+        fun tryFrom(keyExpr: String): KeyExpr = KeyExpr(keyExprTryFrom(keyExpr))
 
         /**
          * Autocanonize.
@@ -109,9 +106,7 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun autocanonize(keyExpr: String): KeyExpr {
-            return KeyExpr(JNIKeyExpr.autocanonize(keyExpr))
-        }
+        fun autocanonize(keyExpr: String): KeyExpr = KeyExpr(keyExprAutocanonize(keyExpr))
     }
 
     /**
@@ -120,9 +115,8 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      * Will return false as well if the key expression is not valid anymore.
      */
     @Throws(ZError::class)
-    fun intersects(other: KeyExpr): Boolean {
-        return JNIKeyExpr.intersects(jniKeyExpr, keyExpr, other.jniKeyExpr, other.keyExpr)
-    }
+    fun intersects(other: KeyExpr): Boolean =
+        keyExprIntersects(jniKeyExprHandle, keyExpr, other.jniKeyExprHandle, other.keyExpr)
 
     /**
      * Includes operation. This method returns `true` when all the keys defined by `other` also belong to the set
@@ -130,9 +124,8 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      * Will return false as well if the key expression is not valid anymore.
      */
     @Throws(ZError::class)
-    fun includes(other: KeyExpr): Boolean {
-        return JNIKeyExpr.includes(jniKeyExpr, keyExpr, other.jniKeyExpr, other.keyExpr)
-    }
+    fun includes(other: KeyExpr): Boolean =
+        keyExprIncludes(jniKeyExprHandle, keyExpr, other.jniKeyExprHandle, other.keyExpr)
 
     /**
      * Returns the relation between 'this' and other from 'this''s point of view ([SetIntersectionLevel.INCLUDES]
@@ -140,9 +133,10 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      * so you should favor these methods for most applications.
      */
     @Throws(ZError::class)
-    fun relationTo(other: KeyExpr): SetIntersectionLevel {
-        return SetIntersectionLevel.fromInt(JNIKeyExpr.relationTo(jniKeyExpr, keyExpr, other.jniKeyExpr, other.keyExpr))
-    }
+    fun relationTo(other: KeyExpr): SetIntersectionLevel =
+        SetIntersectionLevel.fromInt(
+            keyExprRelationTo(jniKeyExprHandle, keyExpr, other.jniKeyExprHandle, other.keyExpr)
+        )
 
     /**
      * Joins both sides, inserting a / in between them.
@@ -150,7 +144,8 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      */
     @Throws(ZError::class)
     fun join(other: String): KeyExpr {
-        return KeyExpr(JNIKeyExpr.join(jniKeyExpr, keyExpr, other))
+        val r = keyExprJoin(jniKeyExprHandle, keyExpr, other)
+        return KeyExpr(r.string, r.handle)
     }
 
     /**
@@ -159,12 +154,11 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      */
     @Throws(ZError::class)
     fun concat(other: String): KeyExpr {
-        return KeyExpr(JNIKeyExpr.concat(jniKeyExpr, keyExpr, other))
+        val r = keyExprConcat(jniKeyExprHandle, keyExpr, other)
+        return KeyExpr(r.string, r.handle)
     }
 
-    override fun toString(): String {
-        return keyExpr
-    }
+    override fun toString(): String = keyExpr
 
     /**
      * Equivalent to [undeclare]. This function is automatically called when using try with resources.
@@ -181,8 +175,8 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      * operations on it, but without the inner optimizations.
      */
     override fun undeclare() {
-        jniKeyExpr?.close()
-        jniKeyExpr = null
+        jniKeyExprHandle?.let { keyExprDrop(it) }
+        jniKeyExprHandle = null
     }
 
     override fun into(): Selector = Selector(this)
@@ -196,7 +190,5 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
         return keyExpr == other.keyExpr
     }
 
-    override fun hashCode(): Int {
-        return keyExpr.hashCode()
-    }
+    override fun hashCode(): Int = keyExpr.hashCode()
 }

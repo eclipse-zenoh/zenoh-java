@@ -20,37 +20,51 @@ use zenoh::key_expr::KeyExpr as ZKeyExpr;
 
 use crate::errors::ZResult;
 
-/// Decode an `io.zenoh.jni.KeyExpr` holder directly into a zenoh
-/// [`ZKeyExpr<'static>`]. Used by hand-written JNI fns in modules that
-/// haven't been migrated to the auto-generated `impl Into<KeyExpr>`
-/// converter yet (liveliness, query, querier). Borrow-style: when
-/// `ptr != 0`, the JNI side keeps its strong reference; this fn just
-/// clones the inner zenoh `KeyExpr`.
+/// Decode the JNI key-expression argument into a zenoh
+/// [`ZKeyExpr<'static>`]. Used by hand-written JNI fns in modules
+/// that haven't been migrated to the auto-generated
+/// `impl Into<KeyExpr<'static>>` converter yet (liveliness, query,
+/// querier).
+///
+/// The Kotlin side passes either a boxed `java.lang.Long` (Arc handle)
+/// or a `java.lang.String` (raw key-expr text); this fn dispatches on
+/// the runtime Java class:
+/// * `Long`   — clone the existing `Arc<KeyExpr>` (Java retains its
+///              strong reference; per-call decoding is borrow-style).
+/// * `String` — validate via `KeyExpr::try_from` and `into_owned()`.
 pub(crate) unsafe fn decode_jni_key_expr(
     env: &mut JNIEnv,
     obj: &JObject,
 ) -> ZResult<ZKeyExpr<'static>> {
-    let ptr = env
-        .get_field(obj, "ptr", "J")
-        .and_then(|v| v.j())
-        .map_err(|err| zerror!("KeyExpr.ptr: {}", err))?;
-    if ptr != 0 {
+    let long_class = env
+        .find_class("java/lang/Long")
+        .map_err(|err| zerror!("find java.lang.Long: {}", err))?;
+    let is_long = env
+        .is_instance_of(obj, &long_class)
+        .map_err(|err| zerror!("instanceof Long: {}", err))?;
+    if is_long {
+        let ptr = env
+            .call_method(obj, "longValue", "()J", &[])
+            .and_then(|v| v.j())
+            .map_err(|err| zerror!("Long.longValue: {}", err))?;
+        if ptr == 0 {
+            return Err(crate::errors::ZError(
+                "KeyExpr handle pointer is null".to_string(),
+            ));
+        }
         let raw = ptr as *const ZKeyExpr<'static>;
         Ok((*raw).clone())
     } else {
-        let str_obj = env
-            .get_field(obj, "string", "Ljava/lang/String;")
-            .and_then(|v| v.l())
-            .map_err(|err| zerror!("KeyExpr.string: {}", err))?;
-        let s: jni::objects::JString = str_obj.into();
+        let s: jni::objects::JString = jni::objects::JString::from_raw(obj.as_raw());
         let binding = env
             .get_string(&s)
-            .map_err(|err| zerror!("KeyExpr.string decode: {}", err))?;
+            .map_err(|err| zerror!("KeyExpr String: {}", err))?;
         let value = binding
             .to_str()
-            .map_err(|err| zerror!("KeyExpr.string utf8: {}", err))?;
-        // SAFETY: validated upstream via `try_from` / `autocanonize`.
-        Ok(ZKeyExpr::from_string_unchecked(value.to_string()))
+            .map_err(|err| zerror!("KeyExpr utf8: {}", err))?;
+        ZKeyExpr::try_from(value)
+            .map(|ke| ke.into_owned())
+            .map_err(|err| zerror!("KeyExpr parse: {}", err))
     }
 }
 

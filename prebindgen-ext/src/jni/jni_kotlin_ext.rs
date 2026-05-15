@@ -95,6 +95,11 @@ impl JniExt {
                 }
             }
         }
+        // Merge in plugin-supplied extra mappings (e.g. data-class FQNs
+        // that aren't reachable from impl-Fn types).
+        for (rust_canon, fqn) in &self.kotlin_type_fqns {
+            map = map.add(rust_canon.as_str(), fqn.clone());
+        }
         map
     }
 }

@@ -17,54 +17,69 @@ package io.zenoh.jni
 import io.zenoh.exceptions.ZError
 
 /**
- * Alias for the auto-generated [KeyExpr] data class.
+ * Helpers for the key-expression JNI surface.
  *
- * `ptr == 0L` means "not declared on a session — use [KeyExpr.string] at the
- * native side"; `ptr != 0L` means "declared — the pointer holds the
- * `Arc<KeyExpr>` registration handle".
+ * The native side accepts `Any` for every key-expr parameter and
+ * dispatches at runtime: a [Long] is treated as the
+ * `Arc<KeyExpr<'static>>` registration handle, anything else
+ * (a [String] in practice) is validated and converted to an owned
+ * `KeyExpr<'static>`. Pass `handle ?: keyExprString` to native fns —
+ * the `?:` operator picks the boxed [Long] when present, otherwise the
+ * raw string.
+ *
+ * Functions that *return* a key-expression hand back a [Long] (the
+ * Arc pointer); the canonical string is computed locally on the
+ * Kotlin side. For [join] / [concat] the result string matches
+ * Rust's `format!("{a}/{other}")` / `format!("{a}{other}")` since
+ * the native validation is non-rewriting.
  */
-typealias JNIKeyExpr = KeyExpr
-
-fun KeyExpr.Companion.undeclared(keyExpr: String): KeyExpr = KeyExpr(ptr = 0L, string = keyExpr)
-
-fun KeyExpr.Companion.of(declared: KeyExpr?, keyExpr: String): KeyExpr =
-    declared ?: undeclared(keyExpr)
-
-@Throws(ZError::class)
-fun KeyExpr.Companion.tryFrom(keyExpr: String): KeyExpr =
-    undeclared(JNINative.tryFromViaJNI(keyExpr))
-
-@Throws(ZError::class)
-fun KeyExpr.Companion.autocanonize(keyExpr: String): KeyExpr =
-    undeclared(JNINative.autocanonizeViaJNI(keyExpr))
-
-@Throws(ZError::class)
-fun KeyExpr.Companion.intersects(a: KeyExpr?, aStr: String, b: KeyExpr?, bStr: String): Boolean =
-    JNINative.intersectsViaJNI(of(a, aStr), of(b, bStr))
-
-@Throws(ZError::class)
-fun KeyExpr.Companion.includes(a: KeyExpr?, aStr: String, b: KeyExpr?, bStr: String): Boolean =
-    JNINative.includesViaJNI(of(a, aStr), of(b, bStr))
-
-@Throws(ZError::class)
-fun KeyExpr.Companion.relationTo(a: KeyExpr?, aStr: String, b: KeyExpr?, bStr: String): Int =
-    JNINative.relationToViaJNI(of(a, aStr), of(b, bStr))
-
-@Throws(ZError::class)
-fun KeyExpr.Companion.join(a: KeyExpr?, aStr: String, other: String): KeyExpr =
-    JNINative.joinViaJNI(of(a, aStr), other)
-
-@Throws(ZError::class)
-fun KeyExpr.Companion.concat(a: KeyExpr?, aStr: String, other: String): KeyExpr =
-    JNINative.concatViaJNI(of(a, aStr), other)
 
 /**
- * Release the native `Arc<KeyExpr>` registration referenced by `this.ptr`.
- *
- * No-op when `ptr == 0` (string-only KeyExpr never allocated an Arc).
- * The hand-written `Java_io_zenoh_jni_JNINative_dropKeyExprViaJNI` lives
- * in `zenoh-jni/src/key_expr.rs`.
+ * Pick the declared handle if present, else the raw string. Returns
+ * a JVM `Object` (boxed `java.lang.Long` or `java.lang.String`) which
+ * the native dispatching converter resolves at runtime.
  */
-fun KeyExpr.close() {
-    if (ptr != 0L) JNINative.dropKeyExprViaJNI(ptr)
+fun keyExprArg(handle: Long?, str: String): Any = handle ?: str
+
+@Throws(ZError::class)
+fun keyExprTryFrom(keyExpr: String): String = JNINative.tryFromViaJNI(keyExpr)
+
+@Throws(ZError::class)
+fun keyExprAutocanonize(keyExpr: String): String = JNINative.autocanonizeViaJNI(keyExpr)
+
+@Throws(ZError::class)
+fun keyExprIntersects(a: Long?, aStr: String, b: Long?, bStr: String): Boolean =
+    JNINative.intersectsViaJNI(keyExprArg(a, aStr), keyExprArg(b, bStr))
+
+@Throws(ZError::class)
+fun keyExprIncludes(a: Long?, aStr: String, b: Long?, bStr: String): Boolean =
+    JNINative.includesViaJNI(keyExprArg(a, aStr), keyExprArg(b, bStr))
+
+@Throws(ZError::class)
+fun keyExprRelationTo(a: Long?, aStr: String, b: Long?, bStr: String): Int =
+    JNINative.relationToViaJNI(keyExprArg(a, aStr), keyExprArg(b, bStr))
+
+/** Result of a join/concat: `(handle, canonicalString)`. */
+data class KeyExprResult(val handle: Long, val string: String)
+
+@Throws(ZError::class)
+fun keyExprJoin(a: Long?, aStr: String, other: String): KeyExprResult {
+    val handle = JNINative.joinViaJNI(keyExprArg(a, aStr), other)
+    // Match Rust's `KeyExpr::join` formatting: "{self}/{other}".
+    return KeyExprResult(handle, "$aStr/$other")
+}
+
+@Throws(ZError::class)
+fun keyExprConcat(a: Long?, aStr: String, other: String): KeyExprResult {
+    val handle = JNINative.concatViaJNI(keyExprArg(a, aStr), other)
+    // Match Rust's `KeyExpr::concat` formatting: "{self}{other}".
+    return KeyExprResult(handle, "$aStr$other")
+}
+
+/**
+ * Release the native `Arc<KeyExpr>` registration. No-op for `0L`
+ * (string-only keyexprs never allocated an Arc).
+ */
+fun keyExprDrop(handle: Long) {
+    if (handle != 0L) JNINative.dropKeyExprViaJNI(handle)
 }
