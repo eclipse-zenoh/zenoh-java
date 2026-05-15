@@ -24,7 +24,7 @@ use zenoh::Wait;
 use zenoh_ext::AdvancedPublisher;
 
 use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close};
-use zenoh_flat::owned_object::OwnedObject;
+use crate::session::OwnedObject;
 
 use crate::throw_exception;
 

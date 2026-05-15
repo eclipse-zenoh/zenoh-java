@@ -54,6 +54,23 @@ pub struct ConverterImpl {
 /// entries; the file emitter calls `on_function` / `on_struct` / `on_enum` /
 /// `on_const` to produce per-item wrapper code.
 pub trait PrebindgenExt {
+    // ── Setup ──────────────────────────────────────────────────────
+
+    /// Install Rust items the plugin's emitted converters depend on
+    /// (helper structs, type aliases, runtime-support code). Called
+    /// once by [`crate::core::resolve::resolve`] before the fixed-point
+    /// loop. Items registered via
+    /// [`crate::core::registry::Registry::add_prerequisite`] are
+    /// emitted at the top of the destination file, before all
+    /// auto-generated converters.
+    ///
+    /// Default: no prerequisites.
+    ///
+    /// Wrapper exts (e.g. a crate-specific [`PrebindgenExt`] that
+    /// composes a base [`crate::jni::JniExt`]) must forward the call
+    /// to the base ext if they want its prerequisites installed.
+    fn install_prerequisites(&self, _registry: &mut Registry) {}
+
     // ── Item methods ───────────────────────────────────────────────
 
     /// Wrap a `#[prebindgen]` fn into the destination-language wrapper

@@ -30,7 +30,7 @@ use crate::{
         load_on_close,
     },
 };
-use zenoh_flat::owned_object::OwnedObject;
+use crate::session::OwnedObject;
 use zenoh_flat::jni::decode_string;
 
 /// Perform a Zenoh GET through a querier.

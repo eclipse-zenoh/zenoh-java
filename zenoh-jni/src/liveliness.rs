@@ -31,7 +31,7 @@ use crate::{
     throw_exception,
     utils::{get_callback_global_ref, get_java_vm, load_on_close, wrap_with_on_close},
 };
-use zenoh_flat::owned_object::OwnedObject;
+use crate::session::OwnedObject;
 
 #[no_mangle]
 #[allow(non_snake_case)]

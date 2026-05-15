@@ -24,7 +24,7 @@ use zenoh::Config;
 use crate::errors::ZResult;
 use crate::throw_exception;
 use zenoh_flat::jni::decode_string;
-use zenoh_flat::owned_object::OwnedObject;
+use crate::session::OwnedObject;
 
 /// Loads the default configuration, returning a raw pointer to it.
 ///

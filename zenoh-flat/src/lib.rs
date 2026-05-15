@@ -6,7 +6,6 @@ pub const FEATURES: &str = prebindgen_proc_macro::features!();
 pub mod config;
 pub mod errors;
 pub mod keyexpr;
-pub mod owned_object;
 pub mod publisher;
 pub mod sample;
 pub mod session;

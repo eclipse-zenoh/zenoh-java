@@ -130,6 +130,12 @@ impl ZenohJniExt {
 }
 
 impl PrebindgenExt for ZenohJniExt {
+    // ── Setup — forward base prerequisites (OwnedObject etc.) ──
+
+    fn install_prerequisites(&self, registry: &mut Registry) {
+        self.base.install_prerequisites(registry);
+    }
+
     // ── Item methods — delegate ──
 
     fn on_function(&self, f: &syn::ItemFn, registry: &Registry) -> TokenStream {

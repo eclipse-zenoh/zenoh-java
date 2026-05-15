@@ -44,6 +44,11 @@ pub fn write_rust<P: AsRef<Path>, E: PrebindgenExt>(
 ) -> Result<PathBuf, WriteError> {
     let mut items: Vec<syn::Item> = Vec::new();
 
+    // 0. Plugin prerequisites — runtime-support items (helper structs,
+    //    type aliases) the converter bodies depend on. Emitted first so
+    //    everything below can reference them.
+    items.extend(registry.prerequisites().iter().cloned());
+
     // 1. Auto-generated converter wrappers (sorted by ident, deduped).
     for (_, item_fn) in collect_converter_items(registry) {
         items.push(syn::Item::Fn(item_fn));
