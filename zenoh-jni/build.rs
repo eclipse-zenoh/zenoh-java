@@ -106,67 +106,6 @@ impl ZenohJniExt {
         ))
     }
 
-    /// Build the dispatching input converter for
-    /// `impl Into<zenoh::key_expr::KeyExpr<'static>> + Send + 'static`.
-    ///
-    /// The Java parameter type is `Object` (`jni::objects::JObject` on
-    /// the wire). Dispatches at runtime:
-    /// * `instanceof java.lang.Long` — unbox to `long`, treat as the
-    ///   `Arc<KeyExpr<'static>>` raw pointer, clone the inner `KeyExpr`
-    ///   (Java retains its strong reference).
-    /// * Otherwise — treat as `java.lang.String`, validate via
-    ///   `KeyExpr::try_from` and `into_owned()`.
-    fn impl_into_keyexpr_input(&self, pat: &syn::Type) -> ConverterImpl {
-        let zresult = &self.base.zresult;
-        let wire: syn::Type = syn::parse_quote!(jni::objects::JObject);
-        let name = self.base.input_converter_name(pat, &wire);
-        let function: syn::ItemFn = syn::parse_quote!(
-            #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
-            pub(crate) unsafe fn #name<'env, 'v>(
-                env: &mut jni::JNIEnv<'env>,
-                v: &jni::objects::JObject<'v>,
-            ) -> #zresult<zenoh::key_expr::KeyExpr<'static>> {
-                let long_class = env
-                    .find_class("java/lang/Long")
-                    .map_err(|e| crate::errors::ZError(format!("find java.lang.Long: {}", e)))?;
-                let is_long = env
-                    .is_instance_of(v, &long_class)
-                    .map_err(|e| crate::errors::ZError(format!("instanceof Long: {}", e)))?;
-                if is_long {
-                    let ptr = env
-                        .call_method(v, "longValue", "()J", &[])
-                        .and_then(|val| val.j())
-                        .map_err(|e| crate::errors::ZError(format!("Long.longValue: {}", e)))?;
-                    if ptr == 0 {
-                        return Err(crate::errors::ZError(
-                            "KeyExpr handle pointer is null".to_string(),
-                        ));
-                    }
-                    let raw = ptr as *const zenoh::key_expr::KeyExpr<'static>;
-                    Ok(unsafe { (*raw).clone() })
-                } else {
-                    let s: jni::objects::JString = unsafe {
-                        jni::objects::JString::from_raw(v.as_raw())
-                    };
-                    let bind = env
-                        .get_string(&s)
-                        .map_err(|e| crate::errors::ZError(format!("KeyExpr String: {}", e)))?;
-                    let value = bind
-                        .to_str()
-                        .map_err(|e| crate::errors::ZError(format!("KeyExpr utf8: {}", e)))?;
-                    zenoh::key_expr::KeyExpr::try_from(value)
-                        .map(|ke| ke.into_owned())
-                        .map_err(|e| crate::errors::ZError(format!("KeyExpr parse: {}", e)))
-                }
-            }
-        );
-        ConverterImpl {
-            function,
-            destination: wire,
-            niches: zenoh_flat::core::niches::Niches::empty(),
-        }
-    }
-
     /// Manual callback overrides — pre-empt the auto-generated
     /// `process_kotlin_*_callback` for hand-written equivalents in
     /// zenoh-jni's `sample_callback` module.
@@ -279,24 +218,6 @@ impl PrebindgenExt for ZenohJniExt {
     }
 
     fn on_input_type_rank_1(&self, pat: &syn::Type, t1: &syn::Type, registry: &Registry) -> Option<ConverterImpl> {
-        // `impl Into<KeyExpr<'static>> + Send + 'static` — dispatching
-        // converter that reads the Java `KeyExpr(ptr: Long, string: String)`
-        // data class and resolves to a real `zenoh::key_expr::KeyExpr<'static>`:
-        //   * `ptr != 0`  — clone the existing Arc.
-        //   * `ptr == 0`  — validate the string and build an owned KeyExpr.
-        //
-        // Wire is JObject. Returns `KeyExpr<'static>` (concrete) which
-        // satisfies the user fn's `impl Into<KeyExpr<'static>>` bound,
-        // so the in-fn `.into()` call is a no-op.
-        let pat_key = TypeKey::from_type(pat).as_str().to_string();
-        if pat_key.starts_with("impl Into <") && pat_key.ends_with("+ Send + 'static") {
-            let t1_key = TypeKey::from_type(t1).as_str().to_string();
-            if t1_key == "ZKeyExpr < 'static >"
-                || t1_key == "zenoh :: key_expr :: KeyExpr < 'static >"
-            {
-                return Some(self.impl_into_keyexpr_input(pat));
-            }
-        }
         self.base.on_input_type_rank_1(pat, t1, registry)
     }
     fn on_input_type_rank_2(&self, pat: &syn::Type, t1: &syn::Type, t2: &syn::Type, registry: &Registry) -> Option<ConverterImpl> {
@@ -457,7 +378,12 @@ fn main() {
         // still compile, so we point them at `kotlin.Any`).
         .kotlin_type_fqn("Sample", "io.zenoh.jni.Sample")
         .kotlin_type_fqn("Query", "kotlin.Any")
-        .kotlin_type_fqn("Reply", "kotlin.Any");
+        .kotlin_type_fqn("Reply", "kotlin.Any")
+        // `impl Into<KeyExpr<'static>>` accepts the identity arm
+        // automatically (Arc-handle via jlong → java.lang.Long); String
+        // is the extra source — TryFrom<String> for KeyExpr<'_> drives
+        // the fallible conversion in the auto-generated dispatcher.
+        .into_source("ZKeyExpr<'static>", "String");
     let ext = ZenohJniExt::new(jni);
     resolve::resolve(&mut registry, &ext).expect("unresolved required types");
 

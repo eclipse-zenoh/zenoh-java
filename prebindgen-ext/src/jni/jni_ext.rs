@@ -23,6 +23,7 @@
 //! NOT in this module — keeps `prebindgen-ext` reusable for any JNI/Kotlin
 //! project.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use proc_macro2::{Span, TokenStream};
@@ -30,7 +31,7 @@ use quote::{format_ident, quote, ToTokens};
 
 use crate::core::niches::Niches;
 use crate::core::prebindgen_ext::{ConverterImpl, PrebindgenExt};
-use crate::core::registry::{extract_fn_trait_args, Registry, TypeKey};
+use crate::core::registry::{extract_fn_trait_args, extract_into_trait_arg, Registry, TypeKey};
 use crate::jni::wire_access::jni_field_access;
 use crate::util::snake_to_camel;
 
@@ -66,6 +67,13 @@ pub struct JniExt {
     /// the emitter at data classes / typealiases that don't show up in
     /// `extract_fn_trait_args` (e.g. `Sample` → `io.zenoh.jni.Sample`).
     pub kotlin_type_fqns: Vec<(String, String)>,
+    /// Per-target `impl Into<T>` dispatch table: canonical key of `T` →
+    /// ordered list of canonical source-type keys (extras beyond `T`
+    /// itself; the identity arm `T → T` is always emitted automatically
+    /// when `T` has a registered input decoder). Each source's wire
+    /// shape determines the instanceof Java class and the JObject→wire
+    /// adapter at code-emit time — see [`Self::impl_into_input`].
+    pub into_sources: HashMap<String, Vec<String>>,
 }
 
 impl JniExt {
@@ -82,6 +90,7 @@ impl JniExt {
             kotlin_callback_package: String::new(),
             kotlin_callback_dir: PathBuf::new(),
             kotlin_type_fqns: Vec::new(),
+            into_sources: HashMap::new(),
         }
     }
     pub fn source_module(mut self, p: impl AsRef<str>) -> Self {
@@ -122,6 +131,28 @@ impl JniExt {
     /// (e.g. `"Sample"`, `"Option < String >"`).
     pub fn kotlin_type_fqn(mut self, rust_canon: impl Into<String>, fqn: impl Into<String>) -> Self {
         self.kotlin_type_fqns.push((rust_canon.into(), fqn.into()));
+        self
+    }
+
+    /// Declare that values of `source` are accepted at the JNI boundary
+    /// wherever `impl Into<target> + Send + 'static` appears. The framework
+    /// will emit an instanceof arm for `source` in the auto-generated
+    /// dispatcher for `target`, reusing `source`'s already-registered
+    /// input decoder. The identity arm (`target` itself) is automatic
+    /// when `target` has a registered input decoder, so callers only need
+    /// to declare *extra* sources.
+    ///
+    /// Both arguments are canonicalised via `TypeKey::parse` so callers
+    /// may pass either spacing form (`"KeyExpr<'static>"` ≡
+    /// `"KeyExpr < 'static >"`).
+    pub fn into_source(
+        mut self,
+        target: impl AsRef<str>,
+        source: impl AsRef<str>,
+    ) -> Self {
+        let t = TypeKey::parse(target.as_ref()).as_str().to_string();
+        let s = TypeKey::parse(source.as_ref()).as_str().to_string();
+        self.into_sources.entry(t).or_default().push(s);
         self
     }
 }
@@ -310,6 +341,99 @@ impl JniExt {
             ),
         }
     }
+
+    /// Build the JObject-typed dispatching input converter for
+    /// `impl Into<T> + Send + 'static`. Emits an `instanceof` chain over
+    /// every accepted source `S` (the identity arm `T → T` plus any
+    /// declared via [`Self::into_source`]); each arm calls `S`'s already-
+    /// registered input decoder (wire-narrowed from the parameter's
+    /// `JObject`) and converts to `T` via `TryInto`, so both `From<S> for T`
+    /// (zero-cost) and `TryFrom<S> for T` (fallible) work uniformly.
+    ///
+    /// Returns `None` when no source has a registered decoder — caller
+    /// (the rank-1 dispatcher) treats this as "let another ext handle
+    /// `impl Into<T>` itself."
+    pub fn impl_into_input(
+        &self,
+        pat: &syn::Type,
+        target: &syn::Type,
+        registry: &Registry,
+    ) -> Option<ConverterImpl> {
+        let target_key = TypeKey::from_type(target).as_str().to_string();
+        let extras = self.into_sources.get(&target_key).cloned().unwrap_or_default();
+        let has_self = registry.input_entry(target).is_some();
+        if !has_self && extras.is_empty() {
+            return None;
+        }
+
+        let mut sources: Vec<String> = Vec::with_capacity(extras.len() + 1);
+        if has_self {
+            sources.push(target_key.clone());
+        }
+        sources.extend(extras);
+
+        let mut arms: Vec<TokenStream> = Vec::with_capacity(sources.len());
+        for src_key in &sources {
+            let src_ty = TypeKey::parse(src_key).to_type();
+            // Returning None when any source's decoder isn't yet
+            // resolved is intentional: the resolver iterates to a fixed
+            // point, and the same convention is used by `& _` (line 430)
+            // and `Option < _ >` (line 437) above.
+            let src_entry = registry.input_entry(&src_ty)?;
+            let decoder = src_entry.function.sig.ident.clone();
+            let wire = src_entry.destination.clone();
+            let (java_class, prelude, decoded_ref) =
+                jobject_to_wire_adapter(&wire, &src_ty, &self.kotlin_type_fqns).unwrap_or_else(|| {
+                    panic!(
+                        "impl_into_input: source `{}` has wire `{}` which is not a supported \
+                         Into-source wire shape (target = `{}`)",
+                        src_key,
+                        wire.to_token_stream(),
+                        target_key
+                    )
+                });
+            arms.push(quote! {
+                {
+                    let __class = env
+                        .find_class(#java_class)
+                        .map_err(|e| crate::errors::ZError(format!("find {}: {}", #java_class, e)))?;
+                    let __is = env
+                        .is_instance_of(v, &__class)
+                        .map_err(|e| crate::errors::ZError(format!("instanceof {}: {}", #java_class, e)))?;
+                    if __is {
+                        #prelude
+                        let __decoded: #src_ty = unsafe { #decoder(env, #decoded_ref)? };
+                        let __converted: #target = ::core::convert::TryInto::try_into(__decoded)
+                            .map_err(|e| crate::errors::ZError(format!(
+                                "convert {} -> {}: {}", #src_key, #target_key, e)))?;
+                        return Ok(__converted);
+                    }
+                }
+            });
+        }
+
+        let wire: syn::Type = syn::parse_quote!(jni::objects::JObject);
+        let name = input_name(pat, &wire);
+        let zresult = &self.zresult;
+        let target_label = target_key.clone();
+        let function: syn::ItemFn = syn::parse_quote!(
+            #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
+            pub(crate) unsafe fn #name<'env, 'v>(
+                env: &mut jni::JNIEnv<'env>,
+                v: &jni::objects::JObject<'v>,
+            ) -> #zresult<#target> {
+                #(#arms)*
+                Err(crate::errors::ZError(format!(
+                    "impl Into<{}>: no matching source arm for runtime class", #target_label)))
+            }
+        );
+
+        Some(ConverterImpl {
+            function,
+            destination: wire,
+            niches: Niches::empty(),
+        })
+    }
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -423,6 +547,19 @@ impl PrebindgenExt for JniExt {
                     destination: wire,
                     niches,
                 });
+            }
+        }
+        // `impl Into<T> + Send + 'static` — auto-dispatch over the
+        // identity arm (T → T) plus any sources declared via
+        // `.into_source(T, S)`. The resolver gives us the wildcard
+        // pattern (`impl Into<_> + Send + 'static`) plus the substituted
+        // `t1`; rebuild the concrete outer type so the emitted
+        // converter is named after `impl Into<T>` (not the placeholder).
+        if extract_into_trait_arg(pat).is_some() {
+            let outer_ty: syn::Type =
+                syn::parse_quote!(impl Into<#t1> + Send + 'static);
+            if let Some(c) = self.impl_into_input(&outer_ty, t1, registry) {
+                return Some(c);
             }
         }
         None
@@ -1452,6 +1589,126 @@ fn annotate_jobject_with_lifetime(ty: &syn::Type, life: &str) -> syn::Type {
 // ──────────────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────────────
+
+/// Given a source type's wire shape, return the Java class to test via
+/// `instanceof` and a prelude that narrows the dispatcher's
+/// `v: &jni::objects::JObject` into something the source's existing
+/// decoder accepts. The third element is the `decoded_ref` expression
+/// passed as the decoder's `v` argument — typically `&__narrowed`,
+/// except `JObject` is identity (`v` directly).
+///
+/// Returns `None` for wires not covered by the table — caller treats it
+/// as a hard error (the source type can't participate in
+/// `impl Into<T>` dispatch via this generic builder).
+fn jobject_to_wire_adapter(
+    wire: &syn::Type,
+    src_ty: &syn::Type,
+    kotlin_type_fqns: &[(String, String)],
+) -> Option<(String, TokenStream, TokenStream)> {
+    let key = TypeKey::from_type(wire).as_str().to_string();
+    match key.as_str() {
+        // ── Boxed primitives: unbox via the standard Java accessor ────
+        "jni :: sys :: jlong" => Some((
+            "java/lang/Long".to_string(),
+            quote!(
+                let __narrowed: jni::sys::jlong = env
+                    .call_method(v, "longValue", "()J", &[])
+                    .and_then(|val| val.j())
+                    .map_err(|e| crate::errors::ZError(format!("Long.longValue: {}", e)))?;
+            ),
+            quote!(&__narrowed),
+        )),
+        "jni :: sys :: jint" => Some((
+            "java/lang/Integer".to_string(),
+            quote!(
+                let __narrowed: jni::sys::jint = env
+                    .call_method(v, "intValue", "()I", &[])
+                    .and_then(|val| val.i())
+                    .map_err(|e| crate::errors::ZError(format!("Integer.intValue: {}", e)))?;
+            ),
+            quote!(&__narrowed),
+        )),
+        "jni :: sys :: jshort" => Some((
+            "java/lang/Short".to_string(),
+            quote!(
+                let __narrowed: jni::sys::jshort = env
+                    .call_method(v, "shortValue", "()S", &[])
+                    .and_then(|val| val.s())
+                    .map_err(|e| crate::errors::ZError(format!("Short.shortValue: {}", e)))?;
+            ),
+            quote!(&__narrowed),
+        )),
+        "jni :: sys :: jbyte" => Some((
+            "java/lang/Byte".to_string(),
+            quote!(
+                let __narrowed: jni::sys::jbyte = env
+                    .call_method(v, "byteValue", "()B", &[])
+                    .and_then(|val| val.b())
+                    .map_err(|e| crate::errors::ZError(format!("Byte.byteValue: {}", e)))?;
+            ),
+            quote!(&__narrowed),
+        )),
+        "jni :: sys :: jboolean" => Some((
+            "java/lang/Boolean".to_string(),
+            quote!(
+                let __narrowed: jni::sys::jboolean = env
+                    .call_method(v, "booleanValue", "()Z", &[])
+                    .and_then(|val| val.z())
+                    .map(|b| if b { 1u8 } else { 0u8 })
+                    .map_err(|e| crate::errors::ZError(format!("Boolean.booleanValue: {}", e)))?;
+            ),
+            quote!(&__narrowed),
+        )),
+        "jni :: sys :: jfloat" => Some((
+            "java/lang/Float".to_string(),
+            quote!(
+                let __narrowed: jni::sys::jfloat = env
+                    .call_method(v, "floatValue", "()F", &[])
+                    .and_then(|val| val.f())
+                    .map_err(|e| crate::errors::ZError(format!("Float.floatValue: {}", e)))?;
+            ),
+            quote!(&__narrowed),
+        )),
+        "jni :: sys :: jdouble" => Some((
+            "java/lang/Double".to_string(),
+            quote!(
+                let __narrowed: jni::sys::jdouble = env
+                    .call_method(v, "doubleValue", "()D", &[])
+                    .and_then(|val| val.d())
+                    .map_err(|e| crate::errors::ZError(format!("Double.doubleValue: {}", e)))?;
+            ),
+            quote!(&__narrowed),
+        )),
+        // ── Reference wrappers — wrap `v.as_raw()`, release after use ─
+        "jni :: objects :: JString" => Some((
+            "java/lang/String".to_string(),
+            quote!(
+                let __narrowed: jni::objects::JString =
+                    unsafe { jni::objects::JString::from_raw(v.as_raw()) };
+            ),
+            quote!(&__narrowed),
+        )),
+        "jni :: objects :: JByteArray" => Some((
+            "[B".to_string(),
+            quote!(
+                let __narrowed: jni::objects::JByteArray =
+                    unsafe { jni::objects::JByteArray::from_raw(v.as_raw()) };
+            ),
+            quote!(&__narrowed),
+        )),
+        // ── JObject ───────────────────────────────────────────────────
+        "jni :: objects :: JObject" | "jni :: sys :: jobject" => {
+            // Need an explicit Java class — pull from kotlin_type_fqns.
+            let src_key = TypeKey::from_type(src_ty).as_str().to_string();
+            let fqn = kotlin_type_fqns
+                .iter()
+                .find(|(k, _)| k == &src_key)
+                .map(|(_, v)| v.replace('.', "/"))?;
+            Some((fqn, quote!(), quote!(v)))
+        }
+        _ => None,
+    }
+}
 
 fn pat_match(ty: &syn::Type, pat: &str) -> bool {
     ty.to_token_stream().to_string() == pat
