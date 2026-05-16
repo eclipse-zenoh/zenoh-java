@@ -163,32 +163,19 @@ impl PrebindgenExt for ZenohJniExt {
         }
 
         // Opaque Arc-handle inputs — universal "jlong-pointer-to-Arc"
-        // convention via JniExt::opaque_arc_input (Clone-based) for
-        // types that implement Clone (Session/Config), and
-        // JniExt::opaque_arc_borrow_input (OwnedObject-based) for
-        // non-Clone handles like Publisher<'a>.
-        //
-        // ZKeyExpr<'static> is intentionally NOT listed here — it's
-        // never passed as a bare `&KeyExpr<'static>` parameter from
-        // zenoh-flat, only as `impl Into<KeyExpr<'static>>` (handled
-        // in `on_input_type_rank_1`) or by-value via
-        // `undeclare_key_expr` (which falls through to the default
-        // opaque_arc_owned via the base ext's rank-0 by-value path…
-        // wait, there's no by-value default — handle it explicitly).
-        for opaque_key in ["Session", "Config"] {
+        // convention via JniExt::opaque_arc_input. The single converter
+        // returns OwnedObject<T> which the call-site emitter unpacks
+        // appropriately for both `&T` (auto-deref) and by-value `T`
+        // (consume via Arc::try_unwrap) parameter positions.
+        for opaque_key in [
+            "Session",
+            "Config",
+            "Publisher < 'static >",
+            "ZKeyExpr < 'static >",
+        ] {
             if key == opaque_key {
                 return Some(self.base.opaque_arc_input(ty));
             }
-        }
-        for opaque_key in ["Publisher < 'static >"] {
-            if key == opaque_key {
-                return Some(self.base.opaque_arc_borrow_input(ty));
-            }
-        }
-        // ZKeyExpr<'static> by value (e.g. `undeclare_key_expr` param):
-        // use Clone-based since ZKeyExpr<'static> is Clone.
-        if key == "ZKeyExpr < 'static >" {
-            return Some(self.base.opaque_arc_input(ty));
         }
         // Encoding (zenoh-specific)
         if key == "Encoding" {
@@ -378,6 +365,7 @@ fn main() {
         .source_module("zenoh_flat")
         .zresult("crate::errors::ZResult")
         .throw_macro("crate::throw_exception")
+        .zerror_macro("zerror")
         .java_class_prefix("io/zenoh/jni")
         .jni_class_path("Java_io_zenoh_jni_JNINative")
         .jni_method_suffix("ViaJNI")

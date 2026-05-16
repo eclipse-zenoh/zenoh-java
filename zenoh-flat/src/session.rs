@@ -123,9 +123,10 @@ pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<ZKeyExpr
 
 /// Undeclare a previously-declared key expression on a Zenoh session.
 ///
-/// Consumes the [`ZKeyExpr<'static>`] handle. The hand-written
-/// `freePtrViaJNI` is responsible for actually decrementing the outer
-/// `Arc`; this fn just performs the network-side undeclare.
+/// Takes the [`ZKeyExpr<'static>`] by value — this is the single
+/// destruction point for a declared key-expression handle, performing
+/// both the network-side undeclare and the release of the value in one
+/// call. Callers must not reuse the handle after this returns.
 #[prebindgen_proc_macro::prebindgen]
 pub fn undeclare_key_expr(session: &Session, key_expr: ZKeyExpr<'static>) -> ZResult<()> {
     let key_expr_string = key_expr.to_string();
@@ -395,9 +396,9 @@ pub fn get_routers_zid(session: &Session) -> ZResult<Vec<ZenohId>> {
 /// Drop a [`Session`] handle obtained from [`open_session`].
 ///
 /// Distinct from [`close_session`], which only deactivates the session
-/// (network shutdown) without releasing the Rust handle. The JNI wrapper
-/// is responsible for treating the wire-side `Session` as an Arc handle
-/// (`*const Session`) and reconstructing/releasing the strong reference.
+/// (network shutdown) without releasing the handle. Takes the session
+/// by value — this is the destruction point that releases the value
+/// exactly once. Callers must not reuse the handle after this returns.
 #[prebindgen_proc_macro::prebindgen]
 pub fn drop_session(session: Session) -> ZResult<()> {
     drop(session);

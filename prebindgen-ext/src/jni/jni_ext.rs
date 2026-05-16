@@ -48,6 +48,12 @@ pub struct JniExt {
     /// Path to the `throw_exception` macro (or fn) used by `on_function`'s
     /// error path. Must be invoked as `<path>!(env, err)`.
     pub throw_macro: syn::Path,
+    /// Path to the error-construction macro used when emitting `?`-able
+    /// errors at the call site (e.g. `consume()` failure for by-value
+    /// opaque-handle params). Must accept a format-args-style invocation
+    /// `<path>!("msg")` and produce a value compatible with the `zresult`
+    /// error type.
+    pub zerror_macro: syn::Path,
     /// Java class path prefix for auto-generated struct encoders, slash-
     /// separated (e.g. `io/zenoh/jni`). Empty = no prefix.
     pub java_class_prefix: String,
@@ -76,6 +82,7 @@ impl JniExt {
             source_module: syn::parse_str("crate").unwrap(),
             zresult: syn::parse_str("crate::errors::ZResult").unwrap(),
             throw_macro: syn::parse_str("crate::throw_exception").unwrap(),
+            zerror_macro: syn::parse_str("crate::zerror").unwrap(),
             java_class_prefix: String::new(),
             jni_class_path: "Java".to_string(),
             jni_method_suffix: String::new(),
@@ -94,6 +101,10 @@ impl JniExt {
     }
     pub fn throw_macro(mut self, p: impl AsRef<str>) -> Self {
         self.throw_macro = syn::parse_str(p.as_ref()).expect("invalid throw_macro path");
+        self
+    }
+    pub fn zerror_macro(mut self, p: impl AsRef<str>) -> Self {
+        self.zerror_macro = syn::parse_str(p.as_ref()).expect("invalid zerror_macro path");
         self
     }
     pub fn java_class_prefix(mut self, p: impl Into<String>) -> Self {
@@ -192,9 +203,18 @@ impl JniExt {
     /// Universal "opaque Arc-handle as `jlong`" pair — input side.
     ///
     /// Use for any Rust type whose lifecycle is owned by the Java side:
-    /// Java holds the master `Arc` as a `Long`, calls Rust passing the
-    /// pointer, and explicitly destroys via a separate `dropXxxViaJNI`
-    /// JNI fn that does one matching `Arc::from_raw(v)` drop.
+    /// Java holds the master `Arc` as a `Long` and calls Rust passing
+    /// the pointer. The single converter handles both `&T` (borrow) and
+    /// `T` (by-value, consume) parameter positions:
+    ///
+    /// * **`&T` sites**: the call-site emitter takes `&decoded`, which
+    ///   auto-derefs `&OwnedObject<T>` → `&T`. On drop the wrapper
+    ///   forgets the `Arc`, leaving Java's outer strong count alone.
+    /// * **`T` sites**: the call-site emitter calls `decoded.consume()?`
+    ///   (`Arc::try_unwrap` + error path), moving the inner `T` out and
+    ///   decrementing Java's strong count to zero. By-value transfer
+    ///   *is* the destruction signal — no separate `dropXxxViaJNI`
+    ///   helper is needed.
     ///
     /// **Convention** (single rule for both input and output):
     /// * Wire: `jni::sys::jlong` — the same width JNI hands across
@@ -202,62 +222,14 @@ impl JniExt {
     ///   on 32-bit, where ptr size is 4 but jlong is 8).
     /// * Output: `Arc::into_raw(Arc::new(v)) as i64` — wrap once, leak
     ///   the pointer to Java. Refcount = 1 sitting in the leaked state.
-    /// * Input: `unsafe { (*( *v as *const T)).clone() }` — non-Arc
-    ///   read. The pointer is bit-cast, dereferenced, and the inner
-    ///   value cloned. The outer `Arc<T>` refcount is **never** touched
-    ///   by per-call decoding, so Java may pass the same handle as
-    ///   many times as it likes.
+    /// * Input: `OwnedObject::from_raw(*v as *const T)`.
     /// * Niche: `0i64` / `*v == 0` — `Arc::into_raw` never returns 0,
     ///   so `Option<T>` automatically synthesises `0` = `None`,
     ///   matching the legacy "null pointer" ABI for nullable handles.
     ///
-    /// Requires `T: Clone` — almost always satisfied for opaque
-    /// handles, since they typically wrap an internal `Arc<Inner>`
-    /// whose `Clone` just bumps the inner refcount.
+    /// No `T: Clone` bound — works for non-Clone handles like
+    /// `Publisher<'a>` as well as Clone ones like `Session`.
     pub fn opaque_arc_input(&self, ty: &syn::Type) -> ConverterImpl {
-        let wire: syn::Type = syn::parse_quote!(jni::sys::jlong);
-        let body: syn::Expr = syn::parse_quote!(unsafe {
-            let raw = *v as *const #ty;
-            (*raw).clone()
-        });
-        ConverterImpl {
-            function: self.input_wrapper(ty, &wire, &body),
-            destination: wire,
-            niches: Niches::one(
-                syn::parse_quote!(0i64),
-                syn::parse_quote!(*v == 0),
-            ),
-        }
-    }
-
-    /// Variant of [`Self::opaque_arc_input`] for opaque handles whose
-    /// rust type is **not** `Clone` (e.g. zenoh's `Publisher<'a>`).
-    ///
-    /// Instead of returning the bare `T` (which requires `T: Clone` to
-    /// produce by `(*ptr).clone()`), this returns `OwnedObject<T>` — a
-    /// wrapper that implements `Deref<Target = T>` and *forgets* the
-    /// inner `Arc` on drop, leaving Java's master strong count
-    /// untouched.
-    ///
-    /// `OwnedObject<T>` is emitted into the destination file as a
-    /// prerequisite by [`PrebindgenExt::install_prerequisites`] —
-    /// no host-crate runtime support module is required.
-    ///
-    /// Function signatures of the form `&T` work transparently: the
-    /// generated wrapper hands the call site an `OwnedObject<T>`, the
-    /// call site adds `&` for the `&T` parameter, and Rust's auto-deref
-    /// turns `&OwnedObject<T>` into `&T`.
-    ///
-    /// **Convention** (otherwise identical to [`Self::opaque_arc_input`]):
-    /// * Wire: `jni::sys::jlong`.
-    /// * Body: `OwnedObject::from_raw(*v as *const T)`.
-    /// * Niche: `0i64` / `*v == 0`.
-    ///
-    /// **Does not** support by-value parameters (`fn drop_t(t: T)`) —
-    /// the function would receive `OwnedObject<T>` instead of `T` and
-    /// fail to compile. By-value drops should be hand-written using
-    /// `Arc::from_raw` directly.
-    pub fn opaque_arc_borrow_input(&self, ty: &syn::Type) -> ConverterImpl {
         let wire: syn::Type = syn::parse_quote!(jni::sys::jlong);
         let name = input_name(ty, &wire);
         let zresult = &self.zresult;
@@ -354,6 +326,23 @@ impl JniExt {
                         target_key
                     )
                 });
+            // `impl Into<target>` has borrow semantics at the Java level:
+            // the same handle (e.g. `KeyExpr`) is reused across many calls
+            // like `publish`, `get`, `subscribe`. The Rust signature is
+            // `T`-by-value only because the underlying API takes an owned
+            // value once converted. So when the source decoder returns
+            // `OwnedObject<T>` we extract a borrow-clone (`(*owned).clone()`,
+            // requires `T: Clone`) instead of consuming Java's Arc.
+            let decode_expr: syn::Expr = if converter_returns_owned_object(&src_entry.function.sig.output) {
+                // Method-call `.clone()` triggers method auto-deref:
+                // OwnedObject<T> has no Clone impl, so dispatch derefs to
+                // `&T` and calls `T::clone`. Requires `T: Clone`.
+                syn::parse_quote!(
+                    unsafe { #decoder(env, #decoded_ref)? }.clone()
+                )
+            } else {
+                syn::parse_quote!(unsafe { #decoder(env, #decoded_ref)? })
+            };
             arms.push(quote! {
                 {
                     let __class = env
@@ -364,7 +353,7 @@ impl JniExt {
                         .map_err(|e| crate::errors::ZError(format!("instanceof {}: {}", #java_class, e)))?;
                     if __is {
                         #prelude
-                        let __decoded: #src_ty = unsafe { #decoder(env, #decoded_ref)? };
+                        let __decoded: #src_ty = #decode_expr;
                         let __converted: #target = ::core::convert::TryInto::try_into(__decoded)
                             .map_err(|e| crate::errors::ZError(format!(
                                 "convert {} -> {}: {}", #src_key, #target_key, e)))?;
@@ -712,6 +701,17 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry)
         }
         if matches!(arg_ty, syn::Type::Reference(_)) {
             call_args.push(quote!(&#arg_ident));
+        } else if converter_returns_owned_object(&entry.function.sig.output) {
+            let zerror = &ext.zerror_macro;
+            let arg_str = arg_ident.to_string();
+            call_args.push(quote!(
+                #arg_ident
+                    .consume()
+                    .map_err(|_| #zerror!(
+                        "by-value opaque handle `{}` still has live references on the Java side",
+                        #arg_str
+                    ))?
+            ));
         } else {
             call_args.push(quote!(#arg_ident));
         }
@@ -802,6 +802,20 @@ fn sentinel_for_wire(wire: &syn::Type) -> TokenStream {
         return quote!(std::ptr::null());
     }
     quote!(unsafe { std::mem::zeroed::<#wire>() })
+}
+
+/// Detect whether an input converter's return type is `_::ZResult<OwnedObject<_>>`
+/// (or whatever the `zresult` path happens to be — we only inspect the last
+/// segment). Drives `.consume()?` insertion at by-value call sites.
+fn converter_returns_owned_object(output: &syn::ReturnType) -> bool {
+    let syn::ReturnType::Type(_, ty) = output else { return false; };
+    let syn::Type::Path(tp) = &**ty else { return false; };
+    let Some(last) = tp.path.segments.last() else { return false; };
+    let syn::PathArguments::AngleBracketed(args) = &last.arguments else { return false; };
+    let Some(syn::GenericArgument::Type(inner)) = args.args.first() else { return false; };
+    let syn::Type::Path(itp) = inner else { return false; };
+    let Some(last_inner) = itp.path.segments.last() else { return false; };
+    last_inner.ident == "OwnedObject"
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -1757,12 +1771,19 @@ fn build_fn_type(args: &[syn::Type]) -> syn::Type {
 /// `OwnedObject<T>` definition emitted into the destination Rust file
 /// as a [`crate::core::registry::Registry::add_prerequisite`] item.
 ///
-/// This is the borrow-without-decrement wrapper used by
-/// [`JniExt::opaque_arc_borrow_input`] for opaque handles whose rust
-/// type is **not** `Clone`. It impls `Deref<Target = T>` so that
-/// `&OwnedObject<T>` auto-derefs to `&T` at call sites; on `Drop` the
-/// inner `Arc` is forgotten so Java's master strong count is never
-/// touched by per-call decoding.
+/// Wrapper for raw `Arc<T>` pointers handed across the JNI boundary.
+/// Used by [`JniExt::opaque_arc_input`] for all opaque handles, both
+/// by-ref (`&T`) and by-value (`T`) parameter positions.
+///
+/// Two consumption modes:
+/// * **Borrow** (default `Drop`) — forget the `Arc`, leave Java's
+///   strong count untouched. Hit by every `&T` call site via
+///   `Deref<Target = T>`.
+/// * **Consume** ([`OwnedObject::consume`]) — `Arc::try_unwrap` to
+///   move the inner `T` out, decrementing Java's strong count to zero.
+///   Hit by every by-value `T` call site, where Java's hand-off implies
+///   it has dropped its reference. Fails (returning the wrapper back)
+///   if Java still has a live reference — a JVM-side contract bug.
 ///
 /// Co-locating the definition with the converters keeps the generated
 /// file self-contained — no `use` statement or runtime-support module
@@ -1770,15 +1791,7 @@ fn build_fn_type(args: &[syn::Type]) -> syn::Type {
 pub(crate) fn owned_object_prerequisite_items() -> Vec<syn::Item> {
     vec![
         syn::parse_quote!(
-            /// Borrow-without-decrement wrapper for raw `Arc<T>` pointers
-            /// handed across the JNI boundary. Auto-derefs to `&T`; on
-            /// drop the inner `Arc` is forgotten so Java's strong count
-            /// is never touched. Constructed via [`Self::from_raw`] from
-            /// the result of an earlier `Arc::into_raw(Arc<T>)`.
-            ///
-            /// Generated by JniExt as a prerequisite. Hand-written
-            /// JNI fns may also use this type — import it from the
-            /// module where the generated bindings are `include!`ed.
+            /// See module-level docs at [`owned_object_prerequisite_items`].
             #[allow(dead_code)]
             pub(crate) struct OwnedObject<T: ?Sized> {
                 inner: Option<std::sync::Arc<T>>,
@@ -1788,8 +1801,6 @@ pub(crate) fn owned_object_prerequisite_items() -> Vec<syn::Item> {
             impl<T: ?Sized> std::ops::Deref for OwnedObject<T> {
                 type Target = T;
                 fn deref(&self) -> &Self::Target {
-                    // SAFETY: `inner` is always `Some` between
-                    // `from_raw` and `drop`.
                     unsafe { self.inner.as_ref().unwrap_unchecked() }
                 }
             }
@@ -1797,20 +1808,21 @@ pub(crate) fn owned_object_prerequisite_items() -> Vec<syn::Item> {
         syn::parse_quote!(
             impl<T: ?Sized> Drop for OwnedObject<T> {
                 fn drop(&mut self) {
-                    // SAFETY: `inner` is always `Some` until this
-                    // single point of consumption. Forget the Arc to
-                    // leave Java's outer strong count untouched.
-                    let inner = unsafe { self.inner.take().unwrap_unchecked() };
-                    std::mem::forget(inner);
+                    // `consume` may have already taken `inner`; in that
+                    // case the Arc has been moved out via try_unwrap and
+                    // there's nothing to forget. Borrow-mode drops still
+                    // hit the `Some` arm and forget the Arc to leave
+                    // Java's outer strong count untouched.
+                    if let Some(inner) = self.inner.take() {
+                        std::mem::forget(inner);
+                    }
                 }
             }
         ),
         syn::parse_quote!(
             impl<T: ?Sized> OwnedObject<T> {
                 /// Reconstruct an `Arc<T>` from a raw pointer obtained
-                /// via [`std::sync::Arc::into_raw`] and wrap it so the
-                /// strong count is **not** decremented when the wrapper
-                /// drops.
+                /// via [`std::sync::Arc::into_raw`].
                 ///
                 /// # Safety
                 ///
@@ -1820,6 +1832,20 @@ pub(crate) fn owned_object_prerequisite_items() -> Vec<syn::Item> {
                 #[allow(dead_code)]
                 pub(crate) unsafe fn from_raw(ptr: *const T) -> Self {
                     Self { inner: Some(std::sync::Arc::from_raw(ptr)) }
+                }
+            }
+        ),
+        syn::parse_quote!(
+            impl<T> OwnedObject<T> {
+                /// Consume the wrapper, moving the inner `T` out. Mirrors
+                /// [`std::sync::Arc::try_unwrap`]: succeeds when this is
+                /// the only `Arc<T>` reference (Java just handed off
+                /// ownership by-value), fails otherwise — returning the
+                /// wrapper back so the borrow-mode drop path can run.
+                #[allow(dead_code)]
+                pub(crate) fn consume(mut self) -> Result<T, OwnedObject<T>> {
+                    let arc = unsafe { self.inner.take().unwrap_unchecked() };
+                    std::sync::Arc::try_unwrap(arc).map_err(|arc| OwnedObject { inner: Some(arc) })
                 }
             }
         ),
