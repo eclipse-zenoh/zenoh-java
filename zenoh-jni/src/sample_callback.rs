@@ -230,33 +230,6 @@ pub(crate) unsafe fn process_kotlin_query_callback(
     })
 }
 
-/// Decoder for the zero-arg `impl Fn() + Send + Sync + 'static` callback used
-/// by zenoh-flat for `on_close` parameters. The returned closure attaches the
-/// JVM and invokes `Runnable.run()` on the Kotlin object. zenoh-flat is
-/// responsible for binding it to the data closure's lifetime via its own
-/// `CallOnDrop` so the on-close fires when the subscription/query is dropped.
-pub(crate) unsafe fn process_kotlin_on_close_callback(
-    env: &mut JNIEnv,
-    on_close: &JObject,
-) -> ZResult<impl Fn() + Send + Sync + 'static> {
-    let java_vm = Arc::new(get_java_vm(env)?);
-    let on_close_global_ref = get_callback_global_ref(env, on_close)?;
-
-    Ok(move || {
-        let mut env = match java_vm.attach_current_thread_as_daemon() {
-            Ok(env) => env,
-            Err(err) => {
-                tracing::error!("Unable to attach thread for 'onClose' callback: {}", err);
-                return;
-            }
-        };
-        if let Err(err) = env.call_method(&on_close_global_ref, "run", "()V", &[]) {
-            _ = env.exception_describe();
-            tracing::error!("Error while running 'onClose' callback: {}", err);
-        }
-    })
-}
-
 fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> ZResult<()> {
     let selector_params_jstr = env
         .new_string(query.parameters().to_string())

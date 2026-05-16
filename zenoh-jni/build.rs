@@ -117,9 +117,6 @@ impl ZenohJniExt {
             "impl Fn (Reply) + Send + Sync + 'static" => {
                 syn::parse_quote!(crate::sample_callback::process_kotlin_reply_callback)
             }
-            "impl Fn () + Send + Sync + 'static" => {
-                syn::parse_quote!(crate::sample_callback::process_kotlin_on_close_callback)
-            }
             _ => return None,
         };
         Some((
