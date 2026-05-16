@@ -15,10 +15,9 @@ use prebindgen_proc_macro::prebindgen;
 
 /// Flat sample shape carried across the FFI boundary.
 ///
-/// Field order matches the positional arguments of the legacy
-/// `JNISampleCallback.run(...)` Kotlin interface so the auto-generated
-/// `Sample` data class constructor is a drop-in replacement for the prior
-/// 11-arg method.
+/// Fields are flattened to primitives / `String` / `Vec<u8>` so binding
+/// generators can synthesise a positional constructor without inspecting
+/// nested zenoh types.
 #[prebindgen]
 #[derive(Debug, Clone)]
 pub struct Sample {
@@ -36,9 +35,9 @@ pub struct Sample {
 }
 
 impl From<&zenoh::sample::Sample> for Sample {
-    /// Build a flat [`Sample`] from a zenoh `Sample`. Mirrors the field
-    /// extraction that `process_kotlin_sample_callback` previously did
-    /// inline before the JNI call.
+    /// Build a flat [`Sample`] from a zenoh `Sample` by extracting every
+    /// nested field down to FFI-friendly primitive / `String` / `Vec<u8>`
+    /// shapes.
     fn from(sample: &zenoh::sample::Sample) -> Self {
         let encoding = sample.encoding();
         let encoding_id = encoding.id() as i64;

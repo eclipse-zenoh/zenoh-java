@@ -41,6 +41,7 @@ zenoh = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git",
 zenoh-ext = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["unstable", "internal"], default-features = false, optional = true }
 tracing = { version = "0.1" , features = ["log"] }
 zenoh-flat = { path = "../zenoh-flat" }
+prebindgen-ext = { path = "../prebindgen-ext" }
 konst = "0.3.0"
 [lib]
 name = "zenoh_jni"
@@ -49,6 +50,7 @@ crate-type = ["staticlib", "dylib"]
 [build-dependencies]
 rustc_version = "0.4.0"
 prebindgen = "0.4.1"
+prebindgen-ext = { path = "../prebindgen-ext" }
 zenoh-flat = { path = "../zenoh-flat", features = ["zenoh-ext"] }
 itertools = "0.12"
 syn = "2"

@@ -11,12 +11,8 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-//! Publisher operations exposed to the JNI / Kotlin layer.
-//!
-//! These were previously hand-written `Java_io_zenoh_jni_JNIPublisher_*` JNI
-//! functions in `zenoh-jni/src/publisher.rs`; they now live here as plain
-//! `#[prebindgen]` Rust fns and are wrapped by the JNI generator into
-//! `Java_io_zenoh_jni_JNINative_{put,delete,drop}PublisherViaJNI`.
+//! Publisher operations exposed as `#[prebindgen]` items for downstream
+//! binding generators.
 
 use crate::{errors::ZResult, zerror};
 use prebindgen_proc_macro::prebindgen;
@@ -26,8 +22,8 @@ use zenoh::{bytes::Encoding, pubsub::Publisher, Wait};
 /// Publish a payload on an existing [`Publisher`].
 ///
 /// `attachment` is appended to the publication when `Some`. The publisher
-/// itself is borrowed — Java retains its strong `Arc` reference and may
-/// continue to use the same handle for further put/delete calls.
+/// itself is borrowed — the caller retains its handle and may continue to
+/// use it for further put/delete calls.
 #[prebindgen]
 pub fn put_publisher(
     publisher: &Publisher<'static>,
@@ -67,12 +63,3 @@ pub fn delete_publisher(
         })
 }
 
-// `drop_publisher` is intentionally NOT migrated here. The current
-// JniExt input convention for opaque Arc handles only supports
-// borrow-style use (it forgets the inner `Arc` on drop, leaving the
-// outer strong count untouched). A drop fn must actually decrement the
-// outer Arc — that's done via `Arc::from_raw(v)` in the hand-written
-// `Java_io_zenoh_jni_JNIPublisher_freePtrViaJNI` over in
-// `zenoh-jni/src/publisher.rs`. Migrating it cleanly will require a
-// separate "consume" input convention (or a follow-up that fixes
-// `drop_session`'s analogous leak).

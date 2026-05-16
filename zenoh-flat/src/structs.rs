@@ -13,13 +13,12 @@
 
 //! Flat mirrors of the zenoh-ext advanced publisher/subscriber configs.
 //!
-//! Marked with `#[prebindgen]` so the JNI binding generator in
-//! [`crate::jni_converter`] can emit a matching Kotlin `data class` and a
-//! Rust JObject decoder for each one. The `TryFrom` impls encapsulate the
-//! flat → semantic conversion (enum decoding happens already in the
-//! auto-generated decoder, so these impls only deal with size/sign
-//! adjustments and the "flag fields decide which builder method to call"
-//! semantics).
+//! Marked with `#[prebindgen]` so downstream binding generators can emit a
+//! matching wire shape and a decoder for each one. The `TryFrom` impls
+//! encapsulate the flat → semantic conversion (enum decoding happens
+//! already in the auto-generated decoder, so these impls only deal with
+//! size/sign adjustments and the "flag fields decide which builder method
+//! to call" semantics).
 
 use std::time::Duration;
 

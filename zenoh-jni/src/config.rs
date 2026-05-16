@@ -23,7 +23,7 @@ use zenoh::Config;
 
 use crate::errors::ZResult;
 use crate::throw_exception;
-use zenoh_flat::jni::decode_string;
+use prebindgen_ext::jni::decode_string;
 use crate::session::OwnedObject;
 
 /// Loads the default configuration, returning a raw pointer to it.

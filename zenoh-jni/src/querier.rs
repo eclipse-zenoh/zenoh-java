@@ -31,7 +31,7 @@ use crate::{
     },
 };
 use crate::session::OwnedObject;
-use zenoh_flat::jni::decode_string;
+use prebindgen_ext::jni::decode_string;
 
 /// Perform a Zenoh GET through a querier.
 ///

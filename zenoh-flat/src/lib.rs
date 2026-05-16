@@ -13,9 +13,9 @@ pub mod session;
 pub mod structs;
 
 // Flat re-exports: every `#[prebindgen]` item is reachable as
-// `zenoh_flat::<name>`, so the JNI wrapper generator can call back via a
-// single `source_module = "zenoh_flat"` setting without inspecting the
-// declaring sub-module.
+// `zenoh_flat::<name>`, so a downstream binding generator can call back
+// via a single `source_module = "zenoh_flat"` setting without inspecting
+// the declaring sub-module.
 pub use config::*;
 pub use keyexpr::*;
 pub use publisher::*;
@@ -23,6 +23,4 @@ pub use sample::*;
 pub use session::*;
 #[cfg(feature = "zenoh-ext")]
 pub use structs::*;
-
-pub use prebindgen_ext::{core, jni, kotlin};
 

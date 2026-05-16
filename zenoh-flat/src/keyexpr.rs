@@ -11,7 +11,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-//! Key-expression operations exposed to the JNI / Kotlin layer.
+//! Key-expression operations exposed as `#[prebindgen]` items.
 //!
 //! No wrapper struct: pure validators (`try_from`, `autocanonize`) return a
 //! `String`; constructors that produce a registered handle (`join`, `concat`,
@@ -19,18 +19,18 @@
 //! [`KeyExpr<'static>`] treated as an opaque Arc handle.
 //!
 //! Functions that consume a key-expression accept
-//! `impl Into<KeyExpr<'static>> + Send + 'static`. The JNI plugin provides
-//! the input converter that decodes the Java `KeyExpr(ptr, string)` data
-//! class — non-zero `ptr` clones the Arc, otherwise the string is
-//! validated and converted to an owned key expression.
+//! `impl Into<KeyExpr<'static>> + Send + 'static`. Binding generators are
+//! expected to dispatch over an already-registered handle (preserving the
+//! Arc) or a raw string (validated and converted to an owned key
+//! expression), as `TryFrom<String> for KeyExpr<'_>` provides the
+//! fallible conversion.
 
 use crate::{errors::ZResult, zerror};
 use prebindgen_proc_macro::prebindgen;
 use zenoh::key_expr::{KeyExpr as ZKeyExpr, SetIntersectionLevel};
 
 /// Validate that `s` is a syntactically valid Zenoh key expression and
-/// return it (unchanged). The Kotlin side wraps the result as an
-/// undeclared `KeyExpr(ptr=0, string=s)`.
+/// return it (unchanged).
 #[prebindgen]
 pub fn try_from(s: String) -> ZResult<String> {
     ZKeyExpr::try_from(s.as_str())
@@ -81,7 +81,7 @@ pub fn relation_to(
 
 /// Join `a` with `other` using `/` and return the resulting key
 /// expression. The result inherits `a`'s declaration registration when
-/// present; either way Kotlin sees an Arc-backed handle.
+/// present; either way the caller sees an Arc-backed handle.
 #[prebindgen]
 pub fn join(
     a: impl Into<ZKeyExpr<'static>> + Send + 'static,

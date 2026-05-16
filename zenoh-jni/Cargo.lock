@@ -3998,7 +3998,6 @@ version = "1.9.0"
 dependencies = [
  "json5",
  "prebindgen",
- "prebindgen-ext",
  "prebindgen-proc-macro",
  "serde_yaml",
  "tracing",
@@ -4378,6 +4377,7 @@ dependencies = [
  "json5",
  "konst",
  "prebindgen",
+ "prebindgen-ext",
  "proc-macro2",
  "quote",
  "rustc_version",

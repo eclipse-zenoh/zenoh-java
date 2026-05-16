@@ -312,7 +312,7 @@ fn duration_input(input: &syn::Ident) -> TokenStream {
 /// Input conversion function for `String`: decodes JNI string.
 fn string_input(input: &syn::Ident) -> TokenStream {
     quote! {
-        zenoh_flat::jni::decode_string(&mut env, &#input)
+        prebindgen_ext::jni::decode_string(&mut env, &#input)
             .map_err(|err| zerror!(err))?
     }
 }
@@ -321,17 +321,17 @@ fn string_input(input: &syn::Ident) -> TokenStream {
 fn string_output(output: Option<&syn::Ident>) -> TokenStream {
     match output {
         Some(output) => quote! {
-            zenoh_flat::jni::encode_string(&mut env, #output)
+            prebindgen_ext::jni::encode_string(&mut env, #output)
                 .map_err(|err| zerror!(err))?
         },
-        None => quote! { zenoh_flat::jni::null_string() },
+        None => quote! { prebindgen_ext::jni::null_string() },
     }
 }
 
 /// Input conversion function for `Vec<u8>`: decodes JNI byte array.
 fn bytes_input(input: &syn::Ident) -> TokenStream {
     quote! {
-        zenoh_flat::jni::decode_byte_array(&mut env, &#input)
+        prebindgen_ext::jni::decode_byte_array(&mut env, &#input)
             .map_err(|err| zerror!(err))?
     }
 }
@@ -340,10 +340,10 @@ fn bytes_input(input: &syn::Ident) -> TokenStream {
 fn bytes_output(output: Option<&syn::Ident>) -> TokenStream {
     match output {
         Some(output) => quote! {
-            zenoh_flat::jni::encode_byte_array(&mut env, #output)
+            prebindgen_ext::jni::encode_byte_array(&mut env, #output)
                 .map_err(|err| zerror!(err))?
         },
-        None => quote! { zenoh_flat::jni::null_byte_array() },
+        None => quote! { prebindgen_ext::jni::null_byte_array() },
     }
 }
 

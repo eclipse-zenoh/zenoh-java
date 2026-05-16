@@ -40,7 +40,8 @@ use crate::util::snake_to_camel;
 #[derive(Clone)]
 pub struct JniExt {
     /// Module path the original `#[prebindgen]` fns live under (e.g.
-    /// `zenoh_flat`). The wrapper body calls `<source_module>::<fn>(args)`.
+    /// the host crate of `#[prebindgen]` items). The wrapper body calls
+    /// `<source_module>::<fn>(args)`.
     pub source_module: syn::Path,
     /// `Result` type used by emitted converter and wrapper signatures
     /// (e.g. `crate::errors::ZResult`).

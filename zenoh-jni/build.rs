@@ -11,13 +11,13 @@ use std::path::PathBuf;
 
 use proc_macro2::TokenStream;
 
-use zenoh_flat::core::niches::Niches;
-use zenoh_flat::core::prebindgen_ext::{ConverterImpl, PrebindgenExt};
-use zenoh_flat::core::registry::{Registry, TypeKey};
-use zenoh_flat::core::{resolve, write};
-use zenoh_flat::jni::JniExt;
-use zenoh_flat::kotlin::kotlin_ext::KotlinExt;
-use zenoh_flat::kotlin::{KotlinInterfaceGenerator, KotlinTypeMap};
+use prebindgen_ext::core::niches::Niches;
+use prebindgen_ext::core::prebindgen_ext::{ConverterImpl, PrebindgenExt};
+use prebindgen_ext::core::registry::{Registry, TypeKey};
+use prebindgen_ext::core::{resolve, write};
+use prebindgen_ext::jni::JniExt;
+use prebindgen_ext::kotlin::kotlin_ext::KotlinExt;
+use prebindgen_ext::kotlin::{KotlinInterfaceGenerator, KotlinTypeMap};
 
 // ─────────────────────────────────────────────────────────────────────
 // ZenohJniExt — thin wrapper that injects zenoh-specific arms before
@@ -301,7 +301,7 @@ impl KotlinExt for ZenohJniExt {
         &self,
         registry: &Registry,
         output_dir: &std::path::Path,
-    ) -> Result<Vec<PathBuf>, zenoh_flat::kotlin::WriteKotlinError> {
+    ) -> Result<Vec<PathBuf>, prebindgen_ext::kotlin::WriteKotlinError> {
         // Per-callback files come from the base JniExt's KotlinExt impl.
         self.base.write_kotlin(registry, output_dir)
     }
