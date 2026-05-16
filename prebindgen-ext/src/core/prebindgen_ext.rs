@@ -157,6 +157,36 @@ pub trait PrebindgenExt {
         None
     }
 
+    /// Build the wrapper converter for an
+    /// `impl Fn(args...) + Send + Sync + 'static` parameter, given the
+    /// already-extracted arg types in declaration order. The resolver
+    /// calls this only after [`Self::on_input_type_rank_0`] /
+    /// [`Self::on_input_type_rank_1`] / [`Self::on_input_type_rank_2`] /
+    /// [`Self::on_input_type_rank_3`] (for the appropriate arity) has
+    /// returned `None`, so wrappers that need custom callback dispatch
+    /// can intercept earlier and skip this path.
+    ///
+    /// `args` are the rust-side argument types as they appear in the
+    /// source signature. Note that callback args flow inverse to the
+    /// callback parameter itself: the callback parameter is *input*,
+    /// but its args are produced by the rust side and consumed by the
+    /// foreign side, so they are *output* direction for converter
+    /// resolution. The framework handles this direction-flip at
+    /// registration time (`register_type_inner` in `core::registry`),
+    /// so implementations of this method should look up
+    /// already-registered *output* converters for each arg type.
+    ///
+    /// Default: `None`. Backends that support `impl Fn` callbacks
+    /// (e.g. [`crate::jni::JniExt`]) override this.
+    fn dispatch_fn_input(
+        &self,
+        args: &[syn::Type],
+        registry: &Registry,
+    ) -> Option<ConverterImpl> {
+        let _ = (args, registry);
+        None
+    }
+
     // ── Output direction (rust → wire) ─────────────────────────────
 
     /// Whole-type output converter.

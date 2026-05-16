@@ -466,9 +466,6 @@ impl Registry {
 
 /// Number of leaves in a type's substitutable-position tree.
 pub fn compute_rank(ty: &syn::Type) -> usize {
-    if let Some(args) = extract_fn_trait_args(ty) {
-        return args.iter().map(|t| std::cmp::max(1, compute_rank(t))).sum();
-    }
     let positions = immediate_subtype_positions(ty);
     if positions.is_empty() {
         return 0;

@@ -243,6 +243,10 @@ impl PrebindgenExt for ZenohJniExt {
         self.base.dispatch_into_input(target, sources, registry)
     }
 
+    fn dispatch_fn_input(&self, args: &[syn::Type], registry: &Registry) -> Option<ConverterImpl> {
+        self.base.dispatch_fn_input(args, registry)
+    }
+
     // ── Output rank-0 — zenoh-specific arms first ──
 
     fn on_output_type_rank_0(&self, ty: &syn::Type, registry: &Registry) -> Option<ConverterImpl> {

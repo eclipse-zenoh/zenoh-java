@@ -171,6 +171,21 @@ fn try_resolve_entry<E: PrebindgenExt>(
             Direction::Input => ext.on_input_type_rank_0(key_ty, registry),
             Direction::Output => ext.on_output_type_rank_0(key_ty, registry),
         };
+        // Zero-arg `impl Fn() + Send + Sync + 'static` fallback: after
+        // the implementer's own rank-0 handler returns None, route the
+        // empty arg-list to `dispatch_fn_input`. Non-empty Fn arities
+        // are handled in the rank-N loop below.
+        let res = res.or_else(|| {
+            if dir != Direction::Input {
+                return None;
+            }
+            let args = crate::core::registry::extract_fn_trait_args(key_ty)?;
+            if args.is_empty() {
+                ext.dispatch_fn_input(&args, registry)
+            } else {
+                None
+            }
+        });
         return res.map(|c| TypeEntry {
             destination: c.destination,
             function: c.function,
@@ -198,6 +213,25 @@ fn try_resolve_entry<E: PrebindgenExt>(
             }
             _ => unreachable!("rank N is bounded to 0..=3 by MAX_RANK"),
         };
+        // Fallback for `impl Fn(args...) + Send + Sync + 'static`: after
+        // the implementer's own rank-N handler returns None, route the
+        // canonical `impl Fn(_, _, …)` pattern (every arg slot is a
+        // wildcard) to `dispatch_fn_input`. Non-canonical patterns like
+        // `impl Fn(Option<_>, _)` are left for user rank handlers — only
+        // the all-wildcards shape gets the framework default.
+        let result = result.or_else(|| {
+            if dir != Direction::Input {
+                return None;
+            }
+            let pat_args = crate::core::registry::extract_fn_trait_args(&pattern)?;
+            if pat_args.len() != subs.len() {
+                return None;
+            }
+            if !pat_args.iter().all(|t| matches!(t, syn::Type::Infer(_))) {
+                return None;
+            }
+            ext.dispatch_fn_input(subs.as_slice(), registry)
+        });
         // Last-step fallback for `impl Into<_> + Send + 'static`:
         // after the implementer's own rank-1 handler returns None,
         // assemble the source list (identity arm first when `target`
@@ -683,6 +717,44 @@ mod tests {
             s[0].0,
         );
         assert_eq!(s[0].1, vec!["KeyExpr < 'static >"]);
+    }
+
+    /// Codifies the canonical-shape detection used by the rank-N
+    /// `dispatch_fn_input` fallback in [`try_resolve_entry`]. For
+    /// `impl Fn(Option<Sample>)` at rank 1, `enumerate_wildcard_subs`
+    /// emits both `impl Fn(_)` (canonical — every Fn arg slot is a
+    /// wildcard, fallback should fire) and `impl Fn(Option<_>)`
+    /// (non-canonical — fallback must skip so a user rank-1 handler
+    /// can claim it). The fallback distinguishes them by checking that
+    /// every element of `extract_fn_trait_args(&pattern)` is a
+    /// `Type::Infer`; this test pins that invariant.
+    #[test]
+    fn impl_fn_canonical_pattern_is_distinguishable_from_nested() {
+        use crate::core::registry::extract_fn_trait_args;
+        let t = ty("impl Fn(Option<Sample>) + Send + Sync + 'static");
+        let v = enumerate_wildcard_subs(&t, 1);
+        // Two rank-1 variants: deepest-first (Option<_> over Sample),
+        // then the canonical Fn(_) over Option<Sample>.
+        assert_eq!(v.len(), 2);
+        let mut canonical_count = 0;
+        let mut nested_count = 0;
+        for (pattern, _subs) in &v {
+            let args = extract_fn_trait_args(pattern).unwrap();
+            let all_infer = args.iter().all(|a| matches!(a, syn::Type::Infer(_)));
+            if all_infer {
+                canonical_count += 1;
+            } else {
+                nested_count += 1;
+            }
+        }
+        assert_eq!(
+            canonical_count, 1,
+            "exactly one canonical `impl Fn(_)` pattern is expected"
+        );
+        assert_eq!(
+            nested_count, 1,
+            "exactly one nested `impl Fn(Option<_>)` pattern is expected"
+        );
     }
 
     #[test]

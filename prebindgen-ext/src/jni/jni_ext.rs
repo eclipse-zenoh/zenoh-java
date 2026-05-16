@@ -441,19 +441,6 @@ impl PrebindgenExt for JniExt {
         ty: &syn::Type,
         registry: &Registry,
     ) -> Option<ConverterImpl> {
-        if let Some(args) = extract_fn_trait_args(ty) {
-            if args.is_empty() {
-                let arg_tys: [syn::Type; 0] = [];
-                let outer_ty = build_fn_type(&arg_tys);
-                let (wire, body) = callback_input(self, &arg_tys, registry)?;
-                let niches = default_niches_for_wire(&wire);
-                return Some(ConverterImpl {
-                    function: self.input_wrapper(&outer_ty, &wire, &body),
-                    destination: wire,
-                    niches,
-                });
-            }
-        }
         if let Some((wire, body)) = primitive_input(ty) {
             let niches = default_niches_for_wire(&wire);
             return Some(ConverterImpl {
@@ -512,19 +499,6 @@ impl PrebindgenExt for JniExt {
                 niches,
             });
         }
-        if let Some(args) = extract_fn_trait_args(pat) {
-            if args.len() == 1 {
-                let arg_tys = std::slice::from_ref(t1);
-                let outer_ty = build_fn_type(arg_tys);
-                let (wire, body) = callback_input(self, arg_tys, registry)?;
-                let niches = default_niches_for_wire(&wire);
-                return Some(ConverterImpl {
-                    function: self.input_wrapper(&outer_ty, &wire, &body),
-                    destination: wire,
-                    niches,
-                });
-            }
-        }
         None
     }
 
@@ -537,6 +511,21 @@ impl PrebindgenExt for JniExt {
         self.emit_into_dispatcher(target, sources, registry)
     }
 
+    fn dispatch_fn_input(
+        &self,
+        args: &[syn::Type],
+        registry: &Registry,
+    ) -> Option<ConverterImpl> {
+        let outer_ty = build_fn_type(args);
+        let (wire, body) = callback_input(self, args, registry)?;
+        let niches = default_niches_for_wire(&wire);
+        Some(ConverterImpl {
+            function: self.input_wrapper(&outer_ty, &wire, &body),
+            destination: wire,
+            niches,
+        })
+    }
+
     fn on_input_type_rank_2(
         &self,
         pat: &syn::Type,
@@ -544,19 +533,7 @@ impl PrebindgenExt for JniExt {
         t2: &syn::Type,
         registry: &Registry,
     ) -> Option<ConverterImpl> {
-        if let Some(args) = extract_fn_trait_args(pat) {
-            if args.len() == 2 {
-                let arg_tys = [t1.clone(), t2.clone()];
-                let outer_ty = build_fn_type(&arg_tys);
-                let (wire, body) = callback_input(self, &arg_tys, registry)?;
-                let niches = default_niches_for_wire(&wire);
-                return Some(ConverterImpl {
-                    function: self.input_wrapper(&outer_ty, &wire, &body),
-                    destination: wire,
-                    niches,
-                });
-            }
-        }
+        let _ = (pat, t1, t2, registry);
         None
     }
 
@@ -568,19 +545,7 @@ impl PrebindgenExt for JniExt {
         t3: &syn::Type,
         registry: &Registry,
     ) -> Option<ConverterImpl> {
-        if let Some(args) = extract_fn_trait_args(pat) {
-            if args.len() == 3 {
-                let arg_tys = [t1.clone(), t2.clone(), t3.clone()];
-                let outer_ty = build_fn_type(&arg_tys);
-                let (wire, body) = callback_input(self, &arg_tys, registry)?;
-                let niches = default_niches_for_wire(&wire);
-                return Some(ConverterImpl {
-                    function: self.input_wrapper(&outer_ty, &wire, &body),
-                    destination: wire,
-                    niches,
-                });
-            }
-        }
+        let _ = (pat, t1, t2, t3, registry);
         None
     }
 
