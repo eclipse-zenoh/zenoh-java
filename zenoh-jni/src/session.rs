@@ -13,7 +13,9 @@
 //
 
 // Types referenced by the generated `zenoh_flat_jni.rs` below must be in scope.
+use std::sync::Arc;
 use std::time::Duration;
+use jni::{objects::JClass, JNIEnv};
 use zenoh::{
     bytes::Encoding,
     config::Config,
@@ -30,3 +32,26 @@ use zenoh_ext::{AdvancedPublisher, AdvancedSubscriber};
 use zenoh_flat::structs::{CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig};
 
 include!(concat!(env!("OUT_DIR"), "/zenoh_flat_jni.rs"));
+
+/// Release the Java-held `Arc<Session>` reference. Distinct from
+/// `closeSessionViaJNI` (which performs the network shutdown via a
+/// borrow); this entry point exists because under the Arc-clone borrow
+/// convention the generic generator no longer emits a by-value
+/// destructor. Called from `JNISession.close()` after
+/// `closeSessionViaJNI` returns.
+///
+/// # Safety
+///
+/// `session_ptr` must be the result of an earlier
+/// `Arc::into_raw(Arc::new(session))` and must not have been freed.
+/// The Kotlin side's `ReentrantReadWriteLock` ensures no borrow is in
+/// flight when this runs.
+#[no_mangle]
+#[allow(non_snake_case)]
+pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNINative_dropSessionViaJNI(
+    _env: JNIEnv,
+    _: JClass,
+    session_ptr: *const Session,
+) {
+    Arc::from_raw(session_ptr);
+}

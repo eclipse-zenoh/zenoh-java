@@ -18,7 +18,16 @@ import io.zenoh.ZenohLoad
 import io.zenoh.exceptions.ZError
 
 /** Adapter for the native Zenoh config. */
-public class JNIConfig(internal val ptr: Long) {
+public class JNIConfig(initialPtr: Long) {
+    private val handle = NativeHandle(initialPtr)
+
+    /**
+     * Pointer accessor for callers that need to pass the raw pointer
+     * to another JNI method (e.g. `openSessionViaJNI(config.ptr)`).
+     * Throws if the config has already been closed.
+     */
+    internal val ptr: Long
+        get() = handle.withPtr { it }
 
     companion object {
 
@@ -62,18 +71,16 @@ public class JNIConfig(internal val ptr: Long) {
         private external fun getJsonViaJNI(ptr: Long, key: String): String
     }
 
-    fun close() {
-        freePtrViaJNI(ptr)
-    }
+    fun close() = handle.close { freePtrViaJNI(it) }
 
     @Throws(ZError::class)
-    fun getId(): ByteArray = getIdViaJNI(ptr)
+    fun getId(): ByteArray = handle.withPtr { ptr -> getIdViaJNI(ptr) }
 
     @Throws(ZError::class)
-    fun getJson(key: String): String = getJsonViaJNI(ptr, key)
+    fun getJson(key: String): String = handle.withPtr { ptr -> getJsonViaJNI(ptr, key) }
 
     @Throws(ZError::class)
-    fun insertJson5(key: String, value: String) {
+    fun insertJson5(key: String, value: String) = handle.withPtr { ptr ->
         insertJson5ViaJNI(ptr, key, value)
     }
 }

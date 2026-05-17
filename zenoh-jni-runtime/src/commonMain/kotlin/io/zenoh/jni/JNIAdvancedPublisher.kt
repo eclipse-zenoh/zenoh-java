@@ -21,34 +21,33 @@ import io.zenoh.jni.callbacks.JNIOnCloseCallback
 /**
  * Adapter class for a native Zenoh AdvancedPublisher.
  *
- * @property ptr Raw pointer to the underlying native AdvancedPublisher.
+ * @param initialPtr Raw pointer to the underlying native AdvancedPublisher.
  */
-public class JNIAdvancedPublisher(private val ptr: Long) {
+public class JNIAdvancedPublisher(initialPtr: Long) {
+    private val handle = NativeHandle(initialPtr)
 
     @Throws(ZError::class)
-    fun put(payload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?) {
+    fun put(payload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?) = handle.withPtr { ptr ->
         putViaJNI(ptr, payload, encoding, attachment)
     }
 
     @Throws(ZError::class)
-    fun delete(attachment: ByteArray?) {
+    fun delete(attachment: ByteArray?) = handle.withPtr { ptr ->
         deleteViaJNI(ptr, attachment)
     }
 
     @Throws(ZError::class)
     fun declareMatchingListener(callback: JNIMatchingListenerCallback, onClose: JNIOnCloseCallback): JNIMatchingListener =
-        JNIMatchingListener(declareMatchingListenerViaJNI(ptr, callback, onClose))
+        handle.withPtr { ptr -> JNIMatchingListener(declareMatchingListenerViaJNI(ptr, callback, onClose)) }
 
     @Throws(ZError::class)
     fun declareBackgroundMatchingListener(callback: JNIMatchingListenerCallback, onClose: JNIOnCloseCallback) =
-        declareBackgroundMatchingListenerViaJNI(ptr, callback, onClose)
+        handle.withPtr { ptr -> declareBackgroundMatchingListenerViaJNI(ptr, callback, onClose) }
 
     @Throws(ZError::class)
-    fun getMatchingStatus(): Boolean = getMatchingStatusViaJNI(ptr)
+    fun getMatchingStatus(): Boolean = handle.withPtr { ptr -> getMatchingStatusViaJNI(ptr) }
 
-    fun close() {
-        freePtrViaJNI(ptr)
-    }
+    fun close() = handle.close(::freePtrViaJNI)
 
     @Throws(ZError::class)
     private external fun putViaJNI(

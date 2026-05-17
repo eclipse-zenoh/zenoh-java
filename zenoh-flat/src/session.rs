@@ -122,14 +122,15 @@ pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<ZKeyExpr
 
 /// Undeclare a previously-declared key expression on a Zenoh session.
 ///
-/// Takes the [`ZKeyExpr<'static>`] by value — this is the single
-/// destruction point for a declared key-expression handle, performing
-/// both the network-side undeclare and the release of the value in one
-/// call. Callers must not reuse the handle after this returns.
+/// Takes the [`ZKeyExpr<'static>`] by reference and clones it
+/// internally for zenoh's `undeclare` (which consumes by value). The
+/// release of the handle's Arc itself is a separate concern handled by
+/// the caller via the dedicated drop entry point (see `JNIKeyExpr`'s
+/// `dropKeyExprViaJNI`).
 #[prebindgen_proc_macro::prebindgen]
-pub fn undeclare_key_expr(session: &Session, key_expr: ZKeyExpr<'static>) -> ZResult<()> {
+pub fn undeclare_key_expr(session: &Session, key_expr: &ZKeyExpr<'static>) -> ZResult<()> {
     let key_expr_string = key_expr.to_string();
-    session.undeclare(key_expr).wait().map_err(|err| {
+    session.undeclare(key_expr.clone()).wait().map_err(|err| {
         error!(
             "Unable to undeclare key expression '{}': {}",
             key_expr_string, err
@@ -390,18 +391,6 @@ pub fn get_peers_zid(session: &Session) -> ZResult<Vec<ZenohId>> {
 #[prebindgen_proc_macro::prebindgen]
 pub fn get_routers_zid(session: &Session) -> ZResult<Vec<ZenohId>> {
     Ok(session.info().routers_zid().wait().collect())
-}
-
-/// Drop a [`Session`] handle obtained from [`open_session`].
-///
-/// Distinct from [`close_session`], which only deactivates the session
-/// (network shutdown) without releasing the handle. Takes the session
-/// by value — this is the destruction point that releases the value
-/// exactly once. Callers must not reuse the handle after this returns.
-#[prebindgen_proc_macro::prebindgen]
-pub fn drop_session(session: Session) -> ZResult<()> {
-    drop(session);
-    Ok(())
 }
 
 /// Close a Zenoh session using a reference to the session.

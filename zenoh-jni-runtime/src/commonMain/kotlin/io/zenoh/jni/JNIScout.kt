@@ -22,9 +22,10 @@ import io.zenoh.jni.callbacks.JNIScoutCallback
 /**
  * Adapter class to handle the interactions with Zenoh through JNI for a Scout.
  *
- * @property ptr: raw pointer to the underlying native scout.
+ * @param initialPtr Raw pointer to the underlying native scout.
  */
-public class JNIScout(private val ptr: Long) {
+public class JNIScout(initialPtr: Long) {
+    private val handle = NativeHandle(initialPtr)
 
     companion object {
         init {
@@ -50,7 +51,5 @@ public class JNIScout(private val ptr: Long) {
         private external fun freePtrViaJNI(ptr: Long)
     }
 
-    fun close() {
-        freePtrViaJNI(ptr)
-    }
+    fun close() = handle.close { freePtrViaJNI(it) }
 }

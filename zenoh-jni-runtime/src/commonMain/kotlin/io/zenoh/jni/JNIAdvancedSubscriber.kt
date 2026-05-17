@@ -22,39 +22,46 @@ import io.zenoh.jni.callbacks.JNISampleCallback
 /**
  * Adapter class for a native Zenoh AdvancedSubscriber.
  *
- * @property ptr Raw pointer to the underlying native AdvancedSubscriber.
+ * @param initialPtr Raw pointer to the underlying native AdvancedSubscriber.
  */
-public class JNIAdvancedSubscriber(private val ptr: Long) {
+public class JNIAdvancedSubscriber(initialPtr: Long) {
+    private val handle = NativeHandle(initialPtr)
 
     @Throws(ZError::class)
     fun declareDetectPublishersSubscriber(
         history: Boolean,
         callback: JNISampleCallback,
         onClose: JNIOnCloseCallback,
-    ): JNISubscriber = JNISubscriber(declareDetectPublishersSubscriberViaJNI(ptr, history, callback, onClose))
+    ): JNISubscriber = handle.withPtr { ptr ->
+        JNISubscriber(declareDetectPublishersSubscriberViaJNI(ptr, history, callback, onClose))
+    }
 
     @Throws(ZError::class)
     fun declareBackgroundDetectPublishersSubscriber(
         history: Boolean,
         callback: JNISampleCallback,
         onClose: JNIOnCloseCallback,
-    ) = declareBackgroundDetectPublishersSubscriberViaJNI(ptr, history, callback, onClose)
+    ) = handle.withPtr { ptr ->
+        declareBackgroundDetectPublishersSubscriberViaJNI(ptr, history, callback, onClose)
+    }
 
     @Throws(ZError::class)
     fun declareSampleMissListener(
         callback: JNISampleMissListenerCallback,
         onClose: JNIOnCloseCallback,
-    ): JNISampleMissListener = JNISampleMissListener(declareSampleMissListenerViaJNI(ptr, callback, onClose))
+    ): JNISampleMissListener = handle.withPtr { ptr ->
+        JNISampleMissListener(declareSampleMissListenerViaJNI(ptr, callback, onClose))
+    }
 
     @Throws(ZError::class)
     fun declareBackgroundSampleMissListener(
         callback: JNISampleMissListenerCallback,
         onClose: JNIOnCloseCallback,
-    ) = declareBackgroundSampleMissListenerViaJNI(ptr, callback, onClose)
-
-    fun close() {
-        freePtrViaJNI(ptr)
+    ) = handle.withPtr { ptr ->
+        declareBackgroundSampleMissListenerViaJNI(ptr, callback, onClose)
     }
+
+    fun close() = handle.close(::freePtrViaJNI)
 
     @Throws(ZError::class)
     private external fun declareDetectPublishersSubscriberViaJNI(

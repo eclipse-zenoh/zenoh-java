@@ -21,26 +21,26 @@ import io.zenoh.jni.JNINative.putPublisherViaJNI
 /**
  * Adapter class for a native Zenoh publisher. Uses primitive types for put/delete.
  *
- * @property ptr Raw pointer to the underlying native Publisher.
+ * @param initialPtr Raw pointer to the underlying native Publisher.
  */
-public class JNIPublisher(private val ptr: Long) {
+public class JNIPublisher(initialPtr: Long) {
+    private val handle = NativeHandle(initialPtr)
 
     @Throws(ZError::class)
-    fun put(payload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?) {
+    fun put(payload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?) = handle.withPtr { ptr ->
         putPublisherViaJNI(ptr, payload, encoding, attachment)
     }
 
     @Throws(ZError::class)
-    fun delete(attachment: ByteArray?) {
+    fun delete(attachment: ByteArray?) = handle.withPtr { ptr ->
         deletePublisherViaJNI(ptr, attachment)
     }
 
-    fun close() {
-        freePtrViaJNI(ptr)
-    }
+    fun close() = handle.close(::freePtrViaJNI)
 
     // freePtrViaJNI is hand-written in zenoh-jni/src/publisher.rs because
-    // the auto-generated `opaque_arc_borrow_input` convention forgets the
-    // outer Arc on drop (so it would leak on a migrated drop_publisher).
+    // the auto-generated `opaque_arc_input` convention clones the outer
+    // Arc on borrow and drops the clone on exit, so the master Arc is
+    // released via this dedicated entry point.
     private external fun freePtrViaJNI(ptr: Long)
 }

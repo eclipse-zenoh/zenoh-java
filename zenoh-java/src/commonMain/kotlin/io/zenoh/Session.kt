@@ -420,6 +420,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         jniSession?.run {
             keyExpr.jniKeyExprHandle?.run {
                 undeclareKeyExpr(this)
+                // The native `undeclare_key_expr` borrows the keyexpr Arc
+                // (Variant C of SAFETY_ANALYSIS.md); releasing the Java
+                // reference is a separate dedicated step.
+                io.zenoh.jni.keyExprDrop(this)
                 keyExpr.jniKeyExprHandle = null
             } ?: throw ZError("Attempting to undeclare a non declared key expression.")
         } ?: throw (sessionClosedException)

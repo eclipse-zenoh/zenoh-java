@@ -15,11 +15,10 @@
 package io.zenoh.jni
 
 /** Adapter class for a native Zenoh LivelinessToken. */
-public class JNILivelinessToken(private val ptr: Long) {
+public class JNILivelinessToken(initialPtr: Long) {
+    private val handle = NativeHandle(initialPtr)
 
-    fun undeclare() {
-        undeclareViaJNI(ptr)
-    }
+    fun undeclare() = handle.close(::undeclareViaJNI)
 
     private external fun undeclareViaJNI(ptr: Long)
 }
