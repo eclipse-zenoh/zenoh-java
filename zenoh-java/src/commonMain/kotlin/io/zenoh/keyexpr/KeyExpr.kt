@@ -71,22 +71,15 @@ class KeyExpr internal constructor(
     internal val keyExpr: String,
     /**
      * Native `Arc<KeyExpr<'static>>` handle when this expression was
-     * session-declared; `null` otherwise. Wrapped in a [NativeHandle]
-     * so the consume site (`Session.undeclare(keyExpr)`) gets atomic
-     * exactly-once handoff via [NativeHandle.consume]; pure-borrow
-     * read sites (`intersects`, `includes`, `declarePublisher`, …) go
-     * through [jniKeyExprHandle] which is a non-locking snapshot.
+     * session-declared; `null` for string-only key expressions. The
+     * borrow-read JNI surface (`keyExprArg`, `JNIWrappers.*`) accepts
+     * a [NativeHandle] directly so the inner `Long` never escapes
+     * past the JNI boundary; the consume site
+     * (`Session.undeclare(keyExpr)`) routes through
+     * [NativeHandle.consume] for atomic exactly-once handoff.
      */
     internal var jniKeyExpr: NativeHandle? = null,
 ) : AutoCloseable, IntoSelector, SessionDeclaration {
-
-    /**
-     * Snapshot of the current native handle Long, or `null` if the
-     * key-expression is string-only or has been undeclared. Backed by
-     * [NativeHandle.peek] (volatile read, no lock).
-     */
-    internal val jniKeyExprHandle: Long?
-        get() = jniKeyExpr?.peek()?.takeIf { it != 0L }
 
     companion object {
 
@@ -128,7 +121,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun intersects(other: KeyExpr): Boolean =
-        keyExprIntersects(jniKeyExprHandle, keyExpr, other.jniKeyExprHandle, other.keyExpr)
+        keyExprIntersects(jniKeyExpr, keyExpr, other.jniKeyExpr, other.keyExpr)
 
     /**
      * Includes operation. This method returns `true` when all the keys defined by `other` also belong to the set
@@ -137,7 +130,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun includes(other: KeyExpr): Boolean =
-        keyExprIncludes(jniKeyExprHandle, keyExpr, other.jniKeyExprHandle, other.keyExpr)
+        keyExprIncludes(jniKeyExpr, keyExpr, other.jniKeyExpr, other.keyExpr)
 
     /**
      * Returns the relation between 'this' and other from 'this''s point of view ([SetIntersectionLevel.INCLUDES]
@@ -147,7 +140,7 @@ class KeyExpr internal constructor(
     @Throws(ZError::class)
     fun relationTo(other: KeyExpr): SetIntersectionLevel =
         SetIntersectionLevel.fromInt(
-            keyExprRelationTo(jniKeyExprHandle, keyExpr, other.jniKeyExprHandle, other.keyExpr)
+            keyExprRelationTo(jniKeyExpr, keyExpr, other.jniKeyExpr, other.keyExpr)
         )
 
     /**
@@ -156,8 +149,8 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun join(other: String): KeyExpr {
-        val r = keyExprJoin(jniKeyExprHandle, keyExpr, other)
-        return KeyExpr(r.string, NativeHandle(r.handle))
+        val r = keyExprJoin(jniKeyExpr, keyExpr, other)
+        return KeyExpr(r.string, r.handle)
     }
 
     /**
@@ -166,8 +159,8 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun concat(other: String): KeyExpr {
-        val r = keyExprConcat(jniKeyExprHandle, keyExpr, other)
-        return KeyExpr(r.string, NativeHandle(r.handle))
+        val r = keyExprConcat(jniKeyExpr, keyExpr, other)
+        return KeyExpr(r.string, r.handle)
     }
 
     override fun toString(): String = keyExpr
@@ -187,7 +180,7 @@ class KeyExpr internal constructor(
      * operations on it, but without the inner optimizations.
      */
     override fun undeclare() {
-        jniKeyExpr?.close { keyExprDrop(it) }
+        jniKeyExpr?.let { keyExprDrop(it) }
     }
 
     override fun into(): Selector = Selector(this)

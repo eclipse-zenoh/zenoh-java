@@ -32,8 +32,15 @@ import io.zenoh.exceptions.ZError
  * Pick the declared handle if present, else the raw string. Returns
  * a JVM `Object` (boxed `java.lang.Long` or `java.lang.String`) which
  * the native dispatching converter resolves at runtime.
+ *
+ * Takes a [NativeHandle] (not a raw `Long`) so callers don't see the
+ * inner pointer. The peek is unlocked — the borrow's Rust side runs
+ * `Arc::increment_strong_count` and a concurrent close of this
+ * keyExpr is the same race window the broader JNI layer already
+ * tolerates for borrow-style calls.
  */
-fun keyExprArg(handle: Long?, str: String): Any = handle ?: str
+fun keyExprArg(handle: NativeHandle?, str: String): Any =
+    handle?.peek()?.takeIf { it != 0L } ?: str
 
 @Throws(ZError::class)
 fun keyExprTryFrom(keyExpr: String): String = JNIWrappers.tryFrom(keyExpr)
@@ -42,38 +49,38 @@ fun keyExprTryFrom(keyExpr: String): String = JNIWrappers.tryFrom(keyExpr)
 fun keyExprAutocanonize(keyExpr: String): String = JNIWrappers.autocanonize(keyExpr)
 
 @Throws(ZError::class)
-fun keyExprIntersects(a: Long?, aStr: String, b: Long?, bStr: String): Boolean =
+fun keyExprIntersects(a: NativeHandle?, aStr: String, b: NativeHandle?, bStr: String): Boolean =
     JNIWrappers.intersects(keyExprArg(a, aStr), keyExprArg(b, bStr))
 
 @Throws(ZError::class)
-fun keyExprIncludes(a: Long?, aStr: String, b: Long?, bStr: String): Boolean =
+fun keyExprIncludes(a: NativeHandle?, aStr: String, b: NativeHandle?, bStr: String): Boolean =
     JNIWrappers.includes(keyExprArg(a, aStr), keyExprArg(b, bStr))
 
 @Throws(ZError::class)
-fun keyExprRelationTo(a: Long?, aStr: String, b: Long?, bStr: String): Int =
+fun keyExprRelationTo(a: NativeHandle?, aStr: String, b: NativeHandle?, bStr: String): Int =
     JNIWrappers.relationTo(keyExprArg(a, aStr), keyExprArg(b, bStr))
 
 /** Result of a join/concat: `(handle, canonicalString)`. */
-data class KeyExprResult(val handle: Long, val string: String)
+data class KeyExprResult(val handle: NativeHandle, val string: String)
 
 @Throws(ZError::class)
-fun keyExprJoin(a: Long?, aStr: String, other: String): KeyExprResult {
-    val handle = JNIWrappers.join(keyExprArg(a, aStr), other).peek()
+fun keyExprJoin(a: NativeHandle?, aStr: String, other: String): KeyExprResult {
+    val handle = JNIWrappers.join(keyExprArg(a, aStr), other)
     // Match Rust's `KeyExpr::join` formatting: "{self}/{other}".
     return KeyExprResult(handle, "$aStr/$other")
 }
 
 @Throws(ZError::class)
-fun keyExprConcat(a: Long?, aStr: String, other: String): KeyExprResult {
-    val handle = JNIWrappers.concat(keyExprArg(a, aStr), other).peek()
+fun keyExprConcat(a: NativeHandle?, aStr: String, other: String): KeyExprResult {
+    val handle = JNIWrappers.concat(keyExprArg(a, aStr), other)
     // Match Rust's `KeyExpr::concat` formatting: "{self}{other}".
     return KeyExprResult(handle, "$aStr$other")
 }
 
 /**
- * Release the native `Arc<KeyExpr>` registration. No-op for `0L`
- * (string-only keyexprs never allocated an Arc).
+ * Release the native `Arc<KeyExpr>` registration. No-op if the handle
+ * has already been closed/consumed.
  */
-fun keyExprDrop(handle: Long) {
-    if (handle != 0L) JNINative.dropKeyExprViaJNI(handle)
+fun keyExprDrop(handle: NativeHandle) {
+    handle.close { ptr -> JNINative.dropKeyExprViaJNI(ptr) }
 }

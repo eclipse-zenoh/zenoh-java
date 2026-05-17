@@ -33,7 +33,13 @@ public class JNIScout(initialPtr: Long) : NativeHandle(initialPtr) {
             callback: JNIScoutCallback,
             onClose: JNIOnCloseCallback,
             config: JNIConfig?,
-        ): JNIScout = JNIScout(scoutViaJNI(whatAmI, callback, onClose, config?.peek() ?: 0))
+        ): JNIScout = if (config != null) {
+            // Hold the config's read lock for the duration of the JNI
+            // call so the inner Long can't be freed in flight.
+            config.withPtr { p -> JNIScout(scoutViaJNI(whatAmI, callback, onClose, p)) }
+        } else {
+            JNIScout(scoutViaJNI(whatAmI, callback, onClose, 0L))
+        }
 
         @Throws(ZError::class)
         private external fun scoutViaJNI(

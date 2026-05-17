@@ -172,7 +172,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
             callback.run(reply)
         }
         jni.get(
-            keyExpr.jniKeyExprHandle,
+            keyExpr.jniKeyExpr,
             keyExpr.keyExpr,
             options.parameters?.toString(),
             getCallback,
@@ -206,7 +206,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
             handler.handle(reply)
         }
         jni.get(
-            keyExpr.jniKeyExprHandle,
+            keyExpr.jniKeyExpr,
             keyExpr.keyExpr,
             options.parameters?.toString(),
             getCallback,

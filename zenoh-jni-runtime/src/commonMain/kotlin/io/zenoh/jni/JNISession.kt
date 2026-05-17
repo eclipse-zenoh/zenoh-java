@@ -42,7 +42,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     fun declarePublisher(
-        keyExprHandle: Long?,
+        keyExprHandle: NativeHandle?,
         keyExprString: String,
         congestionControl: Int,
         priority: Int,
@@ -61,7 +61,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     fun declareSubscriber(
-        keyExprHandle: Long?,
+        keyExprHandle: NativeHandle?,
         keyExprString: String,
         callback: JNISampleCallback,
         onClose: JNIOnCloseCallback,
@@ -76,7 +76,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     fun declareQueryable(
-        keyExprHandle: Long?,
+        keyExprHandle: NativeHandle?,
         keyExprString: String,
         callback: JNIQueryableCallback,
         onClose: JNIOnCloseCallback,
@@ -93,7 +93,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     fun declareQuerier(
-        keyExprHandle: Long?,
+        keyExprHandle: NativeHandle?,
         keyExprString: String,
         target: Int,
         consolidation: Int,
@@ -117,16 +117,16 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     )
 
     @Throws(ZError::class)
-    fun declareKeyExpr(keyExpr: String): Long =
-        JNIWrappers.declareKeyExpr(this, keyExpr).peek()
+    fun declareKeyExpr(keyExpr: String): NativeHandle =
+        JNIWrappers.declareKeyExpr(this, keyExpr)
 
     @Throws(ZError::class)
-    fun undeclareKeyExpr(keyExprHandle: Long) =
-        JNIWrappers.undeclareKeyExpr(this, NativeHandle(keyExprHandle))
+    fun undeclareKeyExpr(keyExpr: NativeHandle) =
+        JNIWrappers.undeclareKeyExpr(this, keyExpr)
 
     @Throws(ZError::class)
     fun get(
-        keyExprHandle: Long?,
+        keyExprHandle: NativeHandle?,
         keyExprString: String,
         selectorParams: String?,
         callback: JNIGetCallback,
@@ -161,7 +161,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     fun put(
-        keyExprHandle: Long?,
+        keyExprHandle: NativeHandle?,
         keyExprString: String,
         valuePayload: ByteArray,
         valueEncoding: JNIEncoding,
@@ -184,7 +184,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     fun delete(
-        keyExprHandle: Long?,
+        keyExprHandle: NativeHandle?,
         keyExprString: String,
         congestionControl: Int,
         priority: Int,
@@ -212,7 +212,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     fun declareAdvancedSubscriber(
-        keyExprHandle: Long?,
+        keyExprHandle: NativeHandle?,
         keyExprStr: String,
         callback: JNISampleCallback,
         onClose: JNIOnCloseCallback,
@@ -233,7 +233,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     fun declareAdvancedPublisher(
-        keyExprHandle: Long?,
+        keyExprHandle: NativeHandle?,
         keyExprStr: String,
         congestionControl: Int,
         priority: Int,
@@ -261,7 +261,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     // `external fun`s + their hand-written withPtr stay here.
 
     @Throws(ZError::class)
-    fun declareLivelinessToken(keyExprHandle: Long?, keyExprString: String): JNILivelinessToken =
+    fun declareLivelinessToken(keyExprHandle: NativeHandle?, keyExprString: String): JNILivelinessToken =
         withPtr { ptr ->
             JNILivelinessToken(declareLivelinessTokenViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString)))
         }
@@ -271,7 +271,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     fun declareLivelinessSubscriber(
-        keyExprHandle: Long?,
+        keyExprHandle: NativeHandle?,
         keyExprString: String,
         callback: JNISampleCallback,
         history: Boolean,
@@ -291,7 +291,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     fun livelinessGet(
-        keyExprHandle: Long?,
+        keyExprHandle: NativeHandle?,
         keyExprString: String,
         callback: JNIGetCallback,
         timeoutMs: Long,

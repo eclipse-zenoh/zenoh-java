@@ -22,7 +22,7 @@ public class JNIQuery(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     fun replySuccess(
-        keyExprHandle: Long?,
+        keyExprHandle: NativeHandle?,
         keyExprString: String,
         payload: ByteArray,
         encoding: JNIEncoding,
@@ -41,7 +41,7 @@ public class JNIQuery(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     fun replyDelete(
-        keyExprHandle: Long?,
+        keyExprHandle: NativeHandle?,
         keyExprString: String,
         timestampEnabled: Boolean,
         timestampNtp64: Long,

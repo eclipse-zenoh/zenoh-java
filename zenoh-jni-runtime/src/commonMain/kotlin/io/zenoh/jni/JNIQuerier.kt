@@ -28,7 +28,7 @@ public class JNIQuerier(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     fun get(
-        keyExprHandle: Long?,
+        keyExprHandle: NativeHandle?,
         keyExprString: String,
         parameters: String?,
         callback: JNIGetCallback,
