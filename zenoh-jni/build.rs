@@ -352,6 +352,30 @@ fn shared_kotlin_types() -> KotlinTypeMap {
         .add("ZResult<AdvancedSubscriber<()>>", "Long")
         .add("ZResult<AdvancedPublisher<'static>>", "Long")
         .add("ZResult<bool>", "Boolean")
+        // ── Data classes (hand-maintained in JNINative.kt) ──
+        .add("Sample", "io.zenoh.jni.Sample")
+        .add("MissDetectionConfig", "io.zenoh.jni.MissDetectionConfig")
+        .add("HistoryConfig", "io.zenoh.jni.HistoryConfig")
+        .add("CacheConfig", "io.zenoh.jni.CacheConfig")
+        .add("RecoveryConfig", "io.zenoh.jni.RecoveryConfig")
+        .add("Option<MissDetectionConfig>", "io.zenoh.jni.MissDetectionConfig")
+        .add("Option<HistoryConfig>", "io.zenoh.jni.HistoryConfig")
+        .add("Option<CacheConfig>", "io.zenoh.jni.CacheConfig")
+        .add("Option<RecoveryConfig>", "io.zenoh.jni.RecoveryConfig")
+        // ── Callback overrides — JNINative.kt uses hand-maintained
+        // names that don't match the auto-derived `JNI<Stem>Callback`.
+        .add(
+            "impl Fn() + Send + Sync + 'static",
+            "io.zenoh.jni.callbacks.JNIOnCloseCallback",
+        )
+        .add(
+            "impl Fn(Query) + Send + Sync + 'static",
+            "io.zenoh.jni.callbacks.JNIQueryableCallback",
+        )
+        .add(
+            "impl Fn(Reply) + Send + Sync + 'static",
+            "io.zenoh.jni.callbacks.JNIGetCallback",
+        )
 }
 
 fn main() {
@@ -400,15 +424,30 @@ fn main() {
     )
     .expect("failed to write Kotlin callback files");
 
-    // (4b) Aggregated JNINative.kt — uses the existing
-    //      KotlinInterfaceGenerator. Until it is migrated to consume the
-    //      new Registry, this step is a placeholder; the consumer's old
-    //      Kotlin pipeline still produces the file.
-    //      TODO: rewrite KotlinInterfaceGenerator to read the new Registry
-    //      then call it here. For now, print a reminder.
-    let _ = (shared_kotlin_types, KotlinInterfaceGenerator::builder);
-    println!(
-        "cargo:warning=Aggregated JNINative.kt generation is not yet wired \
-         to the new Registry. Skipping."
-    );
+    // (4b) Aggregated JNINative.kt — still produced by the legacy
+    //      out-of-tree pipeline. TODO: rewrite KotlinInterfaceGenerator
+    //      to read the new Registry then call it here.
+    let _ = (KotlinInterfaceGenerator::builder,);
+
+    // (4c) NativeHandle.kt — owns the read/write-lock primitive every
+    //      auto-generated wrapper depends on. Replaces the previously
+    //      hand-maintained file in zenoh-jni-runtime.
+    let kotlin_root =
+        std::path::Path::new("../zenoh-jni-runtime/src/commonMain/kotlin");
+    let nh_path = ext
+        .base
+        .write_native_handle(kotlin_root)
+        .expect("failed to write NativeHandle.kt");
+    println!("cargo:warning=Wrote {}", nh_path.display());
+
+    // (4d) JNIWrappers.kt — one safe top-level wrapper per
+    //      `#[prebindgen]` fn. Opaque-handle params route through
+    //      `NativeHandle.withPtr` / `consume`; opaque returns wrap in
+    //      `NativeHandle(...)`.
+    let kotlin_types = shared_kotlin_types();
+    let wrap_path = ext
+        .base
+        .write_jni_wrappers(&registry, &kotlin_types, kotlin_root)
+        .expect("failed to write JNIWrappers.kt");
+    println!("cargo:warning=Wrote {}", wrap_path.display());
 }

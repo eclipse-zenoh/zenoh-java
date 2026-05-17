@@ -831,8 +831,9 @@ fn sentinel_for_wire(wire: &syn::Type) -> TokenStream {
 
 /// Detect whether an input converter's return type is `_::ZResult<OwnedObject<_>>`
 /// (or whatever the `zresult` path happens to be — we only inspect the last
-/// segment). Drives `.consume()?` insertion at by-value call sites.
-fn converter_returns_owned_object(output: &syn::ReturnType) -> bool {
+/// segment). Drives the borrow/consume codegen at the call site and the
+/// `NativeHandle`-typed parameter detection in the Kotlin wrapper emitter.
+pub(crate) fn converter_returns_owned_object(output: &syn::ReturnType) -> bool {
     let syn::ReturnType::Type(_, ty) = output else { return false; };
     let syn::Type::Path(tp) = &**ty else { return false; };
     let Some(last) = tp.path.segments.last() else { return false; };
