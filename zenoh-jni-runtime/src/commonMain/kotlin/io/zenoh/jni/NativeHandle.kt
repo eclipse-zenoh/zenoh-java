@@ -39,7 +39,10 @@ import kotlin.concurrent.write
  */
 public class NativeHandle(initial: Long) {
     private val lock = ReentrantReadWriteLock()
-    private var ptr: Long = initial
+
+    /** Volatile so [peek] is atomic on 32-bit JVMs and observes the
+     *  write done by [close] / [consume] without holding the lock. */
+    @Volatile private var ptr: Long = initial
 
     /**
      * Run [block] with the live pointer under the read lock. Throws
@@ -90,4 +93,15 @@ public class NativeHandle(initial: Long) {
 
     /** True iff [close] has run. */
     public fun isClosed(): Boolean = lock.read { ptr == 0L }
+
+    /**
+     * Read the current pointer value without holding the lock.
+     * Returns `0L` if the handle has been closed/consumed. Use for
+     * callers that pass the Long to a JNI bridge whose Rust side does
+     * a borrow (`OwnedObject::from_raw` = `Arc::increment_strong_count`
+     * + `Arc::from_raw`); under Variant C the surrounding JNI* class
+     * lock makes the increment race-free against close. For consume-
+     * style handoff use [consume] instead.
+     */
+    public fun peek(): Long = ptr
 }

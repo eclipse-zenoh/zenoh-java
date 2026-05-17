@@ -17,6 +17,7 @@ package io.zenoh.keyexpr
 import io.zenoh.Session
 import io.zenoh.session.SessionDeclaration
 import io.zenoh.exceptions.ZError
+import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.keyExprAutocanonize
 import io.zenoh.jni.keyExprConcat
 import io.zenoh.jni.keyExprDrop
@@ -70,26 +71,22 @@ class KeyExpr internal constructor(
     internal val keyExpr: String,
     /**
      * Native `Arc<KeyExpr<'static>>` handle when this expression was
-     * session-declared; `null` otherwise. The Kotlin/JNI bridge uses
-     * this to short-circuit string validation on the native side.
+     * session-declared; `null` otherwise. Wrapped in a [NativeHandle]
+     * so the consume site (`Session.undeclare(keyExpr)`) gets atomic
+     * exactly-once handoff via [NativeHandle.consume]; pure-borrow
+     * read sites (`intersects`, `includes`, `declarePublisher`, …) go
+     * through [jniKeyExprHandle] which is a non-locking snapshot.
      */
-    @Volatile internal var jniKeyExprHandle: Long? = null,
+    internal var jniKeyExpr: NativeHandle? = null,
 ) : AutoCloseable, IntoSelector, SessionDeclaration {
 
     /**
-     * Atomically take the native handle, nulling the field. Returns
-     * the prior value (or `null` if already consumed). Pairs with the
-     * generator-emitted consume bridges (Rust side does
-     * `Arc::unwrap_or_clone(Arc::from_raw(ptr))`) — passing the same
-     * Long to those bridges twice would be a UAF, so callers funnel
-     * through this method to guarantee exactly-once handoff.
+     * Snapshot of the current native handle Long, or `null` if the
+     * key-expression is string-only or has been undeclared. Backed by
+     * [NativeHandle.peek] (volatile read, no lock).
      */
-    @Synchronized
-    internal fun takeJniKeyExprHandle(): Long? {
-        val h = jniKeyExprHandle
-        jniKeyExprHandle = null
-        return h
-    }
+    internal val jniKeyExprHandle: Long?
+        get() = jniKeyExpr?.peek()?.takeIf { it != 0L }
 
     companion object {
 
@@ -160,7 +157,7 @@ class KeyExpr internal constructor(
     @Throws(ZError::class)
     fun join(other: String): KeyExpr {
         val r = keyExprJoin(jniKeyExprHandle, keyExpr, other)
-        return KeyExpr(r.string, r.handle)
+        return KeyExpr(r.string, NativeHandle(r.handle))
     }
 
     /**
@@ -170,7 +167,7 @@ class KeyExpr internal constructor(
     @Throws(ZError::class)
     fun concat(other: String): KeyExpr {
         val r = keyExprConcat(jniKeyExprHandle, keyExpr, other)
-        return KeyExpr(r.string, r.handle)
+        return KeyExpr(r.string, NativeHandle(r.handle))
     }
 
     override fun toString(): String = keyExpr
@@ -190,7 +187,7 @@ class KeyExpr internal constructor(
      * operations on it, but without the inner optimizations.
      */
     override fun undeclare() {
-        takeJniKeyExprHandle()?.let { keyExprDrop(it) }
+        jniKeyExpr?.close { keyExprDrop(it) }
     }
 
     override fun into(): Selector = Selector(this)

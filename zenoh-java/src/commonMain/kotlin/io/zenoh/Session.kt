@@ -400,7 +400,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     fun declareKeyExpr(keyExpr: String): KeyExpr {
         return jniSession?.run {
-            val ke = KeyExpr(keyExpr, declareKeyExpr(keyExpr))
+            val ke = KeyExpr(keyExpr, io.zenoh.jni.NativeHandle(declareKeyExpr(keyExpr)))
             strongDeclarations.add(ke)
             ke
         } ?: throw sessionClosedException
@@ -418,14 +418,14 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     fun undeclare(keyExpr: KeyExpr) {
         val js = jniSession ?: throw sessionClosedException
-        // Atomically take the Long out of the keyExpr; the generator-
-        // emitted `undeclareKeyExpr` consumes the Arc on the Rust side
-        // (Arc::unwrap_or_clone(Arc::from_raw(ptr))), so this Long
-        // must be handed off exactly once. No explicit `keyExprDrop`
-        // — by-value handoff IS the destruction.
-        val handle = keyExpr.takeJniKeyExprHandle()
+        val nh = keyExpr.jniKeyExpr
             ?: throw ZError("Attempting to undeclare a non declared key expression.")
-        js.undeclareKeyExpr(handle)
+        // `NativeHandle.consume` atomically takes the Long under the
+        // write lock and nulls the field, so the generator-emitted
+        // `undeclareKeyExpr` (Rust: `Arc::unwrap_or_clone(Arc::from_raw)`)
+        // gets exactly-once handoff. By-value transfer IS the
+        // destruction; no separate `keyExprDrop` is needed.
+        nh.consume { handle -> js.undeclareKeyExpr(handle) }
     }
 
     /**
