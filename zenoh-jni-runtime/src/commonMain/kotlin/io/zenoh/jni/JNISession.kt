@@ -16,7 +16,6 @@ package io.zenoh.jni
 
 import io.zenoh.ZenohLoad
 import io.zenoh.exceptions.ZError
-import io.zenoh.jni.JNINative.closeSessionViaJNI
 import io.zenoh.jni.JNINative.declareAdvancedPublisherViaJNI
 import io.zenoh.jni.JNINative.declareAdvancedSubscriberViaJNI
 import io.zenoh.jni.JNINative.declareKeyExprViaJNI
@@ -268,8 +267,14 @@ public class JNISession(initialPtr: Long) {
         onClose: JNIOnCloseCallback,
     )
 
-    fun close() = handle.close { ptr ->
-        closeSessionViaJNI(ptr)
+    /**
+     * Consume the session handle via the generator-emitted
+     * `dropSessionViaJNI` (whose Rust side does
+     * `Arc::unwrap_or_clone(Arc::from_raw(ptr))`). `Session::drop`
+     * runs `self.close().wait()` internally, so this is the complete
+     * teardown — no separate `closeSessionViaJNI` step is required.
+     */
+    fun close() = handle.consume { ptr ->
         dropSessionViaJNI(ptr)
     }
 }

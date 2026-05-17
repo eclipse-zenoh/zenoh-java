@@ -205,21 +205,27 @@ impl JniExt {
     ///
     /// Use for any Rust type whose lifecycle is owned by the Java side:
     /// Java holds the master `Arc` as a `Long` and calls Rust passing
-    /// the pointer. The converter only supports `&T` parameter positions
-    /// (borrow). By-value `T` parameters are rejected at codegen time —
-    /// callers must use `&T` and clone or use a dedicated free entry
-    /// point (`freePtrViaJNI` pattern) instead.
+    /// the pointer. The converter handles both parameter shapes, the
+    /// decision is taken in `on_function` from the parameter's syntax:
     ///
-    /// **`&T` sites**: `OwnedObject::from_raw` calls
+    /// **`&T` sites (borrow)**: `OwnedObject::from_raw` calls
     /// `Arc::increment_strong_count` then `Arc::from_raw`, producing a
     /// genuine clone of the Java-held Arc with its own refcount slot.
     /// `Deref<Target = T>` lets the generated call site borrow it as
     /// `&T`; the wrapper drops normally on exit, decrementing the
-    /// per-call slot without touching Java's master count. This aligns
-    /// with `Arc`'s actual contract (refcount-tracked sharing) and is
-    /// race-free against concurrent free of the same handle (the Java
-    /// side adds an `AtomicLong`/`RwLock` gate so the in-flight borrow
-    /// is sequenced before any drop).
+    /// per-call slot without touching Java's master count. The Java
+    /// side must take the pointer out of its `NativeHandle.withPtr`
+    /// (read lock) so the increment is sequenced before any drop.
+    ///
+    /// **`T` sites (consume, by-value)**: the call-site emitter
+    /// bypasses `OwnedObject` and inlines
+    /// `Arc::unwrap_or_clone(Arc::from_raw(ptr))` — no
+    /// `increment_strong_count` because the call consumes Java's last
+    /// refcount slot. `T: Clone` is required; non-`Clone` handles
+    /// stay on the `freePtrViaJNI` path. The Java side must take the
+    /// pointer out of its `NativeHandle.consume` (write lock + atomic
+    /// null) before invoking this entry point, so concurrent borrows
+    /// are drained first and the same Long cannot be passed twice.
     ///
     /// **Convention** (single rule for both input and output):
     /// * Wire: `jni::sys::jlong` — the same width JNI hands across
@@ -696,6 +702,31 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry)
         } else {
             arg_ident.clone()
         };
+
+        // By-value `T` opaque-handle parameter: emit the consume
+        // converter inline, bypassing `OwnedObject`. The Java side
+        // takes the pointer out of its `NativeHandle.consume` under
+        // the write lock and passes it here, so `Arc::from_raw` (no
+        // refcount bump) takes Java's last slot; `Arc::unwrap_or_clone`
+        // extracts `T` whether or not zenoh held internal clones.
+        // Requires `T: Clone` — the generated code fails to compile
+        // for non-Clone handles, which is the right signal (use
+        // `freePtrViaJNI` instead).
+        let is_consume = !matches!(arg_ty, syn::Type::Reference(_))
+            && converter_returns_owned_object(&entry.function.sig.output);
+        if is_consume {
+            wire_params.push(quote!(#wire_ident: jni::sys::jlong));
+            prelude.push(quote!(
+                let #arg_ident = unsafe {
+                    std::sync::Arc::unwrap_or_clone(
+                        std::sync::Arc::from_raw(#wire_ident as *const #arg_ty)
+                    )
+                };
+            ));
+            call_args.push(quote!(#arg_ident));
+            continue;
+        }
+
         let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "a");
         wire_params.push(quote!(#wire_ident: #wire_with_lifetime));
         // Input wrapper takes wires by ref except for raw pointers.
@@ -706,22 +737,6 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry)
         }
         if matches!(arg_ty, syn::Type::Reference(_)) {
             call_args.push(quote!(&#arg_ident));
-        } else if converter_returns_owned_object(&entry.function.sig.output) {
-            // By-value `T` opaque-handle parameters are not supported
-            // under the Arc-clone borrow convention: extracting `T`
-            // out of an `Arc<T>` shared with Java would require
-            // `try_unwrap`, which is racy against any in-flight borrow.
-            // zenoh-flat must use `&T` and clone internally, or expose
-            // a separate hand-written `freePtrViaJNI` for destruction.
-            panic!(
-                "JniExt::on_function: by-value opaque-handle parameter \
-                 `{}` of `{}` is not supported. Change the parameter to \
-                 `&{}` (clone inside the function if needed) or provide \
-                 a hand-written free entry point.",
-                arg_ident,
-                original_ident,
-                quote!(#arg_ty),
-            );
         } else {
             call_args.push(quote!(#arg_ident));
         }

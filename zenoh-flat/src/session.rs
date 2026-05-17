@@ -122,15 +122,15 @@ pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<ZKeyExpr
 
 /// Undeclare a previously-declared key expression on a Zenoh session.
 ///
-/// Takes the [`ZKeyExpr<'static>`] by reference and clones it
-/// internally for zenoh's `undeclare` (which consumes by value). The
-/// release of the handle's Arc itself is a separate concern handled by
-/// the caller via the dedicated drop entry point (see `JNIKeyExpr`'s
-/// `dropKeyExprViaJNI`).
+/// Takes the [`ZKeyExpr<'static>`] by value: the generator threads the
+/// consume converter (Rust: `Arc::unwrap_or_clone(Arc::from_raw(ptr))`;
+/// Kotlin: `NativeHandle.consume`) through this entry point, so
+/// destruction of the value and atomic invalidation of the Java-side
+/// Long pointer happen as one step.
 #[prebindgen_proc_macro::prebindgen]
-pub fn undeclare_key_expr(session: &Session, key_expr: &ZKeyExpr<'static>) -> ZResult<()> {
+pub fn undeclare_key_expr(session: &Session, key_expr: ZKeyExpr<'static>) -> ZResult<()> {
     let key_expr_string = key_expr.to_string();
-    session.undeclare(key_expr.clone()).wait().map_err(|err| {
+    session.undeclare(key_expr).wait().map_err(|err| {
         error!(
             "Unable to undeclare key expression '{}': {}",
             key_expr_string, err
@@ -406,6 +406,19 @@ pub fn close_session(session: &Session) -> ZResult<()> {
             error!("Unable to close session: {}", err);
             zerror!(err)
         })
+}
+
+/// Drop a [`Session`] handle obtained from [`open_session`].
+///
+/// Takes the session by value: the generator threads the consume
+/// converter through this entry point, so the Java-side `NativeHandle`
+/// is atomically invalidated. `Session::drop` calls `self.close().wait()`
+/// internally, so a single `dropSession` is the complete teardown — no
+/// separate `closeSession` step is required.
+#[prebindgen_proc_macro::prebindgen]
+pub fn drop_session(session: Session) -> ZResult<()> {
+    drop(session);
+    Ok(())
 }
 
 /// Declare an advanced subscriber through an existing Zenoh session.

@@ -68,6 +68,26 @@ public class NativeHandle(initial: Long) {
         }
     }
 
+    /**
+     * Consume the pointer: take it under the write lock, atomically
+     * null the field, and pass the captured pointer to [action]. Used
+     * to feed the Long to a generator-emitted JNI bridge whose Rust
+     * side runs `Arc::unwrap_or_clone(Arc::from_raw(...))` — i.e. by-
+     * value `T` opaque-handle parameters. Throws if the handle has
+     * already been closed/consumed.
+     *
+     * The write lock blocks until in-flight [withPtr] borrows drain,
+     * so the Rust-side consume is sequenced strictly after any
+     * concurrent borrow's `Arc::increment_strong_count`.
+     */
+    @Throws(ZError::class)
+    public fun <R> consume(action: (Long) -> R): R = lock.write {
+        val p = ptr
+        if (p == 0L) throw ZError("Operation on a closed native handle.")
+        ptr = 0L
+        action(p)
+    }
+
     /** True iff [close] has run. */
     public fun isClosed(): Boolean = lock.read { ptr == 0L }
 }

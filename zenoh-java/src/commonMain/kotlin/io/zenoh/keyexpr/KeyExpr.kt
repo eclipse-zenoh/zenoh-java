@@ -73,8 +73,23 @@ class KeyExpr internal constructor(
      * session-declared; `null` otherwise. The Kotlin/JNI bridge uses
      * this to short-circuit string validation on the native side.
      */
-    internal var jniKeyExprHandle: Long? = null,
+    @Volatile internal var jniKeyExprHandle: Long? = null,
 ) : AutoCloseable, IntoSelector, SessionDeclaration {
+
+    /**
+     * Atomically take the native handle, nulling the field. Returns
+     * the prior value (or `null` if already consumed). Pairs with the
+     * generator-emitted consume bridges (Rust side does
+     * `Arc::unwrap_or_clone(Arc::from_raw(ptr))`) — passing the same
+     * Long to those bridges twice would be a UAF, so callers funnel
+     * through this method to guarantee exactly-once handoff.
+     */
+    @Synchronized
+    internal fun takeJniKeyExprHandle(): Long? {
+        val h = jniKeyExprHandle
+        jniKeyExprHandle = null
+        return h
+    }
 
     companion object {
 
@@ -175,8 +190,7 @@ class KeyExpr internal constructor(
      * operations on it, but without the inner optimizations.
      */
     override fun undeclare() {
-        jniKeyExprHandle?.let { keyExprDrop(it) }
-        jniKeyExprHandle = null
+        takeJniKeyExprHandle()?.let { keyExprDrop(it) }
     }
 
     override fun into(): Selector = Selector(this)

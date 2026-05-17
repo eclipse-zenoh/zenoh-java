@@ -417,16 +417,15 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @Throws(ZError::class)
     fun undeclare(keyExpr: KeyExpr) {
-        jniSession?.run {
-            keyExpr.jniKeyExprHandle?.run {
-                undeclareKeyExpr(this)
-                // The native `undeclare_key_expr` borrows the keyexpr Arc
-                // (Variant C of SAFETY_ANALYSIS.md); releasing the Java
-                // reference is a separate dedicated step.
-                io.zenoh.jni.keyExprDrop(this)
-                keyExpr.jniKeyExprHandle = null
-            } ?: throw ZError("Attempting to undeclare a non declared key expression.")
-        } ?: throw (sessionClosedException)
+        val js = jniSession ?: throw sessionClosedException
+        // Atomically take the Long out of the keyExpr; the generator-
+        // emitted `undeclareKeyExpr` consumes the Arc on the Rust side
+        // (Arc::unwrap_or_clone(Arc::from_raw(ptr))), so this Long
+        // must be handed off exactly once. No explicit `keyExprDrop`
+        // — by-value handoff IS the destruction.
+        val handle = keyExpr.takeJniKeyExprHandle()
+            ?: throw ZError("Attempting to undeclare a non declared key expression.")
+        js.undeclareKeyExpr(handle)
     }
 
     /**
