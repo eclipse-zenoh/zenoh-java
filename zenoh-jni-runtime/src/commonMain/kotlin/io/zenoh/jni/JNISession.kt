@@ -263,7 +263,16 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     @Throws(ZError::class)
     fun declareLivelinessToken(keyExprHandle: NativeHandle?, keyExprString: String): JNILivelinessToken =
         withPtr { ptr ->
-            JNILivelinessToken(declareLivelinessTokenViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString)))
+            // Mirror JNIWrappers' impl-Into dispatch: hold the keyExpr's
+            // read lock for the JNI call when a declared handle is in
+            // play; otherwise pass the validated string.
+            if (keyExprHandle != null) {
+                keyExprHandle.withPtr { kePtr ->
+                    JNILivelinessToken(declareLivelinessTokenViaJNI(ptr, kePtr))
+                }
+            } else {
+                JNILivelinessToken(declareLivelinessTokenViaJNI(ptr, keyExprString))
+            }
         }
 
     @Throws(ZError::class)
@@ -277,7 +286,13 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
         history: Boolean,
         onClose: JNIOnCloseCallback,
     ): JNISubscriber = withPtr { ptr ->
-        JNISubscriber(declareLivelinessSubscriberViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), callback, history, onClose))
+        if (keyExprHandle != null) {
+            keyExprHandle.withPtr { kePtr ->
+                JNISubscriber(declareLivelinessSubscriberViaJNI(ptr, kePtr, callback, history, onClose))
+            }
+        } else {
+            JNISubscriber(declareLivelinessSubscriberViaJNI(ptr, keyExprString, callback, history, onClose))
+        }
     }
 
     @Throws(ZError::class)
@@ -297,7 +312,13 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
         timeoutMs: Long,
         onClose: JNIOnCloseCallback,
     ) = withPtr { ptr ->
-        livelinessGetViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), callback, timeoutMs, onClose)
+        if (keyExprHandle != null) {
+            keyExprHandle.withPtr { kePtr ->
+                livelinessGetViaJNI(ptr, kePtr, callback, timeoutMs, onClose)
+            }
+        } else {
+            livelinessGetViaJNI(ptr, keyExprString, callback, timeoutMs, onClose)
+        }
     }
 
     @Throws(ZError::class)

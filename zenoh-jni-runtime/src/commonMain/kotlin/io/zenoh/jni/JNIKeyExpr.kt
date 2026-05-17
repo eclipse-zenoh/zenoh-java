@@ -30,17 +30,13 @@ import io.zenoh.exceptions.ZError
 
 /**
  * Pick the declared handle if present, else the raw string. Returns
- * a JVM `Object` (boxed `java.lang.Long` or `java.lang.String`) which
- * the native dispatching converter resolves at runtime.
- *
- * Takes a [NativeHandle] (not a raw `Long`) so callers don't see the
- * inner pointer. The peek is unlocked — the borrow's Rust side runs
- * `Arc::increment_strong_count` and a concurrent close of this
- * keyExpr is the same race window the broader JNI layer already
- * tolerates for borrow-style calls.
+ * the `NativeHandle` (subtype of `Any`) when a handle is declared,
+ * else the `String` (also `Any`). The generator-emitted wrappers in
+ * [JNIWrappers] runtime-dispatch on `is NativeHandle` and acquire
+ * the read lock via `withPtr` before crossing the JNI boundary, so
+ * no `Long` ever escapes outside a held lock.
  */
-fun keyExprArg(handle: NativeHandle?, str: String): Any =
-    handle?.peek()?.takeIf { it != 0L } ?: str
+fun keyExprArg(handle: NativeHandle?, str: String): Any = handle ?: str
 
 @Throws(ZError::class)
 fun keyExprTryFrom(keyExpr: String): String = JNIWrappers.tryFrom(keyExpr)

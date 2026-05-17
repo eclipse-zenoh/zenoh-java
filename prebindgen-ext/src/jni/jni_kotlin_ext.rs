@@ -455,8 +455,9 @@ fn render_wrapper_fn(
         mode: ParamMode,
     }
     enum ParamMode {
-        Borrow,    // &T opaque-handle → withPtr
-        Consume,   // T  opaque-handle → consume
+        Borrow,       // &T opaque-handle → withPtr
+        Consume,      // T  opaque-handle → consume
+        DispatchAny,  // `impl Into<T>` (Kotlin `Any`) → runtime: NativeHandle.withPtr or pass-through
         PassThrough,
     }
 
@@ -472,17 +473,9 @@ fn render_wrapper_fn(
         let entry = registry.input_entry(arg_ty)?;
         let is_opaque = converter_returns_owned_object(&entry.function.sig.output);
 
-        let mode = if is_opaque {
-            if matches!(arg_ty, syn::Type::Reference(_)) {
-                ParamMode::Borrow
-            } else {
-                ParamMode::Consume
-            }
+        let (kt_type_raw, optional) = if is_opaque {
+            ("NativeHandle".to_string(), false)
         } else {
-            ParamMode::PassThrough
-        };
-
-        let (kt_type, optional) = if matches!(mode, ParamMode::PassThrough) {
             // Look up the Kotlin type via the merged type map; fall
             // back to deriving from the wire type when the param
             // isn't pre-registered (e.g. `impl Into<T>` shapes wired
@@ -497,11 +490,26 @@ fn render_wrapper_fn(
                 .or_else(|| kotlin_for_wire(&entry.destination))?;
             let opt = is_option_type(arg_ty);
             (kt, opt)
-        } else {
-            ("NativeHandle".to_string(), false)
         };
 
-        let short = register_fqn(&kt_type, imports);
+        // Mode: opaque → Borrow/Consume by Rust syntactic shape.
+        // Non-opaque → `Any` triggers DispatchAny (`impl Into<T>` wire
+        // = JObject; runtime might be a NativeHandle that we should
+        // unwrap under withPtr to close the race window). Everything
+        // else (primitives, callbacks, data classes) passes through.
+        let mode = if is_opaque {
+            if matches!(arg_ty, syn::Type::Reference(_)) {
+                ParamMode::Borrow
+            } else {
+                ParamMode::Consume
+            }
+        } else if kt_type_raw == "Any" {
+            ParamMode::DispatchAny
+        } else {
+            ParamMode::PassThrough
+        };
+
+        let short = register_fqn(&kt_type_raw, imports);
         let suffix = if optional { "?" } else { "" };
         params.push(Param {
             kt_name: name,
@@ -513,63 +521,81 @@ fn render_wrapper_fn(
     // Return type: peel ZResult<...>; detect opaque-handle return.
     let (kt_return, return_is_opaque) = classify_return(&f.sig.output, registry, kotlin_types, imports)?;
 
-    // Body: nest withPtr/consume in declaration order.
-    let mut call = format!("JNINative.{jni_call}(");
-    for (i, p) in params.iter().enumerate() {
-        if i > 0 { call.push_str(", "); }
-        call.push_str(&p.kt_name);
-    }
-    call.push(')');
+    // Helper: build the JNINative call for a given DispatchAny "unwrap mask".
+    // mask bit k = 1 means dispatch_indices[k] is unwrapped (use `<name>_ptr`).
+    let dispatch_indices: Vec<usize> = params
+        .iter()
+        .enumerate()
+        .filter_map(|(i, p)| matches!(p.mode, ParamMode::DispatchAny).then_some(i))
+        .collect();
 
-    // Build innermost expression, wrapping in NativeHandle() if return is opaque.
-    let mut body_expr = if return_is_opaque {
-        format!("NativeHandle({call})")
-    } else {
+    let build_call = |mask: u32| -> String {
+        let mut args: Vec<String> = Vec::with_capacity(params.len());
+        for (i, p) in params.iter().enumerate() {
+            let arg = match p.mode {
+                ParamMode::Borrow | ParamMode::Consume => format!("{}_ptr", p.kt_name),
+                ParamMode::DispatchAny => {
+                    let pos = dispatch_indices.iter().position(|&di| di == i).unwrap();
+                    if (mask >> pos) & 1 == 1 {
+                        format!("{}_ptr", p.kt_name)
+                    } else {
+                        p.kt_name.clone()
+                    }
+                }
+                ParamMode::PassThrough => p.kt_name.clone(),
+            };
+            args.push(arg);
+        }
+        let mut call = format!("JNINative.{jni_call}({})", args.join(", "));
+        if return_is_opaque {
+            call = format!("NativeHandle({call})");
+        }
         call
     };
 
+    // Build the DispatchAny decision tree. At each level we pick one
+    // dispatch_indices[level]: `if (p is NativeHandle) p.withPtr { ... } else { ... }`.
+    // The base case (level == n) emits the JNINative call with the
+    // accumulated unwrap mask. Branches recursively split.
+    fn build_tree(
+        level: usize,
+        mask: u32,
+        dispatch_indices: &[usize],
+        params: &[(String, /*placeholder for type*/ ())],
+        build_call: &dyn Fn(u32) -> String,
+    ) -> String {
+        if level == dispatch_indices.len() {
+            return build_call(mask);
+        }
+        let name = &params[dispatch_indices[level]].0;
+        let with_branch = build_tree(level + 1, mask | (1 << level), dispatch_indices, params, build_call);
+        let else_branch = build_tree(level + 1, mask, dispatch_indices, params, build_call);
+        format!(
+            "if ({name} is NativeHandle) {name}.withPtr {{ {name}_ptr ->\n    {with_branch}\n}} else {{\n    {else_branch}\n}}"
+        )
+    }
+
+    let param_names_for_tree: Vec<(String, ())> = params.iter().map(|p| (p.kt_name.clone(), ())).collect();
+    let mut body_expr = build_tree(0, 0, &dispatch_indices, &param_names_for_tree, &build_call);
+
     // Wrap with nested withPtr/consume from innermost to outermost.
-    let mut indent = String::new();
     for p in params.iter().rev() {
         match p.mode {
             ParamMode::Borrow => {
                 body_expr = format!(
-                    "{name}.withPtr {{ {name}_ptr ->\n{indent}    {expr}\n{indent}}}",
+                    "{name}.withPtr {{ {name}_ptr ->\n    {expr}\n}}",
                     name = p.kt_name,
-                    indent = indent,
                     expr = body_expr,
                 );
             }
             ParamMode::Consume => {
                 body_expr = format!(
-                    "{name}.consume {{ {name}_ptr ->\n{indent}    {expr}\n{indent}}}",
+                    "{name}.consume {{ {name}_ptr ->\n    {expr}\n}}",
                     name = p.kt_name,
-                    indent = indent,
                     expr = body_expr,
                 );
             }
-            ParamMode::PassThrough => {}
-        }
-        // Indentation isn't strictly needed for correctness; keep flat.
-    }
-
-    // Replace `<name>` with `<name>_ptr` inside the call args for opaque params.
-    // (We built `call` with `name`, but for opaque params the underlying
-    // JNI fn takes the raw Long; rewrite arg references accordingly.)
-    let mut fixed = body_expr;
-    for p in &params {
-        if matches!(p.mode, ParamMode::Borrow | ParamMode::Consume) {
-            // Replace the bare parameter name reference inside the JNINative call
-            // with `<name>_ptr`. Word-boundary-safe substitution.
-            let needle = format!(", {}", p.kt_name);
-            let repl = format!(", {}_ptr", p.kt_name);
-            fixed = fixed.replace(&needle, &repl);
-            let head_needle = format!("({}", p.kt_name);
-            let head_repl = format!("({}_ptr", p.kt_name);
-            fixed = fixed.replace(&head_needle, &head_repl);
-            let solo_needle = format!("({})", p.kt_name);
-            let solo_repl = format!("({}_ptr)", p.kt_name);
-            fixed = fixed.replace(&solo_needle, &solo_repl);
+            ParamMode::DispatchAny | ParamMode::PassThrough => {}
         }
     }
 
@@ -581,7 +607,7 @@ fn render_wrapper_fn(
         let _ = write!(out, ": {kt_return}");
     }
     let _ = writeln!(out, " =");
-    let _ = writeln!(out, "    {fixed}");
+    let _ = writeln!(out, "    {body_expr}");
     Some(out)
 }
 

@@ -31,7 +31,13 @@ public class JNIQuery(initialPtr: Long) : NativeHandle(initialPtr) {
         attachment: ByteArray?,
         qosExpress: Boolean,
     ) = withPtr { ptr ->
-        replySuccessViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), payload, encoding, timestampEnabled, timestampNtp64, attachment, qosExpress)
+        if (keyExprHandle != null) {
+            keyExprHandle.withPtr { kePtr ->
+                replySuccessViaJNI(ptr, kePtr, payload, encoding, timestampEnabled, timestampNtp64, attachment, qosExpress)
+            }
+        } else {
+            replySuccessViaJNI(ptr, keyExprString, payload, encoding, timestampEnabled, timestampNtp64, attachment, qosExpress)
+        }
     }
 
     @Throws(ZError::class)
@@ -48,7 +54,13 @@ public class JNIQuery(initialPtr: Long) : NativeHandle(initialPtr) {
         attachment: ByteArray?,
         qosExpress: Boolean,
     ) = withPtr { ptr ->
-        replyDeleteViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), timestampEnabled, timestampNtp64, attachment, qosExpress)
+        if (keyExprHandle != null) {
+            keyExprHandle.withPtr { kePtr ->
+                replyDeleteViaJNI(ptr, kePtr, timestampEnabled, timestampNtp64, attachment, qosExpress)
+            }
+        } else {
+            replyDeleteViaJNI(ptr, keyExprString, timestampEnabled, timestampNtp64, attachment, qosExpress)
+        }
     }
 
     fun close() = close { freePtrViaJNI(it) }

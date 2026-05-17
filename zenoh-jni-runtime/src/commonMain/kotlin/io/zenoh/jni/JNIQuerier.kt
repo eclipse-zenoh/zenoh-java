@@ -37,7 +37,13 @@ public class JNIQuerier(initialPtr: Long) : NativeHandle(initialPtr) {
         payload: ByteArray?,
         encoding: JNIEncoding?,
     ) = withPtr { ptr ->
-        getViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), parameters, callback, onClose, attachmentBytes, payload, encoding)
+        if (keyExprHandle != null) {
+            keyExprHandle.withPtr { kePtr ->
+                getViaJNI(ptr, kePtr, parameters, callback, onClose, attachmentBytes, payload, encoding)
+            }
+        } else {
+            getViaJNI(ptr, keyExprString, parameters, callback, onClose, attachmentBytes, payload, encoding)
+        }
     }
 
     @Throws(ZError::class)
