@@ -12,147 +12,149 @@ import io.zenoh.jni.callbacks.JNIOnCloseCallback
 import io.zenoh.jni.callbacks.JNIQueryableCallback
 import io.zenoh.jni.callbacks.JNISampleCallback
 
-@Throws(ZError::class)
-public fun autocanonize(s: String): String =
-    JNINative.autocanonizeViaJNI(s)
+public object JNIWrappers {
+    @Throws(ZError::class)
+    public fun autocanonize(s: String): String =
+        JNINative.autocanonizeViaJNI(s)
 
-@Throws(ZError::class)
-public fun closeSession(session: NativeHandle) =
-    session.withPtr { session_ptr ->
-    JNINative.closeSessionViaJNI(session_ptr)
+    @Throws(ZError::class)
+    public fun closeSession(session: NativeHandle) =
+        session.withPtr { session_ptr ->
+        JNINative.closeSessionViaJNI(session_ptr)
+    }
+
+    @Throws(ZError::class)
+    public fun concat(a: Any, other: String): NativeHandle =
+        NativeHandle(JNINative.concatViaJNI(a, other))
+
+    @Throws(ZError::class)
+    public fun declareAdvancedPublisher(session: NativeHandle, keyExpr: Any, congestionControl: Int, priority: Int, express: Boolean, reliability: Int, cache: CacheConfig?, sampleMissDetection: MissDetectionConfig?, publisherDetection: Boolean): NativeHandle =
+        session.withPtr { session_ptr ->
+        NativeHandle(JNINative.declareAdvancedPublisherViaJNI(session_ptr, keyExpr, congestionControl, priority, express, reliability, cache, sampleMissDetection, publisherDetection))
+    }
+
+    @Throws(ZError::class)
+    public fun declareAdvancedSubscriber(session: NativeHandle, keyExpr: Any, callback: JNISampleCallback, onClose: JNIOnCloseCallback, history: HistoryConfig?, recovery: RecoveryConfig?, subscriberDetection: Boolean): NativeHandle =
+        session.withPtr { session_ptr ->
+        NativeHandle(JNINative.declareAdvancedSubscriberViaJNI(session_ptr, keyExpr, callback, onClose, history, recovery, subscriberDetection))
+    }
+
+    @Throws(ZError::class)
+    public fun declareKeyExpr(session: NativeHandle, keyExpr: String): NativeHandle =
+        session.withPtr { session_ptr ->
+        NativeHandle(JNINative.declareKeyExprViaJNI(session_ptr, keyExpr))
+    }
+
+    @Throws(ZError::class)
+    public fun declarePublisher(session: NativeHandle, keyExpr: Any, congestionControl: Int, priority: Int, express: Boolean, reliability: Int): NativeHandle =
+        session.withPtr { session_ptr ->
+        NativeHandle(JNINative.declarePublisherViaJNI(session_ptr, keyExpr, congestionControl, priority, express, reliability))
+    }
+
+    @Throws(ZError::class)
+    public fun declareQuerier(session: NativeHandle, keyExpr: Any, queryTarget: Int, consolidation: Int, congestionControl: Int, priority: Int, express: Boolean, timeout: Long, replyKeyExpr: Int): NativeHandle =
+        session.withPtr { session_ptr ->
+        NativeHandle(JNINative.declareQuerierViaJNI(session_ptr, keyExpr, queryTarget, consolidation, congestionControl, priority, express, timeout, replyKeyExpr))
+    }
+
+    @Throws(ZError::class)
+    public fun declareQueryable(session: NativeHandle, keyExpr: Any, callback: JNIQueryableCallback, onClose: JNIOnCloseCallback, complete: Boolean): NativeHandle =
+        session.withPtr { session_ptr ->
+        NativeHandle(JNINative.declareQueryableViaJNI(session_ptr, keyExpr, callback, onClose, complete))
+    }
+
+    @Throws(ZError::class)
+    public fun declareSubscriber(session: NativeHandle, keyExpr: Any, callback: JNISampleCallback, onClose: JNIOnCloseCallback): NativeHandle =
+        session.withPtr { session_ptr ->
+        NativeHandle(JNINative.declareSubscriberViaJNI(session_ptr, keyExpr, callback, onClose))
+    }
+
+    @Throws(ZError::class)
+    public fun delete(session: NativeHandle, keyExpr: Any, congestionControl: Int, priority: Int, express: Boolean, attachment: ByteArray?, reliability: Int) =
+        session.withPtr { session_ptr ->
+        JNINative.deleteViaJNI(session_ptr, keyExpr, congestionControl, priority, express, attachment, reliability)
+    }
+
+    @Throws(ZError::class)
+    public fun deletePublisher(publisher: NativeHandle, attachment: ByteArray?) =
+        publisher.withPtr { publisher_ptr ->
+        JNINative.deletePublisherViaJNI(publisher_ptr, attachment)
+    }
+
+    @Throws(ZError::class)
+    public fun dropSession(session: NativeHandle) =
+        session.consume { session_ptr ->
+        JNINative.dropSessionViaJNI(session_ptr)
+    }
+
+    @Throws(ZError::class)
+    public fun get(session: NativeHandle, keyExpr: Any, selectorParams: String?, callback: JNIGetCallback, onClose: JNIOnCloseCallback, timeout: Long, queryTarget: Int, consolidation: Int, attachment: ByteArray?, payload: ByteArray?, encoding: JNIEncoding?, congestionControl: Int, priority: Int, express: Boolean, replyKeyExpr: Int) =
+        session.withPtr { session_ptr ->
+        JNINative.getViaJNI(session_ptr, keyExpr, selectorParams, callback, onClose, timeout, queryTarget, consolidation, attachment, payload, encoding, congestionControl, priority, express, replyKeyExpr)
+    }
+
+    @Throws(ZError::class)
+    public fun getPeersZid(session: NativeHandle): List<ByteArray> =
+        session.withPtr { session_ptr ->
+        JNINative.getPeersZidViaJNI(session_ptr)
+    }
+
+    @Throws(ZError::class)
+    public fun getRoutersZid(session: NativeHandle): List<ByteArray> =
+        session.withPtr { session_ptr ->
+        JNINative.getRoutersZidViaJNI(session_ptr)
+    }
+
+    @Throws(ZError::class)
+    public fun getZid(session: NativeHandle): ByteArray =
+        session.withPtr { session_ptr ->
+        JNINative.getZidViaJNI(session_ptr)
+    }
+
+    @Throws(ZError::class)
+    public fun includes(a: Any, b: Any): Boolean =
+        JNINative.includesViaJNI(a, b)
+
+    @Throws(ZError::class)
+    public fun intersects(a: Any, b: Any): Boolean =
+        JNINative.intersectsViaJNI(a, b)
+
+    @Throws(ZError::class)
+    public fun join(a: Any, other: String): NativeHandle =
+        NativeHandle(JNINative.joinViaJNI(a, other))
+
+    @Throws(ZError::class)
+    public fun openSession(config: NativeHandle): NativeHandle =
+        config.withPtr { config_ptr ->
+        NativeHandle(JNINative.openSessionViaJNI(config_ptr))
+    }
+
+    @Throws(ZError::class)
+    public fun put(session: NativeHandle, keyExpr: Any, payload: ByteArray, encoding: JNIEncoding, congestionControl: Int, priority: Int, express: Boolean, attachment: ByteArray?, reliability: Int) =
+        session.withPtr { session_ptr ->
+        JNINative.putViaJNI(session_ptr, keyExpr, payload, encoding, congestionControl, priority, express, attachment, reliability)
+    }
+
+    @Throws(ZError::class)
+    public fun putPublisher(publisher: NativeHandle, payload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?) =
+        publisher.withPtr { publisher_ptr ->
+        JNINative.putPublisherViaJNI(publisher_ptr, payload, encoding, attachment)
+    }
+
+    @Throws(ZError::class)
+    public fun relationTo(a: Any, b: Any): Int =
+        JNINative.relationToViaJNI(a, b)
+
+    @Throws(ZError::class)
+    public fun tryFrom(s: String): String =
+        JNINative.tryFromViaJNI(s)
+
+    @Throws(ZError::class)
+    public fun undeclareKeyExpr(session: NativeHandle, keyExpr: NativeHandle) =
+        session.withPtr { session_ptr ->
+        keyExpr.consume { keyExpr_ptr ->
+        JNINative.undeclareKeyExprViaJNI(session_ptr, keyExpr_ptr)
+    }
+    }
+
 }
-
-@Throws(ZError::class)
-public fun concat(a: Any, other: String): NativeHandle =
-    NativeHandle(JNINative.concatViaJNI(a, other))
-
-@Throws(ZError::class)
-public fun declareAdvancedPublisher(session: NativeHandle, keyExpr: Any, congestionControl: Int, priority: Int, express: Boolean, reliability: Int, cache: CacheConfig?, sampleMissDetection: MissDetectionConfig?, publisherDetection: Boolean): NativeHandle =
-    session.withPtr { session_ptr ->
-    NativeHandle(JNINative.declareAdvancedPublisherViaJNI(session_ptr, keyExpr, congestionControl, priority, express, reliability, cache, sampleMissDetection, publisherDetection))
-}
-
-@Throws(ZError::class)
-public fun declareAdvancedSubscriber(session: NativeHandle, keyExpr: Any, callback: JNISampleCallback, onClose: JNIOnCloseCallback, history: HistoryConfig?, recovery: RecoveryConfig?, subscriberDetection: Boolean): NativeHandle =
-    session.withPtr { session_ptr ->
-    NativeHandle(JNINative.declareAdvancedSubscriberViaJNI(session_ptr, keyExpr, callback, onClose, history, recovery, subscriberDetection))
-}
-
-@Throws(ZError::class)
-public fun declareKeyExpr(session: NativeHandle, keyExpr: String): NativeHandle =
-    session.withPtr { session_ptr ->
-    NativeHandle(JNINative.declareKeyExprViaJNI(session_ptr, keyExpr))
-}
-
-@Throws(ZError::class)
-public fun declarePublisher(session: NativeHandle, keyExpr: Any, congestionControl: Int, priority: Int, express: Boolean, reliability: Int): NativeHandle =
-    session.withPtr { session_ptr ->
-    NativeHandle(JNINative.declarePublisherViaJNI(session_ptr, keyExpr, congestionControl, priority, express, reliability))
-}
-
-@Throws(ZError::class)
-public fun declareQuerier(session: NativeHandle, keyExpr: Any, queryTarget: Int, consolidation: Int, congestionControl: Int, priority: Int, express: Boolean, timeout: Long, replyKeyExpr: Int): NativeHandle =
-    session.withPtr { session_ptr ->
-    NativeHandle(JNINative.declareQuerierViaJNI(session_ptr, keyExpr, queryTarget, consolidation, congestionControl, priority, express, timeout, replyKeyExpr))
-}
-
-@Throws(ZError::class)
-public fun declareQueryable(session: NativeHandle, keyExpr: Any, callback: JNIQueryableCallback, onClose: JNIOnCloseCallback, complete: Boolean): NativeHandle =
-    session.withPtr { session_ptr ->
-    NativeHandle(JNINative.declareQueryableViaJNI(session_ptr, keyExpr, callback, onClose, complete))
-}
-
-@Throws(ZError::class)
-public fun declareSubscriber(session: NativeHandle, keyExpr: Any, callback: JNISampleCallback, onClose: JNIOnCloseCallback): NativeHandle =
-    session.withPtr { session_ptr ->
-    NativeHandle(JNINative.declareSubscriberViaJNI(session_ptr, keyExpr, callback, onClose))
-}
-
-@Throws(ZError::class)
-public fun delete(session: NativeHandle, keyExpr: Any, congestionControl: Int, priority: Int, express: Boolean, attachment: ByteArray?, reliability: Int) =
-    session.withPtr { session_ptr ->
-    JNINative.deleteViaJNI(session_ptr, keyExpr, congestionControl, priority, express, attachment, reliability)
-}
-
-@Throws(ZError::class)
-public fun deletePublisher(publisher: NativeHandle, attachment: ByteArray?) =
-    publisher.withPtr { publisher_ptr ->
-    JNINative.deletePublisherViaJNI(publisher_ptr, attachment)
-}
-
-@Throws(ZError::class)
-public fun dropSession(session: NativeHandle) =
-    session.consume { session_ptr ->
-    JNINative.dropSessionViaJNI(session_ptr)
-}
-
-@Throws(ZError::class)
-public fun get(session: NativeHandle, keyExpr: Any, selectorParams: String?, callback: JNIGetCallback, onClose: JNIOnCloseCallback, timeout: Long, queryTarget: Int, consolidation: Int, attachment: ByteArray?, payload: ByteArray?, encoding: JNIEncoding?, congestionControl: Int, priority: Int, express: Boolean, replyKeyExpr: Int) =
-    session.withPtr { session_ptr ->
-    JNINative.getViaJNI(session_ptr, keyExpr, selectorParams, callback, onClose, timeout, queryTarget, consolidation, attachment, payload, encoding, congestionControl, priority, express, replyKeyExpr)
-}
-
-@Throws(ZError::class)
-public fun getPeersZid(session: NativeHandle): List<ByteArray> =
-    session.withPtr { session_ptr ->
-    JNINative.getPeersZidViaJNI(session_ptr)
-}
-
-@Throws(ZError::class)
-public fun getRoutersZid(session: NativeHandle): List<ByteArray> =
-    session.withPtr { session_ptr ->
-    JNINative.getRoutersZidViaJNI(session_ptr)
-}
-
-@Throws(ZError::class)
-public fun getZid(session: NativeHandle): ByteArray =
-    session.withPtr { session_ptr ->
-    JNINative.getZidViaJNI(session_ptr)
-}
-
-@Throws(ZError::class)
-public fun includes(a: Any, b: Any): Boolean =
-    JNINative.includesViaJNI(a, b)
-
-@Throws(ZError::class)
-public fun intersects(a: Any, b: Any): Boolean =
-    JNINative.intersectsViaJNI(a, b)
-
-@Throws(ZError::class)
-public fun join(a: Any, other: String): NativeHandle =
-    NativeHandle(JNINative.joinViaJNI(a, other))
-
-@Throws(ZError::class)
-public fun openSession(config: NativeHandle): NativeHandle =
-    config.withPtr { config_ptr ->
-    NativeHandle(JNINative.openSessionViaJNI(config_ptr))
-}
-
-@Throws(ZError::class)
-public fun put(session: NativeHandle, keyExpr: Any, payload: ByteArray, encoding: JNIEncoding, congestionControl: Int, priority: Int, express: Boolean, attachment: ByteArray?, reliability: Int) =
-    session.withPtr { session_ptr ->
-    JNINative.putViaJNI(session_ptr, keyExpr, payload, encoding, congestionControl, priority, express, attachment, reliability)
-}
-
-@Throws(ZError::class)
-public fun putPublisher(publisher: NativeHandle, payload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?) =
-    publisher.withPtr { publisher_ptr ->
-    JNINative.putPublisherViaJNI(publisher_ptr, payload, encoding, attachment)
-}
-
-@Throws(ZError::class)
-public fun relationTo(a: Any, b: Any): Int =
-    JNINative.relationToViaJNI(a, b)
-
-@Throws(ZError::class)
-public fun tryFrom(s: String): String =
-    JNINative.tryFromViaJNI(s)
-
-@Throws(ZError::class)
-public fun undeclareKeyExpr(session: NativeHandle, keyExpr: NativeHandle) =
-    session.withPtr { session_ptr ->
-    keyExpr.consume { keyExpr_ptr ->
-    JNINative.undeclareKeyExprViaJNI(session_ptr, keyExpr_ptr)
-}
-}
-

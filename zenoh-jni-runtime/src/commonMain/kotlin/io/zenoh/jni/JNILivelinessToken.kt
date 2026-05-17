@@ -14,11 +14,8 @@
 
 package io.zenoh.jni
 
-/** Adapter class for a native Zenoh LivelinessToken. */
-public class JNILivelinessToken(initialPtr: Long) {
-    private val handle = NativeHandle(initialPtr)
-
-    fun undeclare() = handle.close(::undeclareViaJNI)
-
+/** Typed [NativeHandle] for a native Zenoh `LivelinessToken`. */
+public class JNILivelinessToken(initialPtr: Long) : NativeHandle(initialPtr) {
+    fun undeclare() = close { undeclareViaJNI(it) }
     private external fun undeclareViaJNI(ptr: Long)
 }

@@ -4,7 +4,7 @@
 // This program and the accompanying materials are made available under the
 // terms of the Eclipse Public License 2.0 which is available at
 // http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0
-// which is available at https://www.apache.org/licenses/LICENSE-2.0.
+// which is available at https://www.apache.org/legal/epl-2.0.
 //
 // SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
 //
@@ -19,13 +19,8 @@ import io.zenoh.exceptions.ZError
 import io.zenoh.jni.callbacks.JNIOnCloseCallback
 import io.zenoh.jni.callbacks.JNIScoutCallback
 
-/**
- * Adapter class to handle the interactions with Zenoh through JNI for a Scout.
- *
- * @param initialPtr Raw pointer to the underlying native scout.
- */
-public class JNIScout(initialPtr: Long) {
-    private val handle = NativeHandle(initialPtr)
+/** Typed [NativeHandle] for a native Zenoh `Scout`. */
+public class JNIScout(initialPtr: Long) : NativeHandle(initialPtr) {
 
     companion object {
         init {
@@ -38,7 +33,7 @@ public class JNIScout(initialPtr: Long) {
             callback: JNIScoutCallback,
             onClose: JNIOnCloseCallback,
             config: JNIConfig?,
-        ): JNIScout = JNIScout(scoutViaJNI(whatAmI, callback, onClose, config?.ptr ?: 0))
+        ): JNIScout = JNIScout(scoutViaJNI(whatAmI, callback, onClose, config?.peek() ?: 0))
 
         @Throws(ZError::class)
         private external fun scoutViaJNI(
@@ -51,5 +46,5 @@ public class JNIScout(initialPtr: Long) {
         private external fun freePtrViaJNI(ptr: Long)
     }
 
-    fun close() = handle.close { freePtrViaJNI(it) }
+    fun close() = close { freePtrViaJNI(it) }
 }

@@ -14,15 +14,8 @@
 
 package io.zenoh.jni
 
-/**
- * Adapter class to handle the interactions with Zenoh through JNI for a Queryable.
- *
- * @param initialPtr Raw pointer to the underlying native Queryable.
- */
-public class JNIQueryable(initialPtr: Long) {
-    private val handle = NativeHandle(initialPtr)
-
-    fun close() = handle.close(::freePtrViaJNI)
-
+/** Typed [NativeHandle] for a native Zenoh `Queryable`. */
+public class JNIQueryable(initialPtr: Long) : NativeHandle(initialPtr) {
+    fun close() = close { freePtrViaJNI(it) }
     private external fun freePtrViaJNI(ptr: Long)
 }

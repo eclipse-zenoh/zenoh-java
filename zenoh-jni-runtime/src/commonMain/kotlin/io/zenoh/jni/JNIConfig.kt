@@ -17,17 +17,14 @@ package io.zenoh.jni
 import io.zenoh.ZenohLoad
 import io.zenoh.exceptions.ZError
 
-/** Adapter for the native Zenoh config. */
-public class JNIConfig(initialPtr: Long) {
-    private val handle = NativeHandle(initialPtr)
-
-    /**
-     * Pointer accessor for callers that need to pass the raw pointer
-     * to another JNI method (e.g. `openSessionViaJNI(config.ptr)`).
-     * Throws if the config has already been closed.
-     */
-    internal val ptr: Long
-        get() = handle.withPtr { it }
+/**
+ * Typed [NativeHandle] for a native Zenoh `Config`. The `load*` and
+ * `freePtrViaJNI` entry points aren't generated from zenoh-flat (the
+ * Rust side is hand-written in `zenoh-jni/src/config.rs`), so the
+ * companion's external funs stay here; instance methods that ARE
+ * `#[prebindgen]` would delegate to [JNIWrappers].
+ */
+public class JNIConfig(initialPtr: Long) : NativeHandle(initialPtr) {
 
     companion object {
 
@@ -71,16 +68,16 @@ public class JNIConfig(initialPtr: Long) {
         private external fun getJsonViaJNI(ptr: Long, key: String): String
     }
 
-    fun close() = handle.close { freePtrViaJNI(it) }
+    fun close() = close { freePtrViaJNI(it) }
 
     @Throws(ZError::class)
-    fun getId(): ByteArray = handle.withPtr { ptr -> getIdViaJNI(ptr) }
+    fun getId(): ByteArray = withPtr { ptr -> getIdViaJNI(ptr) }
 
     @Throws(ZError::class)
-    fun getJson(key: String): String = handle.withPtr { ptr -> getJsonViaJNI(ptr, key) }
+    fun getJson(key: String): String = withPtr { ptr -> getJsonViaJNI(ptr, key) }
 
     @Throws(ZError::class)
-    fun insertJson5(key: String, value: String) = handle.withPtr { ptr ->
+    fun insertJson5(key: String, value: String) = withPtr { ptr ->
         insertJson5ViaJNI(ptr, key, value)
     }
 }

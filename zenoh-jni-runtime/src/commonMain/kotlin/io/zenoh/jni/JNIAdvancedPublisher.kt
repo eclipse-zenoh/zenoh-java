@@ -18,36 +18,31 @@ import io.zenoh.exceptions.ZError
 import io.zenoh.jni.callbacks.JNIMatchingListenerCallback
 import io.zenoh.jni.callbacks.JNIOnCloseCallback
 
-/**
- * Adapter class for a native Zenoh AdvancedPublisher.
- *
- * @param initialPtr Raw pointer to the underlying native AdvancedPublisher.
- */
-public class JNIAdvancedPublisher(initialPtr: Long) {
-    private val handle = NativeHandle(initialPtr)
+/** Typed [NativeHandle] for a native Zenoh `AdvancedPublisher`. */
+public class JNIAdvancedPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
-    fun put(payload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?) = handle.withPtr { ptr ->
+    fun put(payload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?) = withPtr { ptr ->
         putViaJNI(ptr, payload, encoding, attachment)
     }
 
     @Throws(ZError::class)
-    fun delete(attachment: ByteArray?) = handle.withPtr { ptr ->
+    fun delete(attachment: ByteArray?) = withPtr { ptr ->
         deleteViaJNI(ptr, attachment)
     }
 
     @Throws(ZError::class)
     fun declareMatchingListener(callback: JNIMatchingListenerCallback, onClose: JNIOnCloseCallback): JNIMatchingListener =
-        handle.withPtr { ptr -> JNIMatchingListener(declareMatchingListenerViaJNI(ptr, callback, onClose)) }
+        withPtr { ptr -> JNIMatchingListener(declareMatchingListenerViaJNI(ptr, callback, onClose)) }
 
     @Throws(ZError::class)
     fun declareBackgroundMatchingListener(callback: JNIMatchingListenerCallback, onClose: JNIOnCloseCallback) =
-        handle.withPtr { ptr -> declareBackgroundMatchingListenerViaJNI(ptr, callback, onClose) }
+        withPtr { ptr -> declareBackgroundMatchingListenerViaJNI(ptr, callback, onClose) }
 
     @Throws(ZError::class)
-    fun getMatchingStatus(): Boolean = handle.withPtr { ptr -> getMatchingStatusViaJNI(ptr) }
+    fun getMatchingStatus(): Boolean = withPtr { ptr -> getMatchingStatusViaJNI(ptr) }
 
-    fun close() = handle.close(::freePtrViaJNI)
+    fun close() = close { freePtrViaJNI(it) }
 
     @Throws(ZError::class)
     private external fun putViaJNI(

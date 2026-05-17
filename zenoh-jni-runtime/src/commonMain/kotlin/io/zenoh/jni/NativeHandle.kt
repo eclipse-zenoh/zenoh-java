@@ -19,8 +19,11 @@ import kotlin.concurrent.write
  * destructor entry points without a matching `#[prebindgen]` fn use
  * [close]. The auto-generated wrappers in `JNIWrappers.kt` are the
  * only callers that need to know which mode applies.
+ *
+ * Marked `open` so the hand-maintained `JNI*.kt` typed-handle classes
+ * can subclass for type safety while inheriting the lock contract.
  */
-public class NativeHandle(initial: Long) {
+public open class NativeHandle(initial: Long) {
     private val lock = ReentrantReadWriteLock()
 
     /** Volatile so [peek] is atomic on 32-bit JVMs and observes the

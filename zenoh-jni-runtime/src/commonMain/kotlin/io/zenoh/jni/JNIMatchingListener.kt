@@ -14,11 +14,8 @@
 
 package io.zenoh.jni
 
-/** Adapter class for a native Zenoh MatchingListener. */
-public class JNIMatchingListener(initialPtr: Long) {
-    private val handle = NativeHandle(initialPtr)
-
-    fun close() = handle.close(::freePtrViaJNI)
-
+/** Typed [NativeHandle] for a native Zenoh `MatchingListener`. */
+public class JNIMatchingListener(initialPtr: Long) : NativeHandle(initialPtr) {
+    fun close() = close { freePtrViaJNI(it) }
     private external fun freePtrViaJNI(ptr: Long)
 }

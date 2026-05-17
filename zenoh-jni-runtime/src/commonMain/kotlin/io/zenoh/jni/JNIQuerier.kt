@@ -18,9 +18,13 @@ import io.zenoh.exceptions.ZError
 import io.zenoh.jni.callbacks.JNIGetCallback
 import io.zenoh.jni.callbacks.JNIOnCloseCallback
 
-/** Adapter class for a native Zenoh querier. */
-public class JNIQuerier(initialPtr: Long) {
-    private val handle = NativeHandle(initialPtr)
+/**
+ * Typed [NativeHandle] for a native Zenoh `Querier`. `get` and
+ * `freePtrViaJNI` are hand-written JNI entry points (not in
+ * `zenoh-flat`), so they stay as `external fun` methods routed through
+ * the inherited [withPtr].
+ */
+public class JNIQuerier(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     fun get(
@@ -32,7 +36,7 @@ public class JNIQuerier(initialPtr: Long) {
         attachmentBytes: ByteArray?,
         payload: ByteArray?,
         encoding: JNIEncoding?,
-    ) = handle.withPtr { ptr ->
+    ) = withPtr { ptr ->
         getViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), parameters, callback, onClose, attachmentBytes, payload, encoding)
     }
 
@@ -50,5 +54,5 @@ public class JNIQuerier(initialPtr: Long) {
 
     private external fun freePtrViaJNI(ptr: Long)
 
-    fun close() = handle.close(::freePtrViaJNI)
+    fun close() = close { freePtrViaJNI(it) }
 }

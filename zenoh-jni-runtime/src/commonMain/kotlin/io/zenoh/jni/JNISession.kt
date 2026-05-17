@@ -16,30 +16,19 @@ package io.zenoh.jni
 
 import io.zenoh.ZenohLoad
 import io.zenoh.exceptions.ZError
-import io.zenoh.jni.JNINative.declareAdvancedPublisherViaJNI
-import io.zenoh.jni.JNINative.declareAdvancedSubscriberViaJNI
-import io.zenoh.jni.JNINative.declareKeyExprViaJNI
-import io.zenoh.jni.JNINative.declarePublisherViaJNI
-import io.zenoh.jni.JNINative.declareQuerierViaJNI
-import io.zenoh.jni.JNINative.declareQueryableViaJNI
-import io.zenoh.jni.JNINative.declareSubscriberViaJNI
-import io.zenoh.jni.JNINative.deleteViaJNI
-import io.zenoh.jni.JNINative.dropSessionViaJNI
-import io.zenoh.jni.JNINative.getPeersZidViaJNI
-import io.zenoh.jni.JNINative.getRoutersZidViaJNI
-import io.zenoh.jni.JNINative.getViaJNI
-import io.zenoh.jni.JNINative.getZidViaJNI
-import io.zenoh.jni.JNINative.openSessionViaJNI
-import io.zenoh.jni.JNINative.putViaJNI
-import io.zenoh.jni.JNINative.undeclareKeyExprViaJNI
 import io.zenoh.jni.callbacks.JNIGetCallback
 import io.zenoh.jni.callbacks.JNIOnCloseCallback
 import io.zenoh.jni.callbacks.JNIQueryableCallback
 import io.zenoh.jni.callbacks.JNISampleCallback
 
-/** Adapter class to handle communication with the Zenoh JNI code for a Session. */
-public class JNISession(initialPtr: Long) {
-    private val handle = NativeHandle(initialPtr)
+/**
+ * Typed `NativeHandle` for a native Zenoh `Session`. The lock-and-
+ * pointer machinery lives in [NativeHandle]; this class only adds the
+ * `companion`-side factory and a few helpers that thread Kotlin's
+ * `Long?`-encoded keyExpr handles through the auto-generated wrappers
+ * in [JNIWrappers].
+ */
+public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
 
     companion object {
         init {
@@ -47,10 +36,8 @@ public class JNISession(initialPtr: Long) {
         }
 
         @Throws(ZError::class)
-        fun open(config: JNIConfig): JNISession {
-            val sessionPtr = openSessionViaJNI(config.ptr)
-            return JNISession(sessionPtr)
-        }
+        fun open(config: JNIConfig): JNISession =
+            JNISession(JNIWrappers.openSession(config).peek())
     }
 
     @Throws(ZError::class)
@@ -61,9 +48,16 @@ public class JNISession(initialPtr: Long) {
         priority: Int,
         express: Boolean,
         reliability: Int
-    ): JNIPublisher = handle.withPtr { ptr ->
-        JNIPublisher(declarePublisherViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), congestionControl, priority, express, reliability))
-    }
+    ): JNIPublisher = JNIPublisher(
+        JNIWrappers.declarePublisher(
+            this,
+            keyExprArg(keyExprHandle, keyExprString),
+            congestionControl,
+            priority,
+            express,
+            reliability,
+        ).peek()
+    )
 
     @Throws(ZError::class)
     fun declareSubscriber(
@@ -71,9 +65,14 @@ public class JNISession(initialPtr: Long) {
         keyExprString: String,
         callback: JNISampleCallback,
         onClose: JNIOnCloseCallback,
-    ): JNISubscriber = handle.withPtr { ptr ->
-        JNISubscriber(declareSubscriberViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), callback, onClose))
-    }
+    ): JNISubscriber = JNISubscriber(
+        JNIWrappers.declareSubscriber(
+            this,
+            keyExprArg(keyExprHandle, keyExprString),
+            callback,
+            onClose,
+        ).peek()
+    )
 
     @Throws(ZError::class)
     fun declareQueryable(
@@ -82,9 +81,15 @@ public class JNISession(initialPtr: Long) {
         callback: JNIQueryableCallback,
         onClose: JNIOnCloseCallback,
         complete: Boolean
-    ): JNIQueryable = handle.withPtr { ptr ->
-        JNIQueryable(declareQueryableViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), callback, onClose, complete))
-    }
+    ): JNIQueryable = JNIQueryable(
+        JNIWrappers.declareQueryable(
+            this,
+            keyExprArg(keyExprHandle, keyExprString),
+            callback,
+            onClose,
+            complete,
+        ).peek()
+    )
 
     @Throws(ZError::class)
     fun declareQuerier(
@@ -97,19 +102,27 @@ public class JNISession(initialPtr: Long) {
         express: Boolean,
         timeoutMs: Long,
         acceptReplies: Int
-    ): JNIQuerier = handle.withPtr { ptr ->
-        JNIQuerier(declareQuerierViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), target, consolidation, congestionControl, priority, express, timeoutMs, acceptReplies))
-    }
+    ): JNIQuerier = JNIQuerier(
+        JNIWrappers.declareQuerier(
+            this,
+            keyExprArg(keyExprHandle, keyExprString),
+            target,
+            consolidation,
+            congestionControl,
+            priority,
+            express,
+            timeoutMs,
+            acceptReplies,
+        ).peek()
+    )
 
     @Throws(ZError::class)
-    fun declareKeyExpr(keyExpr: String): Long = handle.withPtr { ptr ->
-        declareKeyExprViaJNI(ptr, keyExpr)
-    }
+    fun declareKeyExpr(keyExpr: String): Long =
+        JNIWrappers.declareKeyExpr(this, keyExpr).peek()
 
     @Throws(ZError::class)
-    fun undeclareKeyExpr(keyExprHandle: Long) = handle.withPtr { ptr ->
-        undeclareKeyExprViaJNI(ptr, keyExprHandle)
-    }
+    fun undeclareKeyExpr(keyExprHandle: Long) =
+        JNIWrappers.undeclareKeyExpr(this, NativeHandle(keyExprHandle))
 
     @Throws(ZError::class)
     fun get(
@@ -128,9 +141,23 @@ public class JNISession(initialPtr: Long) {
         priority: Int,
         express: Boolean,
         acceptReplies: Int,
-    ) = handle.withPtr { ptr ->
-        getViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), selectorParams, callback, onClose, timeoutMs, target, consolidation, attachmentBytes, payload, encoding, congestionControl, priority, express, acceptReplies)
-    }
+    ) = JNIWrappers.get(
+        this,
+        keyExprArg(keyExprHandle, keyExprString),
+        selectorParams,
+        callback,
+        onClose,
+        timeoutMs,
+        target,
+        consolidation,
+        attachmentBytes,
+        payload,
+        encoding,
+        congestionControl,
+        priority,
+        express,
+        acceptReplies,
+    )
 
     @Throws(ZError::class)
     fun put(
@@ -143,9 +170,17 @@ public class JNISession(initialPtr: Long) {
         express: Boolean,
         attachmentBytes: ByteArray?,
         reliability: Int
-    ) = handle.withPtr { ptr ->
-        putViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), valuePayload, valueEncoding, congestionControl, priority, express, attachmentBytes, reliability)
-    }
+    ) = JNIWrappers.put(
+        this,
+        keyExprArg(keyExprHandle, keyExprString),
+        valuePayload,
+        valueEncoding,
+        congestionControl,
+        priority,
+        express,
+        attachmentBytes,
+        reliability,
+    )
 
     @Throws(ZError::class)
     fun delete(
@@ -156,18 +191,24 @@ public class JNISession(initialPtr: Long) {
         express: Boolean,
         attachmentBytes: ByteArray?,
         reliability: Int
-    ) = handle.withPtr { ptr ->
-        deleteViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), congestionControl, priority, express, attachmentBytes, reliability)
-    }
+    ) = JNIWrappers.delete(
+        this,
+        keyExprArg(keyExprHandle, keyExprString),
+        congestionControl,
+        priority,
+        express,
+        attachmentBytes,
+        reliability,
+    )
 
     @Throws(ZError::class)
-    fun getZid(): ByteArray = handle.withPtr { ptr -> getZidViaJNI(ptr) }
+    fun getZid(): ByteArray = JNIWrappers.getZid(this)
 
     @Throws(ZError::class)
-    fun getPeersZid(): List<ByteArray> = handle.withPtr { ptr -> getPeersZidViaJNI(ptr) }
+    fun getPeersZid(): List<ByteArray> = JNIWrappers.getPeersZid(this)
 
     @Throws(ZError::class)
-    fun getRoutersZid(): List<ByteArray> = handle.withPtr { ptr -> getRoutersZidViaJNI(ptr) }
+    fun getRoutersZid(): List<ByteArray> = JNIWrappers.getRoutersZid(this)
 
     @Throws(ZError::class)
     fun declareAdvancedSubscriber(
@@ -178,19 +219,17 @@ public class JNISession(initialPtr: Long) {
         history: HistoryConfig?,
         recovery: RecoveryConfig?,
         subscriberDetection: Boolean,
-    ): JNIAdvancedSubscriber = handle.withPtr { ptr ->
-        JNIAdvancedSubscriber(
-            declareAdvancedSubscriberViaJNI(
-                ptr,
-                keyExprArg(keyExprHandle, keyExprStr),
-                callback,
-                onClose,
-                history,
-                recovery,
-                subscriberDetection,
-            )
-        )
-    }
+    ): JNIAdvancedSubscriber = JNIAdvancedSubscriber(
+        JNIWrappers.declareAdvancedSubscriber(
+            this,
+            keyExprArg(keyExprHandle, keyExprStr),
+            callback,
+            onClose,
+            history,
+            recovery,
+            subscriberDetection,
+        ).peek()
+    )
 
     @Throws(ZError::class)
     fun declareAdvancedPublisher(
@@ -203,26 +242,29 @@ public class JNISession(initialPtr: Long) {
         cache: CacheConfig?,
         sampleMissDetection: MissDetectionConfig?,
         publisherDetection: Boolean,
-    ): JNIAdvancedPublisher = handle.withPtr { ptr ->
-        JNIAdvancedPublisher(
-            declareAdvancedPublisherViaJNI(
-                ptr,
-                keyExprArg(keyExprHandle, keyExprStr),
-                congestionControl,
-                priority,
-                isExpress,
-                reliability,
-                cache,
-                sampleMissDetection,
-                publisherDetection,
-            )
-        )
-    }
+    ): JNIAdvancedPublisher = JNIAdvancedPublisher(
+        JNIWrappers.declareAdvancedPublisher(
+            this,
+            keyExprArg(keyExprHandle, keyExprStr),
+            congestionControl,
+            priority,
+            isExpress,
+            reliability,
+            cache,
+            sampleMissDetection,
+            publisherDetection,
+        ).peek()
+    )
+
+    // Liveliness operations don't live in zenoh-flat as `#[prebindgen]`
+    // functions, so the generator doesn't emit wrappers for them. The
+    // `external fun`s + their hand-written withPtr stay here.
 
     @Throws(ZError::class)
-    fun declareLivelinessToken(keyExprHandle: Long?, keyExprString: String): JNILivelinessToken = handle.withPtr { ptr ->
-        JNILivelinessToken(declareLivelinessTokenViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString)))
-    }
+    fun declareLivelinessToken(keyExprHandle: Long?, keyExprString: String): JNILivelinessToken =
+        withPtr { ptr ->
+            JNILivelinessToken(declareLivelinessTokenViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString)))
+        }
 
     @Throws(ZError::class)
     private external fun declareLivelinessTokenViaJNI(sessionPtr: Long, keyExpr: Any): Long
@@ -234,7 +276,7 @@ public class JNISession(initialPtr: Long) {
         callback: JNISampleCallback,
         history: Boolean,
         onClose: JNIOnCloseCallback,
-    ): JNISubscriber = handle.withPtr { ptr ->
+    ): JNISubscriber = withPtr { ptr ->
         JNISubscriber(declareLivelinessSubscriberViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), callback, history, onClose))
     }
 
@@ -254,7 +296,7 @@ public class JNISession(initialPtr: Long) {
         callback: JNIGetCallback,
         timeoutMs: Long,
         onClose: JNIOnCloseCallback,
-    ) = handle.withPtr { ptr ->
+    ) = withPtr { ptr ->
         livelinessGetViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), callback, timeoutMs, onClose)
     }
 
@@ -268,13 +310,9 @@ public class JNISession(initialPtr: Long) {
     )
 
     /**
-     * Consume the session handle via the generator-emitted
-     * `dropSessionViaJNI` (whose Rust side does
-     * `Arc::unwrap_or_clone(Arc::from_raw(ptr))`). `Session::drop`
-     * runs `self.close().wait()` internally, so this is the complete
-     * teardown — no separate `closeSessionViaJNI` step is required.
+     * Consume this session via the generator-emitted `dropSession`.
+     * `Session::drop` runs `self.close().wait()` internally so this is
+     * the complete teardown.
      */
-    fun close() = handle.consume { ptr ->
-        dropSessionViaJNI(ptr)
-    }
+    fun close() = JNIWrappers.dropSession(this)
 }

@@ -16,13 +16,9 @@ package io.zenoh.jni
 
 import io.zenoh.exceptions.ZError
 
-/**
- * Adapter class for interacting with a native Zenoh Query using JNI.
- *
- * @param initialPtr The raw pointer to the underlying native query.
- */
-public class JNIQuery(initialPtr: Long) {
-    private val handle = NativeHandle(initialPtr)
+/** Typed [NativeHandle] for a native Zenoh `Query`. The reply methods
+ *  are hand-written JNI entry points (not in `zenoh-flat`). */
+public class JNIQuery(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     fun replySuccess(
@@ -34,12 +30,12 @@ public class JNIQuery(initialPtr: Long) {
         timestampNtp64: Long,
         attachment: ByteArray?,
         qosExpress: Boolean,
-    ) = handle.withPtr { ptr ->
+    ) = withPtr { ptr ->
         replySuccessViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), payload, encoding, timestampEnabled, timestampNtp64, attachment, qosExpress)
     }
 
     @Throws(ZError::class)
-    fun replyError(errorPayload: ByteArray, encoding: JNIEncoding) = handle.withPtr { ptr ->
+    fun replyError(errorPayload: ByteArray, encoding: JNIEncoding) = withPtr { ptr ->
         replyErrorViaJNI(ptr, errorPayload, encoding)
     }
 
@@ -51,11 +47,11 @@ public class JNIQuery(initialPtr: Long) {
         timestampNtp64: Long,
         attachment: ByteArray?,
         qosExpress: Boolean,
-    ) = handle.withPtr { ptr ->
+    ) = withPtr { ptr ->
         replyDeleteViaJNI(ptr, keyExprArg(keyExprHandle, keyExprString), timestampEnabled, timestampNtp64, attachment, qosExpress)
     }
 
-    fun close() = handle.close(::freePtrViaJNI)
+    fun close() = close { freePtrViaJNI(it) }
 
     @Throws(ZError::class)
     private external fun replySuccessViaJNI(
