@@ -12,8 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::sync::Arc;
-
 use jni::{objects::JClass, JNIEnv};
 use zenoh::query::Queryable;
 
@@ -37,5 +35,5 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQueryable_freePtrViaJNI(
     _: JClass,
     queryable_ptr: *const Queryable<()>,
 ) {
-    Arc::from_raw(queryable_ptr);
+    drop(Box::from_raw(queryable_ptr as *mut Queryable<()>));
 }

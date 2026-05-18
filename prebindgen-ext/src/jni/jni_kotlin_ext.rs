@@ -283,8 +283,8 @@ import kotlin.concurrent.read
 import kotlin.concurrent.write
 
 /**
- * Race-free wrapper around a raw `Arc<T>` pointer obtained from native
- * code via `Arc::into_raw(Arc::new(v))`. Pairs the pointer with a
+ * Race-free wrapper around a raw `Box<T>` pointer obtained from native
+ * code via `Box::into_raw(Box::new(v))`. Pairs the pointer with a
  * `ReentrantReadWriteLock` so that borrow-style JNI calls run in
  * parallel under the read lock and consume/close serialise against
  * them under the write lock.
@@ -337,9 +337,10 @@ public open class NativeHandle(initial: Long) {
      * Consume the pointer: take it under the write lock, atomically
      * null the field, and pass the captured pointer to [action]. Used
      * by the generator-emitted wrappers whose Rust side runs
-     * `Arc::try_unwrap(Arc::from_raw(...))` — i.e. by-value `T`
-     * opaque-handle parameters. The write lock + atomic-null give Rust
-     * a unique-ownership guarantee so `try_unwrap` always succeeds.
+     * `*Box::from_raw(...)` — i.e. by-value `T` opaque-handle
+     * parameters. The write lock + atomic-null give Rust a
+     * unique-ownership guarantee: the boxed allocation has no
+     * surviving borrows when `Box::from_raw` reconstructs it.
      * Throws if the handle has already been closed/consumed.
      */
     @Throws(ZError::class)
@@ -671,8 +672,8 @@ fn classify_return(
     }
     let inner_canon = inner.to_token_stream().to_string();
     // An output is "opaque-handle" iff its registered output converter
-    // produces `jlong` (the `Arc::into_raw(...) as i64` shape from
-    // `opaque_arc_output`). Pull the wire type from the inner type's
+    // produces `jlong` (the `Box::into_raw(...) as i64` shape from
+    // `opaque_handle_output`). Pull the wire type from the inner type's
     // output entry; the input-side `OwnedObject<T>` check below
     // catches anything we register only on input (rare).
     let output_is_opaque_jlong = registry

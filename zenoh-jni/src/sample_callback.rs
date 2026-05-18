@@ -285,7 +285,7 @@ fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> Z
         ReplyKeyExpr::Any => 1,
     };
 
-    let query_ptr = Arc::into_raw(Arc::new(query));
+    let query_ptr = Box::into_raw(Box::new(query));
 
     let result = env
         .call_method(
@@ -306,7 +306,7 @@ fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> Z
         .map(|_| ())
         .map_err(|err| {
             unsafe {
-                Arc::from_raw(query_ptr);
+                drop(Box::from_raw(query_ptr));
             };
             _ = env.exception_describe();
             zerror!(err)

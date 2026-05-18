@@ -201,50 +201,44 @@ impl JniExt {
         )
     }
 
-    /// Universal "opaque Arc-handle as `jlong`" pair — input side.
+    /// Universal "opaque Box-handle as `jlong`" pair — input side.
     ///
     /// Use for any Rust type whose lifecycle is owned by the Java side:
-    /// Java holds the master `Arc` as a `Long` and calls Rust passing
-    /// the pointer. The converter handles both parameter shapes, the
-    /// decision is taken in `on_function` from the parameter's syntax:
+    /// Java holds the raw `Box<T>` pointer as a `Long` and calls Rust
+    /// passing the pointer. The converter handles both parameter
+    /// shapes, the decision is taken in `on_function` from the
+    /// parameter's syntax:
     ///
-    /// **`&T` sites (borrow)**: `OwnedObject::from_raw` calls
-    /// `Arc::increment_strong_count` then `Arc::from_raw`, producing a
-    /// genuine clone of the Java-held Arc with its own refcount slot.
-    /// `Deref<Target = T>` lets the generated call site borrow it as
-    /// `&T`; the wrapper drops normally on exit, decrementing the
-    /// per-call slot without touching Java's master count. The Java
-    /// side must take the pointer out of its `NativeHandle.withPtr`
-    /// (read lock) so the increment is sequenced before any drop.
+    /// **`&T` sites (borrow)**: `OwnedObject::from_raw` stores the
+    /// pointer without taking ownership of the `Box`; `Deref<Target
+    /// = T>` exposes `&*ptr` so the generated call site can borrow it
+    /// as `&T`. The wrapper has no `Drop` — nothing is freed, the
+    /// heap allocation stays with Java. The Java side must take the
+    /// pointer out of its `NativeHandle.withPtr` (read lock) so the
+    /// borrow is sequenced against any concurrent consume / close.
     ///
     /// **`T` sites (consume, by-value)**: the call-site emitter
-    /// bypasses `OwnedObject` and inlines
-    /// `Arc::try_unwrap(Arc::from_raw(ptr)).unwrap_or_else(|_| unreachable!(...))`
-    /// — no `increment_strong_count` because the call consumes Java's
-    /// last refcount slot. The Java side must take the pointer out of
-    /// its `NativeHandle.consume` (write lock + atomic null) before
+    /// bypasses `OwnedObject` and inlines `*Box::from_raw(ptr)` —
+    /// infallible. The Java side must take the pointer out of its
+    /// `NativeHandle.consume` (write lock + atomic null) before
     /// invoking this entry point; that write lock drains concurrent
     /// borrows and the atomic-null ensures the same Long cannot be
-    /// passed twice. Together those mean `try_unwrap` sees a
-    /// strong-count of 1 and always succeeds — failure is
-    /// `unreachable!`, signalling a contract bug. No `T: Clone`
-    /// bound, so non-Clone handles (`Publisher<'a>`, `Subscriber<()>`)
-    /// can consume.
+    /// passed twice. No `T: Clone` bound (Box requires nothing of T),
+    /// so non-Clone handles (`Publisher<'a>`, `Subscriber<()>`) can
+    /// consume.
     ///
     /// **Convention** (single rule for both input and output):
     /// * Wire: `jni::sys::jlong` — the same width JNI hands across
-    ///   the boundary on every platform (`*const T` would mismatch
+    ///   the boundary on every platform (`*mut T` would mismatch
     ///   on 32-bit, where ptr size is 4 but jlong is 8).
-    /// * Output: `Arc::into_raw(Arc::new(v)) as i64` — wrap once, leak
-    ///   the pointer to Java. Refcount = 1 sitting in the leaked state.
-    /// * Input: `OwnedObject::from_raw(*v as *const T)` (clone-on-borrow).
-    /// * Niche: `0i64` / `*v == 0` — `Arc::into_raw` never returns 0,
+    /// * Output: `Box::into_raw(Box::new(v)) as i64` — leak the heap
+    ///   allocation to Java; sole owner is whoever later calls
+    ///   `Box::from_raw` on the same pointer.
+    /// * Input: `OwnedObject::from_raw(*v as *const T)` (borrow only).
+    /// * Niche: `0i64` / `*v == 0` — `Box::into_raw` never returns 0,
     ///   so `Option<T>` automatically synthesises `0` = `None`,
     ///   matching the legacy "null pointer" ABI for nullable handles.
-    ///
-    /// No `T: Clone` bound — works for non-Clone handles like
-    /// `Publisher<'a>` as well as Clone ones like `Session`.
-    pub fn opaque_arc_input(&self, ty: &syn::Type) -> ConverterImpl {
+    pub fn opaque_handle_input(&self, ty: &syn::Type) -> ConverterImpl {
         let wire: syn::Type = syn::parse_quote!(jni::sys::jlong);
         let name = input_name(ty, &wire);
         let zresult = &self.zresult;
@@ -281,12 +275,12 @@ impl JniExt {
         output_name(rust, wire)
     }
 
-    /// Output side of [`Self::opaque_arc_input`] — see that method's
+    /// Output side of [`Self::opaque_handle_input`] — see that method's
     /// docs for the full convention.
-    pub fn opaque_arc_output(&self, ty: &syn::Type) -> ConverterImpl {
+    pub fn opaque_handle_output(&self, ty: &syn::Type) -> ConverterImpl {
         let wire: syn::Type = syn::parse_quote!(jni::sys::jlong);
         let body: syn::Expr = syn::parse_quote!(
-            std::sync::Arc::into_raw(std::sync::Arc::new(v)) as i64
+            std::boxed::Box::into_raw(std::boxed::Box::new(v)) as i64
         );
         ConverterImpl {
             function: self.output_wrapper(ty, &wire, &body),
@@ -347,7 +341,7 @@ impl JniExt {
             // `T`-by-value only because the underlying API takes an owned
             // value once converted. So when the source decoder returns
             // `OwnedObject<T>` we extract a borrow-clone (`(*owned).clone()`,
-            // requires `T: Clone`) instead of consuming Java's Arc.
+            // requires `T: Clone`) instead of consuming Java's `Box<T>`.
             let decode_expr: syn::Expr = if converter_returns_owned_object(&src_entry.function.sig.output) {
                 // Method-call `.clone()` triggers method auto-deref:
                 // OwnedObject<T> has no Clone impl, so dispatch derefs to
@@ -409,7 +403,7 @@ impl JniExt {
 
 impl PrebindgenExt for JniExt {
     /// Emit the `OwnedObject<T>` borrow wrapper used by
-    /// [`Self::opaque_arc_borrow_input`] into the destination file.
+    /// [`Self::opaque_handle_input`] into the destination file.
     /// The struct is referenced by an unqualified `OwnedObject` from
     /// the same generated file, so no `use` paths leak into the host
     /// crate's source tree.
@@ -710,26 +704,21 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry)
         // By-value `T` opaque-handle parameter: emit the consume
         // converter inline, bypassing `OwnedObject`. The Java side
         // takes the pointer out of its `NativeHandle.consume` under
-        // the write lock and passes it here, so `Arc::from_raw` (no
-        // refcount bump) takes Java's last slot; `Arc::try_unwrap`
-        // then moves `T` out. The unique-ownership invariant is
-        // upheld by `NativeHandle.consume` (write-lock + atomic
-        // pointer take), which drains all in-flight borrows and
-        // ensures no other strong reference can exist at this point —
-        // any failure is a contract violation. No `T: Clone` bound,
-        // so non-Clone handles (e.g. `Publisher<'a>`) work too.
+        // the write lock and passes it here; `Box::from_raw`
+        // reconstructs the unique owner and `*box` moves `T` out,
+        // dropping the heap allocation. The unique-ownership
+        // invariant is upheld by `NativeHandle.consume` (write-lock
+        // + atomic pointer take), which drains all in-flight borrows
+        // and ensures no live borrow can outlive this point. No
+        // `T: Clone` bound, so non-Clone handles (e.g. `Publisher<'a>`)
+        // work too.
         let is_consume = !matches!(arg_ty, syn::Type::Reference(_))
             && converter_returns_owned_object(&entry.function.sig.output);
         if is_consume {
             wire_params.push(quote!(#wire_ident: jni::sys::jlong));
             prelude.push(quote!(
-                let #arg_ident = unsafe {
-                    std::sync::Arc::try_unwrap(
-                        std::sync::Arc::from_raw(#wire_ident as *const #arg_ty)
-                    ).unwrap_or_else(|_| unreachable!(
-                        "consume invariant violated: NativeHandle.consume \
-                         guarantees unique strong reference"
-                    ))
+                let #arg_ident: #arg_ty = unsafe {
+                    *std::boxed::Box::from_raw(#wire_ident as *mut #arg_ty)
                 };
             ));
             call_args.push(quote!(#arg_ident));
@@ -1258,7 +1247,7 @@ fn is_jobject_shaped_wire(wire: &syn::Type) -> bool {
 /// no implicit niche.
 ///
 /// Plugins are free to declare *additional* niches on top of this for
-/// pointer-shape primitives like `Arc::into_raw`-as-`jlong`.
+/// pointer-shape primitives like `Box::into_raw`-as-`jlong`.
 fn default_niches_for_wire(wire: &syn::Type) -> Niches {
     if is_jobject_shaped_wire(wire) {
         Niches::one(
@@ -1808,30 +1797,17 @@ fn build_fn_type(args: &[syn::Type]) -> syn::Type {
 
 /// `OwnedObject<T>` definition emitted into the destination Rust file.
 ///
-/// Wraps an `Arc<T>` reconstructed from a raw pointer the Java side
-/// holds. `from_raw` clones (`Arc::increment_strong_count`) so the
-/// wrapper owns a real refcount slot independent of Java's leaked one.
-/// `Deref<Target = T>` exposes `&T` for borrow-style call sites; on
-/// drop the inner Arc decrements normally, leaving Java's master count
-/// untouched. By-value `T` extraction is intentionally absent — Variant
-/// C of SAFETY_ANALYSIS.md (see repo root) replaces it with explicit
-/// `freePtrViaJNI`-style free entry points that simply drop the Java
-/// Arc.
-/// as a [`crate::core::registry::Registry::add_prerequisite`] item.
+/// A non-owning borrow wrapper around a `*const T` whose backing
+/// `Box<T>` lives on the Java side. The Java side hands Rust the
+/// pointer under its `NativeHandle.withPtr` read lock; for the
+/// duration of the JNI call the heap allocation is guaranteed live,
+/// so `Deref<Target = T>` exposing `&*ptr` is sound. The wrapper has
+/// no `Drop`: nothing is freed here, the Box stays with Java.
 ///
-/// Wrapper for raw `Arc<T>` pointers handed across the JNI boundary.
-/// Used by [`JniExt::opaque_arc_input`] for all opaque handles, both
-/// by-ref (`&T`) and by-value (`T`) parameter positions.
-///
-/// Two consumption modes:
-/// * **Borrow** (default `Drop`) — forget the `Arc`, leave Java's
-///   strong count untouched. Hit by every `&T` call site via
-///   `Deref<Target = T>`.
-/// * **Consume** ([`OwnedObject::consume`]) — `Arc::try_unwrap` to
-///   move the inner `T` out, decrementing Java's strong count to zero.
-///   Hit by every by-value `T` call site, where Java's hand-off implies
-///   it has dropped its reference. Fails (returning the wrapper back)
-///   if Java still has a live reference — a JVM-side contract bug.
+/// By-value `T` extraction is intentionally NOT through this wrapper.
+/// Consume call sites use `*Box::from_raw(ptr)` inline, taking
+/// ownership of Java's slot; `NativeHandle.consume` (write-lock +
+/// atomic null) sequences that against any concurrent borrow.
 ///
 /// Co-locating the definition with the converters keeps the generated
 /// file self-contained — no `use` statement or runtime-support module
@@ -1842,39 +1818,37 @@ pub(crate) fn owned_object_prerequisite_items() -> Vec<syn::Item> {
             /// See module-level docs at [`owned_object_prerequisite_items`].
             #[allow(dead_code)]
             pub(crate) struct OwnedObject<T: ?Sized> {
-                inner: std::sync::Arc<T>,
+                ptr: *const T,
             }
         ),
         syn::parse_quote!(
             impl<T: ?Sized> std::ops::Deref for OwnedObject<T> {
                 type Target = T;
                 fn deref(&self) -> &Self::Target {
-                    &self.inner
+                    unsafe { &*self.ptr }
                 }
             }
         ),
         syn::parse_quote!(
             impl<T: ?Sized> OwnedObject<T> {
-                /// Borrow-clone an `Arc<T>` whose master pointer lives
-                /// on the Java side. Bumps the strong count so the
-                /// wrapper owns an independent refcount slot; the
-                /// default `Drop` of the inner `Arc` releases that slot
-                /// when the call returns, never touching Java's master
-                /// count.
+                /// Borrow a `T` whose backing `Box<T>` lives on the
+                /// Java side. Stores only the pointer; the wrapper
+                /// does not own the heap allocation and never frees
+                /// it on drop.
                 ///
                 /// # Safety
                 ///
                 /// `ptr` must be the result of an earlier
-                /// `Arc::into_raw(Arc<T>)` and the strong count must
-                /// still be > 0 (Java still owns it). The Java side
-                /// is responsible for sequencing this call against
-                /// any concurrent free (`AtomicLong` + `RwLock` gate
-                /// on the wrapper) so the increment is sequenced
-                /// before any drop on the same pointer.
+                /// `Box::into_raw(Box::new(v))` and the allocation
+                /// must still be live (Java still owns it). The Java
+                /// side is responsible for sequencing this call
+                /// against any concurrent free or consume (via
+                /// `NativeHandle.withPtr` read-lock vs `consume` /
+                /// `close` write-lock) so the borrow cannot race a
+                /// deallocation on the same pointer.
                 #[allow(dead_code)]
                 pub(crate) unsafe fn from_raw(ptr: *const T) -> Self {
-                    unsafe { std::sync::Arc::increment_strong_count(ptr); }
-                    Self { inner: unsafe { std::sync::Arc::from_raw(ptr) } }
+                    Self { ptr }
                 }
             }
         ),

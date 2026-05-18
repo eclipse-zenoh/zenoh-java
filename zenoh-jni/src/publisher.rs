@@ -16,21 +16,18 @@
 //! `put` and `delete` are now generated from `zenoh-flat::publisher`. Only
 //! the destructive `freePtrViaJNI` remains hand-written here: the JniExt
 //! borrow-style input convention deliberately does not consume the outer
-//! `Arc`, so a real drop must reconstruct the `Arc` directly.
-
-use std::sync::Arc;
+//! `Box`, so a real drop must reconstruct the `Box` directly.
 
 use jni::{objects::JClass, JNIEnv};
 use zenoh::pubsub::Publisher;
 
-/// Decrement the strong count of the `Arc<Publisher>` whose raw pointer
-/// `publisher_ptr` was previously handed to Java. When the count reaches
-/// zero the `Publisher` is dropped, which triggers zenoh's network
-/// undeclare.
+/// Drop the `Box<Publisher>` whose raw pointer `publisher_ptr` was
+/// previously handed to Java. Dropping the `Publisher` triggers
+/// zenoh's network undeclare.
 ///
 /// # Safety
 /// `publisher_ptr` must be the result of an earlier
-/// `Arc::into_raw(Arc::new(publisher))` and must not have been freed.
+/// `Box::into_raw(Box::new(publisher))` and must not have been freed.
 #[no_mangle]
 #[allow(non_snake_case)]
 pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_freePtrViaJNI(
@@ -38,5 +35,5 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_freePtrViaJNI(
     _: JClass,
     publisher_ptr: *const Publisher,
 ) {
-    Arc::from_raw(publisher_ptr);
+    drop(Box::from_raw(publisher_ptr as *mut Publisher));
 }

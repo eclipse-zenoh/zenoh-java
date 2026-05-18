@@ -12,8 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::sync::Arc;
-
 use crate::utils::{decode_byte_array, decode_jni_encoding};
 use crate::{errors::ZResult, key_expr::decode_jni_key_expr, throw_exception};
 use jni::{
@@ -68,7 +66,7 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replySuccessViaJNI(
     qos_express: jboolean,
 ) {
     let _ = || -> ZResult<()> {
-        let query = Arc::from_raw(query_ptr);
+        let query = Box::from_raw(query_ptr as *mut Query);
         let key_expr = decode_jni_key_expr(&mut env, &key_expr)?;
         let payload = decode_byte_array(&env, &payload)?;
         let mut reply_builder = query.reply(key_expr, payload);
@@ -114,7 +112,7 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replyErrorViaJNI(
     encoding: JObject,
 ) {
     let _ = || -> ZResult<()> {
-        let query = Arc::from_raw(query_ptr);
+        let query = Box::from_raw(query_ptr as *mut Query);
         let encoding = decode_jni_encoding(&mut env, &encoding)?;
         query
             .reply_err(decode_byte_array(&env, &payload)?)
@@ -160,7 +158,7 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replyDeleteViaJNI(
     qos_express: jboolean,
 ) {
     let _ = || -> ZResult<()> {
-        let query = Arc::from_raw(query_ptr);
+        let query = Box::from_raw(query_ptr as *mut Query);
         let key_expr = decode_jni_key_expr(&mut env, &key_expr)?;
         let mut reply_builder = query.reply_del(key_expr);
         if timestamp_enabled != 0 {
@@ -196,5 +194,5 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_freePtrViaJNI(
     _: JClass,
     query_ptr: *const Query,
 ) {
-    Arc::from_raw(query_ptr);
+    drop(Box::from_raw(query_ptr as *mut Query));
 }

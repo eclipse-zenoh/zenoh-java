@@ -153,7 +153,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareDetectPu
             "Detect publishers subscriber declared on '{}'...",
             advanced_subscriber.key_expr()
         );
-        Ok(Arc::into_raw(Arc::new(detect_publishers_subscriber)))
+        Ok(Box::into_raw(Box::new(detect_publishers_subscriber)) as *const Subscriber<()>)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
@@ -279,7 +279,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareSampleMi
             "Matching listener declared on '{}'...",
             advanced_subscriber.key_expr()
         );
-        Ok(Arc::into_raw(Arc::new(sample_miss_listener)))
+        Ok(Box::into_raw(Box::new(sample_miss_listener)) as *const SampleMissListener<()>)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
@@ -363,5 +363,5 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_freePtrV
     _: JClass,
     subscriber_ptr: *const AdvancedSubscriber<()>,
 ) {
-    Arc::from_raw(subscriber_ptr);
+    drop(Box::from_raw(subscriber_ptr as *mut AdvancedSubscriber<()>));
 }

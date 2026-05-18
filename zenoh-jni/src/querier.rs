@@ -133,5 +133,5 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_freePtrViaJNI(
     _: JClass,
     querier_ptr: *const Querier<'static>,
 ) {
-    Arc::from_raw(querier_ptr);
+    drop(Box::from_raw(querier_ptr as *mut Querier<'static>));
 }

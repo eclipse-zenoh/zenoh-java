@@ -12,8 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::sync::Arc;
-
 use jni::{objects::JClass, JNIEnv};
 use zenoh_ext::SampleMissListener;
 
@@ -37,5 +35,5 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNISampleMissListener_freePtrV
     _: JClass,
     sample_miss_listener_ptr: *const SampleMissListener<()>,
 ) {
-    Arc::from_raw(sample_miss_listener_ptr);
+    drop(Box::from_raw(sample_miss_listener_ptr as *mut SampleMissListener<()>));
 }

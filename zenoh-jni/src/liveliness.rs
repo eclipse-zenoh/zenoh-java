@@ -112,7 +112,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNISession_declareLivelinessTokenViaJNI(
             .declare_token(key_expr)
             .wait()
             .map_err(|err| zerror!(err))?;
-        Ok(Arc::into_raw(Arc::new(token)))
+        Ok(Box::into_raw(Box::new(token)) as *const LivelinessToken)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
@@ -127,7 +127,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNILivelinessToken_undeclareViaJNI(
     _: JObject,
     token_ptr: *const LivelinessToken,
 ) {
-    unsafe { Arc::from_raw(token_ptr) };
+    unsafe { drop(Box::from_raw(token_ptr as *mut LivelinessToken)) };
 }
 
 #[no_mangle]
@@ -163,7 +163,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareLivelinessSubscribe
             .map_err(|err| zerror!("Unable to declare liveliness subscriber: {}", err))?;
 
         tracing::debug!("Subscriber declared on '{}'.", key_expr);
-        Ok(Arc::into_raw(Arc::new(subscriber)))
+        Ok(Box::into_raw(Box::new(subscriber)) as *const Subscriber<()>)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);

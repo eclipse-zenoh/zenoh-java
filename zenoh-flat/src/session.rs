@@ -122,11 +122,9 @@ pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<ZKeyExpr
 
 /// Undeclare a previously-declared key expression on a Zenoh session.
 ///
-/// Takes the [`ZKeyExpr<'static>`] by value: the generator threads the
-/// consume converter (Rust: `Arc::try_unwrap(Arc::from_raw(ptr))`;
-/// Kotlin: `NativeHandle.consume`) through this entry point, so
-/// destruction of the value and atomic invalidation of the Java-side
-/// Long pointer happen as one step.
+/// Takes the [`ZKeyExpr<'static>`] by value: ownership transfers into
+/// this call, so the key expression is consumed and dropped as part
+/// of the undeclare.
 #[prebindgen_proc_macro::prebindgen]
 pub fn undeclare_key_expr(session: &Session, key_expr: ZKeyExpr<'static>) -> ZResult<()> {
     let key_expr_string = key_expr.to_string();

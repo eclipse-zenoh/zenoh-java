@@ -91,7 +91,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIScout_00024Companion_scoutViaJNI(
                 .map_err(|err| tracing::error!("Error while scouting: ${err}"));
             })
             .wait()
-            .map(|scout| Arc::into_raw(Arc::new(scout)))
+            .map(|scout| Box::into_raw(Box::new(scout)) as *const Scout<()>)
             .map_err(|err| zerror!(err))
     }()
     .unwrap_or_else(|err| {
@@ -108,5 +108,5 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIScout_00024Companion_freePt
     _: JClass,
     scout_ptr: *const Scout<()>,
 ) {
-    Arc::from_raw(scout_ptr);
+    drop(Box::from_raw(scout_ptr as *mut Scout<()>));
 }

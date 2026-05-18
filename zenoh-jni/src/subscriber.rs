@@ -12,8 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::sync::Arc;
-
 use jni::{objects::JClass, JNIEnv};
 use zenoh::pubsub::Subscriber;
 
@@ -37,5 +35,5 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNISubscriber_freePtrViaJNI(
     _: JClass,
     subscriber_ptr: *const Subscriber<()>,
 ) {
-    Arc::from_raw(subscriber_ptr);
+    drop(Box::from_raw(subscriber_ptr as *mut Subscriber<()>));
 }

@@ -12,8 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::sync::Arc;
-
 use jni::objects::{JClass, JObject};
 use jni::JNIEnv;
 use zenoh::key_expr::KeyExpr as ZKeyExpr;
@@ -26,11 +24,11 @@ use crate::errors::ZResult;
 /// `impl Into<KeyExpr<'static>>` converter yet (liveliness, query,
 /// querier).
 ///
-/// The Kotlin side passes either a boxed `java.lang.Long` (Arc handle)
+/// The Kotlin side passes either a boxed `java.lang.Long` (Box handle)
 /// or a `java.lang.String` (raw key-expr text); this fn dispatches on
 /// the runtime Java class:
-/// * `Long`   — clone the existing `Arc<KeyExpr>` (Java retains its
-///              strong reference; per-call decoding is borrow-style).
+/// * `Long`   — clone the value through the raw pointer (Java retains
+///              its `Box<KeyExpr>`; per-call decoding is borrow-style).
 /// * `String` — validate via `KeyExpr::try_from` and `into_owned()`.
 pub(crate) unsafe fn decode_jni_key_expr(
     env: &mut JNIEnv,
@@ -68,17 +66,17 @@ pub(crate) unsafe fn decode_jni_key_expr(
     }
 }
 
-/// Decrement the strong count of the `Arc<KeyExpr<'static>>` whose raw
-/// pointer was previously handed to Java by the auto-generated output
-/// converter. Bound from the Kotlin `KeyExpr.close()` helper.
+/// Drop the `Box<KeyExpr<'static>>` whose raw pointer was previously
+/// handed to Java by the auto-generated output converter. Bound from
+/// the Kotlin `KeyExpr.close()` helper.
 ///
 /// Needed because the auto-generated input converter for
 /// `impl Into<KeyExpr<'static>>` deliberately does not consume the
-/// outer `Arc` (it only clones the value through the pointer).
+/// outer `Box` (it only clones the value through the pointer).
 ///
 /// # Safety
 /// `ptr` must be the result of an earlier
-/// `Arc::into_raw(Arc::new(ke))` and must not have been freed.
+/// `Box::into_raw(Box::new(ke))` and must not have been freed.
 #[no_mangle]
 #[allow(non_snake_case)]
 pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNINative_dropKeyExprViaJNI(
@@ -87,6 +85,6 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNINative_dropKeyExprViaJNI(
     ptr: jni::sys::jlong,
 ) {
     if ptr != 0 {
-        let _ = Arc::from_raw(ptr as *const ZKeyExpr<'static>);
+        drop(Box::from_raw(ptr as *mut ZKeyExpr<'static>));
     }
 }

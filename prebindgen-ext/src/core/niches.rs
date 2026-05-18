@@ -15,8 +15,8 @@
 //! | `Option<Option<NonZeroU32>>` | falls back unless inner exposes ≥2      |
 //!
 //! In the FFI setting the canonical example is a Rust value encoded as a
-//! raw `Arc::into_raw` pointer carried over the wire as `jlong`: real
-//! `Arc::into_raw` results are never `0`, so the converter declares the
+//! raw `Box::into_raw` pointer carried over the wire as `jlong`: real
+//! `Box::into_raw` results are never `0`, so the converter declares the
 //! single niche `{0}`. `Option<T>` then automatically reuses the same
 //! `jlong` wire with `0` meaning `None`, matching the C-pointer-with-null
 //! ABI most JNI bindings already use.

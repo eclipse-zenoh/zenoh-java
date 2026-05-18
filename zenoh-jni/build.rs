@@ -162,11 +162,11 @@ impl PrebindgenExt for ZenohJniExt {
             return Some(self.input_converter(ty, wire, body));
         }
 
-        // Opaque Arc-handle inputs — universal "jlong-pointer-to-Arc"
-        // convention via JniExt::opaque_arc_input. The single converter
-        // returns OwnedObject<T> which the call-site emitter unpacks
-        // appropriately for both `&T` (auto-deref) and by-value `T`
-        // (consume via Arc::try_unwrap) parameter positions.
+        // Opaque handle inputs — universal "jlong-pointer-to-Box"
+        // convention via JniExt::opaque_handle_input. The single
+        // converter returns OwnedObject<T> which the call-site emitter
+        // unpacks appropriately for both `&T` (auto-deref) and by-value
+        // `T` (consume via *Box::from_raw) parameter positions.
         for opaque_key in [
             "Session",
             "Config",
@@ -174,7 +174,7 @@ impl PrebindgenExt for ZenohJniExt {
             "ZKeyExpr < 'static >",
         ] {
             if key == opaque_key {
-                return Some(self.base.opaque_arc_input(ty));
+                return Some(self.base.opaque_handle_input(ty));
             }
         }
         // Encoding (zenoh-specific)
@@ -239,10 +239,10 @@ impl PrebindgenExt for ZenohJniExt {
     fn on_output_type_rank_0(&self, ty: &syn::Type, registry: &Registry) -> Option<ConverterImpl> {
         let key = TypeKey::from_type(ty).as_str().to_string();
 
-        // Opaque Arc-handle outputs — universal jlong convention.
+        // Opaque handle outputs — universal jlong convention.
         // ZKeyExpr<'static> belongs here too: the Kotlin side computes
         // the canonical string locally from input args, so we just
-        // hand back the Arc pointer.
+        // hand back the Box pointer.
         for opaque_key in [
             "ZKeyExpr < 'static >",
             "Session",
@@ -254,7 +254,7 @@ impl PrebindgenExt for ZenohJniExt {
             "AdvancedPublisher < 'static >",
         ] {
             if key == opaque_key {
-                return Some(self.base.opaque_arc_output(ty));
+                return Some(self.base.opaque_handle_output(ty));
             }
         }
         // SetIntersectionLevel — returned as jint via cast

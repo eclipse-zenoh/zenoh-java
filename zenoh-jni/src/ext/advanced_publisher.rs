@@ -135,7 +135,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_declareMatchingL
             "Matching listener declared on '{}'...",
             advanced_publisher.key_expr()
         );
-        Ok(Arc::into_raw(Arc::new(matching_listener)))
+        Ok(Box::into_raw(Box::new(matching_listener)) as *const MatchingListener<()>)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
@@ -333,5 +333,5 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_freePtrVi
     _: JClass,
     publisher_ptr: *const AdvancedPublisher,
 ) {
-    Arc::from_raw(publisher_ptr);
+    drop(Box::from_raw(publisher_ptr as *mut AdvancedPublisher));
 }

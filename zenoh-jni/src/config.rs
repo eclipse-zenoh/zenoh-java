@@ -12,7 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::{ptr::null, sync::Arc};
+use std::ptr::null;
 
 use jni::{
     objects::{JClass, JString},
@@ -38,7 +38,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadDefaultConfigVi
     _class: JClass,
 ) -> *const Config {
     let config = Config::default();
-    Arc::into_raw(Arc::new(config))
+    Box::into_raw(Box::new(config)) as *const Config
 }
 
 /// Loads the config from a file, returning a pointer to the loaded config in case of success.
@@ -58,7 +58,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadConfigFileViaJN
         let config_file_path = decode_string(&mut env, &config_path)
             .map_err(|err| zerror!(err))?;
         let config = Config::from_file(config_file_path).map_err(|err| zerror!(err))?;
-        Ok(Arc::into_raw(Arc::new(config)))
+        Ok(Box::into_raw(Box::new(config)) as *const Config)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
@@ -83,7 +83,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadJsonConfigViaJN
         let json_config = decode_string(&mut env, &json_config)
             .map_err(|err| zerror!(err))?;
         let config = zenoh_flat::config::load_json_config(&json_config)?;
-        Ok(Arc::into_raw(Arc::new(config)))
+        Ok(Box::into_raw(Box::new(config)) as *const Config)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
@@ -108,7 +108,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadYamlConfigViaJN
         let yaml_config = decode_string(&mut env, &yaml_config)
             .map_err(|err| zerror!(err))?;
         let config = zenoh_flat::config::load_yaml_config(&yaml_config)?;
-        Ok(Arc::into_raw(Arc::new(config)))
+        Ok(Box::into_raw(Box::new(config)) as *const Config)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
@@ -178,5 +178,5 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_freeP
     _: JClass,
     config_ptr: *const Config,
 ) {
-    Arc::from_raw(config_ptr);
+    drop(Box::from_raw(config_ptr as *mut Config));
 }
