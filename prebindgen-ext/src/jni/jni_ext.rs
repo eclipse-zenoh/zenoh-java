@@ -1048,13 +1048,6 @@ fn callback_input(
     registry: &Registry,
 ) -> Option<(syn::Type, syn::Expr)> {
     let stem = derive_callback_stem(args);
-    let kotlin_class = format!("JNI{}Callback", stem);
-    let kotlin_fqn = if ext.kotlin_callback_package.is_empty() {
-        kotlin_class.clone()
-    } else {
-        format!("{}.{}", ext.kotlin_callback_package, kotlin_class)
-    };
-    let internal_class = kotlin_fqn.replace('.', "/");
 
     // Per-arg: encode call + JNI signature chunk.
     let mut arg_idents: Vec<syn::Ident> = Vec::new();
@@ -1091,7 +1084,17 @@ fn callback_input(
                 jvalue_exprs.push(quote!(jni::objects::JValue::Object(&#obj_ident)));
             }
             None if is_jobject_wire(&arg_wire) => {
-                sig.push_str(&format!("L{};", internal_class));
+                // The callback's `run` method takes the Kotlin equivalent
+                // of this Rust arg type, not the callback interface itself.
+                // Look up the registered FQN and slash-encode it for the
+                // JVM method descriptor.
+                let arg_key = TypeKey::from_type(arg_ty).as_str().to_string();
+                let arg_fqn = ext.kotlin_type_fqns
+                    .iter()
+                    .find(|(k, _)| k == &arg_key)
+                    .map(|(_, v)| v.replace('.', "/"))
+                    .unwrap_or_else(|| "java/lang/Object".to_string());
+                sig.push_str(&format!("L{};", arg_fqn));
                 arg_preludes.push(quote! {
                     let #enc_ident = #conv(&mut env, &__cb_args.#i)?;
                     let #obj_ident: jni::objects::JObject = #enc_ident;
