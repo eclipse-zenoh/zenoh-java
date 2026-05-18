@@ -339,8 +339,8 @@ impl JniExt {
             let decoder = src_entry.function.sig.ident.clone();
             let wire = src_entry.destination.clone();
             let (java_class, prelude, decoded_ref) =
-                jobject_to_wire_adapter(&wire, src_ty, &self.kotlin_type_fqns, src.mode)
-                    .unwrap_or_else(|| {
+                jobject_to_wire_adapter(&wire, src_ty, &self.kotlin_type_fqns).unwrap_or_else(
+                    || {
                         panic!(
                             "emit_into_dispatcher: source `{}` has wire `{}` which is not a \
                              supported Into-source wire shape (target = `{}`)",
@@ -348,7 +348,8 @@ impl JniExt {
                             wire.to_token_stream(),
                             target_key
                         )
-                    });
+                    },
+                );
             // Opaque sources branch on the declared mode. Non-opaque
             // sources don't own a `Box` slot, so they just decode
             // normally and `mode` has no effect on the emitted code.
@@ -1601,21 +1602,19 @@ fn annotate_jobject_with_lifetime(ty: &syn::Type, life: &str) -> syn::Type {
 /// passed as the decoder's `v` argument — typically `&__narrowed`,
 /// except `JObject` is identity (`v` directly).
 ///
-/// `mode` discriminates the two `jlong`-wire variants:
-/// * [`IntoSourceMode::Borrow`] + a typed FQN registered for `src_ty`
-///   in `kotlin_type_fqns` → `instanceof <FQN>` + `peek()`. The
-///   Kotlin caller's `withPtr` read-lock keeps the underlying `ptr`
-///   field valid for the duration of the JNI call. This is what
-///   unblocks per-arm dispatch for multiple opaque sources sharing a
-///   single `impl Into<T>` target: each source has its own Java
-///   class.
-/// * Anything else (Consume mode, or no typed FQN, or non-jlong
-///   wires) → today's path. For Consume on an opaque source the slot
-///   is null-ed before the JNI call (`NativeHandle.consume`), so
-///   `peek()` would return 0 — we must use the captured-Long path
-///   (boxed `java.lang.Long` + `longValue()`). This means Consume
-///   sources cannot currently participate in multi-arm dispatch with
-///   other opaque sources (the `java.lang.Long` class is shared).
+/// For `jlong`-wired sources (opaque handles) the choice is **mode-
+/// independent** thanks to `NativeHandle.consume`'s try/finally
+/// semantics: the slot stays valid during the JNI call for both
+/// `withPtr` and `consume`, so `peek()` is safe in either mode.
+/// * Typed FQN registered for `src_ty` in `kotlin_type_fqns` →
+///   `instanceof <FQN>` + `peek()`. Each opaque source has its own
+///   Java class, so multiple opaque sources in one `impl Into<T>`
+///   dispatcher are distinguishable.
+/// * No typed FQN → fall back to `instanceof java.lang.Long` +
+///   `longValue()` on the autoboxed primitive (today's legacy
+///   single-source path). All such sources collide on
+///   `java.lang.Long` — first arm wins, the rest are unreachable;
+///   register a typed FQN to disambiguate.
 ///
 /// Returns `None` for wires not covered by the table — caller treats it
 /// as a hard error (the source type can't participate in
@@ -1624,33 +1623,33 @@ fn jobject_to_wire_adapter(
     wire: &syn::Type,
     src_ty: &syn::Type,
     kotlin_type_fqns: &[(String, String)],
-    mode: IntoSourceMode,
 ) -> Option<(String, TokenStream, TokenStream)> {
     let key = TypeKey::from_type(wire).as_str().to_string();
     match key.as_str() {
         // ── Boxed primitives: unbox via the standard Java accessor ────
         "jni :: sys :: jlong" => {
-            // Borrow + typed FQN → peek() on the typed Kotlin class.
-            if matches!(mode, IntoSourceMode::Borrow) {
-                let src_key = TypeKey::from_type(src_ty).as_str().to_string();
-                if let Some(fqn) = kotlin_type_fqns
-                    .iter()
-                    .find(|(k, _)| k == &src_key)
-                    .map(|(_, v)| v.replace('.', "/"))
-                {
-                    return Some((
-                        fqn,
-                        quote!(
-                            let __narrowed: jni::sys::jlong = env
-                                .call_method(v, "peek", "()J", &[])
-                                .and_then(|val| val.j())
-                                .map_err(|e| crate::errors::ZError(format!("NativeHandle.peek: {}", e)))?;
-                        ),
-                        quote!(&__narrowed),
-                    ));
-                }
+            // Typed FQN → peek() on the typed Kotlin class. Works for
+            // both Borrow (read lock keeps ptr valid) and Consume
+            // (write lock + null-after-action keeps ptr valid during
+            // the JNI call).
+            let src_key = TypeKey::from_type(src_ty).as_str().to_string();
+            if let Some(fqn) = kotlin_type_fqns
+                .iter()
+                .find(|(k, _)| k == &src_key)
+                .map(|(_, v)| v.replace('.', "/"))
+            {
+                return Some((
+                    fqn,
+                    quote!(
+                        let __narrowed: jni::sys::jlong = env
+                            .call_method(v, "peek", "()J", &[])
+                            .and_then(|val| val.j())
+                            .map_err(|e| crate::errors::ZError(format!("NativeHandle.peek: {}", e)))?;
+                    ),
+                    quote!(&__narrowed),
+                ));
             }
-            // Consume, or Borrow without a typed FQN → boxed Long.
+            // No typed FQN → boxed Long fallback.
             Some((
                 "java/lang/Long".to_string(),
                 quote!(

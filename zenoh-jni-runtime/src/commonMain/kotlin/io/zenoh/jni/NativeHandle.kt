@@ -15,10 +15,11 @@ import kotlin.concurrent.write
  *
  * This is the Java-side half of the type-conversion rule for opaque
  * handles: `&T` parameters route through [withPtr] (borrow); by-value
- * `T` parameters route through [consume] (write lock + atomic null);
- * destructor entry points without a matching `#[prebindgen]` fn use
- * [close]. The auto-generated wrappers in `JNIWrappers.kt` are the
- * only callers that need to know which mode applies.
+ * `T` parameters route through [consume] (write lock, slot stays
+ * valid during the action, then null-ed in `finally`); destructor
+ * entry points without a matching `#[prebindgen]` fn use [close]. The
+ * auto-generated wrappers in `JNIWrappers.kt` are the only callers
+ * that need to know which mode applies.
  *
  * Marked `open` so the hand-maintained `JNI*.kt` typed-handle classes
  * can subclass for type safety while inheriting the lock contract.
@@ -58,21 +59,32 @@ public open class NativeHandle(initial: Long) {
     }
 
     /**
-     * Consume the pointer: take it under the write lock, atomically
-     * null the field, and pass the captured pointer to [action]. Used
-     * by the generator-emitted wrappers whose Rust side runs
-     * `*Box::from_raw(...)` — i.e. by-value `T` opaque-handle
-     * parameters. The write lock + atomic-null give Rust a
-     * unique-ownership guarantee: the boxed allocation has no
-     * surviving borrows when `Box::from_raw` reconstructs it.
+     * Consume the pointer: take it under the write lock, run [action]
+     * with the captured pointer, then null the slot — even if [action]
+     * throws. Used by the generator-emitted wrappers whose Rust side
+     * runs `*Box::from_raw(...)` — i.e. by-value `T` opaque-handle
+     * parameters and `impl Into<T>` arms with `IntoSourceMode::Consume`.
+     *
+     * The slot stays valid during [action] so the wrapper can pass the
+     * typed handle to JNI and have JNI extract the pointer via [peek]
+     * — symmetric with [withPtr] for the Borrow path. Unique-ownership
+     * is still guaranteed: the write lock excludes every other
+     * [withPtr] / [consume] / [close], and the `finally` clause
+     * unconditionally nulls the slot before the lock is released, so
+     * the next [withPtr] / [consume] / [close] sees `ptr == 0` and
+     * cannot reach the freed allocation.
+     *
      * Throws if the handle has already been closed/consumed.
      */
     @Throws(ZError::class)
     public fun <R> consume(action: (Long) -> R): R = lock.write {
         val p = ptr
         if (p == 0L) throw ZError("Operation on a closed native handle.")
-        ptr = 0L
-        action(p)
+        try {
+            action(p)
+        } finally {
+            ptr = 0L
+        }
     }
 
     /** True iff [close] has run. */
