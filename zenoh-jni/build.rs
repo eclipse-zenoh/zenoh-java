@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use proc_macro2::TokenStream;
 
 use prebindgen_ext::core::niches::Niches;
-use prebindgen_ext::core::prebindgen_ext::{ConverterImpl, PrebindgenExt};
+use prebindgen_ext::core::prebindgen_ext::{ConverterImpl, IntoSource, PrebindgenExt};
 use prebindgen_ext::core::registry::{Registry, TypeKey};
 use prebindgen_ext::core::{resolve, write};
 use prebindgen_ext::jni::JniExt;
@@ -211,22 +211,26 @@ impl PrebindgenExt for ZenohJniExt {
         self.base.on_input_type_rank_3(pat, t1, t2, t3, registry)
     }
 
-    // ── Into-source extras — zenoh-specific match arms ──
+    // ── Into-source arms — zenoh-specific match arms ──
     //
-    // The resolver auto-prepends the identity arm and calls
-    // `dispatch_into_input` with the assembled list, so we only have
-    // to declare extras here.
-    fn into_sources(&self, target: &syn::Type) -> Vec<syn::Type> {
+    // The caller is fully responsible for the list — including the
+    // identity arm. Each entry carries its borrow/consume mode (only
+    // relevant for opaque sources; ignored for non-opaque ones like
+    // `String`).
+    fn into_sources(&self, target: &syn::Type) -> Vec<IntoSource> {
         match TypeKey::from_type(target).as_str() {
-            // `impl Into<KeyExpr<'static>>` accepts a Kotlin String at
-            // the JNI boundary; `TryFrom<String> for KeyExpr<'_>`
-            // drives the fallible conversion in the dispatcher.
-            "ZKeyExpr < 'static >" => vec![syn::parse_quote!(String)],
+            // `impl Into<KeyExpr<'static>>`: identity arm (already-declared
+            // `JNIKeyExpr` handle, borrow semantics — reusable across many
+            // calls) + `String` arm via `TryFrom<String>`.
+            "ZKeyExpr < 'static >" => vec![
+                IntoSource::borrow(syn::parse_quote!(ZKeyExpr<'static>)),
+                IntoSource::borrow(syn::parse_quote!(String)),
+            ],
             _ => Vec::new(),
         }
     }
 
-    fn dispatch_into_input(&self, target: &syn::Type, sources: &[syn::Type], registry: &Registry) -> Option<ConverterImpl> {
+    fn dispatch_into_input(&self, target: &syn::Type, sources: &[IntoSource], registry: &Registry) -> Option<ConverterImpl> {
         self.base.dispatch_into_input(target, sources, registry)
     }
 

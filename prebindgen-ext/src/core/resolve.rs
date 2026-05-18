@@ -234,22 +234,18 @@ fn try_resolve_entry<E: PrebindgenExt>(
         });
         // Last-step fallback for `impl Into<_> + Send + 'static`:
         // after the implementer's own rank-1 handler returns None,
-        // assemble the source list (identity arm first when `target`
-        // has a registered decoder, then extras from
-        // `ext.into_sources(target)`) and route to the dedicated
-        // dispatcher method so wrappers only have to declare the
-        // extras — the boilerplate lives here.
+        // ask `ext.into_sources(target)` for the source list and
+        // route to the dedicated dispatcher. The caller spells out
+        // every arm (including the identity arm `target → target`
+        // with its own borrow/consume mode) — no implicit prepend
+        // here.
         let result = result.or_else(|| {
             if dir == Direction::Input
                 && n == 1
                 && crate::core::registry::extract_into_trait_arg(&pattern).is_some()
             {
                 let target = &subs[0];
-                let mut sources: Vec<syn::Type> = Vec::new();
-                if registry.input_entry(target).is_some() {
-                    sources.push(target.clone());
-                }
-                sources.extend(ext.into_sources(target));
+                let sources = ext.into_sources(target);
                 if sources.is_empty() {
                     None
                 } else {

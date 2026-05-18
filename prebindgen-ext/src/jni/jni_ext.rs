@@ -29,7 +29,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 
 use crate::core::niches::Niches;
-use crate::core::prebindgen_ext::{ConverterImpl, PrebindgenExt};
+use crate::core::prebindgen_ext::{ConverterImpl, IntoSource, IntoSourceMode, PrebindgenExt};
 use crate::core::registry::{extract_fn_trait_args, Registry, TypeKey};
 use crate::jni::wire_access::jni_field_access;
 use crate::util::snake_to_camel;
@@ -296,8 +296,9 @@ impl JniExt {
     /// `impl Into<target> + Send + 'static` given an already-assembled
     /// source list. The caller — typically a
     /// [`PrebindgenExt::dispatch_into_input`] implementation —
-    /// decides which sources to include (identity arm first if
-    /// applicable, then project-specific extras).
+    /// supplies every arm explicitly (including the identity arm
+    /// `target → target` if wanted) with each source's borrow/consume
+    /// mode.
     ///
     /// Emits an `instanceof` chain over each source `S`: every arm
     /// calls `S`'s already-registered input decoder (wire-narrowed
@@ -305,13 +306,24 @@ impl JniExt {
     /// `TryInto`, so both `From<S> for target` (zero-cost) and
     /// `TryFrom<S> for target` (fallible) work uniformly.
     ///
+    /// Per-source mode handling (only relevant for opaque sources —
+    /// non-opaque sources have no `Box` slot, so mode is moot):
+    /// * [`IntoSourceMode::Borrow`] → decode via
+    ///   `OwnedObject::from_raw(...).clone()`. Java's `Box` slot stays
+    ///   live; requires `T: Clone`.
+    /// * [`IntoSourceMode::Consume`] → bypass `OwnedObject` and inline
+    ///   `*Box::from_raw(ptr as *mut T)`. Java's `Box` slot is taken;
+    ///   the caller's typed handle must be invalidated (the Kotlin
+    ///   wrapper does this via `NativeHandle.consume`). No `T: Clone`
+    ///   bound.
+    ///
     /// Returns `None` when `sources` is empty or any source lacks a
     /// registered input decoder; the resolver iterates to a fixed
     /// point and will retry on a later round once all decoders exist.
     pub fn emit_into_dispatcher(
         &self,
         target: &syn::Type,
-        sources: &[syn::Type],
+        sources: &[IntoSource],
         registry: &Registry,
     ) -> Option<ConverterImpl> {
         if sources.is_empty() {
@@ -320,7 +332,8 @@ impl JniExt {
         let target_key = TypeKey::from_type(target).as_str().to_string();
 
         let mut arms: Vec<TokenStream> = Vec::with_capacity(sources.len());
-        for src_ty in sources {
+        for src in sources {
+            let src_ty = &src.source_type;
             let src_key = TypeKey::from_type(src_ty).as_str().to_string();
             let src_entry = registry.input_entry(src_ty)?;
             let decoder = src_entry.function.sig.ident.clone();
@@ -335,20 +348,32 @@ impl JniExt {
                         target_key
                     )
                 });
-            // `impl Into<target>` has borrow semantics at the Java level:
-            // the same handle (e.g. `KeyExpr`) is reused across many calls
-            // like `publish`, `get`, `subscribe`. The Rust signature is
-            // `T`-by-value only because the underlying API takes an owned
-            // value once converted. So when the source decoder returns
-            // `OwnedObject<T>` we extract a borrow-clone (`(*owned).clone()`,
-            // requires `T: Clone`) instead of consuming Java's `Box<T>`.
-            let decode_expr: syn::Expr = if converter_returns_owned_object(&src_entry.function.sig.output) {
-                // Method-call `.clone()` triggers method auto-deref:
-                // OwnedObject<T> has no Clone impl, so dispatch derefs to
-                // `&T` and calls `T::clone`. Requires `T: Clone`.
-                syn::parse_quote!(
-                    unsafe { #decoder(env, #decoded_ref)? }.clone()
-                )
+            // Opaque sources branch on the declared mode. Non-opaque
+            // sources don't own a `Box` slot, so they just decode
+            // normally and `mode` has no effect on the emitted code.
+            let is_opaque = converter_returns_owned_object(&src_entry.function.sig.output);
+            let decode_expr: syn::Expr = if is_opaque {
+                match src.mode {
+                    // Method-call `.clone()` triggers method auto-deref:
+                    // OwnedObject<T> has no Clone impl, so dispatch
+                    // derefs to `&T` and calls `T::clone`. Requires
+                    // `T: Clone`. Java's `Box` slot stays live.
+                    IntoSourceMode::Borrow => syn::parse_quote!(
+                        unsafe { #decoder(env, #decoded_ref)? }.clone()
+                    ),
+                    // Bypass the decoder entirely: reconstruct the
+                    // unique `Box<T>` from Java's pointer and move `T`
+                    // out, freeing the heap allocation. Mirrors the
+                    // direct-by-value consume codegen at
+                    // `emit_jni_function_wrapper`. Unique-ownership
+                    // invariant is upheld by `NativeHandle.consume`
+                    // (write lock + atomic null) on the Kotlin side.
+                    // `#decoded_ref` is `&__narrowed` for jlong wires;
+                    // dereference to recover the `jlong` value.
+                    IntoSourceMode::Consume => syn::parse_quote!(
+                        unsafe { *std::boxed::Box::from_raw(*#decoded_ref as *mut #src_ty) }
+                    ),
+                }
             } else {
                 syn::parse_quote!(unsafe { #decoder(env, #decoded_ref)? })
             };
@@ -503,7 +528,7 @@ impl PrebindgenExt for JniExt {
     fn dispatch_into_input(
         &self,
         target: &syn::Type,
-        sources: &[syn::Type],
+        sources: &[IntoSource],
         registry: &Registry,
     ) -> Option<ConverterImpl> {
         self.emit_into_dispatcher(target, sources, registry)

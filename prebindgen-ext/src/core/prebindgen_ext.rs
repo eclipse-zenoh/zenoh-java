@@ -49,6 +49,66 @@ pub struct ConverterImpl {
     pub niches: Niches,
 }
 
+/// How a single `impl Into<target>` source arm consumes the Java-side
+/// value when the source maps to an opaque-handle Rust type (i.e. the
+/// source's registered input decoder returns `OwnedObject<T>`). The
+/// mode is a no-op for non-opaque sources (they have no `Box` slot to
+/// manage).
+///
+/// Used by [`IntoSource`] to drive
+/// [`PrebindgenExt::dispatch_into_input`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IntoSourceMode {
+    /// Borrow: opaque sources decode via
+    /// `OwnedObject::from_raw(...).clone()` (Java's `Box` slot stays
+    /// live across the call; requires `T: Clone`).
+    Borrow,
+    /// Consume: opaque sources decode via
+    /// `*Box::from_raw(ptr as *mut T)` (Java's `Box` slot is taken;
+    /// caller's typed handle is invalidated by the call). No
+    /// `T: Clone` bound.
+    Consume,
+}
+
+/// One source arm in the dispatcher for an
+/// `impl Into<target> + Send + 'static` parameter — the Rust source
+/// type plus the borrow/consume mode that determines how the opaque
+/// `Box` slot is treated when the source is an opaque-handle type.
+///
+/// Order in [`PrebindgenExt::into_sources`]'s returned vector
+/// determines the runtime dispatch order in the emitted converter.
+#[derive(Clone)]
+pub struct IntoSource {
+    /// Rust source type the arm decodes from before
+    /// `TryInto::<target>::try_into` runs.
+    pub source_type: syn::Type,
+    /// Borrow vs. Consume — relevant only when `source_type` is an
+    /// opaque-handle type (input decoder returns `OwnedObject<T>`).
+    pub mode: IntoSourceMode,
+}
+
+impl IntoSource {
+    /// Borrow-mode arm — opaque sources keep the Java handle live
+    /// (`OwnedObject::from_raw(...).clone()`); non-opaque sources are
+    /// unaffected. Equivalent to today's universal behavior.
+    pub fn borrow(ty: syn::Type) -> Self {
+        Self {
+            source_type: ty,
+            mode: IntoSourceMode::Borrow,
+        }
+    }
+
+    /// Consume-mode arm — opaque sources take ownership of the Java
+    /// slot (`*Box::from_raw(ptr as *mut T)`), invalidating the
+    /// caller's typed handle. Non-opaque sources are unaffected.
+    pub fn consume(ty: syn::Type) -> Self {
+        Self {
+            source_type: ty,
+            mode: IntoSourceMode::Consume,
+        }
+    }
+}
+
 /// Implemented by destination-language back-ends (e.g. JNI). The resolver
 /// drives this trait to fill `Registry::input_types` / `output_types`
 /// entries; the file emitter calls `on_function` / `on_struct` / `on_enum` /
@@ -119,29 +179,27 @@ pub trait PrebindgenExt {
         registry: &Registry,
     ) -> Option<ConverterImpl>;
 
-    /// Extra source types accepted at
-    /// `impl Into<target> + Send + 'static` parameters, **in addition
-    /// to** the identity arm `target → target` (the resolver inserts
-    /// the identity arm automatically whenever `target` has a
-    /// registered input decoder).
+    /// Source types accepted at `impl Into<target> + Send + 'static`
+    /// parameters. The caller is fully responsible for the list — if
+    /// the identity arm `target → target` is wanted, spell it out
+    /// with [`IntoSource::borrow`] / [`IntoSource::consume`]. The
+    /// resolver does **not** auto-prepend an identity arm.
     ///
-    /// Default: no extras. Wrappers override (match on `target`) to
+    /// Default: no sources. Wrappers override (match on `target`) to
     /// declare project-specific source types, e.g. `String → KeyExpr`
     /// via `TryFrom<String>`. The returned vector's order determines
     /// the runtime dispatch order in the emitted converter.
-    fn into_sources(&self, target: &syn::Type) -> Vec<syn::Type> {
+    fn into_sources(&self, target: &syn::Type) -> Vec<IntoSource> {
         let _ = target;
         Vec::new()
     }
 
     /// Build the dispatcher converter for an
     /// `impl Into<target> + Send + 'static` parameter, given the
-    /// already-assembled source list (identity arm first if
-    /// applicable, then extras returned by [`Self::into_sources`]).
-    /// The resolver calls this only after
-    /// [`Self::on_input_type_rank_1`] has returned `None` for the
-    /// Into pattern, so wrappers that need full custom dispatch can
-    /// intercept earlier and skip this path.
+    /// source list returned by [`Self::into_sources`]. The resolver
+    /// calls this only after [`Self::on_input_type_rank_1`] has
+    /// returned `None` for the Into pattern, so wrappers that need
+    /// full custom dispatch can intercept earlier and skip this path.
     ///
     /// Default: `None`. Backends that support Into-source dispatch
     /// (e.g. [`crate::jni::JniExt`]) override this to delegate to
@@ -150,7 +208,7 @@ pub trait PrebindgenExt {
     fn dispatch_into_input(
         &self,
         target: &syn::Type,
-        sources: &[syn::Type],
+        sources: &[IntoSource],
         registry: &Registry,
     ) -> Option<ConverterImpl> {
         let _ = (target, sources, registry);

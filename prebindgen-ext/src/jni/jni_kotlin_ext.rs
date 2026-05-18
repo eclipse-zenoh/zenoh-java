@@ -459,7 +459,14 @@ fn render_wrapper_fn(
     enum ParamMode {
         Borrow,       // &T opaque-handle → withPtr
         Consume,      // T  opaque-handle → consume
-        DispatchAny,  // `impl Into<T>` (Kotlin `Any`) → runtime: NativeHandle.withPtr or pass-through
+        /// `impl Into<T>` (Kotlin `Any`) — at runtime an arm matches
+        /// a `NativeHandle` (then `.withPtr` / `.consume` per
+        /// `consume_dispatch`) or a non-handle source (pass-through).
+        /// `consume_dispatch = true` when the impl-Into dispatcher
+        /// reconstructs `Box<T>` for the opaque arm, requiring the
+        /// Kotlin caller to surrender the slot via
+        /// `NativeHandle.consume`.
+        DispatchAny { consume_dispatch: bool },
         PassThrough,
     }
 
@@ -497,8 +504,8 @@ fn render_wrapper_fn(
         // Mode: opaque → Borrow/Consume by Rust syntactic shape.
         // Non-opaque → `Any` triggers DispatchAny (`impl Into<T>` wire
         // = JObject; runtime might be a NativeHandle that we should
-        // unwrap under withPtr to close the race window). Everything
-        // else (primitives, callbacks, data classes) passes through.
+        // unwrap before crossing the JNI boundary). Everything else
+        // (primitives, callbacks, data classes) passes through.
         let mode = if is_opaque {
             if matches!(arg_ty, syn::Type::Reference(_)) {
                 ParamMode::Borrow
@@ -506,7 +513,14 @@ fn render_wrapper_fn(
                 ParamMode::Consume
             }
         } else if kt_type_raw == "Any" {
-            ParamMode::DispatchAny
+            // The Rust dispatcher's body tells us whether the opaque
+            // arm consumes the `Box` (`Box::from_raw`) or borrow-clones
+            // it (`OwnedObject::from_raw(...).clone()`). Inspect the
+            // already-emitted function for the consume marker so the
+            // Kotlin side matches: `consume` writes-locks + nulls the
+            // slot, while `withPtr` keeps it alive.
+            let consume = dispatcher_consumes_opaque(&entry.function);
+            ParamMode::DispatchAny { consume_dispatch: consume }
         } else {
             ParamMode::PassThrough
         };
@@ -528,7 +542,7 @@ fn render_wrapper_fn(
     let dispatch_indices: Vec<usize> = params
         .iter()
         .enumerate()
-        .filter_map(|(i, p)| matches!(p.mode, ParamMode::DispatchAny).then_some(i))
+        .filter_map(|(i, p)| matches!(p.mode, ParamMode::DispatchAny { .. }).then_some(i))
         .collect();
 
     let build_call = |mask: u32| -> String {
@@ -536,7 +550,7 @@ fn render_wrapper_fn(
         for (i, p) in params.iter().enumerate() {
             let arg = match p.mode {
                 ParamMode::Borrow | ParamMode::Consume => format!("{}_ptr", p.kt_name),
-                ParamMode::DispatchAny => {
+                ParamMode::DispatchAny { .. } => {
                     let pos = dispatch_indices.iter().position(|&di| di == i).unwrap();
                     if (mask >> pos) & 1 == 1 {
                         format!("{}_ptr", p.kt_name)
@@ -555,30 +569,43 @@ fn render_wrapper_fn(
         call
     };
 
+    // Per-DispatchAny scope qualifier: `withPtr` (Borrow) or
+    // `consume` (Consume). Matches the Rust dispatcher's opaque-arm
+    // body (`.clone()` vs `Box::from_raw`).
+    let dispatch_qualifiers: Vec<&'static str> = dispatch_indices
+        .iter()
+        .map(|&i| match params[i].mode {
+            ParamMode::DispatchAny { consume_dispatch: true } => "consume",
+            _ => "withPtr",
+        })
+        .collect();
+
     // Build the DispatchAny decision tree. At each level we pick one
-    // dispatch_indices[level]: `if (p is NativeHandle) p.withPtr { ... } else { ... }`.
-    // The base case (level == n) emits the JNINative call with the
-    // accumulated unwrap mask. Branches recursively split.
+    // dispatch_indices[level]: `if (p is NativeHandle) p.<qual> { ... } else { ... }`,
+    // where <qual> = `withPtr` for Borrow-mode dispatchers and
+    // `consume` for Consume-mode dispatchers.
     fn build_tree(
         level: usize,
         mask: u32,
         dispatch_indices: &[usize],
-        params: &[(String, /*placeholder for type*/ ())],
+        qualifiers: &[&str],
+        params: &[(String, ())],
         build_call: &dyn Fn(u32) -> String,
     ) -> String {
         if level == dispatch_indices.len() {
             return build_call(mask);
         }
         let name = &params[dispatch_indices[level]].0;
-        let with_branch = build_tree(level + 1, mask | (1 << level), dispatch_indices, params, build_call);
-        let else_branch = build_tree(level + 1, mask, dispatch_indices, params, build_call);
+        let qual = qualifiers[level];
+        let with_branch = build_tree(level + 1, mask | (1 << level), dispatch_indices, qualifiers, params, build_call);
+        let else_branch = build_tree(level + 1, mask, dispatch_indices, qualifiers, params, build_call);
         format!(
-            "if ({name} is NativeHandle) {name}.withPtr {{ {name}_ptr ->\n    {with_branch}\n}} else {{\n    {else_branch}\n}}"
+            "if ({name} is NativeHandle) {name}.{qual} {{ {name}_ptr ->\n    {with_branch}\n}} else {{\n    {else_branch}\n}}"
         )
     }
 
     let param_names_for_tree: Vec<(String, ())> = params.iter().map(|p| (p.kt_name.clone(), ())).collect();
-    let mut body_expr = build_tree(0, 0, &dispatch_indices, &param_names_for_tree, &build_call);
+    let mut body_expr = build_tree(0, 0, &dispatch_indices, &dispatch_qualifiers, &param_names_for_tree, &build_call);
 
     // Wrap with nested withPtr/consume from innermost to outermost.
     for p in params.iter().rev() {
@@ -597,7 +624,7 @@ fn render_wrapper_fn(
                     expr = body_expr,
                 );
             }
-            ParamMode::DispatchAny | ParamMode::PassThrough => {}
+            ParamMode::DispatchAny { .. } | ParamMode::PassThrough => {}
         }
     }
 
@@ -611,6 +638,29 @@ fn render_wrapper_fn(
     let _ = writeln!(out, " =");
     let _ = writeln!(out, "    {body_expr}");
     Some(out)
+}
+
+/// Detect whether an `impl Into<T>` dispatcher's body reconstructs a
+/// `Box<T>` from the inbound jlong (i.e. at least one source arm is
+/// declared `IntoSourceMode::Consume`). The Kotlin caller for a
+/// Consume-mode parameter must surrender the slot via
+/// `NativeHandle.consume`; for a Borrow-only dispatcher it stays on
+/// `NativeHandle.withPtr`.
+///
+/// Inspection is by token-stream search for `Box :: from_raw` inside
+/// the generated `ItemFn`'s body. The dispatcher emitter at
+/// `jni_ext.rs:emit_into_dispatcher` is the only producer of that
+/// pattern in this code path, so the marker is unambiguous.
+///
+/// Note (Step 1 limit): the check is target-uniform. When the
+/// dispatcher mixes Borrow and Consume opaque arms, every runtime
+/// `is NativeHandle` match is treated as Consume — fine for the
+/// single-opaque-source case (today's only usage), but a Step 2
+/// follow-up is needed for per-arm differentiation via typed
+/// `JNI<T>` Java classes.
+fn dispatcher_consumes_opaque(item_fn: &syn::ItemFn) -> bool {
+    let tokens = item_fn.block.to_token_stream().to_string();
+    tokens.contains("Box :: from_raw") || tokens.contains("Box::from_raw")
 }
 
 /// True iff the wire type is `jni::sys::jlong` (or the bare `jlong`
