@@ -219,13 +219,17 @@ impl JniExt {
     ///
     /// **`T` sites (consume, by-value)**: the call-site emitter
     /// bypasses `OwnedObject` and inlines
-    /// `Arc::unwrap_or_clone(Arc::from_raw(ptr))` — no
-    /// `increment_strong_count` because the call consumes Java's last
-    /// refcount slot. `T: Clone` is required; non-`Clone` handles
-    /// stay on the `freePtrViaJNI` path. The Java side must take the
-    /// pointer out of its `NativeHandle.consume` (write lock + atomic
-    /// null) before invoking this entry point, so concurrent borrows
-    /// are drained first and the same Long cannot be passed twice.
+    /// `Arc::try_unwrap(Arc::from_raw(ptr)).unwrap_or_else(|_| unreachable!(...))`
+    /// — no `increment_strong_count` because the call consumes Java's
+    /// last refcount slot. The Java side must take the pointer out of
+    /// its `NativeHandle.consume` (write lock + atomic null) before
+    /// invoking this entry point; that write lock drains concurrent
+    /// borrows and the atomic-null ensures the same Long cannot be
+    /// passed twice. Together those mean `try_unwrap` sees a
+    /// strong-count of 1 and always succeeds — failure is
+    /// `unreachable!`, signalling a contract bug. No `T: Clone`
+    /// bound, so non-Clone handles (`Publisher<'a>`, `Subscriber<()>`)
+    /// can consume.
     ///
     /// **Convention** (single rule for both input and output):
     /// * Wire: `jni::sys::jlong` — the same width JNI hands across
@@ -707,20 +711,25 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry)
         // converter inline, bypassing `OwnedObject`. The Java side
         // takes the pointer out of its `NativeHandle.consume` under
         // the write lock and passes it here, so `Arc::from_raw` (no
-        // refcount bump) takes Java's last slot; `Arc::unwrap_or_clone`
-        // extracts `T` whether or not zenoh held internal clones.
-        // Requires `T: Clone` — the generated code fails to compile
-        // for non-Clone handles, which is the right signal (use
-        // `freePtrViaJNI` instead).
+        // refcount bump) takes Java's last slot; `Arc::try_unwrap`
+        // then moves `T` out. The unique-ownership invariant is
+        // upheld by `NativeHandle.consume` (write-lock + atomic
+        // pointer take), which drains all in-flight borrows and
+        // ensures no other strong reference can exist at this point —
+        // any failure is a contract violation. No `T: Clone` bound,
+        // so non-Clone handles (e.g. `Publisher<'a>`) work too.
         let is_consume = !matches!(arg_ty, syn::Type::Reference(_))
             && converter_returns_owned_object(&entry.function.sig.output);
         if is_consume {
             wire_params.push(quote!(#wire_ident: jni::sys::jlong));
             prelude.push(quote!(
                 let #arg_ident = unsafe {
-                    std::sync::Arc::unwrap_or_clone(
+                    std::sync::Arc::try_unwrap(
                         std::sync::Arc::from_raw(#wire_ident as *const #arg_ty)
-                    )
+                    ).unwrap_or_else(|_| unreachable!(
+                        "consume invariant violated: NativeHandle.consume \
+                         guarantees unique strong reference"
+                    ))
                 };
             ));
             call_args.push(quote!(#arg_ident));

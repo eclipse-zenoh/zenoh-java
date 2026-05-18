@@ -61,9 +61,10 @@ public open class NativeHandle(initial: Long) {
      * Consume the pointer: take it under the write lock, atomically
      * null the field, and pass the captured pointer to [action]. Used
      * by the generator-emitted wrappers whose Rust side runs
-     * `Arc::unwrap_or_clone(Arc::from_raw(...))` — i.e. by-value `T`
-     * opaque-handle parameters. Throws if the handle has already been
-     * closed/consumed.
+     * `Arc::try_unwrap(Arc::from_raw(...))` — i.e. by-value `T`
+     * opaque-handle parameters. The write lock + atomic-null give Rust
+     * a unique-ownership guarantee so `try_unwrap` always succeeds.
+     * Throws if the handle has already been closed/consumed.
      */
     @Throws(ZError::class)
     public fun <R> consume(action: (Long) -> R): R = lock.write {
