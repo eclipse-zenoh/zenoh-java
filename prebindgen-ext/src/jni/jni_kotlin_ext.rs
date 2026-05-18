@@ -457,16 +457,18 @@ fn render_wrapper_fn(
         mode: ParamMode,
     }
     enum ParamMode {
-        Borrow,       // &T opaque-handle → withPtr
-        Consume,      // T  opaque-handle → consume
-        /// `impl Into<T>` (Kotlin `Any`) — at runtime an arm matches
-        /// a `NativeHandle` (then `.withPtr` / `.consume` per
-        /// `consume_dispatch`) or a non-handle source (pass-through).
-        /// `consume_dispatch = true` when the impl-Into dispatcher
-        /// reconstructs `Box<T>` for the opaque arm, requiring the
-        /// Kotlin caller to surrender the slot via
-        /// `NativeHandle.consume`.
-        DispatchAny { consume_dispatch: bool },
+        Borrow,      // &T opaque-handle → withPtr
+        Consume,     // T  opaque-handle → consume
+        /// `impl Into<T>` (Kotlin `Any`) whose dispatcher's opaque
+        /// arm borrow-clones (`OwnedObject::from_raw(...).clone()`).
+        /// At runtime: `NativeHandle` arms unwrap via `.withPtr`,
+        /// non-handle sources pass through.
+        BorrowAny,
+        /// `impl Into<T>` (Kotlin `Any`) whose dispatcher's opaque
+        /// arm reconstructs `Box<T>` (`Box::from_raw`). At runtime:
+        /// `NativeHandle` arms surrender the slot via `.consume`,
+        /// non-handle sources pass through.
+        ConsumeAny,
         PassThrough,
     }
 
@@ -502,10 +504,11 @@ fn render_wrapper_fn(
         };
 
         // Mode: opaque → Borrow/Consume by Rust syntactic shape.
-        // Non-opaque → `Any` triggers DispatchAny (`impl Into<T>` wire
-        // = JObject; runtime might be a NativeHandle that we should
-        // unwrap before crossing the JNI boundary). Everything else
-        // (primitives, callbacks, data classes) passes through.
+        // Non-opaque → `Any` triggers BorrowAny / ConsumeAny
+        // (`impl Into<T>` wire = JObject; runtime might be a
+        // NativeHandle that we unwrap before crossing the JNI
+        // boundary). Everything else (primitives, callbacks, data
+        // classes) passes through.
         let mode = if is_opaque {
             if matches!(arg_ty, syn::Type::Reference(_)) {
                 ParamMode::Borrow
@@ -517,10 +520,13 @@ fn render_wrapper_fn(
             // arm consumes the `Box` (`Box::from_raw`) or borrow-clones
             // it (`OwnedObject::from_raw(...).clone()`). Inspect the
             // already-emitted function for the consume marker so the
-            // Kotlin side matches: `consume` writes-locks + nulls the
-            // slot, while `withPtr` keeps it alive.
-            let consume = dispatcher_consumes_opaque(&entry.function);
-            ParamMode::DispatchAny { consume_dispatch: consume }
+            // Kotlin side matches: `.consume` write-locks + nulls the
+            // slot, while `.withPtr` keeps it alive.
+            if dispatcher_consumes_opaque(&entry.function) {
+                ParamMode::ConsumeAny
+            } else {
+                ParamMode::BorrowAny
+            }
         } else {
             ParamMode::PassThrough
         };
@@ -537,12 +543,15 @@ fn render_wrapper_fn(
     // Return type: peel ZResult<...>; detect opaque-handle return.
     let (kt_return, return_is_opaque) = classify_return(&f.sig.output, registry, kotlin_types, imports)?;
 
-    // Helper: build the JNINative call for a given DispatchAny "unwrap mask".
-    // mask bit k = 1 means dispatch_indices[k] is unwrapped (use `<name>_ptr`).
+    // Helper: build the JNINative call for a given Borrow/ConsumeAny
+    // "unwrap mask". mask bit k = 1 means dispatch_indices[k] is
+    // unwrapped (use `<name>_ptr`).
     let dispatch_indices: Vec<usize> = params
         .iter()
         .enumerate()
-        .filter_map(|(i, p)| matches!(p.mode, ParamMode::DispatchAny { .. }).then_some(i))
+        .filter_map(|(i, p)| {
+            matches!(p.mode, ParamMode::BorrowAny | ParamMode::ConsumeAny).then_some(i)
+        })
         .collect();
 
     let build_call = |mask: u32| -> String {
@@ -550,7 +559,7 @@ fn render_wrapper_fn(
         for (i, p) in params.iter().enumerate() {
             let arg = match p.mode {
                 ParamMode::Borrow | ParamMode::Consume => format!("{}_ptr", p.kt_name),
-                ParamMode::DispatchAny { .. } => {
+                ParamMode::BorrowAny | ParamMode::ConsumeAny => {
                     let pos = dispatch_indices.iter().position(|&di| di == i).unwrap();
                     if (mask >> pos) & 1 == 1 {
                         format!("{}_ptr", p.kt_name)
@@ -569,21 +578,22 @@ fn render_wrapper_fn(
         call
     };
 
-    // Per-DispatchAny scope qualifier: `withPtr` (Borrow) or
-    // `consume` (Consume). Matches the Rust dispatcher's opaque-arm
-    // body (`.clone()` vs `Box::from_raw`).
+    // Per-Any scope qualifier: `withPtr` (BorrowAny) or `consume`
+    // (ConsumeAny). Matches the Rust dispatcher's opaque-arm body
+    // (`.clone()` vs `Box::from_raw`).
     let dispatch_qualifiers: Vec<&'static str> = dispatch_indices
         .iter()
         .map(|&i| match params[i].mode {
-            ParamMode::DispatchAny { consume_dispatch: true } => "consume",
+            ParamMode::ConsumeAny => "consume",
             _ => "withPtr",
         })
         .collect();
 
-    // Build the DispatchAny decision tree. At each level we pick one
-    // dispatch_indices[level]: `if (p is NativeHandle) p.<qual> { ... } else { ... }`,
-    // where <qual> = `withPtr` for Borrow-mode dispatchers and
-    // `consume` for Consume-mode dispatchers.
+    // Build the Borrow/ConsumeAny decision tree. At each level we
+    // pick one dispatch_indices[level]:
+    // `if (p is NativeHandle) p.<qual> { ... } else { ... }`,
+    // where <qual> = `withPtr` for BorrowAny and `consume` for
+    // ConsumeAny.
     fn build_tree(
         level: usize,
         mask: u32,
@@ -624,7 +634,7 @@ fn render_wrapper_fn(
                     expr = body_expr,
                 );
             }
-            ParamMode::DispatchAny { .. } | ParamMode::PassThrough => {}
+            ParamMode::BorrowAny | ParamMode::ConsumeAny | ParamMode::PassThrough => {}
         }
     }
 
