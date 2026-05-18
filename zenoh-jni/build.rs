@@ -15,7 +15,7 @@ use prebindgen_ext::core::niches::Niches;
 use prebindgen_ext::core::prebindgen_ext::{ConverterImpl, IntoSource, PrebindgenExt};
 use prebindgen_ext::core::registry::{Registry, TypeKey};
 use prebindgen_ext::core::{resolve, write};
-use prebindgen_ext::jni::JniExt;
+use prebindgen_ext::jni::{JniExt, TypedHandle};
 use prebindgen_ext::kotlin::kotlin_ext::KotlinExt;
 use prebindgen_ext::kotlin::{KotlinInterfaceGenerator, KotlinTypeMap};
 
@@ -472,39 +472,63 @@ fn main() {
         .expect("failed to write NativeHandle.kt");
     println!("cargo:warning=Wrote {}", nh_path.display());
 
-    // (4c.bis) Typed `NativeHandle` subclasses with the standard
-    //          `freePtrViaJNI` destructor shape. Only the shell-only
-    //          types are listed here — handles with non-standard
-    //          destructors (`JNILivelinessToken::undeclare`) or with
-    //          extra helper methods (`JNISession`, `JNIConfig`,
-    //          `JNIPublisher`, `JNIKeyExpr`, `JNIQuery`, `JNIQuerier`,
-    //          `JNIScout`, `JNIAdvancedSubscriber`,
-    //          `JNIAdvancedPublisher`) stay hand-written until their
-    //          helpers are split into sibling extension files.
+    // (4c.bis) Typed `NativeHandle` subclasses. Each entry can either
+    //          be a pure shell (empty `functions`) or claim a set of
+    //          `#[prebindgen]` wrappers as instance methods. Promoted
+    //          functions are skipped in `JNIWrappers.kt`.
+    //
+    //          Hand-written typed handles with non-`#[prebindgen]`
+    //          external funs (`JNISession`, `JNIConfig`, `JNIQuerier`,
+    //          `JNIKeyExpr`, `JNIAdvancedPublisher`,
+    //          `JNIAdvancedSubscriber`, `JNILivelinessToken`,
+    //          `JNIQuery`, `JNIScout`) stay hand-written for now —
+    //          they wait their turn to be migrated to zenoh-flat as
+    //          `#[prebindgen]` fns, after which they can join the list
+    //          below and their hand-written file gets deleted.
+    let kotlin_types = shared_kotlin_types();
+    let typed_handles: &[TypedHandle<'_>] = &[
+        TypedHandle {
+            rust_doc: "Subscriber",
+            kotlin_fqn: "io.zenoh.jni.JNISubscriber",
+            functions: &[],
+        },
+        TypedHandle {
+            rust_doc: "Queryable",
+            kotlin_fqn: "io.zenoh.jni.JNIQueryable",
+            functions: &[],
+        },
+        TypedHandle {
+            rust_doc: "MatchingListener",
+            kotlin_fqn: "io.zenoh.jni.JNIMatchingListener",
+            functions: &[],
+        },
+        TypedHandle {
+            rust_doc: "SampleMissListener",
+            kotlin_fqn: "io.zenoh.jni.JNISampleMissListener",
+            functions: &[],
+        },
+        TypedHandle {
+            rust_doc: "Publisher",
+            kotlin_fqn: "io.zenoh.jni.JNIPublisher",
+            functions: &["put_publisher", "delete_publisher"],
+        },
+    ];
     let typed_handles_written = ext
         .base
-        .write_typed_handles(
-            &[
-                ("Subscriber", "io.zenoh.jni.JNISubscriber"),
-                ("Queryable", "io.zenoh.jni.JNIQueryable"),
-                ("MatchingListener", "io.zenoh.jni.JNIMatchingListener"),
-                ("SampleMissListener", "io.zenoh.jni.JNISampleMissListener"),
-            ],
-            kotlin_root,
-        )
+        .write_typed_handles(typed_handles, &registry, &kotlin_types, kotlin_root)
         .expect("failed to write typed-handle Kotlin classes");
     for path in &typed_handles_written {
         println!("cargo:warning=Wrote {}", path.display());
     }
 
     // (4d) JNIWrappers.kt — one safe top-level wrapper per
-    //      `#[prebindgen]` fn. Opaque-handle params route through
+    //      `#[prebindgen]` fn that hasn't been promoted to a typed
+    //      handle above. Opaque-handle params route through
     //      `NativeHandle.withPtr` / `consume`; opaque returns wrap in
     //      `NativeHandle(...)`.
-    let kotlin_types = shared_kotlin_types();
     let wrap_path = ext
         .base
-        .write_jni_wrappers(&registry, &kotlin_types, kotlin_root)
+        .write_jni_wrappers(&registry, &kotlin_types, typed_handles, kotlin_root)
         .expect("failed to write JNIWrappers.kt");
     println!("cargo:warning=Wrote {}", wrap_path.display());
 }

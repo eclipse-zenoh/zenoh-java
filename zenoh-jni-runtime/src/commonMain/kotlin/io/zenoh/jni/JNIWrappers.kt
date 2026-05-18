@@ -115,12 +115,6 @@ public object JNIWrappers {
     }
 
     @Throws(ZError::class)
-    public fun deletePublisher(publisher: NativeHandle, attachment: ByteArray?) =
-        publisher.withPtr { publisher_ptr ->
-        JNINative.deletePublisherViaJNI(publisher_ptr, attachment)
-    }
-
-    @Throws(ZError::class)
     public fun dropSession(session: NativeHandle) =
         session.consume { session_ptr ->
         JNINative.dropSessionViaJNI(session_ptr)
@@ -208,12 +202,6 @@ public object JNIWrappers {
     } else {
         JNINative.putViaJNI(session_ptr, keyExpr, payload, encoding, congestionControl, priority, express, attachment, reliability)
     }
-    }
-
-    @Throws(ZError::class)
-    public fun putPublisher(publisher: NativeHandle, payload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?) =
-        publisher.withPtr { publisher_ptr ->
-        JNINative.putPublisherViaJNI(publisher_ptr, payload, encoding, attachment)
     }
 
     @Throws(ZError::class)

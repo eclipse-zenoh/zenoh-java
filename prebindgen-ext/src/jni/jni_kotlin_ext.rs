@@ -23,6 +23,40 @@ use crate::jni::jni_ext::{converter_returns_owned_object, JniExt};
 use crate::kotlin::kotlin_ext::{KotlinExt, KotlinFile, WriteKotlinError};
 use crate::kotlin::type_map::KotlinTypeMap;
 
+/// Declaration of one auto-generated typed `NativeHandle` subclass.
+///
+/// Consumed by [`JniExt::write_typed_handles`] (and forwarded to
+/// [`JniExt::write_jni_wrappers`] so the same promotion list can carve
+/// the matching skip-list). Each entry says "this Kotlin class is the
+/// home for the named `#[prebindgen]` functions"; everything else stays
+/// in the catch-all `JNIWrappers` object.
+#[derive(Clone, Copy)]
+pub struct TypedHandle<'a> {
+    /// Short Rust name shown in the class doc comment (e.g. `"Publisher"`).
+    /// Pure documentation, doesn't have to match anything in the Registry.
+    pub rust_doc: &'a str,
+    /// Package-qualified Kotlin class name (e.g.
+    /// `"io.zenoh.jni.JNIPublisher"`). The Rust type-key registered for
+    /// this FQN via [`JniExt::kotlin_type_fqn`] identifies which
+    /// parameter of each promoted function becomes `this`.
+    pub kotlin_fqn: &'a str,
+    /// `#[prebindgen]` fn idents promoted to instance methods on this
+    /// class. The matching opaque first parameter is dropped from the
+    /// signature; the method uses inherited `withPtr` / `consume`. An
+    /// empty slice emits a pure shell (just `close()` + `freePtrViaJNI`).
+    pub functions: &'a [&'a str],
+}
+
+/// Reverse-lookup the Rust type-key registered for a given Kotlin FQN
+/// in [`JniExt::kotlin_type_fqns`]. Used by [`JniExt::write_typed_handles`]
+/// to determine which parameter of each promoted function should be
+/// dropped (becomes `this`).
+fn rust_key_for_fqn<'a>(ext: &'a JniExt, fqn: &str) -> Option<&'a str> {
+    ext.kotlin_type_fqns
+        .iter()
+        .find_map(|(rust, k)| (k == fqn).then_some(rust.as_str()))
+}
+
 impl KotlinExt for JniExt {
     fn write_kotlin(
         &self,
@@ -84,21 +118,27 @@ impl JniExt {
 
     /// Emit `JNIWrappers.kt` under `output_dir` (package
     /// `io.zenoh.jni`). One top-level Kotlin function per
-    /// `#[prebindgen]` function. Opaque-handle parameters become
-    /// `NativeHandle`; the wrapper body nests `withPtr` / `consume`
-    /// per the type-conversion rule
-    /// (`&T` → `withPtr`, `T` → `consume`), then delegates to the
-    /// matching `JNINative.<name>ViaJNI(...)`. Non-opaque parameters
-    /// pass through with the Kotlin type from `kotlin_types`. Opaque-
-    /// handle return values are wrapped in `NativeHandle(...)` before
-    /// being returned.
+    /// `#[prebindgen]` function — **except** those promoted to a typed
+    /// handle via `typed_handles` (their wrappers live on the handle
+    /// class instead). Opaque-handle parameters become `NativeHandle`;
+    /// the wrapper body nests `withPtr` / `consume` per the
+    /// type-conversion rule (`&T` → `withPtr`, `T` → `consume`), then
+    /// delegates to the matching `JNINative.<name>ViaJNI(...)`.
+    /// Non-opaque parameters pass through with the Kotlin type from
+    /// `kotlin_types`. Opaque-handle return values are wrapped in
+    /// `NativeHandle(...)` before being returned.
     pub fn write_jni_wrappers(
         &self,
         registry: &Registry,
         kotlin_types: &KotlinTypeMap,
+        typed_handles: &[TypedHandle<'_>],
         output_dir: &Path,
     ) -> Result<PathBuf, WriteKotlinError> {
-        let contents = render_jni_wrappers_source(self, registry, kotlin_types);
+        let promoted: HashSet<String> = typed_handles
+            .iter()
+            .flat_map(|h| h.functions.iter().map(|s| (*s).to_string()))
+            .collect();
+        let contents = render_jni_wrappers_source(self, registry, kotlin_types, &promoted);
         let file = KotlinFile {
             package: "io.zenoh.jni".into(),
             class_name: "JNIWrappers".into(),
@@ -110,36 +150,76 @@ impl JniExt {
     /// Emit one Kotlin file per entry in `handles` — each becomes a
     /// `public class <ClassName>(initialPtr: Long) : NativeHandle(initialPtr)`
     /// with the standard `close()` + `private external fun freePtrViaJNI(ptr: Long)`
-    /// destructor pair. The emitted class is exactly what hand-written
-    /// shell-only typed handles used to be; pulling them through the
-    /// generator removes the per-type copy-paste.
+    /// destructor pair, plus one instance method per `#[prebindgen]` fn
+    /// listed in [`TypedHandle::functions`]. The promoted method's first
+    /// opaque parameter matching the handle's Rust type is dropped — the
+    /// method uses inherited `withPtr` / `consume` from [`NativeHandle`]
+    /// (i.e. `this` scope) for that param, while every remaining
+    /// parameter is emitted exactly as it would appear in the
+    /// `JNIWrappers` top-level wrapper (including `impl Into<T>`
+    /// dispatch arms and opaque-return wrapping).
     ///
-    /// `handles` is `&[(rust_doc_name, kotlin_fqn)]`:
-    /// * `rust_doc_name` — short Rust name shown in the class doc comment
-    ///   (e.g. `"Subscriber"`). Pure documentation, doesn't have to match
-    ///   anything in the Registry.
-    /// * `kotlin_fqn` — package-qualified Kotlin class name
-    ///   (e.g. `"io.zenoh.jni.JNISubscriber"`). The package and class
-    ///   name are split on the last `.`.
+    /// Functions listed under any [`TypedHandle::functions`] are skipped
+    /// in [`Self::write_jni_wrappers`] — "Not mentioned functions remain
+    /// in `JNIWrapper`" is the assignment rule, exposed by passing the
+    /// same `handles` slice to both methods.
     ///
-    /// Only the "standard `freePtrViaJNI` destructor" shape is emitted.
-    /// Typed handles with non-standard destructors
-    /// (e.g. `JNILivelinessToken::undeclare`) or with helper methods
-    /// (e.g. `JNISession::declarePublisher`) stay hand-written — pass
-    /// only the shell-only types here.
+    /// Each handle's `kotlin_fqn` must be registered via
+    /// [`Self::kotlin_type_fqn`] so the generator can map it back to its
+    /// Rust type-key (which identifies the first param to drop in each
+    /// promoted method's signature).
     pub fn write_typed_handles(
         &self,
-        handles: &[(&str, &str)],
+        handles: &[TypedHandle<'_>],
+        registry: &Registry,
+        kotlin_types: &KotlinTypeMap,
         output_dir: &Path,
     ) -> Result<Vec<PathBuf>, WriteKotlinError> {
+        // Merged Kotlin type map (callback FQNs + caller-supplied).
+        // Same merge order as `render_jni_wrappers_source` — kotlin_types
+        // entries WIN over the auto-derived callback FQNs.
+        let callback_fqns = self.collect_kotlin_callback_fqns(registry);
+        let mut merged_types = KotlinTypeMap::new();
+        for (k, v) in callback_fqns.iter() {
+            merged_types = merged_types.add(k, v.clone());
+        }
+        for (k, v) in kotlin_types.iter() {
+            merged_types = merged_types.add(k, v.clone());
+        }
+
         let mut written = Vec::new();
-        for (rust_doc_name, fqn) in handles {
-            let (package, class_name) = match fqn.rsplit_once('.') {
+        for handle in handles {
+            let (package, class_name) = match handle.kotlin_fqn.rsplit_once('.') {
                 Some((p, c)) => (p.to_string(), c.to_string()),
-                None => (String::new(), (*fqn).to_string()),
+                None => (String::new(), handle.kotlin_fqn.to_string()),
+            };
+            // Find the Rust type-key whose registered FQN matches this
+            // handle. Only required when `functions` is non-empty —
+            // otherwise we're emitting a pure shell with no promoted
+            // methods and the key is unused.
+            let rust_key = if handle.functions.is_empty() {
+                None
+            } else {
+                let key = rust_key_for_fqn(self, handle.kotlin_fqn).unwrap_or_else(|| {
+                    panic!(
+                        "write_typed_handles: kotlin_fqn `{}` is not registered via \
+                         JniExt::kotlin_type_fqn — required to identify the typed \
+                         handle's Rust type-key for promoted-method param matching.",
+                        handle.kotlin_fqn
+                    )
+                });
+                Some(key.to_string())
             };
             let file = KotlinFile {
-                contents: render_typed_handle_source(&package, &class_name, rust_doc_name),
+                contents: render_typed_handle_source(
+                    &package,
+                    &class_name,
+                    handle.rust_doc,
+                    handle.functions,
+                    rust_key.as_deref(),
+                    registry,
+                    &merged_types,
+                ),
                 package,
                 class_name,
             };
@@ -418,24 +498,98 @@ public open class NativeHandle(initial: Long) {
     .to_string()
 }
 
-/// Render one typed-handle Kotlin source file. Matches the shape of
-/// the hand-written shell-only `JNI*.kt` files this replaces:
+/// Render one typed-handle Kotlin source file. Pure-shell form:
 ///
 /// ```kotlin
 /// public class JNIFoo(initialPtr: Long) : NativeHandle(initialPtr) {
-///     fun close() = close { freePtrViaJNI(it) }
+///     public fun close() = close { freePtrViaJNI(it) }
 ///     private external fun freePtrViaJNI(ptr: Long)
 /// }
 /// ```
 ///
+/// When `promoted_functions` is non-empty, one extra instance method is
+/// appended per `#[prebindgen]` fn — the matching opaque first param
+/// (Rust type-key = `promoted_rust_key`) is dropped from the Kotlin
+/// signature, and its `withPtr` / `consume` wrapper uses the
+/// inherited [`NativeHandle`] scope.
+///
 /// The Kotlin/JVM JNI name mangler binds `freePtrViaJNI` to the
 /// `Java_<pkg>_<class>_freePtrViaJNI` extern emitted on the Rust
 /// side — same convention as before, no Rust-side change needed.
-fn render_typed_handle_source(package: &str, class_name: &str, rust_doc_name: &str) -> String {
+fn render_typed_handle_source(
+    package: &str,
+    class_name: &str,
+    rust_doc_name: &str,
+    promoted_functions: &[&str],
+    promoted_rust_key: Option<&str>,
+    registry: &Registry,
+    kotlin_types: &KotlinTypeMap,
+) -> String {
+    // Build method bodies first so we can collect imports up front.
+    let mut imports: BTreeSet<String> = BTreeSet::new();
+    let mut methods_body = String::new();
+    for fn_name in promoted_functions {
+        let ident = syn::Ident::new(fn_name, proc_macro2::Span::call_site());
+        let (item_fn, _loc) = registry.functions.get(&ident).unwrap_or_else(|| {
+            panic!(
+                "render_typed_handle_source: `{class_name}` promotes function `{fn_name}` \
+                 which is not present in `registry.functions` — check the spelling against \
+                 the matching `#[prebindgen]` Rust fn name."
+            )
+        });
+        let block = render_wrapper_fn(
+            item_fn,
+            registry,
+            kotlin_types,
+            &mut imports,
+            promoted_rust_key,
+        )
+        .unwrap_or_else(|| {
+            panic!(
+                "render_typed_handle_source: `{class_name}` promotes function `{fn_name}` \
+                 but its parameter types couldn't be Kotlin-resolved — verify that all \
+                 non-opaque parameter types are registered in `kotlin_types`."
+            )
+        });
+        if !methods_body.is_empty() {
+            methods_body.push('\n');
+        }
+        // Indent the rendered method (4 spaces) so it sits inside the class.
+        for line in block.lines() {
+            if line.is_empty() {
+                methods_body.push('\n');
+            } else {
+                methods_body.push_str("    ");
+                methods_body.push_str(line);
+                methods_body.push('\n');
+            }
+        }
+    }
+
+    // Imports filtered the same way as render_kotlin_interface — drop
+    // entries whose package matches our own (no need to import locals).
+    let mut import_list: Vec<String> = imports
+        .iter()
+        .filter(|fqn| {
+            let pkg = fqn.rsplit_once('.').map(|(p, _)| p).unwrap_or("");
+            !pkg.is_empty() && pkg != package
+        })
+        .cloned()
+        .collect();
+    import_list.sort();
+    import_list.dedup();
+
     let mut s = String::new();
     s.push_str("// Auto-generated by JniExt — do not edit by hand.\n");
     if !package.is_empty() {
         s.push_str(&format!("package {}\n\n", package));
+    }
+    if !promoted_functions.is_empty() {
+        s.push_str("import io.zenoh.exceptions.ZError\n");
+        for imp in &import_list {
+            s.push_str(&format!("import {}\n", imp));
+        }
+        s.push('\n');
     }
     s.push_str(&format!(
         "/** Typed [NativeHandle] for a native Zenoh `{}`. */\n",
@@ -447,6 +601,10 @@ fn render_typed_handle_source(package: &str, class_name: &str, rust_doc_name: &s
     ));
     s.push_str("    public fun close() = close { freePtrViaJNI(it) }\n");
     s.push_str("    private external fun freePtrViaJNI(ptr: Long)\n");
+    if !methods_body.is_empty() {
+        s.push('\n');
+        s.push_str(&methods_body);
+    }
     s.push_str("}\n");
     s
 }
@@ -462,9 +620,8 @@ fn render_jni_wrappers_source(
     ext: &JniExt,
     registry: &Registry,
     kotlin_types: &KotlinTypeMap,
+    promoted: &HashSet<String>,
 ) -> String {
-    use std::fmt::Write;
-
     // Start with the auto-derived callback FQNs and let user-provided
     // entries WIN — the user (build.rs) may need to override e.g.
     // `impl Fn (Query)` to point at a hand-written
@@ -487,8 +644,16 @@ fn render_jni_wrappers_source(
     idents.sort();
 
     for ident in idents {
+        // Skip functions promoted to a typed-handle class — their
+        // top-level wrapper lives on the handle instead. The Rust-side
+        // `JNINative.<name>ViaJNI` extern is still emitted by the
+        // legacy `KotlinInterfaceGenerator`; only the Kotlin-side
+        // safe wrapper moves.
+        if promoted.contains(&ident.to_string()) {
+            continue;
+        }
         let (item_fn, _loc) = &registry.functions[ident];
-        if let Some(block) = render_wrapper_fn(item_fn, registry, &merged_types, &mut imports) {
+        if let Some(block) = render_wrapper_fn(item_fn, registry, &merged_types, &mut imports, None) {
             body.push_str(&block);
             body.push('\n');
         }
@@ -525,17 +690,31 @@ fn render_jni_wrappers_source(
 /// skip the function rather than panicking — the legacy `JNINative.kt`
 /// retains the unwrapped external fun so callers still have an
 /// escape hatch).
+///
+/// When `promoted_handle` is `Some(rust_key)`, the wrapper is emitted
+/// as an instance method on a typed-handle class: the first parameter
+/// whose Rust type matches `rust_key` (modulo `&T` borrow) is dropped
+/// from the signature, and its `withPtr` / `consume` wrapper uses the
+/// inherited [`NativeHandle`] scope (no `<name>.` prefix) so the
+/// captured `<name>_ptr` is bound in `this`. Every other parameter is
+/// emitted exactly as the `JNIWrappers` top-level form.
 fn render_wrapper_fn(
     f: &syn::ItemFn,
     registry: &Registry,
     kotlin_types: &KotlinTypeMap,
     imports: &mut BTreeSet<String>,
+    promoted_handle: Option<&str>,
 ) -> Option<String> {
     use std::fmt::Write;
 
     let rust_name = f.sig.ident.to_string();
     let kt_name = snake_to_camel(&rust_name);
     let jni_call = format!("{kt_name}ViaJNI");
+
+    // Pre-parse the promoted Rust type-key (if any) so per-param matching
+    // is whitespace-normalised against the canonical form.
+    let promoted_key: Option<TypeKey> =
+        promoted_handle.map(|s| TypeKey::parse(s));
 
     // Classify each parameter.
     struct Param {
@@ -552,7 +731,19 @@ fn render_wrapper_fn(
         /// [`DispatchArm`] for the arm shape.
         Dispatch { arms: Vec<DispatchArm> },
         PassThrough,
+        /// Promoted opaque param: identical lock semantics to
+        /// `Borrow` / `Consume` (the inner bool flag chooses), but the
+        /// wrapper uses inherited [`NativeHandle`] scope (no
+        /// `<name>.` prefix) and the param is omitted from the
+        /// Kotlin signature. Set when `promoted_handle` matches.
+        PromotedBorrow,
+        PromotedConsume,
     }
+
+    // Tracks whether we've already consumed the promoted-handle slot —
+    // only the first matching param is promoted; any later param of the
+    // same Rust type stays as a normal Borrow/Consume.
+    let mut promoted_taken = false;
 
     let mut params: Vec<Param> = Vec::new();
     for input in &f.sig.inputs {
@@ -585,12 +776,34 @@ fn render_wrapper_fn(
             (kt, opt)
         };
 
+        // Does this param match the promoted handle's Rust type?
+        // Strip a leading `&` before comparing; the registered type-key
+        // is the bare-name form (e.g. `Publisher < 'static >`).
+        let matches_promoted = if !promoted_taken {
+            if let Some(pk) = &promoted_key {
+                let arg_no_ref: syn::Type = match arg_ty {
+                    syn::Type::Reference(r) => (*r.elem).clone(),
+                    _ => arg_ty.clone(),
+                };
+                TypeKey::from_type(&arg_no_ref) == *pk
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
         // Mode: opaque → Borrow/Consume by Rust syntactic shape.
         // Non-opaque + `Any` triggers Dispatch — one arm per declared
         // `IntoSource`. Everything else (primitives, callbacks, data
-        // classes) passes through.
+        // classes) passes through. Promoted variants kick in when this
+        // param is the matched-and-not-yet-consumed handle slot.
         let mode = if is_opaque {
-            if matches!(arg_ty, syn::Type::Reference(_)) {
+            let borrow = matches!(arg_ty, syn::Type::Reference(_));
+            if matches_promoted {
+                promoted_taken = true;
+                if borrow { ParamMode::PromotedBorrow } else { ParamMode::PromotedConsume }
+            } else if borrow {
                 ParamMode::Borrow
             } else {
                 ParamMode::Consume
@@ -611,6 +824,18 @@ fn render_wrapper_fn(
             kt_type: format!("{short}{suffix}"),
             mode,
         });
+    }
+
+    // A promoted-handle was requested but never matched any param —
+    // build-time wiring error.
+    if promoted_handle.is_some() && !promoted_taken {
+        panic!(
+            "render_wrapper_fn: function `{}` has no parameter matching \
+             promoted Rust type-key `{}` — check the typed-handle's \
+             `functions` list in build.rs.",
+            rust_name,
+            promoted_handle.unwrap(),
+        );
     }
 
     // Return type: peel ZResult<...>; detect opaque-handle return.
@@ -634,7 +859,10 @@ fn render_wrapper_fn(
         let mut args: Vec<String> = Vec::with_capacity(params.len());
         for (i, p) in params.iter().enumerate() {
             let arg = match &p.mode {
-                ParamMode::Borrow | ParamMode::Consume => format!("{}_ptr", p.kt_name),
+                ParamMode::Borrow
+                | ParamMode::Consume
+                | ParamMode::PromotedBorrow
+                | ParamMode::PromotedConsume => format!("{}_ptr", p.kt_name),
                 ParamMode::Dispatch { arms } => {
                     let pos = dispatch_indices.iter().position(|&di| di == i).unwrap();
                     let arm = &arms[arm_choice[pos]];
@@ -720,7 +948,8 @@ fn render_wrapper_fn(
     let mut body_expr = build_tree(0, &mut choice, &dispatch_indices, &params, &build_call);
 
     // Wrap with nested withPtr/consume from innermost to outermost
-    // for the syntactic-opaque (Borrow/Consume) params.
+    // for the syntactic-opaque params. Promoted variants drop the
+    // `<name>.` prefix to use the inherited `NativeHandle` scope.
     for p in params.iter().rev() {
         match p.mode {
             ParamMode::Borrow => {
@@ -737,13 +966,31 @@ fn render_wrapper_fn(
                     expr = body_expr,
                 );
             }
+            ParamMode::PromotedBorrow => {
+                body_expr = format!(
+                    "withPtr {{ {name}_ptr ->\n    {expr}\n}}",
+                    name = p.kt_name,
+                    expr = body_expr,
+                );
+            }
+            ParamMode::PromotedConsume => {
+                body_expr = format!(
+                    "consume {{ {name}_ptr ->\n    {expr}\n}}",
+                    name = p.kt_name,
+                    expr = body_expr,
+                );
+            }
             ParamMode::Dispatch { .. } | ParamMode::PassThrough => {}
         }
     }
 
     let mut out = String::new();
     let _ = writeln!(out, "@Throws(ZError::class)");
-    let param_list: Vec<String> = params.iter().map(|p| format!("{}: {}", p.kt_name, p.kt_type)).collect();
+    let param_list: Vec<String> = params
+        .iter()
+        .filter(|p| !matches!(p.mode, ParamMode::PromotedBorrow | ParamMode::PromotedConsume))
+        .map(|p| format!("{}: {}", p.kt_name, p.kt_type))
+        .collect();
     let _ = write!(out, "public fun {kt_name}({})", param_list.join(", "));
     if !kt_return.is_empty() {
         let _ = write!(out, ": {kt_return}");

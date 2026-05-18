@@ -18,4 +18,5 @@ pub(crate) mod wire_access;
 
 pub use byte_array_helpers::{decode_byte_array, encode_byte_array, null_byte_array};
 pub use jni_ext::JniExt;
+pub use jni_kotlin_ext::TypedHandle;
 pub use string_helpers::{decode_string, encode_string, null_string};
