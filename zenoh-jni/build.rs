@@ -472,6 +472,31 @@ fn main() {
         .expect("failed to write NativeHandle.kt");
     println!("cargo:warning=Wrote {}", nh_path.display());
 
+    // (4c.bis) Typed `NativeHandle` subclasses with the standard
+    //          `freePtrViaJNI` destructor shape. Only the shell-only
+    //          types are listed here — handles with non-standard
+    //          destructors (`JNILivelinessToken::undeclare`) or with
+    //          extra helper methods (`JNISession`, `JNIConfig`,
+    //          `JNIPublisher`, `JNIKeyExpr`, `JNIQuery`, `JNIQuerier`,
+    //          `JNIScout`, `JNIAdvancedSubscriber`,
+    //          `JNIAdvancedPublisher`) stay hand-written until their
+    //          helpers are split into sibling extension files.
+    let typed_handles_written = ext
+        .base
+        .write_typed_handles(
+            &[
+                ("Subscriber", "io.zenoh.jni.JNISubscriber"),
+                ("Queryable", "io.zenoh.jni.JNIQueryable"),
+                ("MatchingListener", "io.zenoh.jni.JNIMatchingListener"),
+                ("SampleMissListener", "io.zenoh.jni.JNISampleMissListener"),
+            ],
+            kotlin_root,
+        )
+        .expect("failed to write typed-handle Kotlin classes");
+    for path in &typed_handles_written {
+        println!("cargo:warning=Wrote {}", path.display());
+    }
+
     // (4d) JNIWrappers.kt — one safe top-level wrapper per
     //      `#[prebindgen]` fn. Opaque-handle params route through
     //      `NativeHandle.withPtr` / `consume`; opaque returns wrap in
