@@ -409,21 +409,34 @@ fn main() {
         .kotlin_type_fqn("Sample", "io.zenoh.jni.Sample")
         .kotlin_type_fqn("Query", "kotlin.Any")
         .kotlin_type_fqn("Reply", "kotlin.Any")
-        // Typed-handle FQNs for opaque-handle Rust types whose Kotlin
-        // class exists (hand-written `NativeHandle` subclasses in
-        // `zenoh-jni-runtime/.../JNI*.kt`). Registering an FQN here
-        // lets `jobject_to_wire_adapter` switch the JNI-side
-        // `instanceof` check from the shared `java.lang.Long` (which
-        // collides across all jlong-wired sources) to the per-type
-        // `instanceof io/zenoh/jni/JNI*` (distinguishable per source)
-        // when the type appears as a Borrow-mode source in some
-        // `impl Into<T>` target. Dormant for any type not currently
-        // declared as such a source. Skipped: `ZKeyExpr<'static>`,
-        // because `JNIKeyExpr.kt` is helpers-only today (no class) —
-        // its only current dispatcher arm stays on `java.lang.Long`.
+        // Typed-handle FQNs for every opaque-handle Rust type. The
+        // Kotlin classes are hand-written `NativeHandle` subclasses in
+        // `zenoh-jni-runtime/.../JNI*.kt`. Registration drives
+        // `jobject_to_wire_adapter` to do per-type
+        // `instanceof io/zenoh/jni/JNI*` + `peek()` instead of the
+        // legacy `instanceof java.lang.Long` + `longValue()` autobox
+        // path (which collides across every opaque jlong source).
+        //
+        // All four opaque input types are registered — the
+        // `java.lang.Long` fallback is no longer reachable for any
+        // current `impl Into<T>` target. Output-only opaque types
+        // are also registered for completeness (dormant today, ready
+        // if any becomes an `impl Into<T>` source later).
         .kotlin_type_fqn("Session", "io.zenoh.jni.JNISession")
         .kotlin_type_fqn("Config", "io.zenoh.jni.JNIConfig")
-        .kotlin_type_fqn("Publisher < 'static >", "io.zenoh.jni.JNIPublisher");
+        .kotlin_type_fqn("Publisher < 'static >", "io.zenoh.jni.JNIPublisher")
+        .kotlin_type_fqn("ZKeyExpr < 'static >", "io.zenoh.jni.JNIKeyExpr")
+        .kotlin_type_fqn("Subscriber < () >", "io.zenoh.jni.JNISubscriber")
+        .kotlin_type_fqn("Querier < 'static >", "io.zenoh.jni.JNIQuerier")
+        .kotlin_type_fqn("Queryable < () >", "io.zenoh.jni.JNIQueryable")
+        .kotlin_type_fqn(
+            "AdvancedSubscriber < () >",
+            "io.zenoh.jni.JNIAdvancedSubscriber",
+        )
+        .kotlin_type_fqn(
+            "AdvancedPublisher < 'static >",
+            "io.zenoh.jni.JNIAdvancedPublisher",
+        );
     let ext = ZenohJniExt::new(jni);
     resolve::resolve(&mut registry, &ext).expect("unresolved required types");
 

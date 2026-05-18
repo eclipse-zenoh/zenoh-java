@@ -4,7 +4,14 @@ package io.zenoh.jni
 import io.zenoh.exceptions.ZError
 import io.zenoh.jni.CacheConfig
 import io.zenoh.jni.HistoryConfig
+import io.zenoh.jni.JNIAdvancedPublisher
+import io.zenoh.jni.JNIAdvancedSubscriber
 import io.zenoh.jni.JNIEncoding
+import io.zenoh.jni.JNIKeyExpr
+import io.zenoh.jni.JNIPublisher
+import io.zenoh.jni.JNIQuerier
+import io.zenoh.jni.JNIQueryable
+import io.zenoh.jni.JNISubscriber
 import io.zenoh.jni.MissDetectionConfig
 import io.zenoh.jni.RecoveryConfig
 import io.zenoh.jni.callbacks.JNIGetCallback
@@ -25,83 +32,83 @@ public object JNIWrappers {
 
     @Throws(ZError::class)
     public fun concat(a: Any, other: String): NativeHandle =
-        if (a is NativeHandle) a.withPtr { a_ptr ->
-        NativeHandle(JNINative.concatViaJNI(a_ptr, other))
+        if (a is JNIKeyExpr) a.withPtr { _ ->
+        JNIKeyExpr(JNINative.concatViaJNI(a, other))
     } else {
-        NativeHandle(JNINative.concatViaJNI(a, other))
+        JNIKeyExpr(JNINative.concatViaJNI(a, other))
     }
 
     @Throws(ZError::class)
     public fun declareAdvancedPublisher(session: NativeHandle, keyExpr: Any, congestionControl: Int, priority: Int, express: Boolean, reliability: Int, cache: CacheConfig?, sampleMissDetection: MissDetectionConfig?, publisherDetection: Boolean): NativeHandle =
         session.withPtr { session_ptr ->
-        if (keyExpr is NativeHandle) keyExpr.withPtr { keyExpr_ptr ->
-        NativeHandle(JNINative.declareAdvancedPublisherViaJNI(session_ptr, keyExpr_ptr, congestionControl, priority, express, reliability, cache, sampleMissDetection, publisherDetection))
+        if (keyExpr is JNIKeyExpr) keyExpr.withPtr { _ ->
+        JNIAdvancedPublisher(JNINative.declareAdvancedPublisherViaJNI(session_ptr, keyExpr, congestionControl, priority, express, reliability, cache, sampleMissDetection, publisherDetection))
     } else {
-        NativeHandle(JNINative.declareAdvancedPublisherViaJNI(session_ptr, keyExpr, congestionControl, priority, express, reliability, cache, sampleMissDetection, publisherDetection))
+        JNIAdvancedPublisher(JNINative.declareAdvancedPublisherViaJNI(session_ptr, keyExpr, congestionControl, priority, express, reliability, cache, sampleMissDetection, publisherDetection))
     }
     }
 
     @Throws(ZError::class)
     public fun declareAdvancedSubscriber(session: NativeHandle, keyExpr: Any, callback: JNISampleCallback, onClose: JNIOnCloseCallback, history: HistoryConfig?, recovery: RecoveryConfig?, subscriberDetection: Boolean): NativeHandle =
         session.withPtr { session_ptr ->
-        if (keyExpr is NativeHandle) keyExpr.withPtr { keyExpr_ptr ->
-        NativeHandle(JNINative.declareAdvancedSubscriberViaJNI(session_ptr, keyExpr_ptr, callback, onClose, history, recovery, subscriberDetection))
+        if (keyExpr is JNIKeyExpr) keyExpr.withPtr { _ ->
+        JNIAdvancedSubscriber(JNINative.declareAdvancedSubscriberViaJNI(session_ptr, keyExpr, callback, onClose, history, recovery, subscriberDetection))
     } else {
-        NativeHandle(JNINative.declareAdvancedSubscriberViaJNI(session_ptr, keyExpr, callback, onClose, history, recovery, subscriberDetection))
+        JNIAdvancedSubscriber(JNINative.declareAdvancedSubscriberViaJNI(session_ptr, keyExpr, callback, onClose, history, recovery, subscriberDetection))
     }
     }
 
     @Throws(ZError::class)
     public fun declareKeyExpr(session: NativeHandle, keyExpr: String): NativeHandle =
         session.withPtr { session_ptr ->
-        NativeHandle(JNINative.declareKeyExprViaJNI(session_ptr, keyExpr))
+        JNIKeyExpr(JNINative.declareKeyExprViaJNI(session_ptr, keyExpr))
     }
 
     @Throws(ZError::class)
     public fun declarePublisher(session: NativeHandle, keyExpr: Any, congestionControl: Int, priority: Int, express: Boolean, reliability: Int): NativeHandle =
         session.withPtr { session_ptr ->
-        if (keyExpr is NativeHandle) keyExpr.withPtr { keyExpr_ptr ->
-        NativeHandle(JNINative.declarePublisherViaJNI(session_ptr, keyExpr_ptr, congestionControl, priority, express, reliability))
+        if (keyExpr is JNIKeyExpr) keyExpr.withPtr { _ ->
+        JNIPublisher(JNINative.declarePublisherViaJNI(session_ptr, keyExpr, congestionControl, priority, express, reliability))
     } else {
-        NativeHandle(JNINative.declarePublisherViaJNI(session_ptr, keyExpr, congestionControl, priority, express, reliability))
+        JNIPublisher(JNINative.declarePublisherViaJNI(session_ptr, keyExpr, congestionControl, priority, express, reliability))
     }
     }
 
     @Throws(ZError::class)
     public fun declareQuerier(session: NativeHandle, keyExpr: Any, queryTarget: Int, consolidation: Int, congestionControl: Int, priority: Int, express: Boolean, timeout: Long, replyKeyExpr: Int): NativeHandle =
         session.withPtr { session_ptr ->
-        if (keyExpr is NativeHandle) keyExpr.withPtr { keyExpr_ptr ->
-        NativeHandle(JNINative.declareQuerierViaJNI(session_ptr, keyExpr_ptr, queryTarget, consolidation, congestionControl, priority, express, timeout, replyKeyExpr))
+        if (keyExpr is JNIKeyExpr) keyExpr.withPtr { _ ->
+        JNIQuerier(JNINative.declareQuerierViaJNI(session_ptr, keyExpr, queryTarget, consolidation, congestionControl, priority, express, timeout, replyKeyExpr))
     } else {
-        NativeHandle(JNINative.declareQuerierViaJNI(session_ptr, keyExpr, queryTarget, consolidation, congestionControl, priority, express, timeout, replyKeyExpr))
+        JNIQuerier(JNINative.declareQuerierViaJNI(session_ptr, keyExpr, queryTarget, consolidation, congestionControl, priority, express, timeout, replyKeyExpr))
     }
     }
 
     @Throws(ZError::class)
     public fun declareQueryable(session: NativeHandle, keyExpr: Any, callback: JNIQueryableCallback, onClose: JNIOnCloseCallback, complete: Boolean): NativeHandle =
         session.withPtr { session_ptr ->
-        if (keyExpr is NativeHandle) keyExpr.withPtr { keyExpr_ptr ->
-        NativeHandle(JNINative.declareQueryableViaJNI(session_ptr, keyExpr_ptr, callback, onClose, complete))
+        if (keyExpr is JNIKeyExpr) keyExpr.withPtr { _ ->
+        JNIQueryable(JNINative.declareQueryableViaJNI(session_ptr, keyExpr, callback, onClose, complete))
     } else {
-        NativeHandle(JNINative.declareQueryableViaJNI(session_ptr, keyExpr, callback, onClose, complete))
+        JNIQueryable(JNINative.declareQueryableViaJNI(session_ptr, keyExpr, callback, onClose, complete))
     }
     }
 
     @Throws(ZError::class)
     public fun declareSubscriber(session: NativeHandle, keyExpr: Any, callback: JNISampleCallback, onClose: JNIOnCloseCallback): NativeHandle =
         session.withPtr { session_ptr ->
-        if (keyExpr is NativeHandle) keyExpr.withPtr { keyExpr_ptr ->
-        NativeHandle(JNINative.declareSubscriberViaJNI(session_ptr, keyExpr_ptr, callback, onClose))
+        if (keyExpr is JNIKeyExpr) keyExpr.withPtr { _ ->
+        JNISubscriber(JNINative.declareSubscriberViaJNI(session_ptr, keyExpr, callback, onClose))
     } else {
-        NativeHandle(JNINative.declareSubscriberViaJNI(session_ptr, keyExpr, callback, onClose))
+        JNISubscriber(JNINative.declareSubscriberViaJNI(session_ptr, keyExpr, callback, onClose))
     }
     }
 
     @Throws(ZError::class)
     public fun delete(session: NativeHandle, keyExpr: Any, congestionControl: Int, priority: Int, express: Boolean, attachment: ByteArray?, reliability: Int) =
         session.withPtr { session_ptr ->
-        if (keyExpr is NativeHandle) keyExpr.withPtr { keyExpr_ptr ->
-        JNINative.deleteViaJNI(session_ptr, keyExpr_ptr, congestionControl, priority, express, attachment, reliability)
+        if (keyExpr is JNIKeyExpr) keyExpr.withPtr { _ ->
+        JNINative.deleteViaJNI(session_ptr, keyExpr, congestionControl, priority, express, attachment, reliability)
     } else {
         JNINative.deleteViaJNI(session_ptr, keyExpr, congestionControl, priority, express, attachment, reliability)
     }
@@ -122,8 +129,8 @@ public object JNIWrappers {
     @Throws(ZError::class)
     public fun get(session: NativeHandle, keyExpr: Any, selectorParams: String?, callback: JNIGetCallback, onClose: JNIOnCloseCallback, timeout: Long, queryTarget: Int, consolidation: Int, attachment: ByteArray?, payload: ByteArray?, encoding: JNIEncoding?, congestionControl: Int, priority: Int, express: Boolean, replyKeyExpr: Int) =
         session.withPtr { session_ptr ->
-        if (keyExpr is NativeHandle) keyExpr.withPtr { keyExpr_ptr ->
-        JNINative.getViaJNI(session_ptr, keyExpr_ptr, selectorParams, callback, onClose, timeout, queryTarget, consolidation, attachment, payload, encoding, congestionControl, priority, express, replyKeyExpr)
+        if (keyExpr is JNIKeyExpr) keyExpr.withPtr { _ ->
+        JNINative.getViaJNI(session_ptr, keyExpr, selectorParams, callback, onClose, timeout, queryTarget, consolidation, attachment, payload, encoding, congestionControl, priority, express, replyKeyExpr)
     } else {
         JNINative.getViaJNI(session_ptr, keyExpr, selectorParams, callback, onClose, timeout, queryTarget, consolidation, attachment, payload, encoding, congestionControl, priority, express, replyKeyExpr)
     }
@@ -149,15 +156,15 @@ public object JNIWrappers {
 
     @Throws(ZError::class)
     public fun includes(a: Any, b: Any): Boolean =
-        if (a is NativeHandle) a.withPtr { a_ptr ->
-        if (b is NativeHandle) b.withPtr { b_ptr ->
-        JNINative.includesViaJNI(a_ptr, b_ptr)
+        if (a is JNIKeyExpr) a.withPtr { _ ->
+        if (b is JNIKeyExpr) b.withPtr { _ ->
+        JNINative.includesViaJNI(a, b)
     } else {
-        JNINative.includesViaJNI(a_ptr, b)
+        JNINative.includesViaJNI(a, b)
     }
     } else {
-        if (b is NativeHandle) b.withPtr { b_ptr ->
-        JNINative.includesViaJNI(a, b_ptr)
+        if (b is JNIKeyExpr) b.withPtr { _ ->
+        JNINative.includesViaJNI(a, b)
     } else {
         JNINative.includesViaJNI(a, b)
     }
@@ -165,15 +172,15 @@ public object JNIWrappers {
 
     @Throws(ZError::class)
     public fun intersects(a: Any, b: Any): Boolean =
-        if (a is NativeHandle) a.withPtr { a_ptr ->
-        if (b is NativeHandle) b.withPtr { b_ptr ->
-        JNINative.intersectsViaJNI(a_ptr, b_ptr)
+        if (a is JNIKeyExpr) a.withPtr { _ ->
+        if (b is JNIKeyExpr) b.withPtr { _ ->
+        JNINative.intersectsViaJNI(a, b)
     } else {
-        JNINative.intersectsViaJNI(a_ptr, b)
+        JNINative.intersectsViaJNI(a, b)
     }
     } else {
-        if (b is NativeHandle) b.withPtr { b_ptr ->
-        JNINative.intersectsViaJNI(a, b_ptr)
+        if (b is JNIKeyExpr) b.withPtr { _ ->
+        JNINative.intersectsViaJNI(a, b)
     } else {
         JNINative.intersectsViaJNI(a, b)
     }
@@ -181,10 +188,10 @@ public object JNIWrappers {
 
     @Throws(ZError::class)
     public fun join(a: Any, other: String): NativeHandle =
-        if (a is NativeHandle) a.withPtr { a_ptr ->
-        NativeHandle(JNINative.joinViaJNI(a_ptr, other))
+        if (a is JNIKeyExpr) a.withPtr { _ ->
+        JNIKeyExpr(JNINative.joinViaJNI(a, other))
     } else {
-        NativeHandle(JNINative.joinViaJNI(a, other))
+        JNIKeyExpr(JNINative.joinViaJNI(a, other))
     }
 
     @Throws(ZError::class)
@@ -196,8 +203,8 @@ public object JNIWrappers {
     @Throws(ZError::class)
     public fun put(session: NativeHandle, keyExpr: Any, payload: ByteArray, encoding: JNIEncoding, congestionControl: Int, priority: Int, express: Boolean, attachment: ByteArray?, reliability: Int) =
         session.withPtr { session_ptr ->
-        if (keyExpr is NativeHandle) keyExpr.withPtr { keyExpr_ptr ->
-        JNINative.putViaJNI(session_ptr, keyExpr_ptr, payload, encoding, congestionControl, priority, express, attachment, reliability)
+        if (keyExpr is JNIKeyExpr) keyExpr.withPtr { _ ->
+        JNINative.putViaJNI(session_ptr, keyExpr, payload, encoding, congestionControl, priority, express, attachment, reliability)
     } else {
         JNINative.putViaJNI(session_ptr, keyExpr, payload, encoding, congestionControl, priority, express, attachment, reliability)
     }
@@ -211,15 +218,15 @@ public object JNIWrappers {
 
     @Throws(ZError::class)
     public fun relationTo(a: Any, b: Any): Int =
-        if (a is NativeHandle) a.withPtr { a_ptr ->
-        if (b is NativeHandle) b.withPtr { b_ptr ->
-        JNINative.relationToViaJNI(a_ptr, b_ptr)
+        if (a is JNIKeyExpr) a.withPtr { _ ->
+        if (b is JNIKeyExpr) b.withPtr { _ ->
+        JNINative.relationToViaJNI(a, b)
     } else {
-        JNINative.relationToViaJNI(a_ptr, b)
+        JNINative.relationToViaJNI(a, b)
     }
     } else {
-        if (b is NativeHandle) b.withPtr { b_ptr ->
-        JNINative.relationToViaJNI(a, b_ptr)
+        if (b is JNIKeyExpr) b.withPtr { _ ->
+        JNINative.relationToViaJNI(a, b)
     } else {
         JNINative.relationToViaJNI(a, b)
     }

@@ -17,6 +17,16 @@ package io.zenoh.jni
 import io.zenoh.exceptions.ZError
 
 /**
+ * Typed [NativeHandle] for a session-declared `Arc<KeyExpr<'static>>`.
+ * Distinct Java class lets the generator-emitted `impl Into<KeyExpr>`
+ * dispatcher do `instanceof io/zenoh/jni/JNIKeyExpr` and read the
+ * pointer via [peek] — instead of the legacy
+ * `instanceof java.lang.Long` autoboxing path that collides across
+ * every opaque jlong source.
+ */
+public class JNIKeyExpr(initialPtr: Long) : NativeHandle(initialPtr)
+
+/**
  * Helpers for the key-expression JNI surface.
  *
  * Operations that have a `#[prebindgen]` counterpart in `zenoh-flat`

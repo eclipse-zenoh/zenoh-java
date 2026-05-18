@@ -1602,19 +1602,15 @@ fn annotate_jobject_with_lifetime(ty: &syn::Type, life: &str) -> syn::Type {
 /// passed as the decoder's `v` argument — typically `&__narrowed`,
 /// except `JObject` is identity (`v` directly).
 ///
-/// For `jlong`-wired sources (opaque handles) the choice is **mode-
-/// independent** thanks to `NativeHandle.consume`'s try/finally
-/// semantics: the slot stays valid during the JNI call for both
-/// `withPtr` and `consume`, so `peek()` is safe in either mode.
-/// * Typed FQN registered for `src_ty` in `kotlin_type_fqns` →
-///   `instanceof <FQN>` + `peek()`. Each opaque source has its own
-///   Java class, so multiple opaque sources in one `impl Into<T>`
-///   dispatcher are distinguishable.
-/// * No typed FQN → fall back to `instanceof java.lang.Long` +
-///   `longValue()` on the autoboxed primitive (today's legacy
-///   single-source path). All such sources collide on
-///   `java.lang.Long` — first arm wins, the rest are unreachable;
-///   register a typed FQN to disambiguate.
+/// `jlong`-wired sources (opaque handles) **require** a typed FQN in
+/// `kotlin_type_fqns`. The generated arm does `instanceof <FQN>` +
+/// `peek()` — each opaque source has its own Java class, so multiple
+/// opaque sources in one `impl Into<T>` dispatcher are distinguishable.
+/// Works for both Borrow (read lock keeps `ptr` valid) and Consume
+/// (write lock + null-after-action keeps `ptr` valid during the JNI
+/// call). Missing-FQN panics at build time — register a typed FQN
+/// (see `JniExt::kotlin_type_fqn`) and ensure the corresponding
+/// Kotlin class exists.
 ///
 /// Returns `None` for wires not covered by the table — caller treats it
 /// as a hard error (the source type can't participate in
@@ -1628,35 +1624,27 @@ fn jobject_to_wire_adapter(
     match key.as_str() {
         // ── Boxed primitives: unbox via the standard Java accessor ────
         "jni :: sys :: jlong" => {
-            // Typed FQN → peek() on the typed Kotlin class. Works for
-            // both Borrow (read lock keeps ptr valid) and Consume
-            // (write lock + null-after-action keeps ptr valid during
-            // the JNI call).
             let src_key = TypeKey::from_type(src_ty).as_str().to_string();
-            if let Some(fqn) = kotlin_type_fqns
+            let fqn = kotlin_type_fqns
                 .iter()
                 .find(|(k, _)| k == &src_key)
                 .map(|(_, v)| v.replace('.', "/"))
-            {
-                return Some((
-                    fqn,
-                    quote!(
-                        let __narrowed: jni::sys::jlong = env
-                            .call_method(v, "peek", "()J", &[])
-                            .and_then(|val| val.j())
-                            .map_err(|e| crate::errors::ZError(format!("NativeHandle.peek: {}", e)))?;
-                    ),
-                    quote!(&__narrowed),
-                ));
-            }
-            // No typed FQN → boxed Long fallback.
+                .unwrap_or_else(|| {
+                    panic!(
+                        "jobject_to_wire_adapter: opaque source `{}` (jlong wire) has no \
+                         typed Kotlin FQN registered. Register one via \
+                         `JniExt::kotlin_type_fqn(\"{}\", \"<package>.JNI<Type>\")` and \
+                         ensure the corresponding Kotlin class exists.",
+                        src_key, src_key
+                    )
+                });
             Some((
-                "java/lang/Long".to_string(),
+                fqn,
                 quote!(
                     let __narrowed: jni::sys::jlong = env
-                        .call_method(v, "longValue", "()J", &[])
+                        .call_method(v, "peek", "()J", &[])
                         .and_then(|val| val.j())
-                        .map_err(|e| crate::errors::ZError(format!("Long.longValue: {}", e)))?;
+                        .map_err(|e| crate::errors::ZError(format!("NativeHandle.peek: {}", e)))?;
                 ),
                 quote!(&__narrowed),
             ))

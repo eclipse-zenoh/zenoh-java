@@ -524,7 +524,7 @@ fn render_wrapper_fn(
         } else if kt_type_raw == "Any" {
             let sources = entry.into_sources.as_deref().unwrap_or(&[]);
             ParamMode::Dispatch {
-                arms: build_dispatch_arms(sources, kotlin_types, imports),
+                arms: build_dispatch_arms(sources, registry, kotlin_types, imports),
             }
         } else {
             ParamMode::PassThrough
@@ -540,7 +540,9 @@ fn render_wrapper_fn(
     }
 
     // Return type: peel ZResult<...>; detect opaque-handle return.
-    let (kt_return, return_is_opaque) = classify_return(&f.sig.output, registry, kotlin_types, imports)?;
+    // `opaque_ctor` is the constructor name to wrap the JNI return
+    // in (typed FQN short name when registered, else `NativeHandle`).
+    let (kt_return, opaque_ctor) = classify_return(&f.sig.output, registry, kotlin_types, imports)?;
 
     // Indices of Dispatch-mode params.
     let dispatch_indices: Vec<usize> = params
@@ -573,8 +575,8 @@ fn render_wrapper_fn(
             args.push(arg);
         }
         let mut call = format!("JNINative.{jni_call}({})", args.join(", "));
-        if return_is_opaque {
-            call = format!("NativeHandle({call})");
+        if let Some(ctor) = &opaque_ctor {
+            call = format!("{ctor}({call})");
         }
         call
     };
@@ -714,87 +716,57 @@ struct DispatchArm {
 
 /// Translate the resolver-recorded `IntoSource` list into the Kotlin
 /// emit's per-arm dispatch shape. Arm ordering matters: typed-FQN
-/// arms come first (so they aren't swallowed by the
-/// `is NativeHandle` catch-all), then the catch-all `is NativeHandle`
-/// arm if any non-typed opaque source is declared, then the final
-/// non-handle catch-all `else` for `String`/etc. source kinds.
+/// opaque arms come first (so they aren't swallowed by the catch-all
+/// else), then the final unconditional `else` branch handling every
+/// non-opaque source class (`String`, primitives, etc.) — the JNI
+/// dispatcher does its own `instanceof` chain on the wire side for
+/// those.
+///
+/// Opaque sources without a typed FQN are a build-time error in
+/// `jobject_to_wire_adapter` (it panics with a registration hint),
+/// so this helper never has to emit a generic `is NativeHandle`
+/// fallback arm — every opaque source is either typed or rejected.
 fn build_dispatch_arms(
     sources: &[IntoSource],
+    registry: &Registry,
     kotlin_types: &KotlinTypeMap,
     imports: &mut BTreeSet<String>,
 ) -> Vec<DispatchArm> {
-    use crate::core::registry::TypeKey;
-
     let mut typed: Vec<DispatchArm> = Vec::new();
-    let mut has_untyped_opaque = false;
-    let mut has_non_opaque = false;
-    let mut untyped_opaque_qual: &'static str = "withPtr";
-
     for src in sources {
         let canon = TypeKey::from_type(&src.source_type).as_str().to_string();
+        // Only opaque sources need an `is <KotlinClass>` arm; the rest
+        // (String, primitives) fall through to the catch-all else
+        // where the JNI dispatcher's own per-class `instanceof` chain
+        // takes over.
+        let is_opaque = registry
+            .input_entry(&src.source_type)
+            .map(|e| converter_returns_owned_object(&e.function.sig.output))
+            .unwrap_or(false);
+        if !is_opaque {
+            continue;
+        }
         let qual: &'static str = match src.mode {
             IntoSourceMode::Borrow => "withPtr",
             IntoSourceMode::Consume => "consume",
         };
-        match kotlin_types.lookup(&canon) {
-            Some(fqn) if fqn.contains('.') => {
-                // Typed-FQN opaque source — emit `is <Short>` arm; JNI
-                // dispatcher reads via `.peek()` so we pass the typed
-                // handle through (no Long unwrap).
-                let short = register_fqn(fqn, imports);
-                typed.push(DispatchArm {
-                    runtime_check: Some(short),
-                    lock_qual: Some(qual),
-                    unwrap_to_ptr: false,
-                });
-            }
-            _ => {
-                // Two cases collapse into one Kotlin-side branch:
-                //
-                // 1. Opaque source without a registered typed FQN —
-                //    the JNI dispatcher's matching arm does
-                //    `instanceof java.lang.Long` + `longValue()`.
-                //    Kotlin unwraps to `Long` via the captured-ptr
-                //    closure (autoboxed when passed as `Any`).
-                // 2. Non-opaque source (e.g. `String`) — handled by
-                //    the JNI dispatcher's own non-Long `instanceof`
-                //    arm. Kotlin passes the raw value through with no
-                //    lock or unwrap; we only emit the catch-all else
-                //    once.
-                //
-                // We can't determine here whether (1) or (2) applies
-                // without inspecting the source's registered input
-                // converter — that wire-shape info lives on the
-                // registry entry, which we don't have access to in
-                // this helper. Heuristic: if the Kotlin type map has
-                // no FQN-form mapping (with a `.`), treat as opaque
-                // catch-all; the lock_qual escalates to `consume` if
-                // any such source is Consume mode.
-                has_untyped_opaque = true;
-                if matches!(src.mode, IntoSourceMode::Consume) {
-                    untyped_opaque_qual = "consume";
-                }
-                // Mark non-opaque presence too — for sources whose
-                // Rust type is e.g. `String`, the catch-all else
-                // arm at the end handles them.
-                has_non_opaque = true;
-            }
-        }
+        let fqn = kotlin_types.lookup(&canon).unwrap_or_else(|| {
+            panic!(
+                "build_dispatch_arms: opaque source `{}` has no Kotlin FQN registered \
+                 — register one via `JniExt::kotlin_type_fqn(...)` and ensure the \
+                 corresponding Kotlin class exists.",
+                canon
+            )
+        });
+        let short = register_fqn(fqn, imports);
+        typed.push(DispatchArm {
+            runtime_check: Some(short),
+            lock_qual: Some(qual),
+            unwrap_to_ptr: false,
+        });
     }
 
     let mut arms = typed;
-    if has_untyped_opaque {
-        // Generic opaque catch-all — handles every source whose
-        // Kotlin class isn't typed-FQN-registered. Single arm
-        // regardless of source count; JNI side does the per-source
-        // `instanceof` (typically all on `java.lang.Long`).
-        arms.push(DispatchArm {
-            runtime_check: Some("NativeHandle".to_string()),
-            lock_qual: Some(untyped_opaque_qual),
-            unwrap_to_ptr: true,
-        });
-    }
-    let _ = has_non_opaque;
     // Final unconditional else — JNI dispatcher's own `instanceof`
     // chain handles non-opaque source classes (String, etc.).
     arms.push(DispatchArm {
@@ -845,14 +817,27 @@ fn kotlin_for_wire(wire: &syn::Type) -> Option<String> {
     None
 }
 
+/// Returns `(kt_return, opaque_ctor)` where:
+/// * `kt_return` is the declared Kotlin return type written in the
+///   wrapper's signature (empty for `Unit`).
+/// * `opaque_ctor` is `Some(<ctor>)` when the return is an
+///   opaque-handle type (jlong wire) — `<ctor>` is the registered
+///   typed FQN's short name (e.g. `JNIKeyExpr`) when one is mapped,
+///   else `NativeHandle`. The wrapper body uses this to construct
+///   the returned object so its runtime class survives downstream
+///   `instanceof` checks at the JNI boundary. `None` for non-opaque
+///   returns. The declared `kt_return` deliberately stays at the
+///   base `NativeHandle` for opaque returns even when a typed FQN
+///   exists — minimises caller-side churn (typed instance, upcast
+///   declared type).
 fn classify_return(
     output: &syn::ReturnType,
     registry: &Registry,
     kotlin_types: &KotlinTypeMap,
     imports: &mut BTreeSet<String>,
-) -> Option<(String, bool)> {
+) -> Option<(String, Option<String>)> {
     let ty = match output {
-        syn::ReturnType::Default => return Some((String::new(), false)),
+        syn::ReturnType::Default => return Some((String::new(), None)),
         syn::ReturnType::Type(_, t) => &**t,
     };
     // Detect opaque return: ZResult<T> or T where T's input converter
@@ -860,7 +845,7 @@ fn classify_return(
     // first because that's the common signature shape.
     let inner = peel_zresult(ty).unwrap_or(ty);
     if crate::util::is_unit(inner) {
-        return Some((String::new(), false));
+        return Some((String::new(), None));
     }
     let inner_canon = inner.to_token_stream().to_string();
     // An output is "opaque-handle" iff its registered output converter
@@ -885,21 +870,28 @@ fn classify_return(
                 .unwrap_or(false)
         });
     if output_is_opaque_jlong || input_is_opaque {
-        return Some(("NativeHandle".to_string(), true));
+        // Typed-FQN constructor when registered; else NativeHandle.
+        // Both compile against the same declared `NativeHandle`
+        // return type (subtype relation).
+        let ctor = match kotlin_types.lookup(&inner_canon) {
+            Some(fqn) if fqn.contains('.') => register_fqn(fqn, imports),
+            _ => "NativeHandle".to_string(),
+        };
+        return Some(("NativeHandle".to_string(), Some(ctor)));
     }
     // Non-opaque: try the full return key first (covers `ZResult<T>`
     // entries in the map), fall back to the peeled inner key, then
     // wire-type fallback via the output entry.
     let full_canon = ty.to_token_stream().to_string();
     if let Some(kt) = kotlin_types.lookup(&full_canon) {
-        return Some((register_fqn(kt, imports), false));
+        return Some((register_fqn(kt, imports), None));
     }
     if let Some(kt) = kotlin_types.lookup(&inner_canon) {
-        return Some((register_fqn(kt, imports), false));
+        return Some((register_fqn(kt, imports), None));
     }
     if let Some(out_entry) = registry.output_entry(ty) {
         if let Some(kt) = kotlin_for_wire(&out_entry.destination) {
-            return Some((register_fqn(&kt, imports), false));
+            return Some((register_fqn(&kt, imports), None));
         }
     }
     None
