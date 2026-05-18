@@ -83,6 +83,15 @@ pub struct TypeEntry {
     /// Wrappers (`Option<_>`, sum-typed enums) carve from this set for
     /// their own discriminants. See [`Niches`] for the cascade model.
     pub niches: Niches,
+    /// Source-arm metadata for `impl Into<target>` dispatcher entries —
+    /// `Some(...)` only when this entry was produced by
+    /// [`crate::core::prebindgen_ext::PrebindgenExt::dispatch_into_input`].
+    /// Language-side wrapper emitters (e.g. the Kotlin emitter in
+    /// `jni_kotlin_ext.rs`) read this to drive per-source `is JNI<X>`
+    /// fan-out — one Java-side arm per declared
+    /// [`crate::core::prebindgen_ext::IntoSource`] with the source's
+    /// borrow/consume mode. `None` for every non-dispatcher entry.
+    pub into_sources: Option<Vec<crate::core::prebindgen_ext::IntoSource>>,
 }
 
 /// Direction of a converter pair.

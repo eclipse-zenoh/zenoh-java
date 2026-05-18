@@ -192,6 +192,7 @@ fn try_resolve_entry<E: PrebindgenExt>(
             subs: vec![],
             required: scan_required,
             niches: c.niches,
+            into_sources: None,
         });
     }
 
@@ -238,7 +239,10 @@ fn try_resolve_entry<E: PrebindgenExt>(
         // route to the dedicated dispatcher. The caller spells out
         // every arm (including the identity arm `target → target`
         // with its own borrow/consume mode) — no implicit prepend
-        // here.
+        // here. Source metadata is captured alongside the converter
+        // so it propagates into `TypeEntry::into_sources` (read by
+        // language-side wrapper emitters for per-arm fan-out).
+        let mut captured_sources: Option<Vec<crate::core::prebindgen_ext::IntoSource>> = None;
         let result = result.or_else(|| {
             if dir == Direction::Input
                 && n == 1
@@ -249,7 +253,11 @@ fn try_resolve_entry<E: PrebindgenExt>(
                 if sources.is_empty() {
                     None
                 } else {
-                    ext.dispatch_into_input(target, &sources, registry)
+                    let dispatched = ext.dispatch_into_input(target, &sources, registry);
+                    if dispatched.is_some() {
+                        captured_sources = Some(sources);
+                    }
+                    dispatched
                 }
             } else {
                 None
@@ -263,6 +271,7 @@ fn try_resolve_entry<E: PrebindgenExt>(
                 subs: sub_keys,
                 required: scan_required,
                 niches: c.niches,
+                into_sources: captured_sources,
             });
         }
     }

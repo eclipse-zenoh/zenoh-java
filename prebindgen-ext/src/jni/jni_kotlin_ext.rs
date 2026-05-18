@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 
 use quote::ToTokens;
 
+use crate::core::prebindgen_ext::{IntoSource, IntoSourceMode};
 use crate::core::registry::{extract_fn_trait_args, Registry, TypeKey};
 use crate::jni::jni_ext::{converter_returns_owned_object, JniExt};
 use crate::kotlin::kotlin_ext::{KotlinExt, KotlinFile, WriteKotlinError};
@@ -459,16 +460,11 @@ fn render_wrapper_fn(
     enum ParamMode {
         Borrow,      // &T opaque-handle → withPtr
         Consume,     // T  opaque-handle → consume
-        /// `impl Into<T>` (Kotlin `Any`) whose dispatcher's opaque
-        /// arm borrow-clones (`OwnedObject::from_raw(...).clone()`).
-        /// At runtime: `NativeHandle` arms unwrap via `.withPtr`,
-        /// non-handle sources pass through.
-        BorrowAny,
-        /// `impl Into<T>` (Kotlin `Any`) whose dispatcher's opaque
-        /// arm reconstructs `Box<T>` (`Box::from_raw`). At runtime:
-        /// `NativeHandle` arms surrender the slot via `.consume`,
-        /// non-handle sources pass through.
-        ConsumeAny,
+        /// `impl Into<T>` (Kotlin `Any`). At runtime the parameter
+        /// fans out into one arm per declared
+        /// [`IntoSource`] in `arms`. See
+        /// [`DispatchArm`] for the arm shape.
+        Dispatch { arms: Vec<DispatchArm> },
         PassThrough,
     }
 
@@ -504,10 +500,8 @@ fn render_wrapper_fn(
         };
 
         // Mode: opaque → Borrow/Consume by Rust syntactic shape.
-        // Non-opaque → `Any` triggers BorrowAny / ConsumeAny
-        // (`impl Into<T>` wire = JObject; runtime might be a
-        // NativeHandle that we unwrap before crossing the JNI
-        // boundary). Everything else (primitives, callbacks, data
+        // Non-opaque + `Any` triggers Dispatch — one arm per declared
+        // `IntoSource`. Everything else (primitives, callbacks, data
         // classes) passes through.
         let mode = if is_opaque {
             if matches!(arg_ty, syn::Type::Reference(_)) {
@@ -516,16 +510,9 @@ fn render_wrapper_fn(
                 ParamMode::Consume
             }
         } else if kt_type_raw == "Any" {
-            // The Rust dispatcher's body tells us whether the opaque
-            // arm consumes the `Box` (`Box::from_raw`) or borrow-clones
-            // it (`OwnedObject::from_raw(...).clone()`). Inspect the
-            // already-emitted function for the consume marker so the
-            // Kotlin side matches: `.consume` write-locks + nulls the
-            // slot, while `.withPtr` keeps it alive.
-            if dispatcher_consumes_opaque(&entry.function) {
-                ParamMode::ConsumeAny
-            } else {
-                ParamMode::BorrowAny
+            let sources = entry.into_sources.as_deref().unwrap_or(&[]);
+            ParamMode::Dispatch {
+                arms: build_dispatch_arms(sources, kotlin_types, imports),
             }
         } else {
             ParamMode::PassThrough
@@ -543,25 +530,27 @@ fn render_wrapper_fn(
     // Return type: peel ZResult<...>; detect opaque-handle return.
     let (kt_return, return_is_opaque) = classify_return(&f.sig.output, registry, kotlin_types, imports)?;
 
-    // Helper: build the JNINative call for a given Borrow/ConsumeAny
-    // "unwrap mask". mask bit k = 1 means dispatch_indices[k] is
-    // unwrapped (use `<name>_ptr`).
+    // Indices of Dispatch-mode params.
     let dispatch_indices: Vec<usize> = params
         .iter()
         .enumerate()
-        .filter_map(|(i, p)| {
-            matches!(p.mode, ParamMode::BorrowAny | ParamMode::ConsumeAny).then_some(i)
-        })
+        .filter_map(|(i, p)| matches!(p.mode, ParamMode::Dispatch { .. }).then_some(i))
         .collect();
 
-    let build_call = |mask: u32| -> String {
+    // Build the JNINative call for a given per-Dispatch arm selection.
+    // `arm_choice[k]` is the index into the arms list for
+    // `dispatch_indices[k]`; values are interpreted by the arm itself
+    // — `Unwrap` arms pass `<name>_ptr`, every other arm passes the
+    // raw `<name>` (typed handle or non-handle value, untouched).
+    let build_call = |arm_choice: &[usize]| -> String {
         let mut args: Vec<String> = Vec::with_capacity(params.len());
         for (i, p) in params.iter().enumerate() {
-            let arg = match p.mode {
+            let arg = match &p.mode {
                 ParamMode::Borrow | ParamMode::Consume => format!("{}_ptr", p.kt_name),
-                ParamMode::BorrowAny | ParamMode::ConsumeAny => {
+                ParamMode::Dispatch { arms } => {
                     let pos = dispatch_indices.iter().position(|&di| di == i).unwrap();
-                    if (mask >> pos) & 1 == 1 {
+                    let arm = &arms[arm_choice[pos]];
+                    if arm.unwrap_to_ptr {
                         format!("{}_ptr", p.kt_name)
                     } else {
                         p.kt_name.clone()
@@ -578,46 +567,72 @@ fn render_wrapper_fn(
         call
     };
 
-    // Per-Any scope qualifier: `withPtr` (BorrowAny) or `consume`
-    // (ConsumeAny). Matches the Rust dispatcher's opaque-arm body
-    // (`.clone()` vs `Box::from_raw`).
-    let dispatch_qualifiers: Vec<&'static str> = dispatch_indices
-        .iter()
-        .map(|&i| match params[i].mode {
-            ParamMode::ConsumeAny => "consume",
-            _ => "withPtr",
-        })
-        .collect();
-
-    // Build the Borrow/ConsumeAny decision tree. At each level we
-    // pick one dispatch_indices[level]:
-    // `if (p is NativeHandle) p.<qual> { ... } else { ... }`,
-    // where <qual> = `withPtr` for BorrowAny and `consume` for
-    // ConsumeAny.
+    // Recurse over Dispatch params; at each level enumerate arms.
     fn build_tree(
         level: usize,
-        mask: u32,
+        choice: &mut Vec<usize>,
         dispatch_indices: &[usize],
-        qualifiers: &[&str],
-        params: &[(String, ())],
-        build_call: &dyn Fn(u32) -> String,
+        params: &[Param],
+        build_call: &dyn Fn(&[usize]) -> String,
     ) -> String {
         if level == dispatch_indices.len() {
-            return build_call(mask);
+            return build_call(choice);
         }
-        let name = &params[dispatch_indices[level]].0;
-        let qual = qualifiers[level];
-        let with_branch = build_tree(level + 1, mask | (1 << level), dispatch_indices, qualifiers, params, build_call);
-        let else_branch = build_tree(level + 1, mask, dispatch_indices, qualifiers, params, build_call);
-        format!(
-            "if ({name} is NativeHandle) {name}.{qual} {{ {name}_ptr ->\n    {with_branch}\n}} else {{\n    {else_branch}\n}}"
-        )
+        let pi = dispatch_indices[level];
+        let arms = match &params[pi].mode {
+            ParamMode::Dispatch { arms } => arms,
+            _ => unreachable!("dispatch_indices points only at Dispatch params"),
+        };
+        let name = &params[pi].kt_name;
+
+        // Emit the if/else-if chain over arms, with the final
+        // `else` carrying the unconditional-pass-through branch.
+        let mut out = String::new();
+        for (k, arm) in arms.iter().enumerate() {
+            choice.push(k);
+            let inner = build_tree(level + 1, choice, dispatch_indices, params, build_call);
+            choice.pop();
+            // The lock-scope wrapper (`.withPtr` / `.consume`) lives
+            // around each NativeHandle-typed arm; non-handle arms
+            // (`String`, no-runtime-check else) just inline `inner`.
+            // Lambda capture: `<name>_ptr` for unwrap arms (the inner
+            // call references it), `_` for typed-handle arms (the
+            // inner call passes the typed handle directly to JNI).
+            let capture = if arm.unwrap_to_ptr {
+                format!("{name}_ptr")
+            } else {
+                "_".to_string()
+            };
+            let arm_body = match (&arm.runtime_check, &arm.lock_qual) {
+                (Some(check), Some(qual)) => format!(
+                    "{prefix} ({name} is {check}) {name}.{qual} {{ {capture} ->\n    {inner}\n}}",
+                    prefix = if k == 0 { "if" } else { " else if" },
+                ),
+                (Some(check), None) => format!(
+                    "{prefix} ({name} is {check}) {{\n    {inner}\n}}",
+                    prefix = if k == 0 { "if" } else { " else if" },
+                ),
+                (None, _) => {
+                    // Catch-all else branch (no runtime check).
+                    if k == 0 {
+                        // Single unconditional arm (no opaque sources
+                        // declared) — skip the if/else scaffolding.
+                        inner.clone()
+                    } else {
+                        format!(" else {{\n    {inner}\n}}")
+                    }
+                }
+            };
+            out.push_str(&arm_body);
+        }
+        out
     }
 
-    let param_names_for_tree: Vec<(String, ())> = params.iter().map(|p| (p.kt_name.clone(), ())).collect();
-    let mut body_expr = build_tree(0, 0, &dispatch_indices, &dispatch_qualifiers, &param_names_for_tree, &build_call);
+    let mut choice: Vec<usize> = Vec::with_capacity(dispatch_indices.len());
+    let mut body_expr = build_tree(0, &mut choice, &dispatch_indices, &params, &build_call);
 
-    // Wrap with nested withPtr/consume from innermost to outermost.
+    // Wrap with nested withPtr/consume from innermost to outermost
+    // for the syntactic-opaque (Borrow/Consume) params.
     for p in params.iter().rev() {
         match p.mode {
             ParamMode::Borrow => {
@@ -634,7 +649,7 @@ fn render_wrapper_fn(
                     expr = body_expr,
                 );
             }
-            ParamMode::BorrowAny | ParamMode::ConsumeAny | ParamMode::PassThrough => {}
+            ParamMode::Dispatch { .. } | ParamMode::PassThrough => {}
         }
     }
 
@@ -650,27 +665,132 @@ fn render_wrapper_fn(
     Some(out)
 }
 
-/// Detect whether an `impl Into<T>` dispatcher's body reconstructs a
-/// `Box<T>` from the inbound jlong (i.e. at least one source arm is
-/// declared `IntoSourceMode::Consume`). The Kotlin caller for a
-/// Consume-mode parameter must surrender the slot via
-/// `NativeHandle.consume`; for a Borrow-only dispatcher it stays on
-/// `NativeHandle.withPtr`.
-///
-/// Inspection is by token-stream search for `Box :: from_raw` inside
-/// the generated `ItemFn`'s body. The dispatcher emitter at
-/// `jni_ext.rs:emit_into_dispatcher` is the only producer of that
-/// pattern in this code path, so the marker is unambiguous.
-///
-/// Note (Step 1 limit): the check is target-uniform. When the
-/// dispatcher mixes Borrow and Consume opaque arms, every runtime
-/// `is NativeHandle` match is treated as Consume — fine for the
-/// single-opaque-source case (today's only usage), but a Step 2
-/// follow-up is needed for per-arm differentiation via typed
-/// `JNI<T>` Java classes.
-fn dispatcher_consumes_opaque(item_fn: &syn::ItemFn) -> bool {
-    let tokens = item_fn.block.to_token_stream().to_string();
-    tokens.contains("Box :: from_raw") || tokens.contains("Box::from_raw")
+/// One arm of an `impl Into<T>` parameter's Java-side dispatch tree.
+/// Produced by [`build_dispatch_arms`] from the
+/// [`IntoSource`] list the resolver stored on
+/// `TypeEntry::into_sources`.
+struct DispatchArm {
+    /// `is <KotlinShortName>` check, or `None` for the unconditional
+    /// catch-all arm placed last. Examples:
+    /// * `Some("JNISession")` — typed-FQN arm; the JNI dispatcher's
+    ///   matching arm does `instanceof io/zenoh/jni/JNISession` and
+    ///   reads the pointer via `.peek()`. Kotlin holds the lock via
+    ///   `.<lock_qual>` and passes the typed handle to JNI unchanged.
+    /// * `Some("NativeHandle")` — generic opaque catch-all for
+    ///   sources whose Kotlin class isn't registered as a typed FQN.
+    ///   The JNI dispatcher's matching arm does `instanceof
+    ///   java.lang.Long` and reads the autoboxed long via
+    ///   `longValue()`; Kotlin unwraps to `Long` via
+    ///   `.<lock_qual> { ptr -> ... }` and passes `ptr` (autoboxed).
+    /// * `None` — final else; emits the JNI call unconditionally on
+    ///   the raw `Any` parameter. Covers non-opaque source kinds
+    ///   (e.g. `String`, `Int`) whose JNI side does its own
+    ///   per-class `instanceof` checks downstream of the wire.
+    runtime_check: Option<String>,
+    /// `withPtr` / `consume` — scope qualifier on the typed handle
+    /// (`is NativeHandle` arms only). `None` for the non-handle
+    /// catch-all (no lock to acquire).
+    lock_qual: Option<&'static str>,
+    /// `true` → JNI receives `<name>_ptr` (the `Long` extracted by
+    /// `.withPtr`/`.consume`, autoboxed to `java.lang.Long`).
+    /// `false` → JNI receives the parameter as-is (typed handle for
+    /// typed-FQN arms, raw value for the catch-all). The two cases
+    /// pair with the JNI-side `instanceof` shape — `java.lang.Long`
+    /// vs typed FQN vs whatever non-opaque source class.
+    unwrap_to_ptr: bool,
+}
+
+/// Translate the resolver-recorded `IntoSource` list into the Kotlin
+/// emit's per-arm dispatch shape. Arm ordering matters: typed-FQN
+/// arms come first (so they aren't swallowed by the
+/// `is NativeHandle` catch-all), then the catch-all `is NativeHandle`
+/// arm if any non-typed opaque source is declared, then the final
+/// non-handle catch-all `else` for `String`/etc. source kinds.
+fn build_dispatch_arms(
+    sources: &[IntoSource],
+    kotlin_types: &KotlinTypeMap,
+    imports: &mut BTreeSet<String>,
+) -> Vec<DispatchArm> {
+    use crate::core::registry::TypeKey;
+
+    let mut typed: Vec<DispatchArm> = Vec::new();
+    let mut has_untyped_opaque = false;
+    let mut has_non_opaque = false;
+    let mut untyped_opaque_qual: &'static str = "withPtr";
+
+    for src in sources {
+        let canon = TypeKey::from_type(&src.source_type).as_str().to_string();
+        let qual: &'static str = match src.mode {
+            IntoSourceMode::Borrow => "withPtr",
+            IntoSourceMode::Consume => "consume",
+        };
+        match kotlin_types.lookup(&canon) {
+            Some(fqn) if fqn.contains('.') => {
+                // Typed-FQN opaque source — emit `is <Short>` arm; JNI
+                // dispatcher reads via `.peek()` so we pass the typed
+                // handle through (no Long unwrap).
+                let short = register_fqn(fqn, imports);
+                typed.push(DispatchArm {
+                    runtime_check: Some(short),
+                    lock_qual: Some(qual),
+                    unwrap_to_ptr: false,
+                });
+            }
+            _ => {
+                // Two cases collapse into one Kotlin-side branch:
+                //
+                // 1. Opaque source without a registered typed FQN —
+                //    the JNI dispatcher's matching arm does
+                //    `instanceof java.lang.Long` + `longValue()`.
+                //    Kotlin unwraps to `Long` via the captured-ptr
+                //    closure (autoboxed when passed as `Any`).
+                // 2. Non-opaque source (e.g. `String`) — handled by
+                //    the JNI dispatcher's own non-Long `instanceof`
+                //    arm. Kotlin passes the raw value through with no
+                //    lock or unwrap; we only emit the catch-all else
+                //    once.
+                //
+                // We can't determine here whether (1) or (2) applies
+                // without inspecting the source's registered input
+                // converter — that wire-shape info lives on the
+                // registry entry, which we don't have access to in
+                // this helper. Heuristic: if the Kotlin type map has
+                // no FQN-form mapping (with a `.`), treat as opaque
+                // catch-all; the lock_qual escalates to `consume` if
+                // any such source is Consume mode.
+                has_untyped_opaque = true;
+                if matches!(src.mode, IntoSourceMode::Consume) {
+                    untyped_opaque_qual = "consume";
+                }
+                // Mark non-opaque presence too — for sources whose
+                // Rust type is e.g. `String`, the catch-all else
+                // arm at the end handles them.
+                has_non_opaque = true;
+            }
+        }
+    }
+
+    let mut arms = typed;
+    if has_untyped_opaque {
+        // Generic opaque catch-all — handles every source whose
+        // Kotlin class isn't typed-FQN-registered. Single arm
+        // regardless of source count; JNI side does the per-source
+        // `instanceof` (typically all on `java.lang.Long`).
+        arms.push(DispatchArm {
+            runtime_check: Some("NativeHandle".to_string()),
+            lock_qual: Some(untyped_opaque_qual),
+            unwrap_to_ptr: true,
+        });
+    }
+    let _ = has_non_opaque;
+    // Final unconditional else — JNI dispatcher's own `instanceof`
+    // chain handles non-opaque source classes (String, etc.).
+    arms.push(DispatchArm {
+        runtime_check: None,
+        lock_qual: None,
+        unwrap_to_ptr: false,
+    });
+    arms
 }
 
 /// True iff the wire type is `jni::sys::jlong` (or the bare `jlong`

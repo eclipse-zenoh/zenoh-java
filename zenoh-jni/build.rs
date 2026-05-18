@@ -408,7 +408,22 @@ fn main() {
         // still compile, so we point them at `kotlin.Any`).
         .kotlin_type_fqn("Sample", "io.zenoh.jni.Sample")
         .kotlin_type_fqn("Query", "kotlin.Any")
-        .kotlin_type_fqn("Reply", "kotlin.Any");
+        .kotlin_type_fqn("Reply", "kotlin.Any")
+        // Typed-handle FQNs for opaque-handle Rust types whose Kotlin
+        // class exists (hand-written `NativeHandle` subclasses in
+        // `zenoh-jni-runtime/.../JNI*.kt`). Registering an FQN here
+        // lets `jobject_to_wire_adapter` switch the JNI-side
+        // `instanceof` check from the shared `java.lang.Long` (which
+        // collides across all jlong-wired sources) to the per-type
+        // `instanceof io/zenoh/jni/JNI*` (distinguishable per source)
+        // when the type appears as a Borrow-mode source in some
+        // `impl Into<T>` target. Dormant for any type not currently
+        // declared as such a source. Skipped: `ZKeyExpr<'static>`,
+        // because `JNIKeyExpr.kt` is helpers-only today (no class) —
+        // its only current dispatcher arm stays on `java.lang.Long`.
+        .kotlin_type_fqn("Session", "io.zenoh.jni.JNISession")
+        .kotlin_type_fqn("Config", "io.zenoh.jni.JNIConfig")
+        .kotlin_type_fqn("Publisher < 'static >", "io.zenoh.jni.JNIPublisher");
     let ext = ZenohJniExt::new(jni);
     resolve::resolve(&mut registry, &ext).expect("unresolved required types");
 
