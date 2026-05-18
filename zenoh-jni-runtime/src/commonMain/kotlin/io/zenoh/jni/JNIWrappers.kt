@@ -11,6 +11,7 @@ import io.zenoh.jni.JNIKeyExpr
 import io.zenoh.jni.JNIPublisher
 import io.zenoh.jni.JNIQuerier
 import io.zenoh.jni.JNIQueryable
+import io.zenoh.jni.JNISession
 import io.zenoh.jni.JNISubscriber
 import io.zenoh.jni.MissDetectionConfig
 import io.zenoh.jni.RecoveryConfig
@@ -191,7 +192,7 @@ public object JNIWrappers {
     @Throws(ZError::class)
     public fun openSession(config: NativeHandle): NativeHandle =
         config.withPtr { config_ptr ->
-        NativeHandle(JNINative.openSessionViaJNI(config_ptr))
+        JNISession(JNINative.openSessionViaJNI(config_ptr))
     }
 
     @Throws(ZError::class)

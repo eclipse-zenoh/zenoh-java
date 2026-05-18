@@ -202,6 +202,36 @@ impl fmt::Display for ScanError {
 
 impl std::error::Error for ScanError {}
 
+/// Combined error surfaced by [`Registry::write_rust`].
+#[derive(Debug)]
+pub enum WriteRustError {
+    Resolve(crate::core::resolve::ResolveError),
+    Write(crate::core::write::WriteError),
+}
+
+impl fmt::Display for WriteRustError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            WriteRustError::Resolve(e) => write!(f, "{}", e),
+            WriteRustError::Write(e) => write!(f, "{}", e),
+        }
+    }
+}
+
+impl std::error::Error for WriteRustError {}
+
+impl From<crate::core::resolve::ResolveError> for WriteRustError {
+    fn from(e: crate::core::resolve::ResolveError) -> Self {
+        WriteRustError::Resolve(e)
+    }
+}
+
+impl From<crate::core::write::WriteError> for WriteRustError {
+    fn from(e: crate::core::write::WriteError) -> Self {
+        WriteRustError::Write(e)
+    }
+}
+
 impl Registry {
     /// Construct a `Registry` by scanning a `prebindgen::Source`.
     pub fn from_source(source: &Source) -> Result<Self, ScanError> {
@@ -466,6 +496,19 @@ impl Registry {
             };
         }
         self.type_locations.entry(key).or_insert_with(|| loc.clone());
+    }
+
+    /// One-shot: resolve every required type using `ext`, then write the
+    /// generated Rust bindings file. The single public entry point for
+    /// language-specific binding generation — language-agnostic because
+    /// `ext` is any [`crate::core::prebindgen_ext::PrebindgenExt`] impl.
+    pub fn write_rust<E: crate::core::prebindgen_ext::PrebindgenExt>(
+        &mut self,
+        ext: &E,
+        out_path: impl AsRef<std::path::Path>,
+    ) -> Result<std::path::PathBuf, WriteRustError> {
+        crate::core::resolve::resolve(self, ext)?;
+        Ok(crate::core::write::write_rust(self, ext, out_path)?)
     }
 }
 

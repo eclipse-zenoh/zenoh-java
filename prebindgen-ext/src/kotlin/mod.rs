@@ -1,16 +1,10 @@
-//! Kotlin interface declaration generator.
+//! Kotlin emission support for back-ends that produce Kotlin output.
 //!
-//! Reads the same item stream that drives the Rust converters, plus a
-//! [`KotlinTypeMap`] (Rust type-shape → Kotlin name) and the universal
-//! [`TypeRegistry`] (used for wire-side metadata like `is_pointer`), and
-//! emits a `.kt` file containing the JNI surface as
-//! `data class` definitions and `external fun` prototypes inside an
-//! `internal object`.
+//! `kotlin_ext` exposes the shared `KotlinFile` / `WriteKotlinError`
+//! types; `type_map` is the internal `KotlinTypeMap` (Rust → Kotlin
+//! name lookup) consumed by `crate::jni::jni_kotlin_ext`. Both modules
+//! are `pub(crate)` — Kotlin emission is JniExt-inherent and not
+//! exposed at the crate boundary.
 
-pub mod interface_generator;
-pub mod kotlin_ext;
-pub mod type_map;
-
-pub use interface_generator::{KotlinInterfaceBuilder, KotlinInterfaceGenerator};
-pub use kotlin_ext::{write_kotlin, KotlinExt, KotlinFile, WriteKotlinError};
-pub use type_map::KotlinTypeMap;
+pub(crate) mod kotlin_ext;
+pub(crate) mod type_map;

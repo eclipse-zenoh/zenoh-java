@@ -20,7 +20,7 @@ use quote::ToTokens;
 use crate::core::prebindgen_ext::{IntoSource, IntoSourceMode};
 use crate::core::registry::{extract_fn_trait_args, Registry, TypeKey};
 use crate::jni::jni_ext::{converter_returns_owned_object, JniExt};
-use crate::kotlin::kotlin_ext::{KotlinExt, KotlinFile, WriteKotlinError};
+use crate::kotlin::kotlin_ext::{KotlinFile, WriteKotlinError};
 use crate::kotlin::type_map::KotlinTypeMap;
 
 /// Declaration of one auto-generated typed `NativeHandle` subclass.
@@ -31,7 +31,7 @@ use crate::kotlin::type_map::KotlinTypeMap;
 /// home for the named `#[prebindgen]` functions"; everything else stays
 /// in the catch-all `JNIWrappers` object.
 #[derive(Clone, Copy)]
-pub struct TypedHandle<'a> {
+pub(crate) struct TypedHandle<'a> {
     /// Short Rust name shown in the class doc comment (e.g. `"Publisher"`).
     /// Pure documentation, doesn't have to match anything in the Registry.
     pub rust_doc: &'a str,
@@ -57,22 +57,65 @@ fn rust_key_for_fqn<'a>(ext: &'a JniExt, fqn: &str) -> Option<&'a str> {
         .find_map(|(rust, k)| (k == fqn).then_some(rust.as_str()))
 }
 
-impl KotlinExt for JniExt {
-    fn write_kotlin(
+impl JniExt {
+    /// Unified Kotlin emission — single public entry point that fans out
+    /// to per-callback fun-interface files, `NativeHandle.kt`, typed-handle
+    /// classes (one per `opaque_handle` registration), and
+    /// `JNIWrappers.kt`. Reads all configuration (typed-handle methods,
+    /// callback FQN overrides, Kotlin type names) from internal state set
+    /// during the builder phase. Returns every path written.
+    pub fn write_kotlin(
         &self,
         registry: &Registry,
-        output_dir: &Path,
+        kotlin_root: &Path,
     ) -> Result<Vec<PathBuf>, WriteKotlinError> {
-        // Iterate every resolved type entry in either direction and look for
-        // impl Fn(...) wires. Deduplicate by canonical type key.
+        let mut written = Vec::new();
+        written.extend(self.emit_callback_files(registry)?);
+        written.push(self.write_native_handle(kotlin_root)?);
+
+        // Build the borrowed `TypedHandle<'_>` view from internal config.
+        // The two layers (owned + slice-of-borrowed) keep the borrow
+        // checker happy with the existing internal API.
+        let owned = self.collect_typed_handles();
+        let method_refs: Vec<Vec<&str>> = owned
+            .iter()
+            .map(|h| h.methods.iter().map(String::as_str).collect())
+            .collect();
+        let typed_handles: Vec<TypedHandle<'_>> = owned
+            .iter()
+            .zip(method_refs.iter())
+            .map(|(h, m)| TypedHandle {
+                rust_doc: &h.rust_doc,
+                kotlin_fqn: &h.kotlin_fqn,
+                functions: m.as_slice(),
+            })
+            .collect();
+        let kotlin_types = self.build_kotlin_type_map();
+        written.extend(self.write_typed_handles(
+            &typed_handles,
+            registry,
+            &kotlin_types,
+            kotlin_root,
+        )?);
+        written.push(self.write_jni_wrappers(
+            registry,
+            &kotlin_types,
+            &typed_handles,
+            kotlin_root,
+        )?);
+        Ok(written)
+    }
+
+    /// Per-callback fun-interface emission (one `JNI<Stem>Callback.kt`
+    /// file per `impl Fn(...)` type encountered in the resolved
+    /// registry). Previously the body of the `KotlinExt` trait impl.
+    pub(crate) fn emit_callback_files(
+        &self,
+        registry: &Registry,
+    ) -> Result<Vec<PathBuf>, WriteKotlinError> {
         let mut seen: HashSet<TypeKey> = HashSet::new();
         let mut written = Vec::new();
-        let target_dir = if !self.kotlin_callback_dir.as_os_str().is_empty() {
-            self.kotlin_callback_dir.clone()
-        } else {
-            output_dir.to_path_buf()
-        };
-
+        let target_dir = self.kotlin_callback_dir.clone();
         for buckets in [&registry.input_types, &registry.output_types] {
             for bucket in buckets.iter() {
                 for (key, slot) in bucket {
@@ -85,9 +128,6 @@ impl KotlinExt for JniExt {
                     let ty = key.to_type();
                     if let Some(args) = extract_fn_trait_args(&ty) {
                         let file = build_callback_kotlin_file(self, &args, registry);
-                        // Write directly under target_dir (which is already
-                        // the package-qualified callbacks directory),
-                        // bypassing KotlinFile::write's package-nesting.
                         std::fs::create_dir_all(&target_dir)?;
                         let path = target_dir.join(format!("{}.kt", file.class_name));
                         std::fs::write(&path, &file.contents)?;
@@ -98,6 +138,62 @@ impl KotlinExt for JniExt {
         }
         Ok(written)
     }
+
+    /// Build the `TypedHandle` slice from internal `types` config.
+    /// Iterates entries where `opaque.is_some()` and emits one
+    /// `TypedHandle` per opaque-handle registration. Stable order by
+    /// canonical Rust type-key — keeps generated output deterministic.
+    fn collect_typed_handles(&self) -> Vec<OwnedTypedHandle> {
+        let mut handles: Vec<OwnedTypedHandle> = Vec::new();
+        let mut keys: Vec<&TypeKey> = self.types.keys().collect();
+        keys.sort_by(|a, b| a.as_str().cmp(b.as_str()));
+        for key in keys {
+            let cfg = &self.types[key];
+            let Some(opaque) = &cfg.opaque else { continue };
+            if !opaque.emit_kotlin_class {
+                continue;
+            }
+            let Some(kotlin_fqn) = &cfg.kotlin_name else { continue };
+            // rust_doc — short last-segment of the Rust type key (best
+            // effort; only used in the generated doc comment).
+            let rust_doc = key
+                .as_str()
+                .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+                .find(|s| !s.is_empty())
+                .unwrap_or(key.as_str())
+                .to_string();
+            handles.push(OwnedTypedHandle {
+                rust_doc,
+                kotlin_fqn: kotlin_fqn.clone(),
+                methods: opaque.methods.clone(),
+            });
+        }
+        handles
+    }
+
+    /// Build the `KotlinTypeMap` view consumed by the typed-handle and
+    /// JNIWrappers emitters. Combines callback FQNs from
+    /// [`Self::collect_kotlin_callback_fqns`] (auto-derived or
+    /// override) with `kotlin_name` entries from the structured config.
+    /// Structured-config entries win on conflict.
+    fn build_kotlin_type_map(&self) -> KotlinTypeMap {
+        let mut map = KotlinTypeMap::new().with_primitive_builtins();
+        for (key, cfg) in &self.types {
+            if let Some(name) = &cfg.kotlin_name {
+                map = map.add(key.as_str(), name.clone());
+            }
+        }
+        map
+    }
+}
+
+/// Owned counterpart of [`TypedHandle`] — used internally so the
+/// `collect_typed_handles` helper doesn't have to hand out borrows of
+/// `self.types`.
+pub(crate) struct OwnedTypedHandle {
+    pub rust_doc: String,
+    pub kotlin_fqn: String,
+    pub methods: Vec<String>,
 }
 
 impl JniExt {
@@ -107,7 +203,7 @@ impl JniExt {
     /// borrows, `consume` for by-value `T` opaque-handle drops. By
     /// generating it here, the prebindgen-ext pipeline owns the lock
     /// primitive the rest of the auto-generated wrappers depend on.
-    pub fn write_native_handle(&self, output_dir: &Path) -> Result<PathBuf, WriteKotlinError> {
+    pub(crate) fn write_native_handle(&self, output_dir: &Path) -> Result<PathBuf, WriteKotlinError> {
         let file = KotlinFile {
             package: "io.zenoh.jni".into(),
             class_name: "NativeHandle".into(),
@@ -127,7 +223,7 @@ impl JniExt {
     /// Non-opaque parameters pass through with the Kotlin type from
     /// `kotlin_types`. Opaque-handle return values are wrapped in
     /// `NativeHandle(...)` before being returned.
-    pub fn write_jni_wrappers(
+    pub(crate) fn write_jni_wrappers(
         &self,
         registry: &Registry,
         kotlin_types: &KotlinTypeMap,
@@ -168,7 +264,7 @@ impl JniExt {
     /// [`Self::kotlin_type_fqn`] so the generator can map it back to its
     /// Rust type-key (which identifies the first param to drop in each
     /// promoted method's signature).
-    pub fn write_typed_handles(
+    pub(crate) fn write_typed_handles(
         &self,
         handles: &[TypedHandle<'_>],
         registry: &Registry,
@@ -232,7 +328,7 @@ impl JniExt {
     /// `impl Fn(args)` type the Registry has resolved. Use this to merge
     /// into a `KotlinTypeMap` consumed by the aggregated-interface
     /// generator (so it can refer to callbacks by their Kotlin FQN).
-    pub fn collect_kotlin_callback_fqns(&self, registry: &Registry) -> KotlinTypeMap {
+    pub(crate) fn collect_kotlin_callback_fqns(&self, registry: &Registry) -> KotlinTypeMap {
         let mut map = KotlinTypeMap::new();
         let mut seen: HashSet<TypeKey> = HashSet::new();
         for buckets in [&registry.input_types, &registry.output_types] {
