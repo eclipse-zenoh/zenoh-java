@@ -16,7 +16,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use prebindgen::{Source, SourceLocation};
+use prebindgen::SourceLocation;
 use quote::ToTokens;
 
 use crate::core::niches::Niches;
@@ -233,12 +233,20 @@ impl From<crate::core::write::WriteError> for WriteRustError {
 }
 
 impl Registry {
-    /// Construct a `Registry` by scanning a `prebindgen::Source`.
-    pub fn from_source(source: &Source) -> Result<Self, ScanError> {
+    /// Construct a `Registry` by scanning a stream of source items.
+    ///
+    /// Callers feed any `(syn::Item, SourceLocation)` iterator — typically
+    /// `source.items_all()`, `source.items_except_groups(...)`, or a
+    /// hand-rolled filter chain — so item-level selection happens upstream
+    /// of the registry rather than inside it.
+    pub fn from_items<I>(items: I) -> Result<Self, ScanError>
+    where
+        I: IntoIterator<Item = (syn::Item, SourceLocation)>,
+    {
         let mut registry = Registry::default();
 
         // Phase 1 — index all items.
-        for (item, loc) in source.items_all() {
+        for (item, loc) in items {
             registry.index_item(item, loc)?;
         }
 

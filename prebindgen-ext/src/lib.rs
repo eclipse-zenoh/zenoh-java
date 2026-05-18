@@ -1,7 +1,9 @@
 //! Registry-based universal converter pipeline for `#[prebindgen]` items.
 //!
 //! Pipeline:
-//!   1. [`core::Registry::from_source`] scans a `prebindgen::Source`.
+//!   1. [`core::Registry::from_items`] scans a stream of
+//!      `(syn::Item, SourceLocation)` (typically `source.items_all()`,
+//!      with optional upstream filtering).
 //!   2. [`core::Registry::write_rust`] resolves every required type via
 //!      a configured [`core::prebindgen_ext::PrebindgenExt`] and writes
 //!      the generated Rust bindings file. Language-agnostic — any

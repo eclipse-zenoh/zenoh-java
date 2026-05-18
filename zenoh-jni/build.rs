@@ -161,7 +161,7 @@ fn main() {
 
     // ── Write Rust bindings ───────────────────────────────────────────
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
-    let mut registry = Registry::from_source(&source).expect("scan failed");
+    let mut registry = Registry::from_items(source.items_all()).expect("scan failed");
     let rust_path = registry
         .write_rust(&jni, "zenoh_flat_jni.rs")
         .expect("write rust failed");
