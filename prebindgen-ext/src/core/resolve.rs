@@ -83,12 +83,12 @@ impl std::error::Error for ResolveError {}
 /// output resolves in the same iteration as everything else, then
 /// `impl Fn(Sample)`'s rank-1 attempt succeeds in the next.
 pub fn resolve<E: PrebindgenExt>(
-    registry: &mut Registry,
+    registry: &mut Registry<E::Metadata>,
     ext: &E,
 ) -> Result<(), ResolveError> {
     loop {
-        let mut deltas_in: Vec<(usize, TypeKey, TypeEntry)> = Vec::new();
-        let mut deltas_out: Vec<(usize, TypeKey, TypeEntry)> = Vec::new();
+        let mut deltas_in: Vec<(usize, TypeKey, TypeEntry<E::Metadata>)> = Vec::new();
+        let mut deltas_out: Vec<(usize, TypeKey, TypeEntry<E::Metadata>)> = Vec::new();
         for n in 0..=MAX_RANK {
             deltas_in.extend(collect_phase_deltas(registry, Direction::Input, n, ext));
             deltas_out.extend(collect_phase_deltas(registry, Direction::Output, n, ext));
@@ -106,12 +106,12 @@ pub fn resolve<E: PrebindgenExt>(
 /// PASS A — walk every unresolved entry in buckets `n..=MAX_RANK`, ask the
 /// ext, collect successful results without mutating the registry.
 fn collect_phase_deltas<E: PrebindgenExt>(
-    registry: &Registry,
+    registry: &Registry<E::Metadata>,
     dir: Direction,
     n: usize,
     ext: &E,
-) -> Vec<(usize, TypeKey, TypeEntry)> {
-    let mut deltas: Vec<(usize, TypeKey, TypeEntry)> = Vec::new();
+) -> Vec<(usize, TypeKey, TypeEntry<E::Metadata>)> {
+    let mut deltas: Vec<(usize, TypeKey, TypeEntry<E::Metadata>)> = Vec::new();
     let buckets = match dir {
         Direction::Input => &registry.input_types,
         Direction::Output => &registry.output_types,
@@ -138,10 +138,10 @@ fn collect_phase_deltas<E: PrebindgenExt>(
 
 /// PASS B — apply collected deltas. Sole writer to the registry maps in
 /// this iteration.
-fn apply_deltas(
-    registry: &mut Registry,
+fn apply_deltas<M>(
+    registry: &mut Registry<M>,
     dir: Direction,
-    deltas: Vec<(usize, TypeKey, TypeEntry)>,
+    deltas: Vec<(usize, TypeKey, TypeEntry<M>)>,
 ) {
     let buckets = match dir {
         Direction::Input => &mut registry.input_types,
@@ -164,10 +164,10 @@ fn try_resolve_entry<E: PrebindgenExt>(
     n: usize,
     dir: Direction,
     scan_required: bool,
-    registry: &Registry,
-) -> Option<TypeEntry> {
+    registry: &Registry<E::Metadata>,
+) -> Option<TypeEntry<E::Metadata>> {
     if n == 0 {
-        let res: Option<ConverterImpl> = match dir {
+        let res: Option<ConverterImpl<E::Metadata>> = match dir {
             Direction::Input => ext.on_input_type_rank_0(key_ty, registry),
             Direction::Output => ext.on_output_type_rank_0(key_ty, registry),
         };
@@ -193,11 +193,12 @@ fn try_resolve_entry<E: PrebindgenExt>(
             required: scan_required,
             niches: c.niches,
             into_sources: None,
+            metadata: c.metadata,
         });
     }
 
     for (pattern, subs) in enumerate_wildcard_subs(key_ty, n) {
-        let result: Option<ConverterImpl> = match (dir, n) {
+        let result: Option<ConverterImpl<E::Metadata>> = match (dir, n) {
             (Direction::Input, 1) => ext.on_input_type_rank_1(&pattern, &subs[0], registry),
             (Direction::Input, 2) => {
                 ext.on_input_type_rank_2(&pattern, &subs[0], &subs[1], registry)
@@ -272,6 +273,7 @@ fn try_resolve_entry<E: PrebindgenExt>(
                 required: scan_required,
                 niches: c.niches,
                 into_sources: captured_sources,
+                metadata: c.metadata,
             });
         }
     }
@@ -509,7 +511,7 @@ fn rebuild_type_with_positions(ty: &syn::Type, new_subs: &[syn::Type]) -> syn::T
 // Required-flag propagation (BFS from required entries through `subs`)
 // ──────────────────────────────────────────────────────────────────────
 
-fn propagate_required(registry: &mut Registry) {
+fn propagate_required<M>(registry: &mut Registry<M>) {
     // Seed the queue from scan-time required keys plus any `required: true`
     // already on resolved entries.
     let mut queue: VecDeque<(Direction, TypeKey)> = VecDeque::new();
@@ -534,7 +536,7 @@ fn propagate_required(registry: &mut Registry) {
     }
 }
 
-fn mark_and_get_subs(registry: &mut Registry, dir: Direction, key: &TypeKey) -> Vec<TypeKey> {
+fn mark_and_get_subs<M>(registry: &mut Registry<M>, dir: Direction, key: &TypeKey) -> Vec<TypeKey> {
     let buckets = match dir {
         Direction::Input => &mut registry.input_types,
         Direction::Output => &mut registry.output_types,
@@ -551,7 +553,7 @@ fn mark_and_get_subs(registry: &mut Registry, dir: Direction, key: &TypeKey) -> 
     vec![]
 }
 
-fn is_required_resolved(registry: &Registry, dir: Direction, key: &TypeKey) -> bool {
+fn is_required_resolved<M>(registry: &Registry<M>, dir: Direction, key: &TypeKey) -> bool {
     let buckets = match dir {
         Direction::Input => &registry.input_types,
         Direction::Output => &registry.output_types,
@@ -564,7 +566,7 @@ fn is_required_resolved(registry: &Registry, dir: Direction, key: &TypeKey) -> b
     false
 }
 
-fn set_required(registry: &mut Registry, dir: Direction, key: &TypeKey) {
+fn set_required<M>(registry: &mut Registry<M>, dir: Direction, key: &TypeKey) {
     match dir {
         Direction::Input => {
             registry.required_inputs_scan.insert(key.clone());
@@ -585,7 +587,7 @@ fn set_required(registry: &mut Registry, dir: Direction, key: &TypeKey) {
     }
 }
 
-fn final_invariant_check(registry: &Registry) -> Result<(), ResolveError> {
+fn final_invariant_check<M>(registry: &Registry<M>) -> Result<(), ResolveError> {
     let mut entries: Vec<UnresolvedEntry> = Vec::new();
     let scan_required_input = &registry.required_inputs_scan;
     let scan_required_output = &registry.required_outputs_scan;

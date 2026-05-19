@@ -63,17 +63,22 @@ fn main() {
         .jint_enum("QueryTarget", "crate::utils::decode_query_target")
         .jint_enum("ConsolidationMode", "crate::utils::decode_consolidation")
         .jint_enum("ReplyKeyExpr", "crate::utils::decode_reply_key_expr")
-        // ── Value-shaped custom converters.
+        // ── Value-shaped custom converters. Non-primitive wires
+        // (`JObject` / `jobject`) chain `with_kotlin_name` to bind the
+        // value-context Kotlin type; primitive wires (`jint`,
+        // `jbyteArray`) auto-derive via `kotlin_for_wire`.
         .input_decoder(
             "Encoding",
             "jni::objects::JObject",
             "crate::utils::decode_jni_encoding(env, &v)?",
         )
+        .with_kotlin_name("io.zenoh.jni.JNIEncoding")
         .input_decoder(
             "Option<Encoding>",
             "jni::objects::JObject",
             "if !v.is_null() { Some(crate::utils::decode_jni_encoding(env, &v)?) } else { None }",
         )
+        .with_kotlin_name("io.zenoh.jni.JNIEncoding")
         .output_encoder(
             "SetIntersectionLevel",
             "jni::sys::jint",
@@ -89,6 +94,7 @@ fn main() {
             "jni::sys::jobject",
             "crate::zenoh_id::zenoh_ids_to_java_list(env, v)?",
         )
+        .with_kotlin_name("List<ByteArray>")
         // ── Manual callback overrides — replaces the auto-generated
         // `process_kotlin_*_callback` dispatcher with a hand-written
         // one and reroutes the Kotlin FQN.
@@ -106,54 +112,19 @@ fn main() {
             "impl Fn() + Send + Sync + 'static",
             "io.zenoh.jni.callbacks.JNIOnCloseCallback",
         )
-        // ── Kotlin type names for value types that have automatic JNI
-        // converters (data classes, primitive aliases, callback param
-        // types whose Kotlin form is hand-maintained).
-        .kotlin_value_type("String", "String")
-        .kotlin_value_type("Option<String>", "String")
-        .kotlin_value_type("Vec<u8>", "ByteArray")
-        .kotlin_value_type("Option<Vec<u8>>", "ByteArray")
-        .kotlin_value_type("CongestionControl", "Int")
-        .kotlin_value_type("Priority", "Int")
-        .kotlin_value_type("Reliability", "Int")
-        .kotlin_value_type("QueryTarget", "Int")
-        .kotlin_value_type("ConsolidationMode", "Int")
-        .kotlin_value_type("ReplyKeyExpr", "Int")
-        .kotlin_value_type("Option<ZKeyExpr<'static>>", "Long")
-        .kotlin_value_type("ZResult<SetIntersectionLevel>", "Int")
-        .kotlin_value_type("Encoding", "io.zenoh.jni.JNIEncoding")
-        .kotlin_value_type("Option<Encoding>", "io.zenoh.jni.JNIEncoding")
-        .kotlin_value_type("&Session", "Long")
-        .kotlin_value_type("&Config", "Long")
-        .kotlin_value_type("ZResult<ZenohId>", "ByteArray")
-        .kotlin_value_type("ZResult<Vec<ZenohId>>", "List<ByteArray>")
-        .kotlin_value_type("ZResult<Session>", "Long")
-        .kotlin_value_type("ZResult<Publisher<'static>>", "Long")
-        .kotlin_value_type("ZResult<Subscriber<()>>", "Long")
-        .kotlin_value_type("ZResult<Querier<'static>>", "Long")
-        .kotlin_value_type("ZResult<Queryable<()>>", "Long")
-        .kotlin_value_type("ZResult<AdvancedSubscriber<()>>", "Long")
-        .kotlin_value_type("ZResult<AdvancedPublisher<'static>>", "Long")
-        .kotlin_value_type("ZResult<bool>", "Boolean")
-        // Data classes — hand-maintained in JNINative.kt.
+        // ── Kotlin names for hand-maintained data classes whose
+        // converters auto-generate from the struct shape but whose
+        // Kotlin form lives in JNINative.kt. Primitives, opaque
+        // handles, `jint_enum`s, `with_kotlin_name`-tagged
+        // decoders/encoders, and every `Option<T>` / `ZResult<T>` /
+        // `&T` wrapper auto-derive their Kotlin names through the
+        // [`KotlinMeta`] propagation in the rank-N handlers — no
+        // build.rs entry needed.
         .kotlin_value_type("Sample", "io.zenoh.jni.Sample")
         .kotlin_value_type("MissDetectionConfig", "io.zenoh.jni.MissDetectionConfig")
         .kotlin_value_type("HistoryConfig", "io.zenoh.jni.HistoryConfig")
         .kotlin_value_type("CacheConfig", "io.zenoh.jni.CacheConfig")
         .kotlin_value_type("RecoveryConfig", "io.zenoh.jni.RecoveryConfig")
-        .kotlin_value_type(
-            "Option<MissDetectionConfig>",
-            "io.zenoh.jni.MissDetectionConfig",
-        )
-        .kotlin_value_type("Option<HistoryConfig>", "io.zenoh.jni.HistoryConfig")
-        .kotlin_value_type("Option<CacheConfig>", "io.zenoh.jni.CacheConfig")
-        .kotlin_value_type("Option<RecoveryConfig>", "io.zenoh.jni.RecoveryConfig")
-        // Callback arg types whose Kotlin form is the hand-written
-        // JNIQueryableCallback / JNIGetCallback (the auto-emitted
-        // JNIQueryCallback / JNIReplyCallback stubs are dead but must
-        // compile, so we point them at `kotlin.Any`).
-        .kotlin_value_type("Query", "kotlin.Any")
-        .kotlin_value_type("Reply", "kotlin.Any")
         // ── impl Into<T> source arms.
         .into_sources(
             "ZKeyExpr<'static>",

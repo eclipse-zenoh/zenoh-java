@@ -20,6 +20,7 @@ use prebindgen::SourceLocation;
 use quote::ToTokens;
 
 use crate::core::niches::Niches;
+use crate::core::prebindgen_ext::IntoSource;
 
 /// Canonical type-shape key — the `to_token_stream().to_string()` form of a
 /// `syn::Type`. Whitespace-normalised (`"Vec<u8>"` and `"Vec < u8 >"` produce
@@ -63,7 +64,7 @@ impl fmt::Display for TypeKey {
 
 /// Per-cell registry entry.
 #[derive(Clone)]
-pub struct TypeEntry {
+pub struct TypeEntry<M = ()> {
     /// Wire/destination type (e.g. `jni::sys::jlong`). Other converters
     /// that ask "what's the wire form of this rust type?" read this.
     pub destination: syn::Type,
@@ -91,7 +92,14 @@ pub struct TypeEntry {
     /// fan-out — one Java-side arm per declared
     /// [`crate::core::prebindgen_ext::IntoSource`] with the source's
     /// borrow/consume mode. `None` for every non-dispatcher entry.
-    pub into_sources: Option<Vec<crate::core::prebindgen_ext::IntoSource>>,
+    pub into_sources: Option<Vec<IntoSource>>,
+    /// Language-specific extras carried in by the
+    /// [`crate::core::prebindgen_ext::ConverterImpl`] that filled this
+    /// slot. Emitter code reads this directly — the registry is the
+    /// single source of truth for cross-language facts (Kotlin names,
+    /// C header names, etc.). Defaults to `()` for back-ends that don't
+    /// need any.
+    pub metadata: M,
 }
 
 /// Direction of a converter pair.
@@ -116,7 +124,14 @@ impl Direction {
 pub const MAX_RANK: usize = 3;
 
 /// Single owner of everything parsed from the prebindgen source stream.
-pub struct Registry {
+///
+/// The metadata parameter `M` is the language back-end's per-converter
+/// extra type, supplied via
+/// [`crate::core::prebindgen_ext::PrebindgenExt::Metadata`]. Each
+/// [`TypeEntry`] carries one `M` copied in by the resolver from the
+/// [`crate::core::prebindgen_ext::ConverterImpl`] that produced it.
+/// Back-ends that don't carry extras leave `M = ()`.
+pub struct Registry<M = ()> {
     pub functions: HashMap<syn::Ident, (syn::ItemFn, SourceLocation)>,
     pub structs: HashMap<syn::Ident, (syn::ItemStruct, SourceLocation)>,
     pub enums: HashMap<syn::Ident, (syn::ItemEnum, SourceLocation)>,
@@ -126,8 +141,8 @@ pub struct Registry {
 
     /// Type tables. `input_types[N]` holds types whose rank is exactly `N`.
     /// A given key appears in exactly one bucket.
-    pub input_types: [HashMap<TypeKey, Option<TypeEntry>>; 4],
-    pub output_types: [HashMap<TypeKey, Option<TypeEntry>>; 4],
+    pub input_types: [HashMap<TypeKey, Option<TypeEntry<M>>>; 4],
+    pub output_types: [HashMap<TypeKey, Option<TypeEntry<M>>>; 4],
 
     /// First-seen source location for each type key. Used in error messages
     /// to point the user at where a required-but-unresolved type came from.
@@ -140,7 +155,7 @@ pub struct Registry {
     pub required_outputs_scan: HashSet<TypeKey>,
 }
 
-impl Default for Registry {
+impl<M> Default for Registry<M> {
     fn default() -> Self {
         Self {
             functions: HashMap::new(),
@@ -156,6 +171,7 @@ impl Default for Registry {
         }
     }
 }
+
 
 /// Errors surfaced by the scan phase.
 #[derive(Debug)]
@@ -232,7 +248,7 @@ impl From<crate::core::write::WriteError> for WriteRustError {
     }
 }
 
-impl Registry {
+impl<M> Registry<M> {
     /// Construct a `Registry` by scanning a stream of source items.
     ///
     /// Callers feed any `(syn::Item, SourceLocation)` iterator — typically
@@ -283,7 +299,7 @@ impl Registry {
     /// was never registered or is still unresolved. The returned entry's
     /// `function.sig.ident` is the converter's call name; `destination` is
     /// its wire form.
-    pub fn input_entry(&self, ty: &syn::Type) -> Option<&TypeEntry> {
+    pub fn input_entry(&self, ty: &syn::Type) -> Option<&TypeEntry<M>> {
         let key = TypeKey::from_type(ty);
         for bucket in &self.input_types {
             if let Some(slot) = bucket.get(&key) {
@@ -294,7 +310,7 @@ impl Registry {
     }
 
     /// Look up the resolved output entry for `ty`. See [`Self::input_entry`].
-    pub fn output_entry(&self, ty: &syn::Type) -> Option<&TypeEntry> {
+    pub fn output_entry(&self, ty: &syn::Type) -> Option<&TypeEntry<M>> {
         let key = TypeKey::from_type(ty);
         for bucket in &self.output_types {
             if let Some(slot) = bucket.get(&key) {
@@ -509,12 +525,17 @@ impl Registry {
     /// One-shot: resolve every required type using `ext`, then write the
     /// generated Rust bindings file. The single public entry point for
     /// language-specific binding generation — language-agnostic because
-    /// `ext` is any [`crate::core::prebindgen_ext::PrebindgenExt`] impl.
-    pub fn write_rust<E: crate::core::prebindgen_ext::PrebindgenExt>(
+    /// `ext` is any [`crate::core::prebindgen_ext::PrebindgenExt`] impl
+    /// whose `Metadata` matches this registry's `M` parameter.
+    pub fn write_rust<E>(
         &mut self,
         ext: &E,
         out_path: impl AsRef<std::path::Path>,
-    ) -> Result<std::path::PathBuf, WriteRustError> {
+    ) -> Result<std::path::PathBuf, WriteRustError>
+    where
+        E: crate::core::prebindgen_ext::PrebindgenExt<Metadata = M>,
+        M: Clone + Default,
+    {
         crate::core::resolve::resolve(self, ext)?;
         Ok(crate::core::write::write_rust(self, ext, out_path)?)
     }

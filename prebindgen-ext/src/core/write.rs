@@ -38,7 +38,7 @@ impl std::error::Error for WriteError {}
 /// `out_path` may be relative (resolved against `OUT_DIR` by prebindgen) or
 /// absolute. Returns the path actually written.
 pub fn write_rust<P: AsRef<Path>, E: PrebindgenExt>(
-    registry: &Registry,
+    registry: &Registry<E::Metadata>,
     ext: &E,
     out_path: P,
 ) -> Result<PathBuf, WriteError> {
@@ -92,7 +92,7 @@ pub fn write_rust<P: AsRef<Path>, E: PrebindgenExt>(
 /// Walk both type tables, dedupe each entry's stored `function` by name,
 /// sort for determinism. Names are read directly off `entry.function.sig.ident`
 /// — the plugin owns the naming.
-pub fn collect_converter_items(registry: &Registry) -> Vec<(syn::Ident, syn::ItemFn)> {
+pub fn collect_converter_items<M>(registry: &Registry<M>) -> Vec<(syn::Ident, syn::ItemFn)> {
     let mut by_name: BTreeMap<String, (syn::Ident, syn::ItemFn)> = BTreeMap::new();
     walk_resolved(&registry.input_types, |_, entry| {
         let name = entry.function.sig.ident.clone();
@@ -109,8 +109,8 @@ pub fn collect_converter_items(registry: &Registry) -> Vec<(syn::Ident, syn::Ite
     by_name.into_values().collect()
 }
 
-fn walk_resolved<F: FnMut(&TypeKey, &TypeEntry)>(
-    buckets: &[std::collections::HashMap<TypeKey, Option<TypeEntry>>; 4],
+fn walk_resolved<M, F: FnMut(&TypeKey, &TypeEntry<M>)>(
+    buckets: &[std::collections::HashMap<TypeKey, Option<TypeEntry<M>>>; 4],
     mut f: F,
 ) {
     for bucket in buckets {
@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn dedup_and_sort() {
-        let mut reg = Registry::default();
+        let mut reg: Registry<()> = Registry::default();
         let key_a = TypeKey::parse("u64");
         let key_b = TypeKey::parse("Sample");
         let wire: syn::Type = syn::parse_quote!(jni::sys::jlong);
@@ -163,6 +163,7 @@ mod tests {
                 required: true,
                 niches: crate::core::niches::Niches::empty(),
                 into_sources: None,
+                metadata: (),
             }),
         );
         reg.input_types[0].insert(
@@ -176,6 +177,7 @@ mod tests {
                 required: true,
                 niches: crate::core::niches::Niches::empty(),
                 into_sources: None,
+                metadata: (),
             }),
         );
 

@@ -30,7 +30,7 @@ use crate::core::registry::Registry;
 /// other generated converters in the same plugin and any hand-written code
 /// that knows the convention — can compute or look up the name.
 #[derive(Clone)]
-pub struct ConverterImpl {
+pub struct ConverterImpl<M = ()> {
     /// Wire/destination type. Other converters that ask "what's the wire
     /// form of this rust type?" read this. The actual function may return
     /// a wrapped form (e.g. `ZResult<destination>`) — that is the plugin's
@@ -47,6 +47,12 @@ pub struct ConverterImpl {
     /// re-export the rest — see [`Niches`] for the cascade model.
     /// Default is empty (no niche optimisation).
     pub niches: Niches,
+    /// Language-specific extras carried alongside the converter. Filled by
+    /// the same handler that produces `destination` / `function` /
+    /// `niches`, copied through into `TypeEntry::metadata` by the resolver,
+    /// and read by language-side emitters. Set this where you build the
+    /// converter, not in a side channel.
+    pub metadata: M,
 }
 
 /// How a single `impl Into<target>` source arm consumes the Java-side
@@ -113,7 +119,20 @@ impl IntoSource {
 /// drives this trait to fill `Registry::input_types` / `output_types`
 /// entries; the file emitter calls `on_function` / `on_struct` / `on_enum` /
 /// `on_const` to produce per-item wrapper code.
+///
+/// Back-ends pick a [`Self::Metadata`] type to carry language-specific
+/// extras (Kotlin names, C header names, …) end-to-end through the
+/// pipeline — set in each `ConverterImpl::metadata`, propagated by the
+/// resolver into `TypeEntry::metadata`, and read directly by emitter
+/// code. Back-ends that don't need any extras leave it at the default
+/// `()`.
 pub trait PrebindgenExt {
+    /// Language-specific extras every resolved converter carries. The
+    /// resolver copies this from each `ConverterImpl` it accepts into
+    /// the matching `TypeEntry`, so emitter code reads metadata off
+    /// the registry rather than through a parallel side channel.
+    type Metadata: Clone + Default;
+
     /// Rust items the plugin's emitted converters depend on (helper
     /// structs, type aliases, runtime-support code). Emitted at the top
     /// of the destination file, before all auto-generated converters.
@@ -128,17 +147,17 @@ pub trait PrebindgenExt {
 
     /// Wrap a `#[prebindgen]` fn into the destination-language wrapper
     /// (e.g. JNI `extern "C"` fn).
-    fn on_function(&self, f: &syn::ItemFn, registry: &Registry) -> TokenStream;
+    fn on_function(&self, f: &syn::ItemFn, registry: &Registry<Self::Metadata>) -> TokenStream;
 
     /// Per-struct emission. Typically empty for languages that get
     /// everything they need from auto-generated converters.
-    fn on_struct(&self, s: &syn::ItemStruct, registry: &Registry) -> TokenStream;
+    fn on_struct(&self, s: &syn::ItemStruct, registry: &Registry<Self::Metadata>) -> TokenStream;
 
     /// Per-enum emission.
-    fn on_enum(&self, e: &syn::ItemEnum, registry: &Registry) -> TokenStream;
+    fn on_enum(&self, e: &syn::ItemEnum, registry: &Registry<Self::Metadata>) -> TokenStream;
 
     /// Per-const emission. Default: pass-through.
-    fn on_const(&self, c: &syn::ItemConst, _registry: &Registry) -> TokenStream {
+    fn on_const(&self, c: &syn::ItemConst, _registry: &Registry<Self::Metadata>) -> TokenStream {
         use quote::ToTokens;
         c.to_token_stream()
     }
@@ -150,8 +169,8 @@ pub trait PrebindgenExt {
     fn on_input_type_rank_0(
         &self,
         ty: &syn::Type,
-        registry: &Registry,
-    ) -> Option<ConverterImpl>;
+        registry: &Registry<Self::Metadata>,
+    ) -> Option<ConverterImpl<Self::Metadata>>;
 
     /// Single-wildcard input pattern. `pat` contains one `_`; `t1` is the
     /// type the wildcard slot held in the original.
@@ -159,16 +178,16 @@ pub trait PrebindgenExt {
         &self,
         pat: &syn::Type,
         t1: &syn::Type,
-        registry: &Registry,
-    ) -> Option<ConverterImpl>;
+        registry: &Registry<Self::Metadata>,
+    ) -> Option<ConverterImpl<Self::Metadata>>;
 
     fn on_input_type_rank_2(
         &self,
         pat: &syn::Type,
         t1: &syn::Type,
         t2: &syn::Type,
-        registry: &Registry,
-    ) -> Option<ConverterImpl>;
+        registry: &Registry<Self::Metadata>,
+    ) -> Option<ConverterImpl<Self::Metadata>>;
 
     fn on_input_type_rank_3(
         &self,
@@ -176,8 +195,8 @@ pub trait PrebindgenExt {
         t1: &syn::Type,
         t2: &syn::Type,
         t3: &syn::Type,
-        registry: &Registry,
-    ) -> Option<ConverterImpl>;
+        registry: &Registry<Self::Metadata>,
+    ) -> Option<ConverterImpl<Self::Metadata>>;
 
     /// Source types accepted at `impl Into<target> + Send + 'static`
     /// parameters. The caller is fully responsible for the list — if
@@ -209,8 +228,8 @@ pub trait PrebindgenExt {
         &self,
         target: &syn::Type,
         sources: &[IntoSource],
-        registry: &Registry,
-    ) -> Option<ConverterImpl> {
+        registry: &Registry<Self::Metadata>,
+    ) -> Option<ConverterImpl<Self::Metadata>> {
         let _ = (target, sources, registry);
         None
     }
@@ -239,8 +258,8 @@ pub trait PrebindgenExt {
     fn dispatch_fn_input(
         &self,
         args: &[syn::Type],
-        registry: &Registry,
-    ) -> Option<ConverterImpl> {
+        registry: &Registry<Self::Metadata>,
+    ) -> Option<ConverterImpl<Self::Metadata>> {
         let _ = (args, registry);
         None
     }
@@ -251,23 +270,23 @@ pub trait PrebindgenExt {
     fn on_output_type_rank_0(
         &self,
         ty: &syn::Type,
-        registry: &Registry,
-    ) -> Option<ConverterImpl>;
+        registry: &Registry<Self::Metadata>,
+    ) -> Option<ConverterImpl<Self::Metadata>>;
 
     fn on_output_type_rank_1(
         &self,
         pat: &syn::Type,
         t1: &syn::Type,
-        registry: &Registry,
-    ) -> Option<ConverterImpl>;
+        registry: &Registry<Self::Metadata>,
+    ) -> Option<ConverterImpl<Self::Metadata>>;
 
     fn on_output_type_rank_2(
         &self,
         pat: &syn::Type,
         t1: &syn::Type,
         t2: &syn::Type,
-        registry: &Registry,
-    ) -> Option<ConverterImpl>;
+        registry: &Registry<Self::Metadata>,
+    ) -> Option<ConverterImpl<Self::Metadata>>;
 
     fn on_output_type_rank_3(
         &self,
@@ -275,6 +294,6 @@ pub trait PrebindgenExt {
         t1: &syn::Type,
         t2: &syn::Type,
         t3: &syn::Type,
-        registry: &Registry,
-    ) -> Option<ConverterImpl>;
+        registry: &Registry<Self::Metadata>,
+    ) -> Option<ConverterImpl<Self::Metadata>>;
 }

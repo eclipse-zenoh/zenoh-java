@@ -19,7 +19,7 @@ use quote::ToTokens;
 
 use crate::core::prebindgen_ext::{IntoSource, IntoSourceMode};
 use crate::core::registry::{extract_fn_trait_args, Registry, TypeKey};
-use crate::jni::jni_ext::{converter_returns_owned_object, JniExt};
+use crate::jni::jni_ext::{converter_returns_owned_object, JniExt, KotlinMeta};
 use crate::kotlin::kotlin_ext::{KotlinFile, WriteKotlinError};
 use crate::kotlin::type_map::KotlinTypeMap;
 
@@ -66,7 +66,7 @@ impl JniExt {
     /// during the builder phase. Returns every path written.
     pub fn write_kotlin(
         &self,
-        registry: &Registry,
+        registry: &Registry<KotlinMeta>,
         kotlin_root: &Path,
     ) -> Result<Vec<PathBuf>, WriteKotlinError> {
         let mut written = Vec::new();
@@ -108,10 +108,13 @@ impl JniExt {
 
     /// Per-callback fun-interface emission (one `JNI<Stem>Callback.kt`
     /// file per `impl Fn(...)` type encountered in the resolved
-    /// registry). Previously the body of the `KotlinExt` trait impl.
+    /// registry). Skips writes for `impl Fn(...)` keys whose Kotlin
+    /// FQN was overridden via [`Self::callback_input`] — the override
+    /// already points at a hand-maintained callback interface, so the
+    /// auto-stub would be dead code.
     pub(crate) fn emit_callback_files(
         &self,
-        registry: &Registry,
+        registry: &Registry<KotlinMeta>,
     ) -> Result<Vec<PathBuf>, WriteKotlinError> {
         let mut seen: HashSet<TypeKey> = HashSet::new();
         let mut written = Vec::new();
@@ -127,6 +130,17 @@ impl JniExt {
                     }
                     let ty = key.to_type();
                     if let Some(args) = extract_fn_trait_args(&ty) {
+                        // A `callback_input`/`callback_kotlin_name`
+                        // override points the Kotlin signature at a
+                        // hand-written interface — skip the auto-stub.
+                        if self
+                            .types
+                            .get(key)
+                            .and_then(|c| c.callback_kotlin_fqn.as_ref())
+                            .is_some()
+                        {
+                            continue;
+                        }
                         let file = build_callback_kotlin_file(self, &args, registry);
                         std::fs::create_dir_all(&target_dir)?;
                         let path = target_dir.join(format!("{}.kt", file.class_name));
@@ -225,7 +239,7 @@ impl JniExt {
     /// `NativeHandle(...)` before being returned.
     pub(crate) fn write_jni_wrappers(
         &self,
-        registry: &Registry,
+        registry: &Registry<KotlinMeta>,
         kotlin_types: &KotlinTypeMap,
         typed_handles: &[TypedHandle<'_>],
         output_dir: &Path,
@@ -267,7 +281,7 @@ impl JniExt {
     pub(crate) fn write_typed_handles(
         &self,
         handles: &[TypedHandle<'_>],
-        registry: &Registry,
+        registry: &Registry<KotlinMeta>,
         kotlin_types: &KotlinTypeMap,
         output_dir: &Path,
     ) -> Result<Vec<PathBuf>, WriteKotlinError> {
@@ -328,7 +342,7 @@ impl JniExt {
     /// `impl Fn(args)` type the Registry has resolved. Use this to merge
     /// into a `KotlinTypeMap` consumed by the aggregated-interface
     /// generator (so it can refer to callbacks by their Kotlin FQN).
-    pub(crate) fn collect_kotlin_callback_fqns(&self, registry: &Registry) -> KotlinTypeMap {
+    pub(crate) fn collect_kotlin_callback_fqns(&self, registry: &Registry<KotlinMeta>) -> KotlinTypeMap {
         let mut map = KotlinTypeMap::new();
         let mut seen: HashSet<TypeKey> = HashSet::new();
         for buckets in [&registry.input_types, &registry.output_types] {
@@ -365,24 +379,23 @@ impl JniExt {
 fn build_callback_kotlin_file(
     ext: &JniExt,
     args: &[syn::Type],
-    registry: &Registry,
+    registry: &Registry<KotlinMeta>,
 ) -> KotlinFile {
     let stem = derive_callback_stem(args);
     let class_name = format!("JNI{}Callback", stem);
     let package = ext.kotlin_callback_package.clone();
 
-    let kotlin_types = ext.collect_kotlin_callback_fqns(registry);
-
-    // Resolve each arg's Kotlin type. Falls back to the bare last-segment
-    // ident when not found in the map (matches today's
-    // CallbacksConverter::emit_for_signature lookup behavior).
+    // Resolve each arg's Kotlin type by reading the output-direction
+    // entry's metadata — callback args flow inverse to the callback
+    // (Rust produces them, Java consumes them). Fall back to the bare
+    // last-segment ident when the metadata is missing (matches today's
+    // behavior; preserves the dead-stub compile path).
     let mut params: Vec<String> = Vec::new();
     let mut used_fqns: BTreeSet<String> = BTreeSet::new();
     for (i, arg) in args.iter().enumerate() {
-        let canon = arg.to_token_stream().to_string();
-        let kotlin_ty = kotlin_types
-            .lookup(&canon)
-            .map(str::to_string)
+        let kotlin_ty = registry
+            .output_entry(arg)
+            .and_then(|e| e.metadata.kotlin_name.clone())
             .or_else(|| {
                 if let syn::Type::Path(tp) = arg {
                     if let Some(last) = tp.path.segments.last() {
@@ -448,7 +461,7 @@ fn render_kotlin_interface(
     out
 }
 
-fn derive_callback_stem(args: &[syn::Type]) -> String {
+pub(crate) fn derive_callback_stem(args: &[syn::Type]) -> String {
     if args.is_empty() {
         return "Empty".into();
     }
@@ -618,7 +631,7 @@ fn render_typed_handle_source(
     rust_doc_name: &str,
     promoted_functions: &[&str],
     promoted_rust_key: Option<&str>,
-    registry: &Registry,
+    registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
 ) -> String {
     // Build method bodies first so we can collect imports up front.
@@ -714,7 +727,7 @@ fn render_typed_handle_source(
 /// `JNINative.<name>ViaJNI(...)`.
 fn render_jni_wrappers_source(
     ext: &JniExt,
-    registry: &Registry,
+    registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
     promoted: &HashSet<String>,
 ) -> String {
@@ -796,7 +809,7 @@ fn render_jni_wrappers_source(
 /// emitted exactly as the `JNIWrappers` top-level form.
 fn render_wrapper_fn(
     f: &syn::ItemFn,
-    registry: &Registry,
+    registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
     imports: &mut BTreeSet<String>,
     promoted_handle: Option<&str>,
@@ -856,18 +869,12 @@ fn render_wrapper_fn(
         let (kt_type_raw, optional) = if is_opaque {
             ("NativeHandle".to_string(), false)
         } else {
-            // Look up the Kotlin type via the merged type map; fall
-            // back to deriving from the wire type when the param
-            // isn't pre-registered (e.g. `impl Into<T>` shapes wired
-            // as `JObject`).
-            let key = match arg_ty {
-                syn::Type::Reference(r) => r.elem.to_token_stream().to_string(),
-                _ => arg_ty.to_token_stream().to_string(),
-            };
-            let kt = kotlin_types
-                .lookup(&key)
-                .map(str::to_string)
-                .or_else(|| kotlin_for_wire(&entry.destination))?;
+            // Read the Kotlin name straight off the resolved entry's
+            // metadata — the rank-N handler that built this converter
+            // is also the one that derived the Kotlin name (primitives
+            // from `kotlin_for_wire`, wrappers inherit from inner,
+            // user-declared decoders from `with_kotlin_name`).
+            let kt = entry.metadata.kotlin_name.clone()?;
             let opt = is_option_type(arg_ty);
             (kt, opt)
         };
@@ -1145,7 +1152,7 @@ struct DispatchArm {
 /// fallback arm — every opaque source is either typed or rejected.
 fn build_dispatch_arms(
     sources: &[IntoSource],
-    registry: &Registry,
+    registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
     imports: &mut BTreeSet<String>,
 ) -> Vec<DispatchArm> {
@@ -1207,9 +1214,10 @@ fn wire_is_jlong(wire: &syn::Type) -> bool {
 }
 
 /// Fall-back Kotlin type derived directly from the JNI wire type.
-/// Used when the type-map doesn't have an entry for a Rust type —
-/// covers `impl Into<...>` (JObject-wired) and rarely-used primitives.
-fn kotlin_for_wire(wire: &syn::Type) -> Option<String> {
+/// Returns the **non-nullable** Kotlin base name — the use site adds
+/// a `?` suffix when the entry's Rust type is `Option<…>` (via
+/// [`is_option_type`]), so this helper must not double up.
+pub(crate) fn kotlin_for_wire(wire: &syn::Type) -> Option<String> {
     if let syn::Type::Path(tp) = wire {
         if let Some(last) = tp.path.segments.last() {
             let name = last.ident.to_string();
@@ -1222,8 +1230,8 @@ fn kotlin_for_wire(wire: &syn::Type) -> Option<String> {
                 "jlong" => "Long",
                 "jfloat" => "Float",
                 "jdouble" => "Double",
-                "JString" | "jstring" => "String?",
-                "JByteArray" | "jbyteArray" => "ByteArray?",
+                "JString" | "jstring" => "String",
+                "JByteArray" | "jbyteArray" => "ByteArray",
                 "JObject" | "jobject" => "Any",
                 "JClass" => "Any",
                 _ => return None,
@@ -1249,7 +1257,7 @@ fn kotlin_for_wire(wire: &syn::Type) -> Option<String> {
 ///   declared type).
 fn classify_return(
     output: &syn::ReturnType,
-    registry: &Registry,
+    registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
     imports: &mut BTreeSet<String>,
 ) -> Option<(String, Option<String>)> {
@@ -1296,18 +1304,12 @@ fn classify_return(
         };
         return Some(("NativeHandle".to_string(), Some(ctor)));
     }
-    // Non-opaque: try the full return key first (covers `ZResult<T>`
-    // entries in the map), fall back to the peeled inner key, then
-    // wire-type fallback via the output entry.
-    let full_canon = ty.to_token_stream().to_string();
-    if let Some(kt) = kotlin_types.lookup(&full_canon) {
-        return Some((register_fqn(kt, imports), None));
-    }
-    if let Some(kt) = kotlin_types.lookup(&inner_canon) {
-        return Some((register_fqn(kt, imports), None));
-    }
+    // Non-opaque: read the Kotlin name straight off the resolved
+    // output entry's metadata — the rank-N handler propagates
+    // `ZResult<T>` / `Option<T>` / `Vec<T>` derivations alongside the
+    // wire, so no peel-and-fallback chain is needed at the use site.
     if let Some(out_entry) = registry.output_entry(ty) {
-        if let Some(kt) = kotlin_for_wire(&out_entry.destination) {
+        if let Some(kt) = out_entry.metadata.kotlin_name.clone() {
             return Some((register_fqn(&kt, imports), None));
         }
     }
