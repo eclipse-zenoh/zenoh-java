@@ -22,10 +22,7 @@ fn main() {
         .jni_class_path("Java_io_zenoh_jni_JNINative")
         .jni_method_suffix("ViaJNI")
         .kotlin_callback_package("io.zenoh.jni.callbacks")
-        .kotlin_callback_dir(
-            "../zenoh-jni-runtime/src/commonMain/kotlin/io/zenoh/jni/callbacks",
-        )
-
+        .kotlin_callback_dir("../zenoh-jni-runtime/src/commonMain/kotlin/io/zenoh/jni/callbacks")
         // ── Opaque handles — `opaque_handle` configures: jlong wire
         // (input + output), `Box::into_raw`/`Box::from_raw` lifecycle,
         // `instanceof` dispatch class, and the Kotlin parameter-type
@@ -33,32 +30,39 @@ fn main() {
         // by default; chain `.with_methods(...)` (auto-generated class
         // with promoted instance methods) or `.emit_kotlin_class()`
         // (auto-generated shell class) to switch to auto-emission.
-        .opaque_handle("Session",                    "io.zenoh.jni.JNISession")
-        .opaque_handle("Config",                     "io.zenoh.jni.JNIConfig")
-        .opaque_handle("ZKeyExpr<'static>",          "io.zenoh.jni.JNIKeyExpr")
-        .opaque_handle("Publisher<'static>",         "io.zenoh.jni.JNIPublisher")
-            .with_methods(["put_publisher", "delete_publisher"])
-        .opaque_handle("Subscriber<()>",             "io.zenoh.jni.JNISubscriber")
-            .emit_kotlin_class()
-        .opaque_handle("Querier<'static>",           "io.zenoh.jni.JNIQuerier")
-        .opaque_handle("Queryable<()>",              "io.zenoh.jni.JNIQueryable")
-            .emit_kotlin_class()
-        .opaque_handle("AdvancedSubscriber<()>",     "io.zenoh.jni.JNIAdvancedSubscriber")
-        .opaque_handle("AdvancedPublisher<'static>", "io.zenoh.jni.JNIAdvancedPublisher")
-        .opaque_handle("MatchingListener",           "io.zenoh.jni.JNIMatchingListener")
-            .emit_kotlin_class()
-        .opaque_handle("SampleMissListener",         "io.zenoh.jni.JNISampleMissListener")
-            .emit_kotlin_class()
-
+        .opaque_handle("Session", "io.zenoh.jni.JNISession")
+        .opaque_handle("Config", "io.zenoh.jni.JNIConfig")
+        .opaque_handle("ZKeyExpr<'static>", "io.zenoh.jni.JNIKeyExpr")
+        .opaque_handle("Publisher<'static>", "io.zenoh.jni.JNIPublisher")
+        .with_methods(["put_publisher", "delete_publisher"])
+        .opaque_handle("Subscriber<()>", "io.zenoh.jni.JNISubscriber")
+        .emit_kotlin_class()
+        .opaque_handle("Querier<'static>", "io.zenoh.jni.JNIQuerier")
+        .opaque_handle("Queryable<()>", "io.zenoh.jni.JNIQueryable")
+        .emit_kotlin_class()
+        .opaque_handle(
+            "AdvancedSubscriber<()>",
+            "io.zenoh.jni.JNIAdvancedSubscriber",
+        )
+        .opaque_handle(
+            "AdvancedPublisher<'static>",
+            "io.zenoh.jni.JNIAdvancedPublisher",
+        )
+        .opaque_handle("MatchingListener", "io.zenoh.jni.JNIMatchingListener")
+        .emit_kotlin_class()
+        .opaque_handle("SampleMissListener", "io.zenoh.jni.JNISampleMissListener")
+        .emit_kotlin_class()
         // ── jint-encoded enums — sugar over `input_decoder` for the
         // common `jint → enum` pattern.
-        .jint_enum("CongestionControl", "crate::utils::decode_congestion_control")
-        .jint_enum("Priority",          "crate::utils::decode_priority")
-        .jint_enum("Reliability",       "crate::utils::decode_reliability")
-        .jint_enum("QueryTarget",       "crate::utils::decode_query_target")
+        .jint_enum(
+            "CongestionControl",
+            "crate::utils::decode_congestion_control",
+        )
+        .jint_enum("Priority", "crate::utils::decode_priority")
+        .jint_enum("Reliability", "crate::utils::decode_reliability")
+        .jint_enum("QueryTarget", "crate::utils::decode_query_target")
         .jint_enum("ConsolidationMode", "crate::utils::decode_consolidation")
-        .jint_enum("ReplyKeyExpr",      "crate::utils::decode_reply_key_expr")
-
+        .jint_enum("ReplyKeyExpr", "crate::utils::decode_reply_key_expr")
         // ── Value-shaped custom converters.
         .input_decoder(
             "Encoding",
@@ -85,7 +89,6 @@ fn main() {
             "jni::sys::jobject",
             "crate::zenoh_id::zenoh_ids_to_java_list(env, v)?",
         )
-
         // ── Manual callback overrides — replaces the auto-generated
         // `process_kotlin_*_callback` dispatcher with a hand-written
         // one and reroutes the Kotlin FQN.
@@ -103,7 +106,6 @@ fn main() {
             "impl Fn() + Send + Sync + 'static",
             "io.zenoh.jni.callbacks.JNIOnCloseCallback",
         )
-
         // ── Kotlin type names for value types that have automatic JNI
         // converters (data classes, primitive aliases, callback param
         // types whose Kotlin form is hand-maintained).
@@ -139,7 +141,10 @@ fn main() {
         .kotlin_value_type("HistoryConfig", "io.zenoh.jni.HistoryConfig")
         .kotlin_value_type("CacheConfig", "io.zenoh.jni.CacheConfig")
         .kotlin_value_type("RecoveryConfig", "io.zenoh.jni.RecoveryConfig")
-        .kotlin_value_type("Option<MissDetectionConfig>", "io.zenoh.jni.MissDetectionConfig")
+        .kotlin_value_type(
+            "Option<MissDetectionConfig>",
+            "io.zenoh.jni.MissDetectionConfig",
+        )
         .kotlin_value_type("Option<HistoryConfig>", "io.zenoh.jni.HistoryConfig")
         .kotlin_value_type("Option<CacheConfig>", "io.zenoh.jni.CacheConfig")
         .kotlin_value_type("Option<RecoveryConfig>", "io.zenoh.jni.RecoveryConfig")
@@ -149,7 +154,6 @@ fn main() {
         // compile, so we point them at `kotlin.Any`).
         .kotlin_value_type("Query", "kotlin.Any")
         .kotlin_value_type("Reply", "kotlin.Any")
-
         // ── impl Into<T> source arms.
         .into_sources(
             "ZKeyExpr<'static>",
@@ -165,11 +169,13 @@ fn main() {
     let rust_path = registry
         .write_rust(&jni, "zenoh_flat_jni.rs")
         .expect("write rust failed");
-    println!("cargo:warning=Generated bindings at: {}", rust_path.display());
+    println!(
+        "cargo:warning=Generated bindings at: {}",
+        rust_path.display()
+    );
 
     // ── Write Kotlin output ───────────────────────────────────────────
-    let kotlin_root =
-        std::path::Path::new("../zenoh-jni-runtime/src/commonMain/kotlin");
+    let kotlin_root = std::path::Path::new("../zenoh-jni-runtime/src/commonMain/kotlin");
     for path in jni
         .write_kotlin(&registry, kotlin_root)
         .expect("write kotlin failed")

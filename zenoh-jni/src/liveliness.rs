@@ -24,6 +24,7 @@ use zenoh::{
     internal::runtime::ZRuntime, liveliness::LivelinessToken, pubsub::Subscriber, Session, Wait,
 };
 
+use crate::session::OwnedObject;
 use crate::{
     errors::ZResult,
     key_expr::decode_jni_key_expr,
@@ -31,7 +32,6 @@ use crate::{
     throw_exception,
     utils::{get_callback_global_ref, get_java_vm, load_on_close, wrap_with_on_close},
 };
-use crate::session::OwnedObject;
 
 #[no_mangle]
 #[allow(non_snake_case)]

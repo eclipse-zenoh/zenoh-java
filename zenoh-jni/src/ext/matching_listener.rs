@@ -35,5 +35,7 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIMatchingListener_freePtrVia
     _: JClass,
     matching_listener_ptr: *const MatchingListener<()>,
 ) {
-    drop(Box::from_raw(matching_listener_ptr as *mut MatchingListener<()>));
+    drop(Box::from_raw(
+        matching_listener_ptr as *mut MatchingListener<()>,
+    ));
 }

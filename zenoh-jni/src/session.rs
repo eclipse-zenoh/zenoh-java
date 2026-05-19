@@ -20,12 +20,12 @@ use zenoh::{
     key_expr::{KeyExpr as ZKeyExpr, SetIntersectionLevel},
     pubsub::{Publisher, Subscriber},
     qos::{CongestionControl, Priority, Reliability},
-    query::{ConsolidationMode, Querier, Query, Queryable, QueryTarget, Reply, ReplyKeyExpr},
+    query::{ConsolidationMode, Querier, Query, QueryTarget, Queryable, Reply, ReplyKeyExpr},
     session::{Session, ZenohId},
 };
-use zenoh_flat::sample::Sample;
 #[cfg(feature = "zenoh-ext")]
 use zenoh_ext::{AdvancedPublisher, AdvancedSubscriber};
+use zenoh_flat::sample::Sample;
 #[cfg(feature = "zenoh-ext")]
 use zenoh_flat::structs::{CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig};
 

@@ -35,5 +35,7 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNISampleMissListener_freePtrV
     _: JClass,
     sample_miss_listener_ptr: *const SampleMissListener<()>,
 ) {
-    drop(Box::from_raw(sample_miss_listener_ptr as *mut SampleMissListener<()>));
+    drop(Box::from_raw(
+        sample_miss_listener_ptr as *mut SampleMissListener<()>,
+    ));
 }
