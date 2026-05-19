@@ -60,7 +60,7 @@ fn rust_key_for_fqn<'a>(ext: &'a JniExt, fqn: &str) -> Option<&'a str> {
 impl JniExt {
     /// Unified Kotlin emission — single public entry point that fans out
     /// to per-callback fun-interface files, `NativeHandle.kt`, typed-handle
-    /// classes (one per `opaque_handle` registration), and
+    /// classes (one per `kotlin_class` registration), and
     /// `JNIWrappers.kt`. Reads all configuration (typed-handle methods,
     /// callback FQN overrides, Kotlin type names) from internal state set
     /// during the builder phase. Returns every path written.
@@ -164,7 +164,7 @@ impl JniExt {
         for key in keys {
             let cfg = &self.types[key];
             let Some(opaque) = &cfg.opaque else { continue };
-            if !opaque.emit_kotlin_class {
+            if opaque.suppress_kotlin_code {
                 continue;
             }
             let Some(kotlin_fqn) = &cfg.kotlin_name else { continue };

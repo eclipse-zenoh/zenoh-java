@@ -76,8 +76,7 @@ pub(crate) struct ConverterSpec {
     pub niches: Niches,
 }
 
-/// Per-opaque-handle configuration (driven by `JniExt::opaque_handle`).
-/// Per-opaque-handle configuration (driven by `JniExt::opaque_handle`).
+/// Per-opaque-handle configuration (driven by `JniExt::kotlin_class`).
 ///
 /// The typed-handle Kotlin FQN (e.g. `"io.zenoh.jni.JNISession"`) lives
 /// in the surrounding [`TypeConfig::kotlin_name`] slot — FQN-consumers
@@ -88,16 +87,15 @@ pub(crate) struct ConverterSpec {
 /// the two roles don't collide despite sharing the `TypeConfig`.
 #[derive(Clone, Default)]
 pub(crate) struct OpaqueConfig {
-    /// When `true`, the unified Kotlin emitter writes a typed-handle
-    /// `.kt` file for this opaque type. When `false`, the Kotlin file
-    /// is assumed to be hand-maintained — only the Rust-side converter
-    /// and `instanceof` dispatch wire up. Set by [`JniExt::with_methods`]
-    /// (implicit) or [`JniExt::emit_kotlin_class`] (explicit shell).
-    pub emit_kotlin_class: bool,
+    /// When `false` (default), the unified Kotlin emitter writes a
+    /// typed-handle `.kt` file for this opaque type. Set to `true` by
+    /// [`JniExt::suppress_kotlin_code`] to indicate the Kotlin file is
+    /// hand-maintained — only the Rust-side converter and `instanceof`
+    /// dispatch wire up.
+    pub suppress_kotlin_code: bool,
     /// `#[prebindgen]` fn idents promoted to instance methods on the
-    /// matching Kotlin typed-handle class. Filled by
-    /// [`JniExt::with_methods`]. Non-empty ⇒ `emit_kotlin_class` is
-    /// always set.
+    /// matching Kotlin typed-handle class. Filled by repeated
+    /// [`JniExt::method`] calls.
     pub methods: Vec<String>,
 }
 
@@ -209,7 +207,7 @@ pub struct JniExt {
     pub kotlin_callback_dir: PathBuf,
     /// Derived `<rust-type-canonical-string> → <kotlin FQN>` view —
     /// populated alongside [`Self::types`] by the structured builders
-    /// ([`Self::opaque_handle`], [`Self::kotlin_value_type`],
+    /// ([`Self::kotlin_class`], [`Self::kotlin_value_type`],
     /// [`Self::callback_kotlin_name`]). Internal readers
     /// (`emit_into_dispatcher`, callback FQN merging) consume this
     /// flat list directly; the structured `types` map is the source
@@ -218,7 +216,7 @@ pub struct JniExt {
 
     /// Structured per-type configuration keyed by canonical Rust type.
     /// One entry per `Rust type ↔ JNI/Kotlin` rule; populated by the
-    /// structured builders (`opaque_handle`, `input_decoder`,
+    /// structured builders (`kotlin_class`, `input_decoder`,
     /// `output_encoder`, `jint_enum`, `callback_input`,
     /// `callback_kotlin_name`, `kotlin_value_type`). Consulted first by
     /// the [`PrebindgenExt`] rank-0 methods and by all Kotlin emitters.
@@ -234,8 +232,9 @@ pub struct JniExt {
     /// Per-rank output wrappers.
     pub(crate) output_wrappers: [HashMap<TypeKey, WrapperFn>; 3],
 
-    /// Tracks the last opaque-handle key registered so [`Self::with_methods`]
-    /// knows which entry to extend. Cleared after each unrelated builder call.
+    /// Tracks the last [`Self::kotlin_class`] key registered so
+    /// [`Self::method`] / [`Self::suppress_kotlin_code`] know which
+    /// entry to extend. Cleared after each unrelated builder call.
     last_opaque_key: Option<TypeKey>,
 
     /// Tracks the last decoder/encoder key registered so
@@ -305,13 +304,15 @@ impl JniExt {
     }
     // ── Structured type-conversion builders ──────────────────────────
 
-    /// Mark `rust_key` as an opaque-handle type. Configures: jlong wire
-    /// for both input and output, `Box::into_raw`/`Box::from_raw`
-    /// lifecycle, the `instanceof` dispatch class, and the Kotlin
-    /// typed-handle class FQN. Chain [`Self::with_methods`] immediately
-    /// after to promote `#[prebindgen]` functions onto the typed
-    /// handle's Kotlin class.
-    pub fn opaque_handle(
+    /// Declare a typed Kotlin handle class backed by an opaque Rust
+    /// type. Configures: jlong wire for both input and output,
+    /// `Box::into_raw`/`Box::from_raw` lifecycle, the `instanceof`
+    /// dispatch class, and the Kotlin typed-handle class FQN. By
+    /// default a `.kt` shell is auto-emitted — chain
+    /// [`Self::suppress_kotlin_code`] to keep the file hand-maintained,
+    /// or chain one or more [`Self::method`] calls to promote
+    /// `#[prebindgen]` functions onto the class as instance methods.
+    pub fn kotlin_class(
         mut self,
         rust_key: impl AsRef<str>,
         kotlin_fqn: impl Into<String>,
@@ -334,44 +335,38 @@ impl JniExt {
         self
     }
 
-    /// Promote the given `#[prebindgen]` function idents to instance
-    /// methods on the Kotlin typed-handle class declared by the most
-    /// recent [`Self::opaque_handle`] call. Implies
-    /// [`Self::emit_kotlin_class`] — `.kt` file emission is on.
-    /// Panics if no opaque handle is in scope.
-    pub fn with_methods<I, S>(mut self, methods: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
+    /// Promote a single `#[prebindgen]` function ident to an instance
+    /// method on the Kotlin typed-handle class declared by the most
+    /// recent [`Self::kotlin_class`] call. Chain multiple calls to add
+    /// multiple methods. Panics if no kotlin_class is in scope.
+    pub fn method(mut self, method: impl Into<String>) -> Self {
         let key = self.last_opaque_key.clone().expect(
-            "JniExt::with_methods must be chained immediately after an `opaque_handle` call",
+            "JniExt::method must be chained immediately after a `kotlin_class` call",
         );
         let entry = self.types.get_mut(&key).expect("opaque entry vanished");
         let opaque = entry
             .opaque
             .as_mut()
-            .expect("with_methods on a non-opaque entry");
-        opaque.emit_kotlin_class = true;
-        opaque.methods.extend(methods.into_iter().map(Into::into));
+            .expect("method on a non-opaque entry");
+        opaque.methods.push(method.into());
         self
     }
 
-    /// Emit a typed-handle Kotlin shell class for the most recent
-    /// [`Self::opaque_handle`] (no promoted methods, just
-    /// `close()` + `freePtrViaJNI`). Without this (and without
-    /// [`Self::with_methods`]) the Kotlin file is assumed to be
-    /// hand-written. Panics if no opaque handle is in scope.
-    pub fn emit_kotlin_class(mut self) -> Self {
+    /// Opt out of Kotlin class emission for the most recent
+    /// [`Self::kotlin_class`] — the `.kt` file is assumed to be
+    /// hand-written. Without this, a typed-handle shell class is
+    /// auto-emitted (plus any promoted [`Self::method`]s). Panics if
+    /// no kotlin_class is in scope.
+    pub fn suppress_kotlin_code(mut self) -> Self {
         let key = self.last_opaque_key.clone().expect(
-            "JniExt::emit_kotlin_class must be chained immediately after an `opaque_handle` call",
+            "JniExt::suppress_kotlin_code must be chained immediately after a `kotlin_class` call",
         );
         let entry = self.types.get_mut(&key).expect("opaque entry vanished");
         let opaque = entry
             .opaque
             .as_mut()
-            .expect("emit_kotlin_class on a non-opaque entry");
-        opaque.emit_kotlin_class = true;
+            .expect("suppress_kotlin_code on a non-opaque entry");
+        opaque.suppress_kotlin_code = true;
         self
     }
 

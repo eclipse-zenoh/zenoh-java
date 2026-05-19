@@ -23,35 +23,38 @@ fn main() {
         .jni_method_suffix("ViaJNI")
         .kotlin_callback_package("io.zenoh.jni.callbacks")
         .kotlin_callback_dir("../zenoh-jni-runtime/src/commonMain/kotlin/io/zenoh/jni/callbacks")
-        // ── Opaque handles — `opaque_handle` configures: jlong wire
+        // ── Kotlin classes — `kotlin_class` configures: jlong wire
         // (input + output), `Box::into_raw`/`Box::from_raw` lifecycle,
         // `instanceof` dispatch class, and the Kotlin parameter-type
-        // name. The Kotlin `.kt` file is assumed to be hand-maintained
-        // by default; chain `.with_methods(...)` (auto-generated class
-        // with promoted instance methods) or `.emit_kotlin_class()`
-        // (auto-generated shell class) to switch to auto-emission.
-        .opaque_handle("Session", "io.zenoh.jni.JNISession")
-        .opaque_handle("Config", "io.zenoh.jni.JNIConfig")
-        .opaque_handle("ZKeyExpr<'static>", "io.zenoh.jni.JNIKeyExpr")
-        .opaque_handle("Publisher<'static>", "io.zenoh.jni.JNIPublisher")
-        .with_methods(["put_publisher", "delete_publisher"])
-        .opaque_handle("Subscriber<()>", "io.zenoh.jni.JNISubscriber")
-        .emit_kotlin_class()
-        .opaque_handle("Querier<'static>", "io.zenoh.jni.JNIQuerier")
-        .opaque_handle("Queryable<()>", "io.zenoh.jni.JNIQueryable")
-        .emit_kotlin_class()
-        .opaque_handle(
+        // name. A typed-handle Kotlin shell class is auto-emitted by
+        // default; chain `.method(...)` (repeat for each promoted
+        // instance method) to add methods, or `.suppress_kotlin_code()`
+        // to opt out of emission when the `.kt` file is hand-written.
+        .kotlin_class("Session", "io.zenoh.jni.JNISession")
+        .suppress_kotlin_code()
+        .kotlin_class("Config", "io.zenoh.jni.JNIConfig")
+        .suppress_kotlin_code()
+        .kotlin_class("ZKeyExpr<'static>", "io.zenoh.jni.JNIKeyExpr")
+        .suppress_kotlin_code()
+        .kotlin_class("Publisher<'static>", "io.zenoh.jni.JNIPublisher")
+        .method("put_publisher")
+        .method("delete_publisher")
+        .kotlin_class("Subscriber<()>", "io.zenoh.jni.JNISubscriber")
+        .kotlin_class("Querier<'static>", "io.zenoh.jni.JNIQuerier")
+        .suppress_kotlin_code()
+        .kotlin_class("Queryable<()>", "io.zenoh.jni.JNIQueryable")
+        .kotlin_class(
             "AdvancedSubscriber<()>",
             "io.zenoh.jni.JNIAdvancedSubscriber",
         )
-        .opaque_handle(
+        .suppress_kotlin_code()
+        .kotlin_class(
             "AdvancedPublisher<'static>",
             "io.zenoh.jni.JNIAdvancedPublisher",
         )
-        .opaque_handle("MatchingListener", "io.zenoh.jni.JNIMatchingListener")
-        .emit_kotlin_class()
-        .opaque_handle("SampleMissListener", "io.zenoh.jni.JNISampleMissListener")
-        .emit_kotlin_class()
+        .suppress_kotlin_code()
+        .kotlin_class("MatchingListener", "io.zenoh.jni.JNIMatchingListener")
+        .kotlin_class("SampleMissListener", "io.zenoh.jni.JNISampleMissListener")
         // ── jint-encoded enums — sugar over `input_decoder` for the
         // common `jint → enum` pattern.
         .jint_enum(
