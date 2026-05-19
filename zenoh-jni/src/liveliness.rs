@@ -4,7 +4,7 @@
 // This program and the accompanying materials are made available under the
 // terms of the Eclipse Public License 2.0 which is available at
 // http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0
-// which is available at https://www.apache.org/licenses/LICENSE-2.0.
+// which is available at https://www.apache.org/legal/epl-2.0.
 //
 // SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
 //
@@ -12,161 +12,29 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::{ptr::null, sync::Arc, time::Duration};
+//! Liveliness JNI surface.
+//!
+//! `declare_liveliness_token`, `declare_liveliness_subscriber`, and
+//! `liveliness_get` are now generated from `zenoh-flat::liveliness`.
+//! Only the destructive `freePtrViaJNI` for `LivelinessToken` remains
+//! hand-written here — `LivelinessToken::drop` runs zenoh's undeclare.
 
-use jni::{
-    objects::{JClass, JObject},
-    sys::{jboolean, jlong},
-    JNIEnv,
-};
+use jni::{objects::JClass, JNIEnv};
+use zenoh::liveliness::LivelinessToken;
 
-use zenoh::{
-    internal::runtime::ZRuntime, liveliness::LivelinessToken, pubsub::Subscriber, Session, Wait,
-};
-
-use crate::session::OwnedObject;
-use crate::{
-    errors::ZResult,
-    key_expr::decode_jni_key_expr,
-    sample_callback::{on_reply_error, on_reply_success},
-    throw_exception,
-    utils::{get_callback_global_ref, get_java_vm, load_on_close, wrap_with_on_close},
-};
-
+/// Drop the `Box<LivelinessToken>` whose raw pointer `token_ptr` was
+/// previously handed to Java. Dropping the token undeclares it on the
+/// network.
+///
+/// # Safety
+/// `token_ptr` must be the result of an earlier
+/// `Box::into_raw(Box::new(token))` and must not have been freed.
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNISession_livelinessGetViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    session_ptr: *const Session,
-    key_expr: JObject,
-    callback: JObject,
-    timeout_ms: jlong,
-    on_close: JObject,
-) {
-    let session = unsafe { OwnedObject::from_raw(session_ptr) };
-    let _ = || -> ZResult<()> {
-        let key_expr = unsafe { decode_jni_key_expr(&mut env, &key_expr) }?;
-        let java_vm = Arc::new(get_java_vm(&mut env)?);
-        let callback_global_ref = get_callback_global_ref(&mut env, &callback)?;
-        let on_close_global_ref = get_callback_global_ref(&mut env, &on_close)?;
-        let on_close = load_on_close(&java_vm, on_close_global_ref);
-        let timeout = Duration::from_millis(timeout_ms as u64);
-        let replies = session
-            .liveliness()
-            .get(key_expr.to_owned())
-            .timeout(timeout)
-            .wait()
-            .map_err(|err| zerror!(err))?;
-
-        ZRuntime::Application.spawn(async move {
-            on_close.noop(); // Does nothing, but moves `on_close` inside the closure so it gets destroyed with the closure
-            while let Ok(reply) = replies.recv_async().await {
-                || -> ZResult<()> {
-                    tracing::debug!("Receiving liveliness reply through JNI: {:?}", reply);
-                    let mut env = java_vm.attach_current_thread_as_daemon().map_err(|err| {
-                        zerror!(
-                            "Unable to attach thread for GET liveliness query callback: {}.",
-                            err
-                        )
-                    })?;
-                    match reply.result() {
-                        Ok(sample) => on_reply_success(
-                            &mut env,
-                            reply.replier_id(),
-                            sample,
-                            &callback_global_ref,
-                        ),
-                        Err(error) => on_reply_error(
-                            &mut env,
-                            reply.replier_id(),
-                            error,
-                            &callback_global_ref,
-                        ),
-                    }
-                }()
-                .unwrap_or_else(|err| tracing::error!("Error on get liveliness callback: {err}."));
-            }
-        });
-        Ok(())
-    }()
-    .map_err(|err| {
-        throw_exception!(env, err);
-    });
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNISession_declareLivelinessTokenViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    session_ptr: *const Session,
-    key_expr: JObject,
-) -> *const LivelinessToken {
-    let session = unsafe { OwnedObject::from_raw(session_ptr) };
-    || -> ZResult<*const LivelinessToken> {
-        let key_expr = unsafe { decode_jni_key_expr(&mut env, &key_expr) }?;
-        tracing::trace!("Declaring liveliness token on '{key_expr}'.");
-        let token = session
-            .liveliness()
-            .declare_token(key_expr)
-            .wait()
-            .map_err(|err| zerror!(err))?;
-        Ok(Box::into_raw(Box::new(token)) as *const LivelinessToken)
-    }()
-    .unwrap_or_else(|err| {
-        throw_exception!(env, err);
-        null()
-    })
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNILivelinessToken_undeclareViaJNI(
+pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNILivelinessToken_freePtrViaJNI(
     _env: JNIEnv,
-    _: JObject,
+    _: JClass,
     token_ptr: *const LivelinessToken,
 ) {
-    unsafe { drop(Box::from_raw(token_ptr as *mut LivelinessToken)) };
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareLivelinessSubscriberViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    session_ptr: *const Session,
-    key_expr: JObject,
-    callback: JObject,
-    history: jboolean,
-    on_close: JObject,
-) -> *const Subscriber<()> {
-    let session = OwnedObject::from_raw(session_ptr);
-    || -> ZResult<*const Subscriber<()>> {
-        let key_expr = decode_jni_key_expr(&mut env, &key_expr)?;
-        tracing::debug!("Declaring liveliness subscriber on '{}'...", key_expr);
-
-        // Use the auto-generated 1-arg `JNISampleCallback` (flat
-        // `Sample` payload). Adapt zenoh's upstream Sample → flat Sample
-        // at the closure boundary.
-        let cb_flat = crate::session::process_kotlin_Sample_callback(&mut env, &callback)?;
-        let cb = move |zsample: zenoh::sample::Sample| {
-            cb_flat((&zsample).into());
-        };
-        let cb = wrap_with_on_close(&mut env, on_close, cb)?;
-        let subscriber = session
-            .liveliness()
-            .declare_subscriber(key_expr.to_owned())
-            .history(history != 0)
-            .callback(cb)
-            .wait()
-            .map_err(|err| zerror!("Unable to declare liveliness subscriber: {}", err))?;
-
-        tracing::debug!("Subscriber declared on '{}'.", key_expr);
-        Ok(Box::into_raw(Box::new(subscriber)) as *const Subscriber<()>)
-    }()
-    .unwrap_or_else(|err| {
-        throw_exception!(env, err);
-        null()
-    })
+    drop(Box::from_raw(token_ptr as *mut LivelinessToken));
 }

@@ -69,7 +69,7 @@ sealed class Scout (
      * Stops the scouting.
      */
     fun stop() {
-        jniScout?.close()
+        jniScout?.free()
         jniScout = null
     }
 

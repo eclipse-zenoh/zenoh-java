@@ -6,7 +6,10 @@ pub const FEATURES: &str = prebindgen_proc_macro::features!();
 pub mod config;
 pub mod errors;
 pub mod keyexpr;
+pub mod liveliness;
 pub mod publisher;
+pub mod querier;
+pub mod query;
 pub mod sample;
 pub mod session;
 #[cfg(feature = "zenoh-ext")]
@@ -18,7 +21,10 @@ pub mod structs;
 // the declaring sub-module.
 pub use config::*;
 pub use keyexpr::*;
+pub use liveliness::*;
 pub use publisher::*;
+pub use querier::*;
+pub use query::*;
 pub use sample::*;
 pub use session::*;
 #[cfg(feature = "zenoh-ext")]

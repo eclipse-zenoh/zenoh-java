@@ -71,7 +71,7 @@ sealed class Subscriber(
     }
 
     override fun undeclare() {
-        jniSubscriber?.close()
+        jniSubscriber?.free()
         jniSubscriber = null
     }
 
@@ -80,7 +80,7 @@ sealed class Subscriber(
     }
 
     protected fun finalize() {
-        jniSubscriber?.close()
+        jniSubscriber?.free()
     }
 }
 

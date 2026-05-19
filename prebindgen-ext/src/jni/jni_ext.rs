@@ -567,8 +567,14 @@ impl JniExt {
         if is_callback {
             entry.callback_kotlin_fqn = Some(fqn.clone());
         }
-        self.kotlin_type_fqns
-            .push((key.as_str().to_string(), fqn));
+        // `kotlin_class` may have pushed a default `(rust_short_name)` FQN
+        // for this key already; replace it so the JNI dispatcher's
+        // `find_class` lookup picks up the override. `find()` in
+        // `jobject_to_wire_adapter` returns the first match, so any
+        // stale entry from `kotlin_class` would otherwise win.
+        let key_str = key.as_str().to_string();
+        self.kotlin_type_fqns.retain(|(k, _)| k != &key_str);
+        self.kotlin_type_fqns.push((key_str, fqn));
         self
     }
 

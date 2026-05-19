@@ -85,7 +85,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
         options: GetOptions
     ): BlockingQueue<Optional<Reply>> {
         val handler = BlockingQueueHandler<Reply>(LinkedBlockingDeque())
-        return resolveGetWithHandler(keyExpr, handler, options)
+        return resolveGetWithHandler(handler, options)
     }
 
     /**
@@ -100,7 +100,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
         callback: Callback<Reply>,
         options: GetOptions
     ) {
-        resolveGetWithCallback(keyExpr, callback, options)
+        resolveGetWithCallback(callback, options)
     }
 
     /**
@@ -115,7 +115,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
         handler: Handler<Reply, R>,
         options: GetOptions
     ): R {
-        return resolveGetWithHandler(keyExpr, handler, options)
+        return resolveGetWithHandler(handler, options)
     }
 
     /**
@@ -133,7 +133,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
      * performed on it will fail.
      */
     override fun undeclare() {
-        jniQuerier?.close()
+        jniQuerier?.free()
         jniQuerier = null
     }
 
@@ -149,7 +149,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
         undeclare()
     }
 
-    private fun resolveGetWithCallback(keyExpr: KeyExpr, callback: Callback<Reply>, options: GetOptions) {
+    private fun resolveGetWithCallback(callback: Callback<Reply>, options: GetOptions) {
         val jni = jniQuerier ?: throw ZError("Querier is not valid.")
         val getCallback = JNIGetCallback { replierZid, replierEid, success, keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
             val reply: Reply = if (success) {
@@ -171,9 +171,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
             }
             callback.run(reply)
         }
-        jni.get(
-            keyExpr.jniKeyExpr,
-            keyExpr.keyExpr,
+        jni.querierGet(
             options.parameters?.toString(),
             getCallback,
             fun() {},
@@ -183,7 +181,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
         )
     }
 
-    private fun <R> resolveGetWithHandler(keyExpr: KeyExpr, handler: Handler<Reply, R>, options: GetOptions): R {
+    private fun <R> resolveGetWithHandler(handler: Handler<Reply, R>, options: GetOptions): R {
         val jni = jniQuerier ?: throw ZError("Querier is not valid.")
         val getCallback = JNIGetCallback { replierZid, replierEid, success, keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
             val reply: Reply = if (success) {
@@ -205,9 +203,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
             }
             handler.handle(reply)
         }
-        jni.get(
-            keyExpr.jniKeyExpr,
-            keyExpr.keyExpr,
+        jni.querierGet(
             options.parameters?.toString(),
             getCallback,
             handler::onClose,

@@ -18,6 +18,7 @@ use zenoh::{
     bytes::Encoding,
     config::Config,
     key_expr::{KeyExpr as ZKeyExpr, SetIntersectionLevel},
+    liveliness::LivelinessToken,
     pubsub::{Publisher, Subscriber},
     qos::{CongestionControl, Priority, Reliability},
     query::{ConsolidationMode, Querier, Query, QueryTarget, Queryable, Reply, ReplyKeyExpr},

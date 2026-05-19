@@ -256,27 +256,13 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
         ).peek()
     )
 
-    // Liveliness operations don't live in zenoh-flat as `#[prebindgen]`
-    // functions, so the generator doesn't emit wrappers for them. The
-    // `external fun`s + their hand-written withPtr stay here.
-
     @Throws(ZError::class)
-    fun declareLivelinessToken(keyExprHandle: NativeHandle?, keyExprString: String): JNILivelinessToken =
-        withPtr { ptr ->
-            // Mirror JNIWrappers' impl-Into dispatch: hold the keyExpr's
-            // read lock for the JNI call when a declared handle is in
-            // play; otherwise pass the validated string.
-            if (keyExprHandle != null) {
-                keyExprHandle.withPtr { kePtr ->
-                    JNILivelinessToken(declareLivelinessTokenViaJNI(ptr, kePtr))
-                }
-            } else {
-                JNILivelinessToken(declareLivelinessTokenViaJNI(ptr, keyExprString))
-            }
-        }
-
-    @Throws(ZError::class)
-    private external fun declareLivelinessTokenViaJNI(sessionPtr: Long, keyExpr: Any): Long
+    fun declareLivelinessToken(
+        keyExprHandle: NativeHandle?,
+        keyExprString: String,
+    ): JNILivelinessToken = JNILivelinessToken(
+        JNIWrappers.declareLivelinessToken(this, keyExprArg(keyExprHandle, keyExprString)).peek()
+    )
 
     @Throws(ZError::class)
     fun declareLivelinessSubscriber(
@@ -285,24 +271,15 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
         callback: JNISampleCallback,
         history: Boolean,
         onClose: JNIOnCloseCallback,
-    ): JNISubscriber = withPtr { ptr ->
-        if (keyExprHandle != null) {
-            keyExprHandle.withPtr { kePtr ->
-                JNISubscriber(declareLivelinessSubscriberViaJNI(ptr, kePtr, callback, history, onClose))
-            }
-        } else {
-            JNISubscriber(declareLivelinessSubscriberViaJNI(ptr, keyExprString, callback, history, onClose))
-        }
-    }
-
-    @Throws(ZError::class)
-    private external fun declareLivelinessSubscriberViaJNI(
-        sessionPtr: Long,
-        keyExpr: Any,
-        callback: JNISampleCallback,
-        history: Boolean,
-        onClose: JNIOnCloseCallback,
-    ): Long
+    ): JNISubscriber = JNISubscriber(
+        JNIWrappers.declareLivelinessSubscriber(
+            this,
+            keyExprArg(keyExprHandle, keyExprString),
+            callback,
+            onClose,
+            history,
+        ).peek()
+    )
 
     @Throws(ZError::class)
     fun livelinessGet(
@@ -311,23 +288,12 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
         callback: JNIGetCallback,
         timeoutMs: Long,
         onClose: JNIOnCloseCallback,
-    ) = withPtr { ptr ->
-        if (keyExprHandle != null) {
-            keyExprHandle.withPtr { kePtr ->
-                livelinessGetViaJNI(ptr, kePtr, callback, timeoutMs, onClose)
-            }
-        } else {
-            livelinessGetViaJNI(ptr, keyExprString, callback, timeoutMs, onClose)
-        }
-    }
-
-    @Throws(ZError::class)
-    private external fun livelinessGetViaJNI(
-        sessionPtr: Long,
-        keyExpr: Any,
-        callback: JNIGetCallback,
-        timeoutMs: Long,
-        onClose: JNIOnCloseCallback,
+    ) = JNIWrappers.livelinessGet(
+        this,
+        keyExprArg(keyExprHandle, keyExprString),
+        callback,
+        onClose,
+        timeoutMs,
     )
 
     /**

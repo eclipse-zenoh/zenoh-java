@@ -66,7 +66,7 @@ sealed class Queryable(
      * Undeclares the queryable.
      */
     override fun undeclare() {
-        jniQueryable?.close()
+        jniQueryable?.free()
         jniQueryable = null
     }
 
@@ -79,7 +79,7 @@ sealed class Queryable(
     }
 
     protected fun finalize() {
-        jniQueryable?.close()
+        jniQueryable?.free()
     }
 }
 

@@ -64,16 +64,12 @@ class Query internal constructor(
     fun reply(keyExpr: KeyExpr, payload: IntoZBytes, options: ReplyOptions = ReplyOptions()) {
         val zbytes = payload.into()
         val encoding = options.encoding
-        val timestamp = options.timeStamp
-        val timestampEnabled = timestamp != null
         jniQuery?.apply {
             replySuccess(
-                keyExpr.jniKeyExpr,
-                keyExpr.keyExpr,
+                keyExpr.jniKeyExpr ?: keyExpr.keyExpr,
                 zbytes.bytes,
                 (encoding ?: Encoding.defaultEncoding()).toJni(),
-                timestampEnabled,
-                if (timestampEnabled) timestamp!!.ntpValue() else 0,
+                options.timeStamp?.ntpValue(),
                 options.attachment?.into()?.bytes,
                 QoS(options.congestionControl, options.priority, options.express).express
             )
@@ -103,14 +99,10 @@ class Query internal constructor(
     @JvmOverloads
     @Throws(ZError::class)
     fun replyDel(keyExpr: KeyExpr, options: ReplyDelOptions = ReplyDelOptions()) {
-        val timestamp = options.timeStamp
-        val timestampEnabled = timestamp != null
         jniQuery?.apply {
             replyDelete(
-                keyExpr.jniKeyExpr,
-                keyExpr.keyExpr,
-                timestampEnabled,
-                if (timestampEnabled) timestamp!!.ntpValue() else 0,
+                keyExpr.jniKeyExpr ?: keyExpr.keyExpr,
+                options.timeStamp?.ntpValue(),
                 options.attachment?.into()?.bytes,
                 QoS(options.congestionControl, options.priority, options.express).express
             )
@@ -146,7 +138,7 @@ class Query internal constructor(
 
     override fun close() {
         jniQuery?.apply {
-            this.close()
+            this.free()
             jniQuery = null
         }
     }

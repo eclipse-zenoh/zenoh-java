@@ -118,12 +118,12 @@ class Publisher internal constructor(
     }
 
     override fun undeclare() {
-        jniPublisher?.close()
+        jniPublisher?.free()
         jniPublisher = null
     }
 
     @Suppress("removal")
     protected fun finalize() {
-        jniPublisher?.close()
+        jniPublisher?.free()
     }
 }

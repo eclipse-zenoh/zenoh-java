@@ -35,7 +35,7 @@ class LivelinessToken internal constructor(private var jniLivelinessToken: JNILi
      * Undeclares the token.
      */
     override fun undeclare() {
-        jniLivelinessToken?.undeclare()
+        jniLivelinessToken?.free()
         jniLivelinessToken = null
     }
 

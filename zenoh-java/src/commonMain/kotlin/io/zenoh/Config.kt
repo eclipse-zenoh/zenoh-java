@@ -154,6 +154,6 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
     }
 
     protected fun finalize() {
-        jniConfig.close()
+        jniConfig.free()
     }
 }
