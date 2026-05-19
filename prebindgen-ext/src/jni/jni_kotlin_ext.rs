@@ -646,8 +646,11 @@ fn render_typed_handle_source(
     jni_method_suffix: &str,
 ) -> String {
     // Build method bodies first so we can collect imports up front.
+    // Two buckets — instance methods land in the class body; companion
+    // methods are wrapped in a `companion object { ... }` block.
     let mut imports: BTreeSet<String> = BTreeSet::new();
-    let mut methods_body = String::new();
+    let mut instance_body = String::new();
+    let mut companion_body = String::new();
     for fn_name in promoted_functions {
         let ident = syn::Ident::new(fn_name, proc_macro2::Span::call_site());
         let (item_fn, _loc) = registry.functions.get(&ident).unwrap_or_else(|| {
@@ -657,7 +660,7 @@ fn render_typed_handle_source(
                  the matching `#[prebindgen]` Rust fn name."
             )
         });
-        let block = render_wrapper_fn(
+        let (block, kind) = render_wrapper_fn(
             item_fn,
             registry,
             kotlin_types,
@@ -672,17 +675,19 @@ fn render_typed_handle_source(
                  non-opaque parameter types are registered in `kotlin_types`."
             )
         });
-        if !methods_body.is_empty() {
-            methods_body.push('\n');
+        let bucket = match kind {
+            MethodKind::Instance => &mut instance_body,
+            MethodKind::Companion => &mut companion_body,
+        };
+        if !bucket.is_empty() {
+            bucket.push('\n');
         }
-        // Indent the rendered method (4 spaces) so it sits inside the class.
         for line in block.lines() {
             if line.is_empty() {
-                methods_body.push('\n');
+                bucket.push('\n');
             } else {
-                methods_body.push_str("    ");
-                methods_body.push_str(line);
-                methods_body.push('\n');
+                bucket.push_str(line);
+                bucket.push('\n');
             }
         }
     }
@@ -727,9 +732,31 @@ fn render_typed_handle_source(
     s.push_str(&format!(
         "    private external fun {free_extern}(ptr: Long)\n"
     ));
-    if !methods_body.is_empty() {
+    if !instance_body.is_empty() {
         s.push('\n');
-        s.push_str(&methods_body);
+        for line in instance_body.lines() {
+            if line.is_empty() {
+                s.push('\n');
+            } else {
+                s.push_str("    ");
+                s.push_str(line);
+                s.push('\n');
+            }
+        }
+    }
+    if !companion_body.is_empty() {
+        s.push('\n');
+        s.push_str("    public companion object {\n");
+        for line in companion_body.lines() {
+            if line.is_empty() {
+                s.push('\n');
+            } else {
+                s.push_str("        ");
+                s.push_str(line);
+                s.push('\n');
+            }
+        }
+        s.push_str("    }\n");
     }
     s.push_str("}\n");
     s
@@ -778,7 +805,10 @@ fn render_jni_wrappers_source(
             continue;
         }
         let (item_fn, _loc) = &registry.functions[ident];
-        if let Some(block) = render_wrapper_fn(
+        // Top-level wrappers never carry a `promoted_handle`, so the
+        // returned [`MethodKind`] is always `Instance` and can be
+        // discarded — there is no companion-object emission here.
+        if let Some((block, _kind)) = render_wrapper_fn(
             item_fn,
             registry,
             &merged_types,
@@ -819,6 +849,18 @@ fn render_jni_wrappers_source(
     out
 }
 
+/// Whether a typed-handle-promoted wrapper is emitted as an instance
+/// method on the handle class (the first parameter matched the promoted
+/// Rust type-key as a literal `&T` / `T`), or inside the class's
+/// `companion object` (no param matched, or the candidate was an
+/// `impl Into<T>` Dispatch param — those are not eligible for instance
+/// promotion even when the inner `T` matches).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MethodKind {
+    Instance,
+    Companion,
+}
+
 /// Emit a single wrapper function. Returns `None` if the function has
 /// a parameter whose Kotlin type isn't registered (in that case we
 /// skip the function rather than panicking — the legacy `JNINative.kt`
@@ -826,12 +868,26 @@ fn render_jni_wrappers_source(
 /// escape hatch).
 ///
 /// When `promoted_handle` is `Some(rust_key)`, the wrapper is emitted
-/// as an instance method on a typed-handle class: the first parameter
-/// whose Rust type matches `rust_key` (modulo `&T` borrow) is dropped
-/// from the signature, and its `withPtr` / `consume` wrapper uses the
-/// inherited [`NativeHandle`] scope (no `<name>.` prefix) so the
-/// captured `<name>_ptr` is bound in `this`. Every other parameter is
-/// emitted exactly as the `JNIWrappers` top-level form.
+/// as either an instance method or a companion-object method, depending
+/// on whether any parameter matches `rust_key`:
+///
+/// * **Instance** — the first parameter whose Rust type matches
+///   `rust_key` (modulo `&T` borrow) is dropped from the signature, and
+///   its `withPtr` / `consume` wrapper uses the inherited
+///   [`NativeHandle`] scope (no `<name>.` prefix) so the captured
+///   `<name>_ptr` is bound in `this`. Every other parameter is emitted
+///   exactly as the `JNIWrappers` top-level form.
+/// * **Companion** — no parameter matched (e.g. the fn takes no opaque
+///   handle of this type, or it takes an `impl Into<T>` Dispatch param
+///   whose inner `T` matches the key — those are intentionally **not**
+///   promoted to instance methods). The body is emitted exactly as the
+///   `JNIWrappers` top-level form (all params, full Dispatch arm tree,
+///   no `this` rewrite); the caller is expected to wrap it inside a
+///   `companion object { ... }` block on the typed-handle class.
+///
+/// When `promoted_handle` is `None` (top-level `JNIWrappers` emission),
+/// the returned kind is always [`MethodKind::Instance`] (no
+/// promotion-shape decision is made) and the caller can ignore it.
 fn render_wrapper_fn(
     f: &syn::ItemFn,
     registry: &Registry<KotlinMeta>,
@@ -839,7 +895,7 @@ fn render_wrapper_fn(
     imports: &mut BTreeSet<String>,
     promoted_handle: Option<&str>,
     jni_method_suffix: &str,
-) -> Option<String> {
+) -> Option<(String, MethodKind)> {
     use std::fmt::Write;
 
     let rust_name = f.sig.ident.to_string();
@@ -956,16 +1012,15 @@ fn render_wrapper_fn(
     }
 
     // A promoted-handle was requested but never matched any param —
-    // build-time wiring error.
-    if promoted_handle.is_some() && !promoted_taken {
-        panic!(
-            "render_wrapper_fn: function `{}` has no parameter matching \
-             promoted Rust type-key `{}` — check the typed-handle's \
-             `functions` list in build.rs.",
-            rust_name,
-            promoted_handle.unwrap(),
-        );
-    }
+    // emit as a companion-object method instead of panicking. `.method(...)`
+    // is a namespace declaration ("this fn lives on the typed-handle
+    // class"), and the generator chooses between an instance method and
+    // a companion-object method based on whether any param matched.
+    let kind = if promoted_handle.is_some() && !promoted_taken {
+        MethodKind::Companion
+    } else {
+        MethodKind::Instance
+    };
 
     // Return type: peel ZResult<...>; detect opaque-handle return.
     // `opaque_ctor` is the constructor name to wrap the JNI return
@@ -1126,7 +1181,7 @@ fn render_wrapper_fn(
     }
     let _ = writeln!(out, " =");
     let _ = writeln!(out, "    {body_expr}");
-    Some(out)
+    Some((out, kind))
 }
 
 /// One arm of an `impl Into<T>` parameter's Java-side dispatch tree.
