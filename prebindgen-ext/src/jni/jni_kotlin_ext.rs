@@ -46,7 +46,8 @@ pub(crate) struct TypedHandle<'a> {
     /// `#[prebindgen]` fn idents promoted to instance methods on this
     /// class. The matching opaque first parameter is dropped from the
     /// signature; the method uses inherited `withPtr` / `consume`. An
-    /// empty slice emits a pure shell (just `close()` + `freePtrViaJNI`).
+    /// empty slice emits a pure shell (just `free()` + the matching
+    /// `freePtr<jni_method_suffix>` extern).
     pub functions: &'a [&'a str],
 }
 
@@ -234,7 +235,7 @@ impl JniExt {
     /// class instead). Opaque-handle parameters become `NativeHandle`;
     /// the wrapper body nests `withPtr` / `consume` per the
     /// type-conversion rule (`&T` → `withPtr`, `T` → `consume`), then
-    /// delegates to the matching `JNINative.<name>ViaJNI(...)`.
+    /// delegates to the matching `JNINative.<name><jni_method_suffix>(...)`.
     /// Non-opaque parameters pass through with the Kotlin type from
     /// `kotlin_types`. Opaque-handle return values are wrapped in
     /// `NativeHandle(...)` before being returned.
@@ -260,7 +261,7 @@ impl JniExt {
 
     /// Emit one Kotlin file per entry in `handles` — each becomes a
     /// `public class <ClassName>(initialPtr: Long) : NativeHandle(initialPtr)`
-    /// with the standard `close()` + `private external fun freePtrViaJNI(ptr: Long)`
+    /// with the standard `free()` + `private external fun freePtr<jni_method_suffix>(ptr: Long)`
     /// destructor pair, plus one instance method per `#[prebindgen]` fn
     /// listed in [`TypedHandle::functions`]. The promoted method's first
     /// opaque parameter matching the handle's Rust type is dropped — the
@@ -330,6 +331,7 @@ impl JniExt {
                     rust_key.as_deref(),
                     registry,
                     &merged_types,
+                    &self.jni_method_suffix,
                 ),
                 package,
                 class_name,
@@ -608,7 +610,8 @@ public open class NativeHandle(initial: Long) {
     .to_string()
 }
 
-/// Render one typed-handle Kotlin source file. Pure-shell form:
+/// Render one typed-handle Kotlin source file. Pure-shell form
+/// (assuming `jni_method_suffix = "ViaJNI"`):
 ///
 /// ```kotlin
 /// public class JNIFoo(initialPtr: Long) : NativeHandle(initialPtr) {
@@ -623,9 +626,10 @@ public open class NativeHandle(initial: Long) {
 /// signature, and its `withPtr` / `consume` wrapper uses the
 /// inherited [`NativeHandle`] scope.
 ///
-/// The Kotlin/JVM JNI name mangler binds `freePtrViaJNI` to the
-/// `Java_<pkg>_<class>_freePtrViaJNI` extern emitted on the Rust
-/// side — same convention as before, no Rust-side change needed.
+/// The free-pointer extern name is built as `freePtr<jni_method_suffix>`.
+/// Kotlin/JVM's JNI name mangler binds it to the matching
+/// `Java_<pkg>_<class>_freePtr<jni_method_suffix>` extern on the Rust
+/// side (the hand-written destructor).
 fn render_typed_handle_source(
     package: &str,
     class_name: &str,
@@ -634,6 +638,7 @@ fn render_typed_handle_source(
     promoted_rust_key: Option<&str>,
     registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
+    jni_method_suffix: &str,
 ) -> String {
     // Build method bodies first so we can collect imports up front.
     let mut imports: BTreeSet<String> = BTreeSet::new();
@@ -653,6 +658,7 @@ fn render_typed_handle_source(
             kotlin_types,
             &mut imports,
             promoted_rust_key,
+            jni_method_suffix,
         )
         .unwrap_or_else(|| {
             panic!(
@@ -709,8 +715,13 @@ fn render_typed_handle_source(
         "public class {}(initialPtr: Long) : NativeHandle(initialPtr) {{\n",
         class_name
     ));
-    s.push_str("    public fun free() = free { freePtrViaJNI(it) }\n");
-    s.push_str("    private external fun freePtrViaJNI(ptr: Long)\n");
+    let free_extern = format!("freePtr{jni_method_suffix}");
+    s.push_str(&format!(
+        "    public fun free() = free {{ {free_extern}(it) }}\n"
+    ));
+    s.push_str(&format!(
+        "    private external fun {free_extern}(ptr: Long)\n"
+    ));
     if !methods_body.is_empty() {
         s.push('\n');
         s.push_str(&methods_body);
@@ -725,7 +736,7 @@ fn render_typed_handle_source(
 /// the wrapper body nests `withPtr` / `consume` per the syntactic
 /// shape. Non-opaque parameters pass through with the Kotlin type from
 /// `kotlin_types`. The wrappers delegate to
-/// `JNINative.<name>ViaJNI(...)`.
+/// `JNINative.<name><jni_method_suffix>(...)`.
 fn render_jni_wrappers_source(
     ext: &JniExt,
     registry: &Registry<KotlinMeta>,
@@ -756,14 +767,20 @@ fn render_jni_wrappers_source(
     for ident in idents {
         // Skip functions promoted to a typed-handle class — their
         // top-level wrapper lives on the handle instead. The Rust-side
-        // `JNINative.<name>ViaJNI` extern is still emitted by the
-        // legacy `KotlinInterfaceGenerator`; only the Kotlin-side
-        // safe wrapper moves.
+        // `JNINative.<name><jni_method_suffix>` extern still exists;
+        // only the Kotlin-side safe wrapper moves.
         if promoted.contains(&ident.to_string()) {
             continue;
         }
         let (item_fn, _loc) = &registry.functions[ident];
-        if let Some(block) = render_wrapper_fn(item_fn, registry, &merged_types, &mut imports, None) {
+        if let Some(block) = render_wrapper_fn(
+            item_fn,
+            registry,
+            &merged_types,
+            &mut imports,
+            None,
+            &ext.jni_method_suffix,
+        ) {
             body.push_str(&block);
             body.push('\n');
         }
@@ -814,12 +831,13 @@ fn render_wrapper_fn(
     kotlin_types: &KotlinTypeMap,
     imports: &mut BTreeSet<String>,
     promoted_handle: Option<&str>,
+    jni_method_suffix: &str,
 ) -> Option<String> {
     use std::fmt::Write;
 
     let rust_name = f.sig.ident.to_string();
     let kt_name = snake_to_camel(&rust_name);
-    let jni_call = format!("{kt_name}ViaJNI");
+    let jni_call = format!("{kt_name}{jni_method_suffix}");
 
     // Pre-parse the promoted Rust type-key (if any) so per-param matching
     // is whitespace-normalised against the canonical form.
