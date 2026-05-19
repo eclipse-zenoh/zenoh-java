@@ -1,16 +1,19 @@
 //! `KotlinExt` impl for [`JniExt`].
 //!
-//! Today's pipeline emits two kinds of Kotlin output:
-//! 1. One aggregated `JNINative.kt` (interface + data classes + external
-//!    funs). This is currently produced by the existing
-//!    [`crate::kotlin::KotlinInterfaceGenerator`] called separately from
-//!    `build.rs`.
-//! 2. One `JNI<Stem>Callback.kt` per `impl Fn(args) + Send + Sync + 'static`
-//!    type encountered. These get emitted here via `JniExt::write_kotlin`.
+//! [`JniExt::write_kotlin`] is the single entry point for every Kotlin
+//! file the JNI back-end emits. Given one `kotlin_root` it writes:
+//!   * `NativeHandle.kt` (package `io.zenoh.jni`).
+//!   * One typed-handle class per `kotlin_class` entry without
+//!     `.suppress_kotlin_code()`.
+//!   * `JNIWrappers.kt` — top-level safe wrappers for non-promoted fns.
+//!   * One `JNI<Stem>Callback.kt` per `impl Fn(args) + Send + Sync +
+//!     'static` type (package = `kotlin_callback_package`). Callback
+//!     types overridden via [`JniExt::callback_input`] /
+//!     [`JniExt::callback_kotlin_name`] are skipped — the override
+//!     points at a hand-written interface.
 //!
-//! The split is deliberate: the per-callback files are the new artifact
-//! introduced by the rewrite; the aggregated interface remains the
-//! responsibility of the existing generator and is not touched by JniExt.
+//! All emitters route through [`KotlinFile::write`], which translates
+//! `package` into a sub-path under `kotlin_root`.
 
 use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
@@ -70,7 +73,7 @@ impl JniExt {
         kotlin_root: &Path,
     ) -> Result<Vec<PathBuf>, WriteKotlinError> {
         let mut written = Vec::new();
-        written.extend(self.emit_callback_files(registry)?);
+        written.extend(self.emit_callback_files(registry, kotlin_root)?);
         written.push(self.write_native_handle(kotlin_root)?);
 
         // Build the borrowed `TypedHandle<'_>` view from internal config.
@@ -111,14 +114,15 @@ impl JniExt {
     /// registry). Skips writes for `impl Fn(...)` keys whose Kotlin
     /// FQN was overridden via [`Self::callback_input`] — the override
     /// already points at a hand-maintained callback interface, so the
-    /// auto-stub would be dead code.
+    /// auto-stub would be dead code. Each emitted file is placed
+    /// under `kotlin_root/<kotlin_callback_package as path>/`.
     pub(crate) fn emit_callback_files(
         &self,
         registry: &Registry<KotlinMeta>,
+        kotlin_root: &Path,
     ) -> Result<Vec<PathBuf>, WriteKotlinError> {
         let mut seen: HashSet<TypeKey> = HashSet::new();
         let mut written = Vec::new();
-        let target_dir = self.kotlin_callback_dir.clone();
         for buckets in [&registry.input_types, &registry.output_types] {
             for bucket in buckets.iter() {
                 for (key, slot) in bucket {
@@ -142,10 +146,7 @@ impl JniExt {
                             continue;
                         }
                         let file = build_callback_kotlin_file(self, &args, registry);
-                        std::fs::create_dir_all(&target_dir)?;
-                        let path = target_dir.join(format!("{}.kt", file.class_name));
-                        std::fs::write(&path, &file.contents)?;
-                        written.push(path);
+                        written.push(file.write(kotlin_root)?);
                     }
                 }
             }

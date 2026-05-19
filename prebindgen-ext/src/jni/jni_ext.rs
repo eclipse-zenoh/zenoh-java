@@ -24,7 +24,6 @@
 //! project.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use proc_macro2::{Span, TokenStream};
@@ -201,10 +200,10 @@ pub struct JniExt {
     pub jni_class_path: String,
     /// Suffix appended to the wrapped fn name (e.g. `ViaJNI`).
     pub jni_method_suffix: String,
-    /// Kotlin package callback fun-interfaces are emitted into.
+    /// Kotlin package callback fun-interfaces are emitted into. Also
+    /// drives the on-disk subdirectory under the `kotlin_root` passed
+    /// to [`Self::write_kotlin`] (`a.b.c` → `a/b/c/`).
     pub kotlin_callback_package: String,
-    /// On-disk directory the per-callback `.kt` files are written to.
-    pub kotlin_callback_dir: PathBuf,
     /// Derived `<rust-type-canonical-string> → <kotlin FQN>` view —
     /// populated alongside [`Self::types`] by the structured builders
     /// ([`Self::kotlin_class`], [`Self::kotlin_value_type`],
@@ -256,7 +255,6 @@ impl JniExt {
             jni_class_path: "Java".to_string(),
             jni_method_suffix: String::new(),
             kotlin_callback_package: String::new(),
-            kotlin_callback_dir: PathBuf::new(),
             kotlin_type_fqns: Vec::new(),
             types: HashMap::new(),
             into_sources_map: HashMap::new(),
@@ -296,10 +294,6 @@ impl JniExt {
     }
     pub fn kotlin_callback_package(mut self, p: impl Into<String>) -> Self {
         self.kotlin_callback_package = p.into();
-        self
-    }
-    pub fn kotlin_callback_dir(mut self, d: impl Into<PathBuf>) -> Self {
-        self.kotlin_callback_dir = d.into();
         self
     }
     // ── Structured type-conversion builders ──────────────────────────

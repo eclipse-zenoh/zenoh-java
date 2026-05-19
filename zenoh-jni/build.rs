@@ -1,12 +1,13 @@
 //! Build script — declarative configuration of the prebindgen-ext
 //! pipeline. Reads top-to-bottom as:
-//!   1. Configure `JniExt` (Rust crate paths + Kotlin output paths +
-//!      per-type rules: opaque handles, jint enums, custom decoders,
-//!      callback overrides, data-class names, `impl Into<T>` arms).
+//!   1. Configure `JniExt` (Rust crate paths + per-type rules: opaque
+//!      handles, jint enums, custom decoders, callback overrides,
+//!      data-class names, `impl Into<T>` arms).
 //!   2. Scan `zenoh_flat`'s prebindgen source and write the generated
 //!      Rust bindings (`zenoh_flat_jni.rs`).
-//!   3. Write all Kotlin output (`JNI*Callback.kt`, `NativeHandle.kt`,
-//!      typed-handle classes, `JNIWrappers.kt`).
+//!   3. Write every Kotlin file under one root — `generated-kotlin/`
+//!      (`JNI*Callback.kt`, `NativeHandle.kt`, typed-handle classes,
+//!      `JNIWrappers.kt`).
 
 use prebindgen_ext::core::prebindgen_ext::IntoSource;
 use prebindgen_ext::core::registry::Registry;
@@ -22,7 +23,6 @@ fn main() {
         .jni_class_path("Java_io_zenoh_jni_JNINative")
         .jni_method_suffix("ViaJNI")
         .kotlin_callback_package("io.zenoh.jni.callbacks")
-        .kotlin_callback_dir("../zenoh-jni-runtime/src/commonMain/kotlin/io/zenoh/jni/callbacks")
         // ── Kotlin classes — `kotlin_class` configures: jlong wire
         // (input + output), `Box::into_raw`/`Box::from_raw` lifecycle,
         // `instanceof` dispatch class, and the Kotlin parameter-type
@@ -149,7 +149,10 @@ fn main() {
     );
 
     // ── Write Kotlin output ───────────────────────────────────────────
-    let kotlin_root = std::path::Path::new("../zenoh-jni-runtime/src/commonMain/kotlin");
+    // All generated Kotlin lives under `generated-kotlin/`; the runtime
+    // module's Gradle source set picks it up via
+    // `kotlin.srcDir("$rootDir/zenoh-jni/generated-kotlin")`.
+    let kotlin_root = std::path::Path::new("generated-kotlin");
     for path in jni
         .write_kotlin(&registry, kotlin_root)
         .expect("write kotlin failed")
