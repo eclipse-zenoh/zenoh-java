@@ -14,6 +14,7 @@
 use crate::sample::Sample;
 use crate::{errors::ZResult, zerror};
 use std::time::Duration;
+use prebindgen_proc_macro::prebindgen;
 use tracing::{error, trace};
 
 use zenoh::{
@@ -53,7 +54,7 @@ impl<F: FnOnce()> Drop for CallOnDrop<F> {
 }
 
 /// Open a Zenoh session using a borrowed configuration.
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn open_session(config: &Config) -> ZResult<Session> {
     zenoh::open(config.clone())
         .wait()
@@ -68,7 +69,7 @@ pub fn open_session(config: &Config) -> ZResult<Session> {
 }
 
 /// Declare a publisher through an existing Zenoh session.
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn declare_publisher(
     session: &Session,
     key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
@@ -100,7 +101,7 @@ pub fn declare_publisher(
 ///
 /// Returns a session-declared [`ZKeyExpr<'static>`] (Arc-backed handle)
 /// suitable for reuse across many subsequent operations.
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<ZKeyExpr<'static>> {
     let key_expr_clone = key_expr.clone();
     session
@@ -125,7 +126,7 @@ pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<ZKeyExpr
 /// Takes the [`ZKeyExpr<'static>`] by value: ownership transfers into
 /// this call, so the key expression is consumed and dropped as part
 /// of the undeclare.
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn undeclare_key_expr(session: &Session, key_expr: ZKeyExpr<'static>) -> ZResult<()> {
     let key_expr_string = key_expr.to_string();
     session.undeclare(key_expr).wait().map_err(|err| {
@@ -142,7 +143,7 @@ pub fn undeclare_key_expr(session: &Session, key_expr: ZKeyExpr<'static>) -> ZRe
 }
 
 /// Declare a subscriber through an existing Zenoh session.
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn declare_subscriber(
     session: &Session,
     key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
@@ -170,7 +171,7 @@ pub fn declare_subscriber(
 }
 
 /// Declare a querier through an existing Zenoh session.
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn declare_querier(
     session: &Session,
     key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
@@ -204,7 +205,7 @@ pub fn declare_querier(
 }
 
 /// Declare a queryable through an existing Zenoh session.
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn declare_queryable(
     session: &Session,
     key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
@@ -242,7 +243,7 @@ pub fn declare_queryable(
 ///
 /// Parameter order matches the wire-side calling convention so a binding
 /// generator can emit the wrapper without reordering.
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn get(
     session: &Session,
     key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
@@ -301,7 +302,7 @@ pub fn get(
 }
 
 /// Perform a put operation through an existing Zenoh session.
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn put(
     session: &Session,
     key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
@@ -339,7 +340,7 @@ pub fn put(
 }
 
 /// Perform a delete operation through an existing Zenoh session.
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn delete(
     session: &Session,
     key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
@@ -374,25 +375,25 @@ pub fn delete(
 }
 
 /// Return the Zenoh ID of the session.
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn get_zid(session: &Session) -> ZResult<ZenohId> {
     Ok(session.info().zid().wait())
 }
 
 /// Return the Zenoh IDs of the peers connected to this session.
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn get_peers_zid(session: &Session) -> ZResult<Vec<ZenohId>> {
     Ok(session.info().peers_zid().wait().collect())
 }
 
 /// Return the Zenoh IDs of the routers connected to this session.
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn get_routers_zid(session: &Session) -> ZResult<Vec<ZenohId>> {
     Ok(session.info().routers_zid().wait().collect())
 }
 
 /// Close a Zenoh session using a reference to the session.
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn close_session(session: &Session) -> ZResult<()> {
     session
         .close()
@@ -413,7 +414,7 @@ pub fn close_session(session: &Session) -> ZResult<()> {
 /// is atomically invalidated. `Session::drop` calls `self.close().wait()`
 /// internally, so a single `dropSession` is the complete teardown — no
 /// separate `closeSession` step is required.
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn drop_session(session: Session) -> ZResult<()> {
     drop(session);
     Ok(())
@@ -425,7 +426,7 @@ pub fn drop_session(session: Session) -> ZResult<()> {
 /// advanced configuration. Callers assemble `HistoryConfig` /
 /// `RecoveryConfig` from primitive arguments and pass them here.
 #[cfg(feature = "zenoh-ext")]
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn declare_advanced_subscriber(
     session: &Session,
     key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
@@ -475,7 +476,7 @@ pub fn declare_advanced_subscriber(
 /// advanced configuration. Callers assemble `CacheConfig` /
 /// `MissDetectionConfig` from primitive arguments and pass them here.
 #[cfg(feature = "zenoh-ext")]
-#[prebindgen_proc_macro::prebindgen]
+#[prebindgen]
 pub fn declare_advanced_publisher(
     session: &Session,
     key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
