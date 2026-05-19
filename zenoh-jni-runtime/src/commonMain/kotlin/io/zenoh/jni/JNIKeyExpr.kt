@@ -88,5 +88,5 @@ fun keyExprConcat(a: NativeHandle?, aStr: String, other: String): KeyExprResult 
  * has already been closed/consumed.
  */
 fun keyExprDrop(handle: NativeHandle) {
-    handle.close { ptr -> JNINative.dropKeyExprViaJNI(ptr) }
+    handle.free { ptr -> JNINative.dropKeyExprViaJNI(ptr) }
 }

@@ -42,7 +42,7 @@ public class JNIAdvancedPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
     @Throws(ZError::class)
     fun getMatchingStatus(): Boolean = withPtr { ptr -> getMatchingStatusViaJNI(ptr) }
 
-    fun close() = close { freePtrViaJNI(it) }
+    fun free() = free { freePtrViaJNI(it) }
 
     @Throws(ZError::class)
     private external fun putViaJNI(

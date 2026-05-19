@@ -63,7 +63,7 @@ public class JNIQuery(initialPtr: Long) : NativeHandle(initialPtr) {
         }
     }
 
-    fun close() = close { freePtrViaJNI(it) }
+    fun free() = free { freePtrViaJNI(it) }
 
     @Throws(ZError::class)
     private external fun replySuccessViaJNI(

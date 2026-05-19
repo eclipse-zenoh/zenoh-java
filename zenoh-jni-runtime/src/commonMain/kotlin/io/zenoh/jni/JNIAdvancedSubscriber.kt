@@ -56,7 +56,7 @@ public class JNIAdvancedSubscriber(initialPtr: Long) : NativeHandle(initialPtr) 
         declareBackgroundSampleMissListenerViaJNI(ptr, callback, onClose)
     }
 
-    fun close() = close { freePtrViaJNI(it) }
+    fun free() = free { freePtrViaJNI(it) }
 
     @Throws(ZError::class)
     private external fun declareDetectPublishersSubscriberViaJNI(

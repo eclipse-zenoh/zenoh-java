@@ -518,14 +518,14 @@ import kotlin.concurrent.write
  * Race-free wrapper around a raw `Box<T>` pointer obtained from native
  * code via `Box::into_raw(Box::new(v))`. Pairs the pointer with a
  * `ReentrantReadWriteLock` so that borrow-style JNI calls run in
- * parallel under the read lock and consume/close serialise against
+ * parallel under the read lock and consume/free serialise against
  * them under the write lock.
  *
  * This is the Java-side half of the type-conversion rule for opaque
  * handles: `&T` parameters route through [withPtr] (borrow); by-value
  * `T` parameters route through [consume] (write lock, slot stays
  * valid during the action, then null-ed in `finally`); destructor
- * entry points without a matching `#[prebindgen]` fn use [close]. The
+ * entry points without a matching `#[prebindgen]` fn use [free]. The
  * auto-generated wrappers in `JNIWrappers.kt` are the only callers
  * that need to know which mode applies.
  *
@@ -536,13 +536,13 @@ public open class NativeHandle(initial: Long) {
     private val lock = ReentrantReadWriteLock()
 
     /** Volatile so [peek] is atomic on 32-bit JVMs and observes the
-     *  write done by [close] / [consume] without holding the lock. */
+     *  write done by [free] / [consume] without holding the lock. */
     @Volatile private var ptr: Long = initial
 
     /**
      * Run [block] with the live pointer under the read lock. Throws
-     * [ZError] if [close] has already released the handle. Multiple
-     * concurrent invocations run in parallel; only [close]/[consume]
+    * [ZError] if [free] has already released the handle. Multiple
+    * concurrent invocations run in parallel; only [free]/[consume]
      * are serialised against them.
      */
     @Throws(ZError::class)
@@ -554,10 +554,10 @@ public open class NativeHandle(initial: Long) {
 
     /**
      * Take the pointer under the write lock and pass it to [freeFn]
-     * exactly once. Subsequent [close] calls are no-ops. Blocks until
+     * exactly once. Subsequent [free] calls are no-ops. Blocks until
      * all in-flight [withPtr] calls finish.
      */
-    public fun close(freeFn: (Long) -> Unit) {
+    public fun free(freeFn: (Long) -> Unit) {
         lock.write {
             val p = ptr
             if (p == 0L) return@write
@@ -577,9 +577,9 @@ public open class NativeHandle(initial: Long) {
      * typed handle to JNI and have JNI extract the pointer via [peek]
      * — symmetric with [withPtr] for the Borrow path. Unique-ownership
      * is still guaranteed: the write lock excludes every other
-     * [withPtr] / [consume] / [close], and the `finally` clause
+    * [withPtr] / [consume] / [free], and the `finally` clause
      * unconditionally nulls the slot before the lock is released, so
-     * the next [withPtr] / [consume] / [close] sees `ptr == 0` and
+    * the next [withPtr] / [consume] / [free] sees `ptr == 0` and
      * cannot reach the freed allocation.
      *
      * Throws if the handle has already been closed/consumed.
@@ -595,7 +595,7 @@ public open class NativeHandle(initial: Long) {
         }
     }
 
-    /** True iff [close] has run. */
+    /** True iff [free] has run. */
     public fun isClosed(): Boolean = lock.read { ptr == 0L }
 
     /**
@@ -612,7 +612,7 @@ public open class NativeHandle(initial: Long) {
 ///
 /// ```kotlin
 /// public class JNIFoo(initialPtr: Long) : NativeHandle(initialPtr) {
-///     public fun close() = close { freePtrViaJNI(it) }
+///     public fun free() = free { freePtrViaJNI(it) }
 ///     private external fun freePtrViaJNI(ptr: Long)
 /// }
 /// ```
@@ -709,7 +709,7 @@ fn render_typed_handle_source(
         "public class {}(initialPtr: Long) : NativeHandle(initialPtr) {{\n",
         class_name
     ));
-    s.push_str("    public fun close() = close { freePtrViaJNI(it) }\n");
+    s.push_str("    public fun free() = free { freePtrViaJNI(it) }\n");
     s.push_str("    private external fun freePtrViaJNI(ptr: Long)\n");
     if !methods_body.is_empty() {
         s.push('\n');

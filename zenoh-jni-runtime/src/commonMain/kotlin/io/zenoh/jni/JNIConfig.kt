@@ -68,7 +68,7 @@ public class JNIConfig(initialPtr: Long) : NativeHandle(initialPtr) {
         private external fun getJsonViaJNI(ptr: Long, key: String): String
     }
 
-    fun close() = close { freePtrViaJNI(it) }
+    fun free() = free { freePtrViaJNI(it) }
 
     @Throws(ZError::class)
     fun getId(): ByteArray = withPtr { ptr -> getIdViaJNI(ptr) }

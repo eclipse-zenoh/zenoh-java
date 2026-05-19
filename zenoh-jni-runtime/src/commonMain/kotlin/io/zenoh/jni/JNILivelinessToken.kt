@@ -16,6 +16,6 @@ package io.zenoh.jni
 
 /** Typed [NativeHandle] for a native Zenoh `LivelinessToken`. */
 public class JNILivelinessToken(initialPtr: Long) : NativeHandle(initialPtr) {
-    fun undeclare() = close { undeclareViaJNI(it) }
+    fun undeclare() = free { undeclareViaJNI(it) }
     private external fun undeclareViaJNI(ptr: Long)
 }

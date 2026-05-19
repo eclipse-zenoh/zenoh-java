@@ -52,5 +52,5 @@ public class JNIScout(initialPtr: Long) : NativeHandle(initialPtr) {
         private external fun freePtrViaJNI(ptr: Long)
     }
 
-    fun close() = close { freePtrViaJNI(it) }
+    fun free() = free { freePtrViaJNI(it) }
 }
