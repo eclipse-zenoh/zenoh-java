@@ -192,18 +192,40 @@ pub struct JniExt {
     /// `<path>!("msg")` and produce a value compatible with the `zresult`
     /// error type.
     pub zerror_macro: syn::Path,
-    /// Java class path prefix for auto-generated struct encoders, slash-
-    /// separated (e.g. `io/zenoh/jni`). Empty = no prefix.
-    pub java_class_prefix: String,
-    /// JNI native-class name, used by [`Self::on_function`] when mangling
-    /// fn idents (e.g. `Java_io_zenoh_jni_JNINative_<fn>ViaJNI`).
-    pub jni_class_path: String,
+    /// Single source of truth for the JVM/Kotlin namespace this binding
+    /// targets, dot-separated (e.g. `io.zenoh.jni`). Empty = no prefix.
+    /// Drives every derived form: slash-separated for `FindClass`,
+    /// `_`-mangled for JNI extern idents, and dot-separated for Kotlin
+    /// `package` declarations.
+    pub package: String,
+    /// JVM class on which the JNI `external fun`s live. Combined with
+    /// [`Self::package`] to produce the JNI symbol prefix
+    /// `Java_<package_underscores>_<jni_native_class>_<fn><suffix>`.
+    pub jni_native_class: String,
+    /// Sub-package leaf appended to [`Self::package`] for the auto-emitted
+    /// callback fun-interface files. Combined as
+    /// `<package>.<callback_subpackage>`; empty = same package as
+    /// [`Self::package`].
+    pub callback_subpackage: String,
+    /// Prefix applied to the auto-derived callback class name. Combined
+    /// with the per-callback `stem` and [`Self::callback_name_postfix`]:
+    /// `<prefix><stem><postfix>`.
+    pub callback_name_prefix: String,
+    /// Postfix applied to the auto-derived callback class name.
+    pub callback_name_postfix: String,
+    /// Derived: `package.replace('.', '/')`. Read by
+    /// [`struct_output_body`] when building `FindClass` strings.
+    pub(crate) java_class_prefix: String,
+    /// Derived: `"Java_" + package.replace('.', '_') + "_" + jni_native_class`.
+    /// Read by [`Self::on_function`] when mangling fn idents.
+    pub(crate) jni_class_path: String,
     /// Suffix appended to the wrapped fn name (e.g. `ViaJNI`).
     pub jni_method_suffix: String,
-    /// Kotlin package callback fun-interfaces are emitted into. Also
-    /// drives the on-disk subdirectory under the `kotlin_root` passed
-    /// to [`Self::write_kotlin`] (`a.b.c` → `a/b/c/`).
-    pub kotlin_callback_package: String,
+    /// Derived: `package + "." + callback_subpackage` (or just `package`
+    /// when the subpackage is empty). Also drives the on-disk subdirectory
+    /// under the `kotlin_root` passed to [`Self::write_kotlin`]
+    /// (`a.b.c` → `a/b/c/`).
+    pub(crate) kotlin_callback_package: String,
     /// Derived `<rust-type-canonical-string> → <kotlin FQN>` view —
     /// populated alongside [`Self::types`] by the structured builders
     /// ([`Self::kotlin_class`], [`Self::kotlin_value_type`],
@@ -251,10 +273,15 @@ impl JniExt {
             zresult: syn::parse_str("crate::errors::ZResult").unwrap(),
             throw_macro: syn::parse_str("crate::throw_exception").unwrap(),
             zerror_macro: syn::parse_str("crate::zerror").unwrap(),
+            package: String::new(),
+            jni_native_class: "JNINative".to_string(),
+            callback_subpackage: "callbacks".to_string(),
+            callback_name_prefix: "JNI".to_string(),
+            callback_name_postfix: "Callback".to_string(),
             java_class_prefix: String::new(),
-            jni_class_path: "Java".to_string(),
+            jni_class_path: "Java_JNINative".to_string(),
             jni_method_suffix: String::new(),
-            kotlin_callback_package: String::new(),
+            kotlin_callback_package: "callbacks".to_string(),
             kotlin_type_fqns: Vec::new(),
             types: HashMap::new(),
             into_sources_map: HashMap::new(),
@@ -280,21 +307,108 @@ impl JniExt {
         self.zerror_macro = syn::parse_str(p.as_ref()).expect("invalid zerror_macro path");
         self
     }
-    pub fn java_class_prefix(mut self, p: impl Into<String>) -> Self {
-        self.java_class_prefix = p.into().trim_matches('/').to_string();
+    /// Set the JVM/Kotlin base package (dot-separated, e.g.
+    /// `"io.zenoh.jni"`). All derived forms (`java_class_prefix`,
+    /// `jni_class_path`, `kotlin_callback_package`) are recomputed.
+    pub fn package(mut self, p: impl Into<String>) -> Self {
+        self.package = p.into().trim_matches('.').trim_matches('/').to_string();
+        self.recompute_derived();
         self
     }
-    pub fn jni_class_path(mut self, p: impl Into<String>) -> Self {
-        self.jni_class_path = p.into();
+    /// Set the JVM class on which JNI `external fun`s live (e.g.
+    /// `"JNINative"`). Affects `jni_class_path`.
+    pub fn jni_native_class(mut self, c: impl Into<String>) -> Self {
+        self.jni_native_class = c.into();
+        self.recompute_derived();
+        self
+    }
+    /// Set the leaf appended to [`Self::package`] for the auto-emitted
+    /// callback fun-interface files (e.g. `"callbacks"`). Affects
+    /// `kotlin_callback_package`.
+    pub fn callback_subpackage(mut self, s: impl Into<String>) -> Self {
+        self.callback_subpackage = s.into().trim_matches('.').to_string();
+        self.recompute_derived();
+        self
+    }
+    /// Set the prefix applied to auto-derived callback class names
+    /// (default `"JNI"`).
+    pub fn callback_name_prefix(mut self, s: impl Into<String>) -> Self {
+        self.callback_name_prefix = s.into();
+        self
+    }
+    /// Set the postfix applied to auto-derived callback class names
+    /// (default `"Callback"`).
+    pub fn callback_name_postfix(mut self, s: impl Into<String>) -> Self {
+        self.callback_name_postfix = s.into();
         self
     }
     pub fn jni_method_suffix(mut self, s: impl Into<String>) -> Self {
         self.jni_method_suffix = s.into();
         self
     }
-    pub fn kotlin_callback_package(mut self, p: impl Into<String>) -> Self {
-        self.kotlin_callback_package = p.into();
-        self
+
+    /// Recompute the derived caches (`java_class_prefix`,
+    /// `jni_class_path`, `kotlin_callback_package`) from
+    /// (`package`, `jni_native_class`, `callback_subpackage`). Called by
+    /// every setter that touches one of those source fields.
+    fn recompute_derived(&mut self) {
+        self.java_class_prefix = self.package.replace(".", "/");
+        self.jni_class_path = if self.package.is_empty() {
+            format!("Java_{}", self.jni_native_class)
+        } else {
+            format!(
+                "Java_{}_{}",
+                self.package.replace(".", "_"),
+                self.jni_native_class
+            )
+        };
+        self.kotlin_callback_package = if self.package.is_empty() {
+            self.callback_subpackage.clone()
+        } else if self.callback_subpackage.is_empty() {
+            self.package.clone()
+        } else {
+            format!("{}.{}", self.package, self.callback_subpackage)
+        };
+    }
+
+    /// Auto-derive a callback class name from the per-callback `stem`
+    /// using the configured prefix/postfix (default `"JNI<stem>Callback"`).
+    pub(crate) fn callback_class_name(&self, stem: &str) -> String {
+        format!(
+            "{}{}{}",
+            self.callback_name_prefix, stem, self.callback_name_postfix
+        )
+    }
+
+    /// Resolve a relative class name against [`Self::package`]. Panics
+    /// if `name` contains a `.` (a check that catches accidental FQNs in
+    /// the relative-name builders).
+    pub(crate) fn resolve_class_fqn(&self, name: &str) -> String {
+        assert!(
+            !name.contains('.'),
+            "Kotlin class name `{}` must be relative (no dots) — FQNs are derived from JniExt::package",
+            name
+        );
+        if self.package.is_empty() {
+            name.to_string()
+        } else {
+            format!("{}.{}", self.package, name)
+        }
+    }
+
+    /// Resolve a relative callback class name against
+    /// `package + "." + callback_subpackage`. Panics if `name` contains a `.`.
+    pub(crate) fn resolve_callback_fqn(&self, name: &str) -> String {
+        assert!(
+            !name.contains('.'),
+            "Kotlin callback name `{}` must be relative (no dots) — FQNs are derived from JniExt::package + callback_subpackage",
+            name
+        );
+        if self.kotlin_callback_package.is_empty() {
+            name.to_string()
+        } else {
+            format!("{}.{}", self.kotlin_callback_package, name)
+        }
     }
     // ── Structured type-conversion builders ──────────────────────────
 
@@ -306,13 +420,10 @@ impl JniExt {
     /// [`Self::suppress_kotlin_code`] to keep the file hand-maintained,
     /// or chain one or more [`Self::method`] calls to promote
     /// `#[prebindgen]` functions onto the class as instance methods.
-    pub fn kotlin_class(
-        mut self,
-        rust_key: impl AsRef<str>,
-        kotlin_fqn: impl Into<String>,
-    ) -> Self {
+    pub fn kotlin_class(mut self, rust_key: impl AsRef<str>) -> Self {
         let key = TypeKey::parse(rust_key.as_ref());
-        let fqn = kotlin_fqn.into();
+        let short = rust_short_name(&key);
+        let fqn = self.resolve_class_fqn(&short);
         let entry = self.types.entry(key.clone()).or_default();
         entry.opaque = Some(OpaqueConfig::default());
         // `kotlin_name` holds the typed-handle FQN for FQN-consumers
@@ -324,8 +435,8 @@ impl JniExt {
         entry.kotlin_name = Some(fqn.clone());
         self.kotlin_type_fqns
             .push((key.as_str().to_string(), fqn));
-        self.last_opaque_key = Some(key);
-        self.last_meta_key = None;
+        self.last_opaque_key = Some(key.clone());
+        self.last_meta_key = Some(key);
         self
     }
 
@@ -425,21 +536,61 @@ impl JniExt {
     }
 
     /// Stamp the Kotlin type name onto the entry registered by the
-    /// most recent [`Self::input_decoder`] / [`Self::output_encoder`]
-    /// (or [`Self::kotlin_value_type`]) call. Required when the
-    /// converter's wire is non-primitive — `kotlin_for_wire` can't
-    /// fall back to a built-in name for `JObject`/`jobject`-wired
-    /// converters. Panics if no decoder/encoder is in scope.
-    pub fn with_kotlin_name(mut self, kotlin_name: impl Into<String>) -> Self {
-        let key = self.last_meta_key.clone().expect(
-            "JniExt::with_kotlin_name must be chained immediately after an \
-             `input_decoder` / `output_encoder` / `kotlin_value_type` call",
-        );
-        let name = kotlin_name.into();
+    /// most recent type-config builder. The relative `name` (no dots)
+    /// resolves against [`Self::package`] for ordinary types and against
+    /// `package + "." + callback_subpackage` for `impl Fn(...)` callbacks
+    /// (detected via `entry.callback_kotlin_fqn` set by a prior
+    /// [`Self::callback_input`]). Panics if `name` contains a `.` or if
+    /// no per-type builder is in scope.
+    pub fn kotlin_name(mut self, name: impl AsRef<str>) -> Self {
+        let key = self
+            .last_meta_key
+            .clone()
+            .or_else(|| self.last_opaque_key.clone())
+            .expect(
+                "JniExt::kotlin_name must be chained immediately after a \
+                 `kotlin_class` / `kotlin_value_type` / `input_decoder` / \
+                 `output_encoder` / `callback_input` / `callback_kotlin_name` call",
+            );
+        let is_callback = self
+            .types
+            .get(&key)
+            .map(|e| e.callback_kotlin_fqn.is_some())
+            .unwrap_or(false);
+        let fqn = if is_callback {
+            self.resolve_callback_fqn(name.as_ref())
+        } else {
+            self.resolve_class_fqn(name.as_ref())
+        };
         let entry = self.types.get_mut(&key).expect("meta entry vanished");
-        entry.kotlin_name = Some(name.clone());
+        entry.kotlin_name = Some(fqn.clone());
+        if is_callback {
+            entry.callback_kotlin_fqn = Some(fqn.clone());
+        }
         self.kotlin_type_fqns
-            .push((key.as_str().to_string(), name));
+            .push((key.as_str().to_string(), fqn));
+        self
+    }
+
+    /// Stamp a verbatim Kotlin type expression (e.g. `"List<ByteArray>"`)
+    /// onto the entry registered by the most recent type-config builder.
+    /// Use this when the Kotlin type is not a class FQN (generics,
+    /// primitives, container types). For class names, prefer
+    /// [`Self::kotlin_name`] (relative + dot-checked).
+    pub fn with_kotlin_type(mut self, kotlin_expr: impl Into<String>) -> Self {
+        let key = self
+            .last_meta_key
+            .clone()
+            .or_else(|| self.last_opaque_key.clone())
+            .expect(
+                "JniExt::with_kotlin_type must be chained immediately after a \
+                 type-config builder",
+            );
+        let expr = kotlin_expr.into();
+        let entry = self.types.get_mut(&key).expect("meta entry vanished");
+        entry.kotlin_name = Some(expr.clone());
+        self.kotlin_type_fqns
+            .push((key.as_str().to_string(), expr));
         self
     }
 
@@ -455,16 +606,16 @@ impl JniExt {
         self.input_decoder(rust_key, "jni::sys::jint", &body)
     }
 
-    /// Manual override for an `impl Fn(...)` callback parameter. Sets:
-    /// * Input converter — `JObject` wire, body
-    ///   `<dispatcher_path>(env, &v)?`.
-    /// * Callback Kotlin FQN — replaces the auto-derived
-    ///   `JNI<Stem>Callback` name.
+    /// Install a manual input converter for an `impl Fn(...)` callback
+    /// parameter (`JObject` wire, body `<dispatcher_path>(env, &v)?`).
+    /// The Kotlin FQN auto-derives via the callback-name template
+    /// (`<callback_name_prefix><stem><callback_name_postfix>`); chain
+    /// [`Self::kotlin_name`] immediately after to override with a
+    /// relative name resolved against the callback subpackage.
     pub fn callback_input(
         mut self,
         impl_fn_key: impl AsRef<str>,
         dispatcher_path: impl AsRef<str>,
-        kotlin_fqn: impl Into<String>,
     ) -> Self {
         let key = TypeKey::parse(impl_fn_key.as_ref());
         let path: syn::Path = syn::parse_str(dispatcher_path.as_ref()).unwrap_or_else(|e| {
@@ -476,55 +627,56 @@ impl JniExt {
         });
         let body: syn::Expr = syn::parse_quote!(#path(env, &v)?);
         let wire: syn::Type = syn::parse_quote!(jni::objects::JObject);
-        let fqn = kotlin_fqn.into();
         let entry = self.types.entry(key.clone()).or_default();
         entry.input = Some(ConverterSpec {
             wire,
             body,
             niches: Niches::empty(),
         });
-        entry.callback_kotlin_fqn = Some(fqn.clone());
-        entry.kotlin_name = Some(fqn.clone());
-        self.kotlin_type_fqns
-            .push((key.as_str().to_string(), fqn));
+        // Marker so `kotlin_name` knows this entry is a callback and
+        // resolves the relative name against the callback subpackage.
+        // The actual FQN — until overridden — stays computed lazily by
+        // `auto_callback_fqn` on read.
+        entry.callback_kotlin_fqn = Some(String::new());
         self.last_opaque_key = None;
-        self.last_meta_key = None;
+        self.last_meta_key = Some(key);
         self
     }
 
     /// Override the Kotlin FQN emitted for an `impl Fn(...)` callback
-    /// without changing its Rust-side input converter.
+    /// without changing its Rust-side input converter. `name` is
+    /// relative (no dots); resolves against
+    /// `package + "." + callback_subpackage`.
     pub fn callback_kotlin_name(
         mut self,
         impl_fn_key: impl AsRef<str>,
-        kotlin_fqn: impl Into<String>,
+        name: impl AsRef<str>,
     ) -> Self {
         let key = TypeKey::parse(impl_fn_key.as_ref());
-        let fqn = kotlin_fqn.into();
+        let fqn = self.resolve_callback_fqn(name.as_ref());
         let entry = self.types.entry(key.clone()).or_default();
         entry.callback_kotlin_fqn = Some(fqn.clone());
         entry.kotlin_name = Some(fqn.clone());
         self.kotlin_type_fqns
             .push((key.as_str().to_string(), fqn));
         self.last_opaque_key = None;
-        self.last_meta_key = None;
+        self.last_meta_key = Some(key);
         self
     }
 
-    /// Declare the Kotlin type name (or FQN) for a Rust value type that
-    /// already has automatic JNI converters (data classes, primitive
-    /// aliases). Only affects Kotlin emission — no Rust-side override.
-    pub fn kotlin_value_type(
-        mut self,
-        rust_key: impl AsRef<str>,
-        kotlin_name: impl Into<String>,
-    ) -> Self {
+    /// Declare a Rust value type that should appear in Kotlin under a
+    /// derived name. Default Kotlin name = Rust short name (generics /
+    /// lifetimes stripped); chain [`Self::kotlin_name`] for an override
+    /// or [`Self::with_kotlin_type`] for a verbatim type expression.
+    /// Only affects Kotlin emission — no Rust-side converter override.
+    pub fn kotlin_value_type(mut self, rust_key: impl AsRef<str>) -> Self {
         let key = TypeKey::parse(rust_key.as_ref());
-        let name = kotlin_name.into();
+        let short = rust_short_name(&key);
+        let fqn = self.resolve_class_fqn(&short);
         let entry = self.types.entry(key.clone()).or_default();
-        entry.kotlin_name = Some(name.clone());
+        entry.kotlin_name = Some(fqn.clone());
         self.kotlin_type_fqns
-            .push((key.as_str().to_string(), name));
+            .push((key.as_str().to_string(), fqn));
         self.last_opaque_key = None;
         self.last_meta_key = Some(key);
         self
@@ -830,10 +982,11 @@ impl JniExt {
     /// the converter's [`KotlinMeta`] at creation time.
     pub(crate) fn auto_callback_fqn(&self, args: &[syn::Type]) -> String {
         let stem = crate::jni::jni_kotlin_ext::derive_callback_stem(args);
+        let class = self.callback_class_name(&stem);
         if self.kotlin_callback_package.is_empty() {
-            format!("JNI{}Callback", stem)
+            class
         } else {
-            format!("{}.JNI{}Callback", self.kotlin_callback_package, stem)
+            format!("{}.{}", self.kotlin_callback_package, class)
         }
     }
 
@@ -1522,6 +1675,26 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
             #(#wire_params),*
         ) -> #wire_return #body
     }
+}
+
+/// Last-segment ident of a `TypeKey` — e.g. `"Publisher<'static>"` →
+/// `"Publisher"`, `"AdvancedSubscriber<()>"` → `"AdvancedSubscriber"`. Used by
+/// the structured builders ([`JniExt::kotlin_class`],
+/// [`JniExt::kotlin_value_type`]) to derive a default Kotlin class name from
+/// the Rust type-key. Panics for non-path types (e.g. closures, references) —
+/// chain `.kotlin_name(...)` to set the name explicitly in that case.
+fn rust_short_name(key: &TypeKey) -> String {
+    let ty = key.to_type();
+    if let syn::Type::Path(tp) = &ty {
+        if let Some(last) = tp.path.segments.last() {
+            return last.ident.to_string();
+        }
+    }
+    panic!(
+        "rust_short_name: cannot derive Kotlin name from type-key `{}` — \
+         chain `.kotlin_name(\"X\")` to set it explicitly",
+        key.as_str()
+    );
 }
 
 fn mangle_jni_name(ext: &JniExt, ident: &syn::Ident) -> syn::Ident {

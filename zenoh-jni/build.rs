@@ -19,10 +19,8 @@ fn main() {
         .zresult("crate::errors::ZResult")
         .throw_macro("crate::throw_exception")
         .zerror_macro("zerror")
-        .java_class_prefix("io/zenoh/jni")
-        .jni_class_path("Java_io_zenoh_jni_JNINative")
+        .package("io.zenoh.jni")
         .jni_method_suffix("ViaJNI")
-        .kotlin_callback_package("io.zenoh.jni.callbacks")
         // ── Kotlin classes — `kotlin_class` configures: jlong wire
         // (input + output), `Box::into_raw`/`Box::from_raw` lifecycle,
         // `instanceof` dispatch class, and the Kotlin parameter-type
@@ -30,31 +28,39 @@ fn main() {
         // default; chain `.method(...)` (repeat for each promoted
         // instance method) to add methods, or `.suppress_kotlin_code()`
         // to opt out of emission when the `.kt` file is hand-written.
-        .kotlin_class("Session", "io.zenoh.jni.JNISession")
+        // The Kotlin class name defaults to the Rust short-name; chain
+        // `.kotlin_name("Foo")` to override (relative to the configured
+        // package).
+        .kotlin_class("Session")
+        .kotlin_name("JNISession")
         .suppress_kotlin_code()
-        .kotlin_class("Config", "io.zenoh.jni.JNIConfig")
+        .kotlin_class("Config")
+        .kotlin_name("JNIConfig")
         .suppress_kotlin_code()
-        .kotlin_class("ZKeyExpr<'static>", "io.zenoh.jni.JNIKeyExpr")
+        .kotlin_class("ZKeyExpr<'static>")
+        .kotlin_name("JNIKeyExpr")
         .suppress_kotlin_code()
-        .kotlin_class("Publisher<'static>", "io.zenoh.jni.JNIPublisher")
+        .kotlin_class("Publisher<'static>")
+        .kotlin_name("JNIPublisher")
         .method("put_publisher")
         .method("delete_publisher")
-        .kotlin_class("Subscriber<()>", "io.zenoh.jni.JNISubscriber")
-        .kotlin_class("Querier<'static>", "io.zenoh.jni.JNIQuerier")
+        .kotlin_class("Subscriber<()>")
+        .kotlin_name("JNISubscriber")
+        .kotlin_class("Querier<'static>")
+        .kotlin_name("JNIQuerier")
         .suppress_kotlin_code()
-        .kotlin_class("Queryable<()>", "io.zenoh.jni.JNIQueryable")
-        .kotlin_class(
-            "AdvancedSubscriber<()>",
-            "io.zenoh.jni.JNIAdvancedSubscriber",
-        )
+        .kotlin_class("Queryable<()>")
+        .kotlin_name("JNIQueryable")
+        .kotlin_class("AdvancedSubscriber<()>")
+        .kotlin_name("JNIAdvancedSubscriber")
         .suppress_kotlin_code()
-        .kotlin_class(
-            "AdvancedPublisher<'static>",
-            "io.zenoh.jni.JNIAdvancedPublisher",
-        )
+        .kotlin_class("AdvancedPublisher<'static>")
+        .kotlin_name("JNIAdvancedPublisher")
         .suppress_kotlin_code()
-        .kotlin_class("MatchingListener", "io.zenoh.jni.JNIMatchingListener")
-        .kotlin_class("SampleMissListener", "io.zenoh.jni.JNISampleMissListener")
+        .kotlin_class("MatchingListener")
+        .kotlin_name("JNIMatchingListener")
+        .kotlin_class("SampleMissListener")
+        .kotlin_name("JNISampleMissListener")
         // ── jint-encoded enums — sugar over `input_decoder` for the
         // common `jint → enum` pattern.
         .jint_enum(
@@ -75,13 +81,13 @@ fn main() {
             "jni::objects::JObject",
             "crate::utils::decode_jni_encoding(env, &v)?",
         )
-        .with_kotlin_name("io.zenoh.jni.JNIEncoding")
+        .kotlin_name("JNIEncoding")
         .input_decoder(
             "Option<Encoding>",
             "jni::objects::JObject",
             "if !v.is_null() { Some(crate::utils::decode_jni_encoding(env, &v)?) } else { None }",
         )
-        .with_kotlin_name("io.zenoh.jni.JNIEncoding")
+        .kotlin_name("JNIEncoding")
         .output_encoder(
             "SetIntersectionLevel",
             "jni::sys::jint",
@@ -97,23 +103,23 @@ fn main() {
             "jni::sys::jobject",
             "crate::zenoh_id::zenoh_ids_to_java_list(env, v)?",
         )
-        .with_kotlin_name("List<ByteArray>")
+        .with_kotlin_type("List<ByteArray>")
         // ── Manual callback overrides — replaces the auto-generated
         // `process_kotlin_*_callback` dispatcher with a hand-written
         // one and reroutes the Kotlin FQN.
         .callback_input(
             "impl Fn(Query) + Send + Sync + 'static",
             "crate::sample_callback::process_kotlin_query_callback",
-            "io.zenoh.jni.callbacks.JNIQueryableCallback",
         )
+        .kotlin_name("JNIQueryableCallback")
         .callback_input(
             "impl Fn(Reply) + Send + Sync + 'static",
             "crate::sample_callback::process_kotlin_reply_callback",
-            "io.zenoh.jni.callbacks.JNIGetCallback",
         )
+        .kotlin_name("JNIGetCallback")
         .callback_kotlin_name(
             "impl Fn() + Send + Sync + 'static",
-            "io.zenoh.jni.callbacks.JNIOnCloseCallback",
+            "JNIOnCloseCallback",
         )
         // ── Kotlin names for hand-maintained data classes whose
         // converters auto-generate from the struct shape but whose
@@ -123,11 +129,11 @@ fn main() {
         // `&T` wrapper auto-derive their Kotlin names through the
         // [`KotlinMeta`] propagation in the rank-N handlers — no
         // build.rs entry needed.
-        .kotlin_value_type("Sample", "io.zenoh.jni.Sample")
-        .kotlin_value_type("MissDetectionConfig", "io.zenoh.jni.MissDetectionConfig")
-        .kotlin_value_type("HistoryConfig", "io.zenoh.jni.HistoryConfig")
-        .kotlin_value_type("CacheConfig", "io.zenoh.jni.CacheConfig")
-        .kotlin_value_type("RecoveryConfig", "io.zenoh.jni.RecoveryConfig")
+        .kotlin_value_type("Sample")
+        .kotlin_value_type("MissDetectionConfig")
+        .kotlin_value_type("HistoryConfig")
+        .kotlin_value_type("CacheConfig")
+        .kotlin_value_type("RecoveryConfig")
         // ── impl Into<T> source arms.
         .into_sources(
             "ZKeyExpr<'static>",
