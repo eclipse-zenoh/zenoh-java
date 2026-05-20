@@ -19,7 +19,7 @@ mod config;
 mod errors;
 #[cfg(feature = "zenoh-ext")]
 pub(crate) mod ext;
-mod key_expr;
+mod key_expr_free;
 mod liveliness;
 mod logger;
 mod publisher;

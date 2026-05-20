@@ -51,7 +51,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     ): JNIPublisher = JNIPublisher(
         JNIWrappers.declarePublisher(
             this,
-            keyExprArg(keyExprHandle, keyExprString),
+            (keyExprHandle ?: keyExprString),
             congestionControl,
             priority,
             express,
@@ -68,7 +68,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     ): JNISubscriber = JNISubscriber(
         JNIWrappers.declareSubscriber(
             this,
-            keyExprArg(keyExprHandle, keyExprString),
+            (keyExprHandle ?: keyExprString),
             callback,
             onClose,
         ).peek()
@@ -84,7 +84,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     ): JNIQueryable = JNIQueryable(
         JNIWrappers.declareQueryable(
             this,
-            keyExprArg(keyExprHandle, keyExprString),
+            (keyExprHandle ?: keyExprString),
             callback,
             onClose,
             complete,
@@ -105,7 +105,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     ): JNIQuerier = JNIQuerier(
         JNIWrappers.declareQuerier(
             this,
-            keyExprArg(keyExprHandle, keyExprString),
+            (keyExprHandle ?: keyExprString),
             target,
             consolidation,
             congestionControl,
@@ -117,11 +117,11 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     )
 
     @Throws(ZError::class)
-    fun declareKeyExpr(keyExpr: String): NativeHandle =
-        JNIWrappers.declareKeyExpr(this, keyExpr)
+    fun declareKeyExpr(keyExpr: String): JNIKeyExpr =
+        JNIWrappers.declareKeyExpr(this, keyExpr) as JNIKeyExpr
 
     @Throws(ZError::class)
-    fun undeclareKeyExpr(keyExpr: NativeHandle) =
+    fun undeclareKeyExpr(keyExpr: JNIKeyExpr) =
         JNIWrappers.undeclareKeyExpr(this, keyExpr)
 
     @Throws(ZError::class)
@@ -143,7 +143,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
         acceptReplies: Int,
     ) = JNIWrappers.get(
         this,
-        keyExprArg(keyExprHandle, keyExprString),
+        (keyExprHandle ?: keyExprString),
         selectorParams,
         callback,
         onClose,
@@ -172,7 +172,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
         reliability: Int
     ) = JNIWrappers.put(
         this,
-        keyExprArg(keyExprHandle, keyExprString),
+        (keyExprHandle ?: keyExprString),
         valuePayload,
         valueEncoding,
         congestionControl,
@@ -193,7 +193,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
         reliability: Int
     ) = JNIWrappers.delete(
         this,
-        keyExprArg(keyExprHandle, keyExprString),
+        (keyExprHandle ?: keyExprString),
         congestionControl,
         priority,
         express,
@@ -222,7 +222,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     ): JNIAdvancedSubscriber = JNIAdvancedSubscriber(
         JNIWrappers.declareAdvancedSubscriber(
             this,
-            keyExprArg(keyExprHandle, keyExprStr),
+            (keyExprHandle ?: keyExprStr),
             callback,
             onClose,
             history,
@@ -245,7 +245,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     ): JNIAdvancedPublisher = JNIAdvancedPublisher(
         JNIWrappers.declareAdvancedPublisher(
             this,
-            keyExprArg(keyExprHandle, keyExprStr),
+            (keyExprHandle ?: keyExprStr),
             congestionControl,
             priority,
             isExpress,
@@ -261,7 +261,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
         keyExprHandle: NativeHandle?,
         keyExprString: String,
     ): JNILivelinessToken = JNILivelinessToken(
-        JNIWrappers.declareLivelinessToken(this, keyExprArg(keyExprHandle, keyExprString)).peek()
+        JNIWrappers.declareLivelinessToken(this, (keyExprHandle ?: keyExprString)).peek()
     )
 
     @Throws(ZError::class)
@@ -274,7 +274,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     ): JNISubscriber = JNISubscriber(
         JNIWrappers.declareLivelinessSubscriber(
             this,
-            keyExprArg(keyExprHandle, keyExprString),
+            (keyExprHandle ?: keyExprString),
             callback,
             onClose,
             history,
@@ -290,7 +290,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
         onClose: JNIOnCloseCallback,
     ) = JNIWrappers.livelinessGet(
         this,
-        keyExprArg(keyExprHandle, keyExprString),
+        (keyExprHandle ?: keyExprString),
         callback,
         onClose,
         timeoutMs,
