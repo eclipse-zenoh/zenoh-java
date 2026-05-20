@@ -11,14 +11,28 @@
 
 use prebindgen_ext::core::prebindgen_ext::IntoSource;
 use prebindgen_ext::core::registry::Registry;
-use prebindgen_ext::jni::JniExt;
+use prebindgen_ext::jni::{JniExt, TerminalKind, TerminalSpec};
 
 fn main() {
     let jni = JniExt::new()
         .source_module("zenoh_flat")
-        .zresult("crate::errors::ZResult")
-        .throw_macro("crate::throw_exception")
-        .zerror_macro("zerror")
+        // Single error type spliced into every generated `Result<_, _>`
+        // signature; must impl `From<String>` (see `zenoh-flat/src/errors.rs`).
+        .error_type("crate::errors::ZError")
+        // How every `Result`-ish return is finalized at the JNI boundary:
+        // on the error branch (either the source fn's own `Err` or any
+        // framework-internal `JNIEnv` failure) call `crate::throw_exception!`
+        // to raise a JVM `io.zenoh.exceptions.ZError` and substitute the
+        // wire's zero/null sentinel. This is the *only* place the throw
+        // model is wired up — no other zenoh-specific knob remains.
+        .terminal_output(TerminalSpec {
+            kind: TerminalKind::Value,
+            action: syn::parse_str("crate::throw_exception").unwrap(),
+            exception_fqn: Some("io.zenoh.exceptions.ZError".to_string()),
+        })
+        // Kotlin exception class thrown by the generated `NativeHandle`
+        // base class when an operation hits a closed handle.
+        .native_handle_exception_class("io.zenoh.exceptions.ZError")
         .package("io.zenoh.jni")
         .jni_method_suffix("ViaJNI")
         // ── Kotlin classes — `kotlin_class` configures: jlong wire

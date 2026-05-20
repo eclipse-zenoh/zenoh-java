@@ -141,6 +141,47 @@ pub struct Arity1;
 pub struct Arity2;
 pub struct Arity3;
 
+/// Which return-value shape a [`TerminalSpec`] handles and how it decides
+/// the error branch. The framework owns the scaffold (it looks up the inner
+/// value's normal output converter via the registry); the spec supplies the
+/// out-of-band action and the Kotlin exception identity.
+#[derive(Clone)]
+pub enum TerminalKind {
+    /// Catch-all single value `T` (covers plain types, opaque handles, and
+    /// `()`): `Ok(v) => <encode v>`, `Err(e) => <action>`. Also handles
+    /// `Option<T>` returns as ordinary values (None → the Option converter's
+    /// null/none wire) unless a [`TerminalKind::Option`] spec is also
+    /// registered.
+    Value,
+    /// `Option<T>` returns where the empty case is itself an error:
+    /// `Ok(Some(v)) => <encode v>`, `Ok(None) => <action(message)>`,
+    /// `Err(e) => <action>`. Wins over [`TerminalKind::Value`] for `Option`
+    /// returns.
+    Option {
+        /// Message used to construct the error on the `None` branch
+        /// (via `error_type: From<String>`).
+        none_message: String,
+    },
+}
+
+/// One author-registered terminal output converter. See
+/// [`JniExt::terminal_output`]. The framework has no built-in error model;
+/// every error-carrying return shape a binding uses must be registered.
+#[derive(Clone)]
+pub struct TerminalSpec {
+    /// Return-value shape this terminal handles.
+    pub kind: TerminalKind,
+    /// Out-of-band error action, invoked `<action>!(env, err)` on the error
+    /// branch (e.g. a `throw_exception` macro). The action receives the
+    /// `error_type` value and decides how it reaches the host language; the
+    /// framework then returns the wire sentinel.
+    pub action: syn::Path,
+    /// Kotlin fully-qualified exception class this terminal can raise, used
+    /// to emit `@Throws`/imports on the corresponding Kotlin wrappers.
+    /// `None` marks a non-throwing terminal (e.g. error-code returns).
+    pub exception_fqn: Option<String>,
+}
+
 impl<F> WrapperBuilder<Arity1> for F
 where
     F: Fn(&syn::Type) -> (syn::Type, syn::Expr) + Send + Sync + 'static,
@@ -180,18 +221,22 @@ pub struct JniExt {
     /// the host crate of `#[prebindgen]` items). The wrapper body calls
     /// `<source_module>::<fn>(args)`.
     pub source_module: syn::Path,
-    /// `Result` type used by emitted converter and wrapper signatures
-    /// (e.g. `crate::errors::ZResult`).
-    pub zresult: syn::Path,
-    /// Path to the `throw_exception` macro (or fn) used by `on_function`'s
-    /// error path. Must be invoked as `<path>!(env, err)`.
-    pub throw_macro: syn::Path,
-    /// Path to the error-construction macro used when emitting `?`-able
-    /// errors at the call site (e.g. `consume()` failure for by-value
-    /// opaque-handle params). Must accept a format-args-style invocation
-    /// `<path>!("msg")` and produce a value compatible with the `zresult`
-    /// error type.
-    pub zerror_macro: syn::Path,
+    /// The flat library's error type `E` — the single distinguished type
+    /// threaded through every generated `Result<_, E>` signature (e.g.
+    /// `crate::errors::ZError`). Emitted once as the `__JniErr` alias by
+    /// [`Self::prerequisites`]; all converters reference that alias. Must
+    /// implement `From<String>` so generated converters can manufacture an
+    /// error for internal JNI-call failures. The framework has no other
+    /// knowledge of the error model — how a final `Err` reaches the host
+    /// language is decided entirely by the registered terminal converters
+    /// (see [`Self::terminal_output`]).
+    pub error_type: syn::Path,
+    /// Kotlin fully-qualified exception class thrown by the generated
+    /// `NativeHandle` base class when an operation touches a closed handle
+    /// (e.g. `"io.zenoh.exceptions.ZError"`). This guard is a Kotlin-side
+    /// concern not tied to any terminal converter, so it is named here
+    /// directly. Empty until set.
+    pub native_handle_exception_class: String,
     /// Single source of truth for the JVM/Kotlin namespace this binding
     /// targets, dot-separated (e.g. `io.zenoh.jni`). Empty = no prefix.
     /// Drives every derived form: slash-separated for `FindClass`,
@@ -253,6 +298,14 @@ pub struct JniExt {
     /// Per-rank output wrappers.
     pub(crate) output_wrappers: [HashMap<TypeKey, WrapperFn>; 3],
 
+    /// Author-registered terminal output converters — the boundary handling
+    /// for a function's return value (`Result<Value, E> -> Wire`, where the
+    /// `Err`/error branch is resolved out-of-band, e.g. by throwing a JVM
+    /// exception). Resolved per return-value shape by [`Self::resolve_terminal`].
+    /// Nothing is built in: a return shape with no matching entry is a hard
+    /// error at generation time.
+    pub(crate) terminals: Vec<TerminalSpec>,
+
     /// Tracks the last [`Self::kotlin_class`] key registered so
     /// [`Self::method`] / [`Self::suppress_kotlin_code`] know which
     /// entry to extend. Cleared after each unrelated builder call.
@@ -270,9 +323,11 @@ impl JniExt {
     pub fn new() -> Self {
         Self {
             source_module: syn::parse_str("crate").unwrap(),
-            zresult: syn::parse_str("crate::errors::ZResult").unwrap(),
-            throw_macro: syn::parse_str("crate::throw_exception").unwrap(),
-            zerror_macro: syn::parse_str("crate::zerror").unwrap(),
+            // No zenoh-specific default: the binding must call `.error_type(...)`.
+            // Left as a recognizable sentinel so `prerequisites()` can fail
+            // with a clear message if it was never configured.
+            error_type: syn::parse_str("__JNIEXT_ERROR_TYPE_UNSET__").unwrap(),
+            native_handle_exception_class: String::new(),
             package: String::new(),
             jni_native_class: "JNINative".to_string(),
             callback_subpackage: "callbacks".to_string(),
@@ -287,6 +342,7 @@ impl JniExt {
             into_sources_map: HashMap::new(),
             input_wrappers: [HashMap::new(), HashMap::new(), HashMap::new()],
             output_wrappers: [HashMap::new(), HashMap::new(), HashMap::new()],
+            terminals: Vec::new(),
             last_opaque_key: None,
             last_meta_key: None,
         }
@@ -295,16 +351,30 @@ impl JniExt {
         self.source_module = syn::parse_str(p.as_ref()).expect("invalid source_module path");
         self
     }
-    pub fn zresult(mut self, p: impl AsRef<str>) -> Self {
-        self.zresult = syn::parse_str(p.as_ref()).expect("invalid zresult path");
+    /// Set the flat library's error type `E` (e.g. `"crate::errors::ZError"`).
+    /// Threaded through every generated `Result<_, E>` signature and used to
+    /// construct errors for internal JNI-call failures, so `E` must implement
+    /// `From<String>`. This is the only error-related type the framework needs;
+    /// boundary behavior is configured via [`Self::terminal_output`].
+    pub fn error_type(mut self, p: impl AsRef<str>) -> Self {
+        self.error_type = syn::parse_str(p.as_ref()).expect("invalid error_type path");
         self
     }
-    pub fn throw_macro(mut self, p: impl AsRef<str>) -> Self {
-        self.throw_macro = syn::parse_str(p.as_ref()).expect("invalid throw_macro path");
+    /// Kotlin fully-qualified exception class thrown by the generated
+    /// `NativeHandle` base class on closed-handle access (e.g.
+    /// `"io.zenoh.exceptions.ZError"`).
+    pub fn native_handle_exception_class(mut self, fqn: impl Into<String>) -> Self {
+        self.native_handle_exception_class = fqn.into();
         self
     }
-    pub fn zerror_macro(mut self, p: impl AsRef<str>) -> Self {
-        self.zerror_macro = syn::parse_str(p.as_ref()).expect("invalid zerror_macro path");
+    /// Register a terminal output converter — how a function's return value is
+    /// finalized into the JNI wire (e.g. throw a JVM exception on the error
+    /// branch). Nothing is built in; every error-carrying return shape the
+    /// binding produces must be registered. See [`TerminalKind`].
+    pub fn terminal_output(mut self, spec: TerminalSpec) -> Self {
+        self.terminals.push(spec);
+        self.last_opaque_key = None;
+        self.last_meta_key = None;
         self
     }
     /// Set the JVM/Kotlin base package (dot-separated, e.g.
@@ -849,20 +919,19 @@ impl JniExt {
         body: &syn::Expr,
     ) -> syn::ItemFn {
         let name = input_name(rust, wire);
-        let zresult = &self.zresult;
         let rust_with_lifetime = annotate_borrow_with_lifetime(rust, "env");
         let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "v");
         if matches!(wire, syn::Type::Ptr(_)) {
             syn::parse_quote!(
                 #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
-                pub(crate) unsafe fn #name<'env>(env: &mut jni::JNIEnv<'env>, v: #wire) -> #zresult<#rust_with_lifetime> {
+                pub(crate) unsafe fn #name<'env>(env: &mut jni::JNIEnv<'env>, v: #wire) -> ::core::result::Result<#rust_with_lifetime, __JniErr> {
                     Ok(#body)
                 }
             )
         } else {
             syn::parse_quote!(
                 #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
-                pub(crate) unsafe fn #name<'env, 'v>(env: &mut jni::JNIEnv<'env>, v: &#wire_with_lifetime) -> #zresult<#rust_with_lifetime> {
+                pub(crate) unsafe fn #name<'env, 'v>(env: &mut jni::JNIEnv<'env>, v: &#wire_with_lifetime) -> ::core::result::Result<#rust_with_lifetime, __JniErr> {
                     Ok(#body)
                 }
             )
@@ -879,14 +948,101 @@ impl JniExt {
         body: &syn::Expr,
     ) -> syn::ItemFn {
         let name = output_name(rust, wire);
-        let zresult = &self.zresult;
         let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "a");
         syn::parse_quote!(
             #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
-            pub(crate) unsafe fn #name<'a>(env: &mut jni::JNIEnv<'a>, v: #rust) -> #zresult<#wire_with_lifetime> {
+            pub(crate) unsafe fn #name<'a>(env: &mut jni::JNIEnv<'a>, v: #rust) -> ::core::result::Result<#wire_with_lifetime, __JniErr> {
                 Ok(#body)
             }
         )
+    }
+
+    /// Resolve the terminal output converter for a function's return type.
+    ///
+    /// Peels the source fn's own `ZResult<_>` (its error merges into the
+    /// closure's `__JniErr` channel), then selects a registered
+    /// [`TerminalSpec`]: an `Option<T>` return with a [`TerminalKind::Option`]
+    /// spec uses it (so `None` is an error); everything else falls to the
+    /// [`TerminalKind::Value`] catch-all. Returns `None` if no spec matches —
+    /// the caller turns that into a clear generation error.
+    ///
+    /// Used by both [`emit_jni_function_wrapper`] (Rust boundary code) and the
+    /// Kotlin emitter (which reads only [`ResolvedTerminal::throws`] to drive
+    /// `@Throws`), so the two languages always agree on which calls can throw.
+    pub(crate) fn resolve_terminal(
+        &self,
+        return_ty: &syn::Type,
+        registry: &Registry<KotlinMeta>,
+    ) -> Option<ResolvedTerminal> {
+        let (value_ty, source_is_result) = match peel_result_like(return_ty) {
+            Some(inner) => (inner.clone(), true),
+            None => (return_ty.clone(), false),
+        };
+
+        // `Option<T>` return whose empty case is itself an error.
+        if let Some(inner) = option_inner(&value_ty) {
+            if let Some(spec) = self
+                .terminals
+                .iter()
+                .find(|s| matches!(s.kind, TerminalKind::Option { .. }))
+            {
+                let TerminalKind::Option { none_message } = &spec.kind else { unreachable!() };
+                let entry = registry.output_entry(inner)?;
+                let wire = entry.destination.clone();
+                let conv = entry.function.sig.ident.clone();
+                let sentinel = sentinel_for_wire(&wire);
+                let action = &spec.action;
+                let none_lit = syn::LitStr::new(none_message, Span::call_site());
+                let finalize = quote! {
+                    match __r {
+                        Ok(Some(__v)) => match #conv(&mut env, __v) {
+                            Ok(__w) => __w,
+                            Err(__e) => { #action!(env, __e); #sentinel }
+                        },
+                        Ok(None) => {
+                            #action!(env, <__JniErr as ::core::convert::From<String>>::from(#none_lit.to_string()));
+                            #sentinel
+                        }
+                        Err(__e) => { #action!(env, __e); #sentinel }
+                    }
+                };
+                return Some(ResolvedTerminal {
+                    value_ty,
+                    source_is_result,
+                    wire,
+                    finalize,
+                    throws: spec.exception_fqn.clone(),
+                });
+            }
+        }
+
+        // Catch-all value terminal: encode via the value's normal output
+        // converter, finalize the error branch out-of-band.
+        let spec = self
+            .terminals
+            .iter()
+            .find(|s| matches!(s.kind, TerminalKind::Value))?;
+        let entry = registry.output_entry(&value_ty)?;
+        let wire = entry.destination.clone();
+        let conv = entry.function.sig.ident.clone();
+        let sentinel = sentinel_for_wire(&wire);
+        let action = &spec.action;
+        let finalize = quote! {
+            match __r {
+                Ok(__v) => match #conv(&mut env, __v) {
+                    Ok(__w) => __w,
+                    Err(__e) => { #action!(env, __e); #sentinel }
+                },
+                Err(__e) => { #action!(env, __e); #sentinel }
+            }
+        };
+        Some(ResolvedTerminal {
+            value_ty,
+            source_is_result,
+            wire,
+            finalize,
+            throws: spec.exception_fqn.clone(),
+        })
     }
 
     /// Universal "opaque Box-handle as `jlong`" pair — input side.
@@ -929,13 +1085,12 @@ impl JniExt {
     pub fn opaque_handle_input(&self, ty: &syn::Type) -> ConverterImpl<KotlinMeta> {
         let wire: syn::Type = syn::parse_quote!(jni::sys::jlong);
         let name = input_name(ty, &wire);
-        let zresult = &self.zresult;
         let function: syn::ItemFn = syn::parse_quote!(
             #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
             pub(crate) unsafe fn #name<'env, 'v>(
                 env: &mut jni::JNIEnv<'env>,
                 v: &jni::sys::jlong,
-            ) -> #zresult<OwnedObject<#ty>> {
+            ) -> ::core::result::Result<OwnedObject<#ty>, __JniErr> {
                 Ok(unsafe { OwnedObject::from_raw(*v as *const #ty) })
             }
         );
@@ -1121,15 +1276,15 @@ impl JniExt {
                 {
                     let __class = env
                         .find_class(#java_class)
-                        .map_err(|e| crate::errors::ZError(format!("find {}: {}", #java_class, e)))?;
+                        .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("find {}: {}", #java_class, e)))?;
                     let __is = env
                         .is_instance_of(v, &__class)
-                        .map_err(|e| crate::errors::ZError(format!("instanceof {}: {}", #java_class, e)))?;
+                        .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("instanceof {}: {}", #java_class, e)))?;
                     if __is {
                         #prelude
                         let __decoded: #src_ty = #decode_expr;
                         let __converted: #target = ::core::convert::TryInto::try_into(__decoded)
-                            .map_err(|e| crate::errors::ZError(format!(
+                            .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!(
                                 "convert {} -> {}: {}", #src_key, #target_key, e)))?;
                         return Ok(__converted);
                     }
@@ -1140,16 +1295,15 @@ impl JniExt {
         let wire: syn::Type = syn::parse_quote!(jni::objects::JObject);
         let pat: syn::Type = syn::parse_quote!(impl Into<#target> + Send + 'static);
         let name = input_name(&pat, &wire);
-        let zresult = &self.zresult;
         let target_label = target_key.clone();
         let function: syn::ItemFn = syn::parse_quote!(
             #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
             pub(crate) unsafe fn #name<'env, 'v>(
                 env: &mut jni::JNIEnv<'env>,
                 v: &jni::objects::JObject<'v>,
-            ) -> #zresult<#target> {
+            ) -> ::core::result::Result<#target, __JniErr> {
                 #(#arms)*
-                Err(crate::errors::ZError(format!(
+                Err(<__JniErr as ::core::convert::From<String>>::from(format!(
                     "impl Into<{}>: no matching source arm for runtime class", #target_label)))
             }
         );
@@ -1186,7 +1340,23 @@ impl PrebindgenExt for JniExt {
     /// the same generated file, so no `use` paths leak into the host
     /// crate's source tree.
     fn prerequisites(&self) -> Vec<syn::Item> {
-        owned_object_prerequisite_items()
+        if self.error_type.is_ident("__JNIEXT_ERROR_TYPE_UNSET__") {
+            panic!(
+                "JniExt: error_type is not configured — call `.error_type(\"path::to::ErrorType\")` \
+                 (the type must implement `From<String>`)"
+            );
+        }
+        let error_type = &self.error_type;
+        // Single splice point for the configured error type: every generated
+        // converter signature and internal-failure construction site refers to
+        // the `__JniErr` alias instead of the concrete path.
+        let alias: syn::Item = syn::parse_quote!(
+            #[allow(dead_code)]
+            pub(crate) type __JniErr = #error_type;
+        );
+        let mut items = vec![alias];
+        items.extend(owned_object_prerequisite_items());
+        items
     }
 
     // ── Item methods ─────────────────────────────────────────────────
@@ -1464,10 +1634,10 @@ impl PrebindgenExt for JniExt {
         //
         // Note: the source-side type the user wrote is the bare-name
         // `ZResult` (matching the prebindgen scan key). The wrapper takes
-        // `v: <zresult-path>< T >` so it resolves at compile time in the
-        // host crate even though `ZResult` isn't in scope at the include
-        // site — we use the configured `self.zresult` path instead of
-        // bare `ZResult`.
+        // `v: ::core::result::Result<T, __JniErr>` so it resolves at compile
+        // time in the host crate even though `ZResult` isn't in scope at the
+        // include site — `__JniErr` is the alias generated by
+        // `prerequisites()` from the configured `error_type`.
         if pat_match(pat, "ZResult < _ >") {
             let inner = registry.output_entry(t1)?;
             let inner_wire = inner.destination.clone();
@@ -1479,18 +1649,17 @@ impl PrebindgenExt for JniExt {
             // inner's niches verbatim — an enclosing `Option<ZResult<T>>`
             // can carve from them just as if it wrapped `T` directly.
             let inherited_niches = inner.niches.clone();
-            let zresult_path = &self.zresult;
-            let outer_ty: syn::Type = syn::parse_quote!(#zresult_path<#t1>);
+            let outer_ty: syn::Type = syn::parse_quote!(::core::result::Result<#t1, __JniErr>);
             let body: syn::Expr = syn::parse_quote!({
                 let __inner = v?;
                 #inner_conv(env, __inner)?
             });
-            // `ZResult<T>` carries no Kotlin identity — errors raise
-            // exceptions, so the Kotlin signature names the inner T,
-            // unless the user pinned an explicit override on the
-            // wrapper key. The override is looked up under the
-            // scan-time bare-name form (`ZResult<T>`), not the
-            // converter-side fully-qualified `#zresult_path<T>`.
+            // `ZResult<T>` carries no Kotlin identity — its handling at the
+            // boundary is decided by the registered terminal converter, so
+            // the Kotlin signature names the inner T, unless the user pinned
+            // an explicit override on the wrapper key. The override is looked
+            // up under the scan-time bare-name form (`ZResult<T>`), not the
+            // converter-side `::core::result::Result<T, __JniErr>` shape.
             let scan_key_ty: syn::Type = syn::parse_quote!(ZResult<#t1>);
             let kotlin_name = self.override_kotlin_name(
                 &scan_key_ty,
@@ -1558,7 +1727,6 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
     let original_ident = &f.sig.ident;
     let wrapper_ident = mangle_jni_name(ext, original_ident);
     let source_module = &ext.source_module;
-    let throw = &ext.throw_macro;
 
     let mut wire_params: Vec<TokenStream> = Vec::new();
     let mut prelude: Vec<TokenStream> = Vec::new();
@@ -1629,46 +1797,46 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
         }
     }
 
-    // Output: uniform path. Look up the registered converter for the
-    // return type as-written (ReturnType::Default → `()`). The plugin's
-    // own rank handlers cover `()`, `ZResult<T>`, `ZResult<()>`, etc.
-    // No special branching here.
+    // Output: resolve the author-registered terminal converter for the
+    // return shape (`ReturnType::Default` → `()`). The terminal owns the
+    // boundary handling — encoding the value to the wire and finalizing the
+    // error branch out-of-band (e.g. throwing). The closure aggregates every
+    // framework-internal failure (input decode) plus the source fn's own
+    // `ZResult<_>` error into a single `Result<value_ty, __JniErr>`; the
+    // terminal consumes it.
     let return_ty: syn::Type = match &f.sig.output {
         syn::ReturnType::Default => syn::parse_quote!(()),
         syn::ReturnType::Type(_, ty) => (**ty).clone(),
     };
-    let output_entry = registry.output_entry(&return_ty).unwrap_or_else(|| {
+    let terminal = ext.resolve_terminal(&return_ty, registry).unwrap_or_else(|| {
         panic!(
-            "JniExt::on_function: return type `{}` for `{}` is unresolved",
+            "JniExt::on_function: no terminal converter registered for return type `{}` \
+             of `{}` — register one via `JniExt::terminal_output(...)`",
             TypeKey::from_type(&return_ty),
             original_ident,
         )
     });
-    let wire_return_ty = output_entry.destination.clone();
-    let conv = output_entry.function.sig.ident.clone();
-    let wire_with_lifetime = annotate_jobject_with_lifetime(&wire_return_ty, "a");
+    let value_ty = &terminal.value_ty;
+    let wire_with_lifetime = annotate_jobject_with_lifetime(&terminal.wire, "a");
     let wire_return = wire_with_lifetime.to_token_stream();
-    let on_err: TokenStream = sentinel_for_wire(&wire_return_ty);
+    let finalize = &terminal.finalize;
 
-    let zresult = &ext.zresult;
     let call_expr = quote!(#source_module::#original_ident(#(#call_args),*));
+    // The source fn's own `ZResult<_>` (same error type) is `?`-merged into
+    // the closure's error channel; plain returns are wrapped in `Ok`.
+    let produce = if terminal.source_is_result {
+        quote!(::core::result::Result::Ok(#call_expr?))
+    } else {
+        quote!(::core::result::Result::Ok(#call_expr))
+    };
 
-    // Single body shape: bind `__result` to the source-fn return value
-    // (whatever its type — `()`, `T`, `ZResult<T>`, etc.) and feed it
-    // straight into the registered output converter, which handles any
-    // unwrap / encode in one step. The closure return matches the
-    // converter return.
     let body = quote! {
         {
-            (|| -> #zresult<#wire_return> {
+            let __r: ::core::result::Result<#value_ty, __JniErr> = (|| {
                 #(#prelude)*
-                let __result = #call_expr;
-                #conv(&mut env, __result)
-            })()
-            .unwrap_or_else(|err| {
-                #throw!(env, err);
-                #on_err
-            })
+                #produce
+            })();
+            #finalize
         }
     };
 
@@ -1716,7 +1884,55 @@ fn mangle_jni_name(ext: &JniExt, ident: &syn::Ident) -> syn::Ident {
 
 /// Sentinel value to return through the wrapper signature when the inner
 /// closure errors. Must compile against any wire type we emit.
+/// Outcome of [`JniExt::resolve_terminal`] — everything the emitters need to
+/// finalize a function's return value at the JNI boundary.
+pub(crate) struct ResolvedTerminal {
+    /// Peeled return value type. The wrapper closure yields
+    /// `Result<value_ty, __JniErr>`.
+    pub value_ty: syn::Type,
+    /// `true` when the source fn returned `ZResult<_>` (closure uses `?`).
+    pub source_is_result: bool,
+    /// JNI wire type the wrapper returns.
+    pub wire: syn::Type,
+    /// `match` expression consuming `__r: Result<value_ty, __JniErr>` (with
+    /// `env` in scope) and evaluating to `wire`.
+    pub finalize: TokenStream,
+    /// Kotlin exception FQN this return shape can raise (`None` = non-throwing).
+    pub throws: Option<String>,
+}
+
+/// Peel a `ZResult<T>` / `Result<T, _>` return type to its success type `T`.
+/// Returns `None` for non-result returns.
+fn peel_result_like(ty: &syn::Type) -> Option<&syn::Type> {
+    let syn::Type::Path(tp) = ty else { return None };
+    let last = tp.path.segments.last()?;
+    if last.ident != "ZResult" && last.ident != "Result" {
+        return None;
+    }
+    let syn::PathArguments::AngleBracketed(args) = &last.arguments else { return None };
+    let syn::GenericArgument::Type(inner) = args.args.first()? else { return None };
+    Some(inner)
+}
+
+/// Inner `T` of an `Option<T>` type, or `None`.
+fn option_inner(ty: &syn::Type) -> Option<&syn::Type> {
+    let syn::Type::Path(tp) = ty else { return None };
+    let last = tp.path.segments.last()?;
+    if last.ident != "Option" {
+        return None;
+    }
+    let syn::PathArguments::AngleBracketed(args) = &last.arguments else { return None };
+    let syn::GenericArgument::Type(inner) = args.args.first()? else { return None };
+    Some(inner)
+}
+
 fn sentinel_for_wire(wire: &syn::Type) -> TokenStream {
+    // Unit wire (void-returning wrappers): the value *is* the sentinel.
+    if let syn::Type::Tuple(t) = wire {
+        if t.elems.is_empty() {
+            return quote!(());
+        }
+    }
     if let syn::Type::Path(tp) = wire {
         if let Some(last) = tp.path.segments.last() {
             let name = last.ident.to_string();
@@ -1780,7 +1996,7 @@ fn primitive_input(ty: &syn::Type) -> Option<(syn::Type, syn::Expr)> {
             syn::parse_quote!({
                 let s = env
                     .get_string(v)
-                    .map_err(|e| crate::errors::ZError(format!("decode_string: {}", e)))?;
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("decode_string: {}", e)))?;
                 s.into()
             }),
         ),
@@ -1788,7 +2004,7 @@ fn primitive_input(ty: &syn::Type) -> Option<(syn::Type, syn::Expr)> {
             syn::parse_quote!(jni::objects::JByteArray),
             syn::parse_quote!({
                 env.convert_byte_array(v)
-                    .map_err(|e| crate::errors::ZError(format!("decode_byte_array: {}", e)))?
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("decode_byte_array: {}", e)))?
             }),
         ),
         _ => return None,
@@ -1816,14 +2032,14 @@ fn primitive_output(ty: &syn::Type) -> Option<(syn::Type, syn::Expr)> {
             syn::parse_quote!(jni::objects::JString),
             syn::parse_quote!({
                 env.new_string(v.as_str())
-                    .map_err(|e| crate::errors::ZError(format!("encode_string: {}", e)))?
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("encode_string: {}", e)))?
             }),
         ),
         "Vec < u8 >" => (
             syn::parse_quote!(jni::objects::JByteArray),
             syn::parse_quote!({
                 env.byte_array_from_slice(v.as_slice())
-                    .map_err(|e| crate::errors::ZError(format!("encode_byte_array: {}", e)))?
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("encode_byte_array: {}", e)))?
             }),
         ),
         _ => return None,
@@ -1882,7 +2098,7 @@ fn option_input(
                 let __unboxed: #inner_wire = env
                     .call_method(&v, #unbox_method, #unbox_sig, &[])
                     .and_then(|val| val.#getter_id())
-                    .map_err(|e| crate::errors::ZError(format!("Option unbox: {}", e)))?;
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Option unbox: {}", e)))?;
                 Some(#inner_conv(env, &__unboxed)?)
             } else {
                 None
@@ -1933,7 +2149,7 @@ fn option_output(
                         &[jni::objects::JValue::#variant_id(__raw)],
                     )
                     .and_then(|val| val.l())
-                    .map_err(|e| crate::errors::ZError(format!("Option box: {}", e)))?
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Option box: {}", e)))?
                 }
                 None => jni::objects::JObject::null(),
             }
@@ -2024,7 +2240,6 @@ fn callback_input(
         .collect();
     let _ = arg_pat_ident;
 
-    let zresult = &ext.zresult;
     let stem_lit = syn::LitStr::new(&stem, Span::call_site());
     let sig_lit = syn::LitStr::new(&sig, Span::call_site());
 
@@ -2072,14 +2287,14 @@ fn callback_input(
     let body: syn::Expr = syn::parse_quote!({
         use std::sync::Arc;
         let java_vm = Arc::new(env.get_java_vm()
-            .map_err(|e| crate::errors::ZError(format!("Unable to retrieve JVM: {}", e)))?);
+            .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Unable to retrieve JVM: {}", e)))?);
         let callback_global_ref = env.new_global_ref(&v)
-            .map_err(|e| crate::errors::ZError(format!("Unable to global-ref callback: {}", e)))?;
+            .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Unable to global-ref callback: {}", e)))?;
         Box::new(move |#(#arg_names: #arg_pat_ty),*| {
-            let _ = (|| -> #zresult<()> {
+            let _ = (|| -> ::core::result::Result<(), __JniErr> {
                 let mut env = java_vm
                     .attach_current_thread_as_daemon()
-                    .map_err(|e| crate::errors::ZError(format!("Attach thread for {}: {}", #stem_lit, e)))?;
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Attach thread for {}: {}", #stem_lit, e)))?;
                 #(#fixed_preludes)*
                 env.call_method(
                     &callback_global_ref,
@@ -2089,7 +2304,7 @@ fn callback_input(
                 )
                 .map_err(|e| {
                     let _ = env.exception_describe();
-                    crate::errors::ZError(e.to_string())
+                    <__JniErr as ::core::convert::From<String>>::from(e.to_string())
                 })?;
                 Ok(())
             })()
@@ -2206,7 +2421,7 @@ fn struct_input_body(
                 field_preludes.push(quote! {
                     let #raw_ident: #field_wire = env.get_field(v, #camel, #sig)
                         .and_then(|val| val.#accessor())
-                        .map_err(|e| crate::errors::ZError(format!(#err_prefix, e)))? as _;
+                        .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!(#err_prefix, e)))? as _;
                     let #fname_ident = #field_conv(env, &#raw_ident)?;
                 });
             }
@@ -2215,7 +2430,7 @@ fn struct_input_body(
                 field_preludes.push(quote! {
                     let #tmp_ident: jni::objects::JObject = env.get_field(v, #camel, #sig)
                         .and_then(|val| val.l())
-                        .map_err(|e| crate::errors::ZError(format!(#err_prefix, e)))?;
+                        .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!(#err_prefix, e)))?;
                     let #raw_ident: #field_wire = #tmp_ident.into();
                     let #fname_ident = #field_conv(env, &#raw_ident)?;
                 });
@@ -2225,7 +2440,7 @@ fn struct_input_body(
                 field_preludes.push(quote! {
                     let #raw_ident: jni::objects::JObject = env.get_field(v, #camel, "Ljava/lang/Object;")
                         .and_then(|val| val.l())
-                        .map_err(|e| crate::errors::ZError(format!(#err_prefix, e)))?;
+                        .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!(#err_prefix, e)))?;
                     let #fname_ident = #field_conv(env, &#raw_ident)?;
                 });
             }
@@ -2307,7 +2522,7 @@ fn struct_output_body(
             #ctor_sig_lit,
             &[#(#ctor_args),*],
         )
-        .map_err(|e| crate::errors::ZError(format!("encode struct: {}", e)))?;
+        .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("encode struct: {}", e)))?;
         __obj
     });
     Some((syn::parse_quote!(jni::objects::JObject), body))
@@ -2526,7 +2741,7 @@ fn jobject_to_wire_adapter(
                     let __narrowed: jni::sys::jlong = env
                         .call_method(v, "peek", "()J", &[])
                         .and_then(|val| val.j())
-                        .map_err(|e| crate::errors::ZError(format!("NativeHandle.peek: {}", e)))?;
+                        .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("NativeHandle.peek: {}", e)))?;
                 ),
                 quote!(&__narrowed),
             ))
@@ -2537,7 +2752,7 @@ fn jobject_to_wire_adapter(
                 let __narrowed: jni::sys::jint = env
                     .call_method(v, "intValue", "()I", &[])
                     .and_then(|val| val.i())
-                    .map_err(|e| crate::errors::ZError(format!("Integer.intValue: {}", e)))?;
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Integer.intValue: {}", e)))?;
             ),
             quote!(&__narrowed),
         )),
@@ -2547,7 +2762,7 @@ fn jobject_to_wire_adapter(
                 let __narrowed: jni::sys::jshort = env
                     .call_method(v, "shortValue", "()S", &[])
                     .and_then(|val| val.s())
-                    .map_err(|e| crate::errors::ZError(format!("Short.shortValue: {}", e)))?;
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Short.shortValue: {}", e)))?;
             ),
             quote!(&__narrowed),
         )),
@@ -2557,7 +2772,7 @@ fn jobject_to_wire_adapter(
                 let __narrowed: jni::sys::jbyte = env
                     .call_method(v, "byteValue", "()B", &[])
                     .and_then(|val| val.b())
-                    .map_err(|e| crate::errors::ZError(format!("Byte.byteValue: {}", e)))?;
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Byte.byteValue: {}", e)))?;
             ),
             quote!(&__narrowed),
         )),
@@ -2568,7 +2783,7 @@ fn jobject_to_wire_adapter(
                     .call_method(v, "booleanValue", "()Z", &[])
                     .and_then(|val| val.z())
                     .map(|b| if b { 1u8 } else { 0u8 })
-                    .map_err(|e| crate::errors::ZError(format!("Boolean.booleanValue: {}", e)))?;
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Boolean.booleanValue: {}", e)))?;
             ),
             quote!(&__narrowed),
         )),
@@ -2578,7 +2793,7 @@ fn jobject_to_wire_adapter(
                 let __narrowed: jni::sys::jfloat = env
                     .call_method(v, "floatValue", "()F", &[])
                     .and_then(|val| val.f())
-                    .map_err(|e| crate::errors::ZError(format!("Float.floatValue: {}", e)))?;
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Float.floatValue: {}", e)))?;
             ),
             quote!(&__narrowed),
         )),
@@ -2588,7 +2803,7 @@ fn jobject_to_wire_adapter(
                 let __narrowed: jni::sys::jdouble = env
                     .call_method(v, "doubleValue", "()D", &[])
                     .and_then(|val| val.d())
-                    .map_err(|e| crate::errors::ZError(format!("Double.doubleValue: {}", e)))?;
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Double.doubleValue: {}", e)))?;
             ),
             quote!(&__narrowed),
         )),
@@ -2817,7 +3032,7 @@ mod tests {
             unsafe fn #ident<'env, 'v>(
                 env: &mut jni::JNIEnv<'env>,
                 v: &#wire,
-            ) -> crate::errors::ZResult<()> {
+            ) -> ::core::result::Result<(), __JniErr> {
                 Ok(())
             }
         );
