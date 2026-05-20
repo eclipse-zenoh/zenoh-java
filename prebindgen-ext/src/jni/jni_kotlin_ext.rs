@@ -1208,17 +1208,20 @@ fn render_wrapper_fn(
         }
     }
 
+    let _ = ext; // ext no longer needed here — throws comes from registry metadata
     let mut out = String::new();
-    // `@Throws` is driven by the return shape's terminal converter: emit it
-    // (and import the exception class) only when that terminal can actually
-    // raise an exception. Non-throwing terminals (e.g. error codes) get none.
+    // `@Throws` is driven by the return-type's output converter metadata:
+    // emit it (and import the exception class) only when the registered
+    // converter declared one via [`JniExt::output_throws`]. Non-throwing
+    // output converters (plain `output_wrapper` / `output_encoder`) carry
+    // no `throws` metadata and emit no `@Throws` annotation.
     let return_ty: syn::Type = match &f.sig.output {
         syn::ReturnType::Default => syn::parse_quote!(()),
         syn::ReturnType::Type(_, ty) => (**ty).clone(),
     };
-    if let Some(fqn) = ext
-        .resolve_terminal(&return_ty, registry)
-        .and_then(|t| t.throws)
+    if let Some(fqn) = registry
+        .output_entry(&return_ty)
+        .and_then(|e| e.metadata.throws.clone())
     {
         let short = register_fqn(&fqn, imports);
         let _ = writeln!(out, "@Throws({short}::class)");
@@ -1399,21 +1402,28 @@ fn classify_return(
         syn::ReturnType::Default => return Some((String::new(), None)),
         syn::ReturnType::Type(_, t) => &**t,
     };
-    // Detect opaque return: ZResult<T> or T where T's input converter
-    // returns `OwnedObject<T>` (i.e. opaque-handle type). Peel ZResult
-    // first because that's the common signature shape.
-    let inner = peel_zresult(ty).unwrap_or(ty);
-    if crate::util::is_unit(inner) {
+    // Detect opaque return: T (or a wrapper W<T>) whose input converter
+    // returns `OwnedObject<T>` (i.e. opaque-handle type). The wrapped-
+    // value identity is carried generically via
+    // `KotlinMeta::value_rust_key` — populated by
+    // `JniExt::output_throws` for arity-1 wrappers — so the framework
+    // doesn't need to peel any specific Result/Option shape here.
+    let outer_meta = registry.output_entry(ty).map(|e| e.metadata.clone());
+    let inner_canon = outer_meta
+        .as_ref()
+        .and_then(|m| m.value_rust_key.clone())
+        .unwrap_or_else(|| ty.to_token_stream().to_string());
+    let inner: syn::Type = syn::parse_str(&inner_canon).unwrap_or_else(|_| ty.clone());
+    if crate::util::is_unit(&inner) {
         return Some((String::new(), None));
     }
-    let inner_canon = inner.to_token_stream().to_string();
     // An output is "opaque-handle" iff its registered output converter
     // produces `jlong` (the `Box::into_raw(...) as i64` shape from
     // `opaque_handle_output`). Pull the wire type from the inner type's
     // output entry; the input-side `OwnedObject<T>` check below
     // catches anything we register only on input (rare).
     let output_is_opaque_jlong = registry
-        .output_entry(inner)
+        .output_entry(&inner)
         .map(|e| wire_is_jlong(&e.destination))
         .unwrap_or(false);
     let input_is_opaque = registry
@@ -1448,17 +1458,6 @@ fn classify_return(
         }
     }
     None
-}
-
-fn peel_zresult(ty: &syn::Type) -> Option<&syn::Type> {
-    let syn::Type::Path(tp) = ty else { return None };
-    let last = tp.path.segments.last()?;
-    if last.ident != "ZResult" {
-        return None;
-    }
-    let syn::PathArguments::AngleBracketed(args) = &last.arguments else { return None };
-    let syn::GenericArgument::Type(inner) = args.args.first()? else { return None };
-    Some(inner)
 }
 
 fn snake_to_camel(s: &str) -> String {

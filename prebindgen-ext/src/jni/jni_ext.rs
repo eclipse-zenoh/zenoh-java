@@ -54,11 +54,40 @@ pub struct KotlinMeta {
     /// inner. `None` only for entries that must not appear in any
     /// Kotlin signature — the emitter treats that as a hard error.
     pub kotlin_name: Option<String>,
+    /// Kotlin fully-qualified exception class this converter can raise
+    /// when used as a function's return-type output converter. Populated
+    /// by [`JniExt::output_throws`]; the Kotlin emitter uses this for
+    /// `@Throws` annotations on the corresponding wrappers. `None` means
+    /// "non-throwing converter" (no `@Throws` emitted).
+    pub throws: Option<String>,
+    /// Rust throw-macro path the framework invokes as
+    /// `<throws_action>!(env, err)` for wrapper-internal failures (e.g.
+    /// input-decode `?` propagation) that surface above this converter.
+    /// Populated alongside [`Self::throws`] by [`JniExt::output_throws`];
+    /// `None` when no throwing behavior is configured for this converter.
+    pub throws_action: Option<syn::Path>,
+    /// For wrapper converters whose Kotlin projection is the *inner*
+    /// type's projection (e.g. `ZResult<Publisher>` → `Publisher`),
+    /// this carries the inner Rust type's canonical key so downstream
+    /// emitters (typed-handle constructor lookup in
+    /// [`crate::jni::jni_kotlin_ext::classify_return`]) can find the
+    /// wrapped value's identity without baking in any specific shape
+    /// (no `peel_zresult` / `peel_result`-style framework hardcoding).
+    /// Populated by [`JniExt::output_throws`] with `args[0]`'s canonical
+    /// key for arity-1 wrappers, and inherited by the built-in
+    /// `Option<_>` / `Vec<_>` / `&_` rank-1 handlers from their inner
+    /// type's metadata. `None` for plain values and arity-0 converters.
+    pub value_rust_key: Option<String>,
 }
 
 impl KotlinMeta {
     pub fn from_name(name: impl Into<String>) -> Self {
-        Self { kotlin_name: Some(name.into()) }
+        Self {
+            kotlin_name: Some(name.into()),
+            throws: None,
+            throws_action: None,
+            value_rust_key: None,
+        }
     }
 }
 
@@ -121,93 +150,90 @@ pub(crate) struct TypeConfig {
     pub callback_kotlin_fqn: Option<String>,
 }
 
-/// Boxed closure that builds the wire/body for a rank-N wrapper
-/// converter when applied to the wildcard substitutions. Stored under
-/// the pattern's `TypeKey` in the per-rank table.
-pub(crate) type WrapperFn =
-    Arc<dyn Fn(&[syn::Type]) -> (syn::Type, syn::Expr) + Send + Sync>;
+/// Boxed closure that builds the wire/body for a wrapper converter when
+/// applied to the wildcard substitutions. Returns `None` if the inner
+/// converters the builder depends on aren't yet resolved (the resolver
+/// retries on the next phase). Receives `&Registry<KotlinMeta>` so the
+/// closure can look up inner-type entries (`registry.output_entry(t)`).
+pub(crate) type WrapperFn = Arc<
+    dyn Fn(&[syn::Type], &Registry<KotlinMeta>) -> Option<(syn::Type, syn::Expr)>
+        + Send
+        + Sync,
+>;
 
 /// Trait selecting the arity-appropriate impl of
-/// [`JniExt::input_wrapper`] / [`JniExt::output_wrapper`]. The phantom
-/// type parameter discriminates closures of arity 1, 2, 3 so a single
-/// public method name accepts any of them.
+/// [`JniExt::input_wrapper`] / [`JniExt::output_wrapper`] /
+/// [`JniExt::output_throws`]. The phantom type parameter discriminates
+/// closures of arity 0..3 so a single public method name accepts any of
+/// them. Closures take the wildcard substitutions plus the registry, and
+/// return `Some((wire, body))` or `None` (defer to a later resolver phase).
 pub trait WrapperBuilder<Arity>: Send + Sync + 'static {
     fn into_wrapper_fn(self) -> WrapperFn;
     fn rank() -> usize;
 }
 
-/// Arity-discriminating marker types.
+/// Arity-discriminating marker types. `Arity0` is for non-wildcard
+/// patterns (e.g. `"i32"`); `Arity1`/`2`/`3` carry that many `_` slots.
+pub struct Arity0;
 pub struct Arity1;
 pub struct Arity2;
 pub struct Arity3;
 
-/// Which return-value shape a [`TerminalSpec`] handles and how it decides
-/// the error branch. The framework owns the scaffold (it looks up the inner
-/// value's normal output converter via the registry); the spec supplies the
-/// out-of-band action and the Kotlin exception identity.
-#[derive(Clone)]
-pub enum TerminalKind {
-    /// Catch-all single value `T` (covers plain types, opaque handles, and
-    /// `()`): `Ok(v) => <encode v>`, `Err(e) => <action>`. Also handles
-    /// `Option<T>` returns as ordinary values (None → the Option converter's
-    /// null/none wire) unless a [`TerminalKind::Option`] spec is also
-    /// registered.
-    Value,
-    /// `Option<T>` returns where the empty case is itself an error:
-    /// `Ok(Some(v)) => <encode v>`, `Ok(None) => <action(message)>`,
-    /// `Err(e) => <action>`. Wins over [`TerminalKind::Value`] for `Option`
-    /// returns.
-    Option {
-        /// Message used to construct the error on the `None` branch
-        /// (via `error_type: From<String>`).
-        none_message: String,
-    },
-}
-
-/// One author-registered terminal output converter. See
-/// [`JniExt::terminal_output`]. The framework has no built-in error model;
-/// every error-carrying return shape a binding uses must be registered.
-#[derive(Clone)]
-pub struct TerminalSpec {
-    /// Return-value shape this terminal handles.
-    pub kind: TerminalKind,
-    /// Out-of-band error action, invoked `<action>!(env, err)` on the error
-    /// branch (e.g. a `throw_exception` macro). The action receives the
-    /// `error_type` value and decides how it reaches the host language; the
-    /// framework then returns the wire sentinel.
-    pub action: syn::Path,
-    /// Kotlin fully-qualified exception class this terminal can raise, used
-    /// to emit `@Throws`/imports on the corresponding Kotlin wrappers.
-    /// `None` marks a non-throwing terminal (e.g. error-code returns).
-    pub exception_fqn: Option<String>,
+impl<F> WrapperBuilder<Arity0> for F
+where
+    F: Fn(&Registry<KotlinMeta>) -> Option<(syn::Type, syn::Expr)>
+        + Send
+        + Sync
+        + 'static,
+{
+    fn into_wrapper_fn(self) -> WrapperFn {
+        Arc::new(move |_args: &[syn::Type], reg: &Registry<KotlinMeta>| self(reg))
+    }
+    fn rank() -> usize { 0 }
 }
 
 impl<F> WrapperBuilder<Arity1> for F
 where
-    F: Fn(&syn::Type) -> (syn::Type, syn::Expr) + Send + Sync + 'static,
+    F: Fn(&syn::Type, &Registry<KotlinMeta>) -> Option<(syn::Type, syn::Expr)>
+        + Send
+        + Sync
+        + 'static,
 {
     fn into_wrapper_fn(self) -> WrapperFn {
-        Arc::new(move |args: &[syn::Type]| self(&args[0]))
+        Arc::new(move |args: &[syn::Type], reg: &Registry<KotlinMeta>| {
+            self(&args[0], reg)
+        })
     }
     fn rank() -> usize { 1 }
 }
 
 impl<F> WrapperBuilder<Arity2> for F
 where
-    F: Fn(&syn::Type, &syn::Type) -> (syn::Type, syn::Expr) + Send + Sync + 'static,
+    F: Fn(&syn::Type, &syn::Type, &Registry<KotlinMeta>) -> Option<(syn::Type, syn::Expr)>
+        + Send
+        + Sync
+        + 'static,
 {
     fn into_wrapper_fn(self) -> WrapperFn {
-        Arc::new(move |args: &[syn::Type]| self(&args[0], &args[1]))
+        Arc::new(move |args: &[syn::Type], reg: &Registry<KotlinMeta>| {
+            self(&args[0], &args[1], reg)
+        })
     }
     fn rank() -> usize { 2 }
 }
 
 impl<F> WrapperBuilder<Arity3> for F
 where
-    F: Fn(&syn::Type, &syn::Type, &syn::Type) -> (syn::Type, syn::Expr) + Send + Sync + 'static,
+    F: Fn(&syn::Type, &syn::Type, &syn::Type, &Registry<KotlinMeta>)
+            -> Option<(syn::Type, syn::Expr)>
+        + Send
+        + Sync
+        + 'static,
 {
     fn into_wrapper_fn(self) -> WrapperFn {
-        Arc::new(move |args: &[syn::Type]| self(&args[0], &args[1], &args[2]))
+        Arc::new(move |args: &[syn::Type], reg: &Registry<KotlinMeta>| {
+            self(&args[0], &args[1], &args[2], reg)
+        })
     }
     fn rank() -> usize { 3 }
 }
@@ -228,8 +254,8 @@ pub struct JniExt {
     /// implement `From<String>` so generated converters can manufacture an
     /// error for internal JNI-call failures. The framework has no other
     /// knowledge of the error model — how a final `Err` reaches the host
-    /// language is decided entirely by the registered terminal converters
-    /// (see [`Self::terminal_output`]).
+    /// language is decided entirely by the registered output converters
+    /// (see [`Self::output_throws`]).
     pub error_type: syn::Path,
     /// Kotlin fully-qualified exception class thrown by the generated
     /// `NativeHandle` base class when an operation touches a closed handle
@@ -291,20 +317,27 @@ pub struct JniExt {
     /// `impl Into<target> + Send + 'static` source arms per target type.
     pub(crate) into_sources_map: HashMap<TypeKey, Vec<IntoSource>>,
 
-    /// Per-rank input wrappers — index `n` holds rank-(n+1) wrappers
-    /// keyed by the pattern's `TypeKey` (e.g. `"Vec < _ >"`).
-    pub(crate) input_wrappers: [HashMap<TypeKey, WrapperFn>; 3],
+    /// Per-rank input wrappers — index `n` holds rank-`n` wrappers keyed by
+    /// the pattern's `TypeKey`. Rank 0 is non-wildcard (e.g. `"i32"`); ranks
+    /// 1..3 carry that many `_` slots (e.g. `"Vec < _ >"`).
+    pub(crate) input_wrappers: [HashMap<TypeKey, WrapperFn>; 4],
 
-    /// Per-rank output wrappers.
-    pub(crate) output_wrappers: [HashMap<TypeKey, WrapperFn>; 3],
+    /// Per-rank output wrappers. Same shape as [`Self::input_wrappers`].
+    pub(crate) output_wrappers: [HashMap<TypeKey, WrapperFn>; 4],
 
-    /// Author-registered terminal output converters — the boundary handling
-    /// for a function's return value (`Result<Value, E> -> Wire`, where the
-    /// `Err`/error branch is resolved out-of-band, e.g. by throwing a JVM
-    /// exception). Resolved per return-value shape by [`Self::resolve_terminal`].
-    /// Nothing is built in: a return shape with no matching entry is a hard
-    /// error at generation time.
-    pub(crate) terminals: Vec<TerminalSpec>,
+    /// Per-output-pattern throws metadata: `(exception_fqn, throw_action)`.
+    /// Set by [`Self::output_throws`] alongside the converter body; the
+    /// emitted converter wraps the body in match-throw using these values
+    /// and stamps `KotlinMeta.throws = Some(exception_fqn)` on the
+    /// resulting `ConverterImpl` so the Kotlin `@Throws` emitter can find it.
+    pub(crate) output_throws_meta: HashMap<TypeKey, (String, syn::Path)>,
+
+    /// Author-supplied Rust items prepended to the generated file before
+    /// the framework's own prerequisites. Use for `use crate::errors::X;`
+    /// statements that bring any identifiers used in the binding's
+    /// converter patterns into scope at the include site (e.g. the
+    /// `ZResult<_>` alias zenoh registers a throwing converter for).
+    pub(crate) extra_prerequisites: Vec<syn::Item>,
 
     /// Tracks the last [`Self::kotlin_class`] key registered so
     /// [`Self::method`] / [`Self::suppress_kotlin_code`] know which
@@ -340,9 +373,20 @@ impl JniExt {
             kotlin_type_fqns: Vec::new(),
             types: HashMap::new(),
             into_sources_map: HashMap::new(),
-            input_wrappers: [HashMap::new(), HashMap::new(), HashMap::new()],
-            output_wrappers: [HashMap::new(), HashMap::new(), HashMap::new()],
-            terminals: Vec::new(),
+            input_wrappers: [
+                HashMap::new(),
+                HashMap::new(),
+                HashMap::new(),
+                HashMap::new(),
+            ],
+            output_wrappers: [
+                HashMap::new(),
+                HashMap::new(),
+                HashMap::new(),
+                HashMap::new(),
+            ],
+            output_throws_meta: HashMap::new(),
+            extra_prerequisites: Vec::new(),
             last_opaque_key: None,
             last_meta_key: None,
         }
@@ -352,10 +396,11 @@ impl JniExt {
         self
     }
     /// Set the flat library's error type `E` (e.g. `"crate::errors::ZError"`).
-    /// Threaded through every generated `Result<_, E>` signature and used to
-    /// construct errors for internal JNI-call failures, so `E` must implement
-    /// `From<String>`. This is the only error-related type the framework needs;
-    /// boundary behavior is configured via [`Self::terminal_output`].
+    /// Threaded through every generated `Result<_, E>` signature as the
+    /// `__JniErr` alias and used to construct errors at internal JNI-call
+    /// failure sites, so `E` must implement `From<String>`. This is the only
+    /// error-related type the framework needs; whether a particular output
+    /// type throws and how is decided per-type via [`Self::output_throws`].
     pub fn error_type(mut self, p: impl AsRef<str>) -> Self {
         self.error_type = syn::parse_str(p.as_ref()).expect("invalid error_type path");
         self
@@ -367,12 +412,50 @@ impl JniExt {
         self.native_handle_exception_class = fqn.into();
         self
     }
-    /// Register a terminal output converter — how a function's return value is
-    /// finalized into the JNI wire (e.g. throw a JVM exception on the error
-    /// branch). Nothing is built in; every error-carrying return shape the
-    /// binding produces must be registered. See [`TerminalKind`].
-    pub fn terminal_output(mut self, spec: TerminalSpec) -> Self {
-        self.terminals.push(spec);
+    /// Inject an extra Rust item (typically a `use` statement) into the
+    /// preamble of the generated file. Use this to bring identifiers
+    /// referenced by `output_throws` / `output_wrapper` patterns into
+    /// scope at the include site — e.g. `use crate::errors::ZResult;`
+    /// for a binding whose `#[prebindgen]` fns return `ZResult<T>` and
+    /// whose registered converter patterns use the same bare name.
+    /// The framework itself stays unaware of these aliases.
+    pub fn add_prerequisite(mut self, item: syn::Item) -> Self {
+        self.extra_prerequisites.push(item);
+        self
+    }
+
+    /// Register an output converter that may raise a JVM exception.
+    ///
+    /// `pattern` is the Rust type-key (with `_` placeholders for wildcards;
+    /// arity 0..3). `exception_fqn` is the Kotlin class spliced into
+    /// `@Throws` annotations on the emitted wrappers. `throw_action` is the
+    /// Rust macro path the emitted converter invokes as `<throw_action>!(env, err)`
+    /// when the body returns `Err`.
+    ///
+    /// `builder` returns `Some((wire_type, body_expr))` where `body_expr`
+    /// evaluates to `Result<wire_type, __JniErr>` (same shape as
+    /// [`Self::output_wrapper`]) — the framework wraps this in
+    /// `match { Ok(w) => w, Err(e) => { throw_action!(env, e); sentinel } }`
+    /// and emits a function returning the bare wire. The body may use `?`
+    /// for sub-conversions and `return Err(...)` for custom failure
+    /// detection (e.g. `i32 < 0` → error).
+    pub fn output_throws<A, B>(
+        mut self,
+        pattern: impl AsRef<str>,
+        exception_fqn: impl Into<String>,
+        throw_action: impl AsRef<str>,
+        builder: B,
+    ) -> Self
+    where
+        B: WrapperBuilder<A>,
+    {
+        let key = TypeKey::parse(pattern.as_ref());
+        let rank = B::rank();
+        let action_path: syn::Path = syn::parse_str(throw_action.as_ref())
+            .expect("invalid throw_action path");
+        self.output_throws_meta
+            .insert(key.clone(), (exception_fqn.into(), action_path));
+        self.output_wrappers[rank].insert(key, builder.into_wrapper_fn());
         self.last_opaque_key = None;
         self.last_meta_key = None;
         self
@@ -774,30 +857,36 @@ impl JniExt {
         self
     }
 
-    /// Register a rank-N input wrapper. `pattern` contains 1–3 `_`
+    /// Register a rank-N input wrapper. `pattern` contains 0–3 `_`
     /// placeholders; the closure's arity determines which rank table
     /// the entry lands in. The closure receives the wildcard
-    /// substitutions and returns `(wire_type, body_expr)`. The body
-    /// sees `env: &mut JNIEnv` and `v: &<wire>` in scope.
+    /// substitutions and `&Registry<KotlinMeta>`, returning
+    /// `Some((wire_type, body_expr))` or `None` (defer to the next
+    /// resolver phase). The body sees `env: &mut JNIEnv` and
+    /// `v: &<wire>` in scope.
     pub fn input_wrapper<A, B>(mut self, pattern: impl AsRef<str>, builder: B) -> Self
     where
         B: WrapperBuilder<A>,
     {
         let key = TypeKey::parse(pattern.as_ref());
         let rank = B::rank();
-        self.input_wrappers[rank - 1].insert(key, builder.into_wrapper_fn());
+        self.input_wrappers[rank].insert(key, builder.into_wrapper_fn());
         self.last_opaque_key = None;
         self
     }
 
-    /// Output-direction counterpart of [`Self::input_wrapper`].
+    /// Output-direction counterpart of [`Self::input_wrapper`]. The body
+    /// returns `Result<wire, __JniErr>` and may use `?` for sub-conversions
+    /// (the framework wraps it in `Ok(...)` automatically); see
+    /// [`Self::output_throws`] for the variant that converts the `Err` arm
+    /// into a JVM exception.
     pub fn output_wrapper<A, B>(mut self, pattern: impl AsRef<str>, builder: B) -> Self
     where
         B: WrapperBuilder<A>,
     {
         let key = TypeKey::parse(pattern.as_ref());
         let rank = B::rank();
-        self.output_wrappers[rank - 1].insert(key, builder.into_wrapper_fn());
+        self.output_wrappers[rank].insert(key, builder.into_wrapper_fn());
         self.last_opaque_key = None;
         self
     }
@@ -808,14 +897,15 @@ impl JniExt {
         &self,
         pat: &syn::Type,
         args: &[syn::Type],
+        registry: &Registry<KotlinMeta>,
     ) -> Option<ConverterImpl<KotlinMeta>> {
         let rank = args.len();
-        if rank == 0 || rank > 3 {
+        if rank > 3 {
             return None;
         }
         let key = TypeKey::from_type(pat);
-        let builder = self.input_wrappers[rank - 1].get(&key)?;
-        let (wire, body) = builder(args);
+        let builder = self.input_wrappers[rank].get(&key)?;
+        let (wire, body) = builder(args, registry)?;
         // Reconstruct the full outer type by substituting `args` into the
         // wildcard slots of `pat` — the same shape the wrapper would have
         // had in the source.
@@ -829,20 +919,71 @@ impl JniExt {
         })
     }
 
+    /// Look up a registered output wrapper for `pat` with `args` substituted
+    /// into its `_` slots.
+    ///
+    /// If the registration was created via [`Self::output_throws`], the
+    /// emitted function returns the bare wire and the metadata carries
+    /// `throws: Some(exception_fqn)`. Otherwise (plain [`Self::output_wrapper`])
+    /// the emitted function returns `Result<wire, __JniErr>` and metadata
+    /// carries no `throws`.
     pub(crate) fn lookup_output_wrapper(
         &self,
         pat: &syn::Type,
         args: &[syn::Type],
+        registry: &Registry<KotlinMeta>,
     ) -> Option<ConverterImpl<KotlinMeta>> {
         let rank = args.len();
-        if rank == 0 || rank > 3 {
+        if rank > 3 {
             return None;
         }
         let key = TypeKey::from_type(pat);
-        let builder = self.output_wrappers[rank - 1].get(&key)?;
-        let (wire, body) = builder(args);
+        let builder = self.output_wrappers[rank].get(&key)?;
+        let (wire, body) = builder(args, registry)?;
         let outer = substitute_wildcards(pat, args);
         let niches = default_niches_for_wire(&wire);
+        // Output-throws registration: emit a bare-wire-returning function
+        // wrapping the body in match-throw, and stamp `throws` metadata.
+        // For arity-1 wrappers the Kotlin projection of the wrapper is
+        // the inner type's projection (e.g. `ZResult<T>` → `T`); inherit
+        // `kotlin_name` from `args[0]`'s registered output entry and
+        // record `args[0]`'s canonical key as `value_rust_key` so
+        // downstream typed-handle / opaque-ctor lookups can find the
+        // wrapped value's identity without baking a Result-shape into
+        // the framework.
+        if let Some((exc_fqn, throw_action)) = self.output_throws_meta.get(&key) {
+            let sentinel = sentinel_for_wire(&wire);
+            let function = build_output_throws_fn(
+                &outer,
+                &wire,
+                &body,
+                throw_action,
+                &sentinel,
+            );
+            let inherited = if rank >= 1 {
+                registry
+                    .output_entry(&args[0])
+                    .map(|e| (e.metadata.kotlin_name.clone(),
+                              Some(TypeKey::from_type(&args[0]).as_str().to_string())))
+                    .unwrap_or((None, None))
+            } else {
+                (
+                    crate::jni::jni_kotlin_ext::kotlin_for_wire(&wire),
+                    None,
+                )
+            };
+            return Some(ConverterImpl {
+                function,
+                destination: wire,
+                niches,
+                metadata: KotlinMeta {
+                    kotlin_name: inherited.0,
+                    throws: Some(exc_fqn.clone()),
+                    throws_action: Some(throw_action.clone()),
+                    value_rust_key: inherited.1,
+                },
+            });
+        }
         Some(ConverterImpl {
             function: self.build_output_fn(&outer, &wire, &body),
             destination: wire,
@@ -957,93 +1098,6 @@ impl JniExt {
         )
     }
 
-    /// Resolve the terminal output converter for a function's return type.
-    ///
-    /// Peels the source fn's own `ZResult<_>` (its error merges into the
-    /// closure's `__JniErr` channel), then selects a registered
-    /// [`TerminalSpec`]: an `Option<T>` return with a [`TerminalKind::Option`]
-    /// spec uses it (so `None` is an error); everything else falls to the
-    /// [`TerminalKind::Value`] catch-all. Returns `None` if no spec matches —
-    /// the caller turns that into a clear generation error.
-    ///
-    /// Used by both [`emit_jni_function_wrapper`] (Rust boundary code) and the
-    /// Kotlin emitter (which reads only [`ResolvedTerminal::throws`] to drive
-    /// `@Throws`), so the two languages always agree on which calls can throw.
-    pub(crate) fn resolve_terminal(
-        &self,
-        return_ty: &syn::Type,
-        registry: &Registry<KotlinMeta>,
-    ) -> Option<ResolvedTerminal> {
-        let (value_ty, source_is_result) = match peel_result_like(return_ty) {
-            Some(inner) => (inner.clone(), true),
-            None => (return_ty.clone(), false),
-        };
-
-        // `Option<T>` return whose empty case is itself an error.
-        if let Some(inner) = option_inner(&value_ty) {
-            if let Some(spec) = self
-                .terminals
-                .iter()
-                .find(|s| matches!(s.kind, TerminalKind::Option { .. }))
-            {
-                let TerminalKind::Option { none_message } = &spec.kind else { unreachable!() };
-                let entry = registry.output_entry(inner)?;
-                let wire = entry.destination.clone();
-                let conv = entry.function.sig.ident.clone();
-                let sentinel = sentinel_for_wire(&wire);
-                let action = &spec.action;
-                let none_lit = syn::LitStr::new(none_message, Span::call_site());
-                let finalize = quote! {
-                    match __r {
-                        Ok(Some(__v)) => match #conv(&mut env, __v) {
-                            Ok(__w) => __w,
-                            Err(__e) => { #action!(env, __e); #sentinel }
-                        },
-                        Ok(None) => {
-                            #action!(env, <__JniErr as ::core::convert::From<String>>::from(#none_lit.to_string()));
-                            #sentinel
-                        }
-                        Err(__e) => { #action!(env, __e); #sentinel }
-                    }
-                };
-                return Some(ResolvedTerminal {
-                    value_ty,
-                    source_is_result,
-                    wire,
-                    finalize,
-                    throws: spec.exception_fqn.clone(),
-                });
-            }
-        }
-
-        // Catch-all value terminal: encode via the value's normal output
-        // converter, finalize the error branch out-of-band.
-        let spec = self
-            .terminals
-            .iter()
-            .find(|s| matches!(s.kind, TerminalKind::Value))?;
-        let entry = registry.output_entry(&value_ty)?;
-        let wire = entry.destination.clone();
-        let conv = entry.function.sig.ident.clone();
-        let sentinel = sentinel_for_wire(&wire);
-        let action = &spec.action;
-        let finalize = quote! {
-            match __r {
-                Ok(__v) => match #conv(&mut env, __v) {
-                    Ok(__w) => __w,
-                    Err(__e) => { #action!(env, __e); #sentinel }
-                },
-                Err(__e) => { #action!(env, __e); #sentinel }
-            }
-        };
-        Some(ResolvedTerminal {
-            value_ty,
-            source_is_result,
-            wire,
-            finalize,
-            throws: spec.exception_fqn.clone(),
-        })
-    }
 
     /// Universal "opaque Box-handle as `jlong`" pair — input side.
     ///
@@ -1355,6 +1409,7 @@ impl PrebindgenExt for JniExt {
             pub(crate) type __JniErr = #error_type;
         );
         let mut items = vec![alias];
+        items.extend(self.extra_prerequisites.iter().cloned());
         items.extend(owned_object_prerequisite_items());
         items
     }
@@ -1402,7 +1457,7 @@ impl PrebindgenExt for JniExt {
                     function: self.build_input_fn(ty, &spec.wire, &spec.body),
                     destination: spec.wire.clone(),
                     niches: spec.niches.clone(),
-                    metadata: KotlinMeta { kotlin_name },
+                    metadata: KotlinMeta { kotlin_name, throws: None, throws_action: None, value_rust_key: None },
                 });
             }
         }
@@ -1413,7 +1468,7 @@ impl PrebindgenExt for JniExt {
                 function: self.build_input_fn(ty, &wire, &body),
                 destination: wire,
                 niches,
-                metadata: KotlinMeta { kotlin_name },
+                metadata: KotlinMeta { kotlin_name, throws: None, throws_action: None, value_rust_key: None },
             });
         }
         if let Some(name) = bare_path_ident(ty) {
@@ -1429,7 +1484,7 @@ impl PrebindgenExt for JniExt {
                     function: self.build_input_fn(ty, &wire, &body),
                     destination: wire,
                     niches,
-                    metadata: KotlinMeta { kotlin_name },
+                    metadata: KotlinMeta { kotlin_name, throws: None, throws_action: None, value_rust_key: None },
                 });
             }
             // Bare-ident enum: leave to the consuming crate to override
@@ -1445,7 +1500,7 @@ impl PrebindgenExt for JniExt {
         t1: &syn::Type,
         registry: &Registry<KotlinMeta>,
     ) -> Option<ConverterImpl<KotlinMeta>> {
-        if let Some(conv) = self.lookup_input_wrapper(pat, &[t1.clone()]) {
+        if let Some(conv) = self.lookup_input_wrapper(pat, &[t1.clone()], registry) {
             return Some(conv);
         }
         // `& _` borrow: a free-fn converter can't return `&T` (no borrow
@@ -1472,7 +1527,7 @@ impl PrebindgenExt for JniExt {
                 destination: inner.destination.clone(),
                 function: inner.function.clone(),
                 niches: inner.niches.clone(),
-                metadata: KotlinMeta { kotlin_name },
+                metadata: KotlinMeta { kotlin_name, throws: None, throws_action: None, value_rust_key: None },
             });
         }
         if pat_match(pat, "Option < _ >") {
@@ -1488,7 +1543,7 @@ impl PrebindgenExt for JniExt {
                 function: self.build_input_fn(&outer_ty, &wire, &body),
                 destination: wire,
                 niches,
-                metadata: KotlinMeta { kotlin_name },
+                metadata: KotlinMeta { kotlin_name, throws: None, throws_action: None, value_rust_key: None },
             });
         }
         None
@@ -1524,7 +1579,7 @@ impl PrebindgenExt for JniExt {
             function: self.build_input_fn(&outer_ty, &wire, &body),
             destination: wire,
             niches,
-            metadata: KotlinMeta { kotlin_name },
+            metadata: KotlinMeta { kotlin_name, throws: None, throws_action: None, value_rust_key: None },
         })
     }
 
@@ -1536,7 +1591,7 @@ impl PrebindgenExt for JniExt {
         registry: &Registry<KotlinMeta>,
     ) -> Option<ConverterImpl<KotlinMeta>> {
         let _ = registry;
-        self.lookup_input_wrapper(pat, &[t1.clone(), t2.clone()])
+        self.lookup_input_wrapper(pat, &[t1.clone(), t2.clone()], registry)
     }
 
     fn on_input_type_rank_3(
@@ -1548,7 +1603,7 @@ impl PrebindgenExt for JniExt {
         registry: &Registry<KotlinMeta>,
     ) -> Option<ConverterImpl<KotlinMeta>> {
         let _ = registry;
-        self.lookup_input_wrapper(pat, &[t1.clone(), t2.clone(), t3.clone()])
+        self.lookup_input_wrapper(pat, &[t1.clone(), t2.clone(), t3.clone()], registry)
     }
 
     // ── Output converters ────────────────────────────────────────────
@@ -1573,7 +1628,7 @@ impl PrebindgenExt for JniExt {
                     function: self.build_output_fn(ty, &spec.wire, &spec.body),
                     destination: spec.wire.clone(),
                     niches: spec.niches.clone(),
-                    metadata: KotlinMeta { kotlin_name },
+                    metadata: KotlinMeta { kotlin_name, throws: None, throws_action: None, value_rust_key: None },
                 });
             }
         }
@@ -1599,7 +1654,7 @@ impl PrebindgenExt for JniExt {
                 function: self.build_output_fn(ty, &wire, &body),
                 destination: wire,
                 niches,
-                metadata: KotlinMeta { kotlin_name },
+                metadata: KotlinMeta { kotlin_name, throws: None, throws_action: None, value_rust_key: None },
             });
         }
         if let Some(name) = bare_path_ident(ty) {
@@ -1611,7 +1666,7 @@ impl PrebindgenExt for JniExt {
                     function: self.build_output_fn(ty, &wire, &body),
                     destination: wire,
                     niches,
-                    metadata: KotlinMeta { kotlin_name },
+                    metadata: KotlinMeta { kotlin_name, throws: None, throws_action: None, value_rust_key: None },
                 });
             }
         }
@@ -1624,54 +1679,12 @@ impl PrebindgenExt for JniExt {
         t1: &syn::Type,
         registry: &Registry<KotlinMeta>,
     ) -> Option<ConverterImpl<KotlinMeta>> {
-        if let Some(conv) = self.lookup_output_wrapper(pat, &[t1.clone()]) {
+        if let Some(conv) = self.lookup_output_wrapper(pat, &[t1.clone()], registry) {
             return Some(conv);
         }
-        // `ZResult<_>` — unwrap via `?`, then delegate to inner T's output
-        // converter. Wire is T's wire; the body calls T's converter on the
-        // unwrapped value. Subs=[T] is recorded by the resolver so
-        // propagation marks T required.
-        //
-        // Note: the source-side type the user wrote is the bare-name
-        // `ZResult` (matching the prebindgen scan key). The wrapper takes
-        // `v: ::core::result::Result<T, __JniErr>` so it resolves at compile
-        // time in the host crate even though `ZResult` isn't in scope at the
-        // include site — `__JniErr` is the alias generated by
-        // `prerequisites()` from the configured `error_type`.
-        if pat_match(pat, "ZResult < _ >") {
-            let inner = registry.output_entry(t1)?;
-            let inner_wire = inner.destination.clone();
-            let inner_conv = inner.function.sig.ident.clone();
-            let inner_meta = inner.metadata.clone();
-            // `ZResult<T>` propagates `Err` via `?` and emits inner's wire
-            // on `Ok`. The success path produces exactly the same set of
-            // wire values as the inner converter, so the wrapper exposes
-            // inner's niches verbatim — an enclosing `Option<ZResult<T>>`
-            // can carve from them just as if it wrapped `T` directly.
-            let inherited_niches = inner.niches.clone();
-            let outer_ty: syn::Type = syn::parse_quote!(::core::result::Result<#t1, __JniErr>);
-            let body: syn::Expr = syn::parse_quote!({
-                let __inner = v?;
-                #inner_conv(env, __inner)?
-            });
-            // `ZResult<T>` carries no Kotlin identity — its handling at the
-            // boundary is decided by the registered terminal converter, so
-            // the Kotlin signature names the inner T, unless the user pinned
-            // an explicit override on the wrapper key. The override is looked
-            // up under the scan-time bare-name form (`ZResult<T>`), not the
-            // converter-side `::core::result::Result<T, __JniErr>` shape.
-            let scan_key_ty: syn::Type = syn::parse_quote!(ZResult<#t1>);
-            let kotlin_name = self.override_kotlin_name(
-                &scan_key_ty,
-                inner_meta.kotlin_name.clone(),
-            );
-            return Some(ConverterImpl {
-                function: self.build_output_fn(&outer_ty, &inner_wire, &body),
-                destination: inner_wire,
-                niches: inherited_niches,
-                metadata: KotlinMeta { kotlin_name },
-            });
-        }
+        // No built-in Result/ZResult special-case: binding registers any
+        // throw-on-Err behavior via `JniExt::output_throws("ZResult < _ >", ...)`,
+        // which routes through `lookup_output_wrapper` above.
         if pat_match(pat, "Option < _ >") {
             let outer_ty: syn::Type = syn::parse_quote!(Option<#t1>);
             let (wire, body, niches) = option_output(t1, registry)?;
@@ -1683,7 +1696,7 @@ impl PrebindgenExt for JniExt {
                 function: self.build_output_fn(&outer_ty, &wire, &body),
                 destination: wire,
                 niches,
-                metadata: KotlinMeta { kotlin_name },
+                metadata: KotlinMeta { kotlin_name, throws: None, throws_action: None, value_rust_key: None },
             });
         }
         None
@@ -1694,9 +1707,9 @@ impl PrebindgenExt for JniExt {
         pat: &syn::Type,
         t1: &syn::Type,
         t2: &syn::Type,
-        _registry: &Registry<KotlinMeta>,
+        registry: &Registry<KotlinMeta>,
     ) -> Option<ConverterImpl<KotlinMeta>> {
-        self.lookup_output_wrapper(pat, &[t1.clone(), t2.clone()])
+        self.lookup_output_wrapper(pat, &[t1.clone(), t2.clone()], registry)
     }
 
     fn on_output_type_rank_3(
@@ -1705,9 +1718,9 @@ impl PrebindgenExt for JniExt {
         t1: &syn::Type,
         t2: &syn::Type,
         t3: &syn::Type,
-        _registry: &Registry<KotlinMeta>,
+        registry: &Registry<KotlinMeta>,
     ) -> Option<ConverterImpl<KotlinMeta>> {
-        self.lookup_output_wrapper(pat, &[t1.clone(), t2.clone(), t3.clone()])
+        self.lookup_output_wrapper(pat, &[t1.clone(), t2.clone(), t3.clone()], registry)
     }
 
     fn into_sources(&self, target: &syn::Type) -> Vec<IntoSource> {
@@ -1797,46 +1810,75 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
         }
     }
 
-    // Output: resolve the author-registered terminal converter for the
-    // return shape (`ReturnType::Default` → `()`). The terminal owns the
-    // boundary handling — encoding the value to the wire and finalizing the
-    // error branch out-of-band (e.g. throwing). The closure aggregates every
-    // framework-internal failure (input decode) plus the source fn's own
-    // `ZResult<_>` error into a single `Result<value_ty, __JniErr>`; the
-    // terminal consumes it.
+    // Output: look up the registered converter for the return type as
+    // written. If it was registered via `JniExt::output_throws`, it returns
+    // the bare wire and owns its internal error handling; the wrapper
+    // additionally uses the same throw action to handle input-decode `?`
+    // failures (which the converter never sees — those are wrapper-internal).
+    // If it's a plain `output_wrapper` registration (returns
+    // `Result<wire, __JniErr>`), the wrapper unwraps with a sentinel on Err
+    // (configuration bug if reached).
     let return_ty: syn::Type = match &f.sig.output {
         syn::ReturnType::Default => syn::parse_quote!(()),
         syn::ReturnType::Type(_, ty) => (**ty).clone(),
     };
-    let terminal = ext.resolve_terminal(&return_ty, registry).unwrap_or_else(|| {
+    let output_entry = registry.output_entry(&return_ty).unwrap_or_else(|| {
         panic!(
-            "JniExt::on_function: no terminal converter registered for return type `{}` \
-             of `{}` — register one via `JniExt::terminal_output(...)`",
+            "JniExt::on_function: return type `{}` of `{}` has no registered output \
+             converter — register one via `JniExt::output_wrapper` / `JniExt::output_throws`",
             TypeKey::from_type(&return_ty),
             original_ident,
         )
     });
-    let value_ty = &terminal.value_ty;
-    let wire_with_lifetime = annotate_jobject_with_lifetime(&terminal.wire, "a");
+    let wire_return_ty = output_entry.destination.clone();
+    let conv = output_entry.function.sig.ident.clone();
+    let wire_with_lifetime = annotate_jobject_with_lifetime(&wire_return_ty, "a");
     let wire_return = wire_with_lifetime.to_token_stream();
-    let finalize = &terminal.finalize;
+    let on_err: TokenStream = sentinel_for_wire(&wire_return_ty);
 
     let call_expr = quote!(#source_module::#original_ident(#(#call_args),*));
-    // The source fn's own `ZResult<_>` (same error type) is `?`-merged into
-    // the closure's error channel; plain returns are wrapped in `Ok`.
-    let produce = if terminal.source_is_result {
-        quote!(::core::result::Result::Ok(#call_expr?))
-    } else {
-        quote!(::core::result::Result::Ok(#call_expr))
-    };
 
-    let body = quote! {
-        {
-            let __r: ::core::result::Result<#value_ty, __JniErr> = (|| {
-                #(#prelude)*
-                #produce
-            })();
-            #finalize
+    // The throw action for wrapper-internal failures (input-decode `?`)
+    // comes from the same `output_throws` registration the return-type
+    // converter is bound to — no separate global throw config. The
+    // converter's `KotlinMeta.throws_action` carries it through the
+    // registry (populated by `lookup_output_wrapper` when an
+    // `output_throws` registration matches).
+    let body = if let Some(throw_action) = output_entry.metadata.throws_action.clone() {
+        // Throwing converter: wrapper-internal `?` failures get the same
+        // throw treatment as the converter would apply. The closure's
+        // success type is inferred from `Ok(#call_expr)` — `_` rather
+        // than the source fn's literal return-type tokens, so type
+        // aliases (`ZResult`, `MyResult`, ...) used by the source fn
+        // need not be in scope at the generated wrappers' include site.
+        quote! {
+            {
+                let __r: ::core::result::Result<_, __JniErr> = (|| {
+                    #(#prelude)*
+                    Ok(#call_expr)
+                })();
+                match __r {
+                    Ok(__v)  => #conv(&mut env, __v),
+                    Err(__e) => {
+                        #throw_action!(env, __e);
+                        #on_err
+                    }
+                }
+            }
+        }
+    } else {
+        // Non-throwing converter: returns `Result<wire, __JniErr>`. Should
+        // not Err in practice (no throw configured for this return type);
+        // sentinel otherwise.
+        quote! {
+            {
+                let __r: ::core::result::Result<#wire_with_lifetime, __JniErr> = (|| {
+                    #(#prelude)*
+                    let __v = #call_expr;
+                    #conv(&mut env, __v)
+                })();
+                __r.unwrap_or_else(|_| #on_err)
+            }
         }
     };
 
@@ -1882,50 +1924,48 @@ fn mangle_jni_name(ext: &JniExt, ident: &syn::Ident) -> syn::Ident {
     syn::Ident::new(&name, Span::call_site())
 }
 
+/// Build the emitted function for an [`JniExt::output_throws`] registration.
+///
+/// `body` is the user-supplied expression that evaluates to `wire` on the
+/// success path (same convention as a plain `output_wrapper` body — errors
+/// propagate via `?` for sub-conversion failures, or via `return Err(...)`
+/// for custom detection like `i32 < 0`). The framework wraps the body in a
+/// `(|| -> Result<wire, __JniErr> { Ok(body) })()` closure to give those
+/// `?`/`return` operators somewhere to land, then `match`es the closure's
+/// result: on `Ok` it returns the wire value; on `Err` it invokes
+/// `<throw_action>!(env, err)` and substitutes `sentinel`. The emitted
+/// function therefore returns the bare `wire` type — the converter has
+/// fully consumed the error case by throwing.
+fn build_output_throws_fn(
+    rust: &syn::Type,
+    wire: &syn::Type,
+    body: &syn::Expr,
+    throw_action: &syn::Path,
+    sentinel: &TokenStream,
+) -> syn::ItemFn {
+    let name = output_name(rust, wire);
+    let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "a");
+    syn::parse_quote!(
+        #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
+        pub(crate) unsafe fn #name<'a>(env: &mut jni::JNIEnv<'a>, v: #rust) -> #wire_with_lifetime {
+            let __r: ::core::result::Result<#wire_with_lifetime, __JniErr> =
+                (|| -> ::core::result::Result<#wire_with_lifetime, __JniErr> { Ok(#body) })();
+            match __r {
+                Ok(__w) => __w,
+                Err(__e) => {
+                    // `env` is `&mut JNIEnv`; deref so the throw macro's
+                    // `&mut $env` re-borrows as `&mut JNIEnv` rather than
+                    // `&mut &mut JNIEnv`.
+                    #throw_action!(*env, __e);
+                    #sentinel
+                }
+            }
+        }
+    )
+}
+
 /// Sentinel value to return through the wrapper signature when the inner
 /// closure errors. Must compile against any wire type we emit.
-/// Outcome of [`JniExt::resolve_terminal`] — everything the emitters need to
-/// finalize a function's return value at the JNI boundary.
-pub(crate) struct ResolvedTerminal {
-    /// Peeled return value type. The wrapper closure yields
-    /// `Result<value_ty, __JniErr>`.
-    pub value_ty: syn::Type,
-    /// `true` when the source fn returned `ZResult<_>` (closure uses `?`).
-    pub source_is_result: bool,
-    /// JNI wire type the wrapper returns.
-    pub wire: syn::Type,
-    /// `match` expression consuming `__r: Result<value_ty, __JniErr>` (with
-    /// `env` in scope) and evaluating to `wire`.
-    pub finalize: TokenStream,
-    /// Kotlin exception FQN this return shape can raise (`None` = non-throwing).
-    pub throws: Option<String>,
-}
-
-/// Peel a `ZResult<T>` / `Result<T, _>` return type to its success type `T`.
-/// Returns `None` for non-result returns.
-fn peel_result_like(ty: &syn::Type) -> Option<&syn::Type> {
-    let syn::Type::Path(tp) = ty else { return None };
-    let last = tp.path.segments.last()?;
-    if last.ident != "ZResult" && last.ident != "Result" {
-        return None;
-    }
-    let syn::PathArguments::AngleBracketed(args) = &last.arguments else { return None };
-    let syn::GenericArgument::Type(inner) = args.args.first()? else { return None };
-    Some(inner)
-}
-
-/// Inner `T` of an `Option<T>` type, or `None`.
-fn option_inner(ty: &syn::Type) -> Option<&syn::Type> {
-    let syn::Type::Path(tp) = ty else { return None };
-    let last = tp.path.segments.last()?;
-    if last.ident != "Option" {
-        return None;
-    }
-    let syn::PathArguments::AngleBracketed(args) = &last.arguments else { return None };
-    let syn::GenericArgument::Type(inner) = args.args.first()? else { return None };
-    Some(inner)
-}
-
 fn sentinel_for_wire(wire: &syn::Type) -> TokenStream {
     // Unit wire (void-returning wrappers): the value *is* the sentinel.
     if let syn::Type::Tuple(t) = wire {
