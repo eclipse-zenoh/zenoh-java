@@ -13,6 +13,7 @@ use prebindgen_ext::core::prebindgen_ext::IntoSource;
 use prebindgen_ext::core::registry::Registry;
 use prebindgen_ext::jni::jni_ext::KotlinMeta;
 use prebindgen_ext::jni::JniExt;
+use syn::parse_quote;
 
 fn main() {
     let jni = JniExt::new()
@@ -48,13 +49,13 @@ fn main() {
                 // error to this wrapper's own match-throw.
                 let inner_throws = inner.metadata.throws_action.is_some();
                 let inner_call: syn::Expr = if inner_throws {
-                    syn::parse_quote!(#inner_conv(env, __i))
+                    parse_quote!(#inner_conv(env, __i))
                 } else {
-                    syn::parse_quote!(#inner_conv(env, __i)?)
+                    parse_quote!(#inner_conv(env, __i)?)
                 };
                 Some((
                     inner_wire,
-                    syn::parse_quote!({
+                    parse_quote!({
                         let __i = v?;
                         #inner_call
                     }),
@@ -62,7 +63,7 @@ fn main() {
             },
         )
         .output_throws("()", |_reg: &Registry<KotlinMeta>| {
-            Some((syn::parse_quote!(()), syn::parse_quote!({ v })))
+            Some((parse_quote!(()), parse_quote!({ v })))
         })
         // ── Kotlin classes — `kotlin_class` configures: jlong wire
         // (input + output), `Box::into_raw`/`Box::from_raw` lifecycle,
@@ -134,15 +135,15 @@ fn main() {
         // `jbyteArray`) auto-derive via `kotlin_for_wire`.
         .input_wrapper("Encoding", |_reg: &Registry<KotlinMeta>| {
             Some((
-                syn::parse_quote!(jni::objects::JObject),
-                syn::parse_quote!(crate::utils::decode_jni_encoding(env, &v)?),
+                parse_quote!(jni::objects::JObject),
+                parse_quote!(crate::utils::decode_jni_encoding(env, &v)?),
             ))
         })
         .kotlin_name("JNIEncoding")
         .input_wrapper("Option<Encoding>", |_reg: &Registry<KotlinMeta>| {
             Some((
-                syn::parse_quote!(jni::objects::JObject),
-                syn::parse_quote!(
+                parse_quote!(jni::objects::JObject),
+                parse_quote!(
                     if !v.is_null() {
                         Some(crate::utils::decode_jni_encoding(env, &v)?)
                     } else {
@@ -154,20 +155,20 @@ fn main() {
         .kotlin_name("JNIEncoding")
         .output_wrapper("SetIntersectionLevel", |_reg: &Registry<KotlinMeta>| {
             Some((
-                syn::parse_quote!(jni::sys::jint),
-                syn::parse_quote!(v as jni::sys::jint),
+                parse_quote!(jni::sys::jint),
+                parse_quote!(v as jni::sys::jint),
             ))
         })
         .output_wrapper("ZenohId", |_reg: &Registry<KotlinMeta>| {
             Some((
-                syn::parse_quote!(jni::sys::jbyteArray),
-                syn::parse_quote!(crate::zenoh_id::zenoh_id_to_byte_array(env, v)?),
+                parse_quote!(jni::sys::jbyteArray),
+                parse_quote!(crate::zenoh_id::zenoh_id_to_byte_array(env, v)?),
             ))
         })
         .output_wrapper("Vec<ZenohId>", |_reg: &Registry<KotlinMeta>| {
             Some((
-                syn::parse_quote!(jni::sys::jobject),
-                syn::parse_quote!(crate::zenoh_id::zenoh_ids_to_java_list(env, v)?),
+                parse_quote!(jni::sys::jobject),
+                parse_quote!(crate::zenoh_id::zenoh_ids_to_java_list(env, v)?),
             ))
         })
         .with_kotlin_type("List<ByteArray>")
@@ -205,8 +206,8 @@ fn main() {
         .into_sources(
             "ZKeyExpr<'static>",
             [
-                IntoSource::borrow(syn::parse_quote!(ZKeyExpr<'static>)),
-                IntoSource::borrow(syn::parse_quote!(String)),
+                IntoSource::borrow(parse_quote!(ZKeyExpr<'static>)),
+                IntoSource::borrow(parse_quote!(String)),
             ],
         );
 
