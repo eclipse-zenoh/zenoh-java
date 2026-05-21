@@ -16,7 +16,8 @@ package io.zenoh.keyexpr
 
 import io.zenoh.Session
 import io.zenoh.session.SessionDeclaration
-import io.zenoh.jni.ZError
+import io.zenoh.exceptions.ZError
+import io.zenoh.exceptions.jniCall
 import io.zenoh.jni.JNIKeyExpr
 import io.zenoh.query.IntoSelector
 import io.zenoh.query.Selector
@@ -88,7 +89,7 @@ class KeyExpr internal constructor(
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun tryFrom(keyExpr: String): KeyExpr = KeyExpr(JNIKeyExpr.tryFrom(keyExpr))
+        fun tryFrom(keyExpr: String): KeyExpr = jniCall { KeyExpr(JNIKeyExpr.tryFrom(keyExpr)) }
 
         /**
          * Autocanonize.
@@ -102,7 +103,7 @@ class KeyExpr internal constructor(
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun autocanonize(keyExpr: String): KeyExpr = KeyExpr(JNIKeyExpr.autocanonize(keyExpr))
+        fun autocanonize(keyExpr: String): KeyExpr = jniCall { KeyExpr(JNIKeyExpr.autocanonize(keyExpr)) }
     }
 
     /**
@@ -111,8 +112,9 @@ class KeyExpr internal constructor(
      * Will return false as well if the key expression is not valid anymore.
      */
     @Throws(ZError::class)
-    fun intersects(other: KeyExpr): Boolean =
+    fun intersects(other: KeyExpr): Boolean = jniCall {
         JNIKeyExpr.intersects(jniKeyExpr ?: keyExpr, other.jniKeyExpr ?: other.keyExpr)
+    }
 
     /**
      * Includes operation. This method returns `true` when all the keys defined by `other` also belong to the set
@@ -120,8 +122,9 @@ class KeyExpr internal constructor(
      * Will return false as well if the key expression is not valid anymore.
      */
     @Throws(ZError::class)
-    fun includes(other: KeyExpr): Boolean =
+    fun includes(other: KeyExpr): Boolean = jniCall {
         JNIKeyExpr.includes(jniKeyExpr ?: keyExpr, other.jniKeyExpr ?: other.keyExpr)
+    }
 
     /**
      * Returns the relation between 'this' and other from 'this''s point of view ([SetIntersectionLevel.INCLUDES]
@@ -129,19 +132,20 @@ class KeyExpr internal constructor(
      * so you should favor these methods for most applications.
      */
     @Throws(ZError::class)
-    fun relationTo(other: KeyExpr): SetIntersectionLevel =
+    fun relationTo(other: KeyExpr): SetIntersectionLevel = jniCall {
         SetIntersectionLevel.fromInt(
             JNIKeyExpr.relationTo(jniKeyExpr ?: keyExpr, other.jniKeyExpr ?: other.keyExpr)
         )
+    }
 
     /**
      * Joins both sides, inserting a / in between them.
      * This should be your preferred method when concatenating path segments.
      */
     @Throws(ZError::class)
-    fun join(other: String): KeyExpr {
+    fun join(other: String): KeyExpr = jniCall {
         val handle = JNIKeyExpr.join(jniKeyExpr ?: keyExpr, other) as JNIKeyExpr
-        return KeyExpr("$keyExpr/$other", handle)
+        KeyExpr("$keyExpr/$other", handle)
     }
 
     /**
@@ -149,9 +153,9 @@ class KeyExpr internal constructor(
      * You should probably prefer [join] as Zenoh may then take advantage of the hierarchical separation it inserts.
      */
     @Throws(ZError::class)
-    fun concat(other: String): KeyExpr {
+    fun concat(other: String): KeyExpr = jniCall {
         val handle = JNIKeyExpr.concat(jniKeyExpr ?: keyExpr, other) as JNIKeyExpr
-        return KeyExpr("$keyExpr$other", handle)
+        KeyExpr("$keyExpr$other", handle)
     }
 
     override fun toString(): String = keyExpr

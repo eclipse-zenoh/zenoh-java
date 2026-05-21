@@ -18,7 +18,9 @@ import io.zenoh.*
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
-import io.zenoh.jni.ZError
+import io.zenoh.exceptions.ZError
+
+import io.zenoh.exceptions.jniCall
 import io.zenoh.jni.JNIPublisher
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
@@ -78,13 +80,13 @@ class Publisher internal constructor(
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
     @Throws(ZError::class)
-    fun put(payload: IntoZBytes) {
+    fun put(payload: IntoZBytes) = jniCall {
         jniPublisher?.putPublisher(payload.into().bytes, encoding.toJni(), null) ?: throw publisherNotValid
     }
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
     @Throws(ZError::class)
-    fun put(payload: IntoZBytes, options: PutOptions) {
+    fun put(payload: IntoZBytes, options: PutOptions) = jniCall {
         val enc = options.encoding ?: this.encoding
         jniPublisher?.putPublisher(payload.into().bytes, enc.toJni(), options.attachment?.into()?.bytes) ?: throw publisherNotValid
     }
@@ -102,7 +104,7 @@ class Publisher internal constructor(
      */
     @JvmOverloads
     @Throws(ZError::class)
-    fun delete(options: DeleteOptions = DeleteOptions()) {
+    fun delete(options: DeleteOptions = DeleteOptions()) = jniCall {
         jniPublisher?.deletePublisher(options.attachment?.into()?.bytes) ?: throw(publisherNotValid)
     }
 

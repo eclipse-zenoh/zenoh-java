@@ -14,7 +14,8 @@
 
 package io.zenoh
 
-import io.zenoh.jni.ZError
+import io.zenoh.exceptions.ZError
+import io.zenoh.exceptions.jniCall
 import io.zenoh.jni.JNIConfig
 import java.io.File
 import java.nio.file.Path
@@ -58,9 +59,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromFile(file: File): Config {
-            return Config(JNIConfig.loadFromFile(file.toString()))
-        }
+        fun fromFile(file: File): Config = jniCall { Config(JNIConfig.loadFromFile(file.toString())) }
 
         /**
          * Loads the configuration from the [Path] specified.
@@ -71,9 +70,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromFile(path: Path): Config {
-            return Config(JNIConfig.loadFromFile(path.toString()))
-        }
+        fun fromFile(path: Path): Config = jniCall { Config(JNIConfig.loadFromFile(path.toString())) }
 
         /**
          * Loads the configuration from json-formatted string.
@@ -86,9 +83,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromJson(config: String): Config {
-            return Config(JNIConfig.loadFromJson(config))
-        }
+        fun fromJson(config: String): Config = jniCall { Config(JNIConfig.loadFromJson(config)) }
 
         /**
          * Loads the configuration from json5-formatted string.
@@ -101,9 +96,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromJson5(config: String): Config {
-            return Config(JNIConfig.loadFromJson(config))
-        }
+        fun fromJson5(config: String): Config = jniCall { Config(JNIConfig.loadFromJson(config)) }
 
         /**
          * Loads the configuration from yaml-formatted string.
@@ -116,9 +109,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromYaml(config: String): Config {
-            return Config(JNIConfig.loadFromYaml(config))
-        }
+        fun fromYaml(config: String): Config = jniCall { Config(JNIConfig.loadFromYaml(config)) }
 
         /**
          * Loads the configuration from the env variable [CONFIG_ENV].
@@ -127,12 +118,12 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromEnv(): Config {
+        fun fromEnv(): Config = jniCall {
             val envValue = System.getenv(CONFIG_ENV)
             if (envValue != null) {
-                return fromFile(File(envValue))
+                fromFile(File(envValue))
             } else {
-                throw Exception("Couldn't load env variable: $CONFIG_ENV.")
+                throw ZError("Couldn't load env variable: $CONFIG_ENV.")
             }
         }
     }
@@ -141,17 +132,13 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
      * The json value associated to the [key].
      */
     @Throws(ZError::class)
-    fun getJson(key: String): String {
-        return jniConfig.getJson(key)
-    }
+    fun getJson(key: String): String = jniCall { jniConfig.getJson(key) }
 
     /**
      * Inserts a json5 value associated to the [key] into the Config.
      */
     @Throws(ZError::class)
-    fun insertJson5(key: String, value: String) {
-        jniConfig.insertJson5(key, value)
-    }
+    fun insertJson5(key: String, value: String) = jniCall { jniConfig.insertJson5(key, value) }
 
     protected fun finalize() {
         jniConfig.free()

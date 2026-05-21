@@ -2,7 +2,7 @@ package io.zenoh;
 
 import io.zenoh.bytes.Encoding;
 import io.zenoh.bytes.ZBytes;
-import io.zenoh.jni.ZError;
+import io.zenoh.exceptions.ZError;
 import io.zenoh.handlers.Handler;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.query.*;

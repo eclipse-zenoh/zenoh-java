@@ -14,7 +14,9 @@
 
 package io.zenoh.query
 
-import io.zenoh.jni.ZError
+import io.zenoh.exceptions.ZError
+
+import io.zenoh.exceptions.jniCall
 import io.zenoh.keyexpr.KeyExpr
 
 /**
@@ -74,7 +76,7 @@ data class Selector(val keyExpr: KeyExpr, val parameters: Parameters? = null) : 
          */
         @Throws(ZError::class)
         @JvmStatic
-        fun tryFrom(selector: String): Selector {
+        fun tryFrom(selector: String): Selector  = jniCall {
             if (selector.isEmpty()) {
                 throw ZError("Attempting to create a selector from an empty string.")
             }

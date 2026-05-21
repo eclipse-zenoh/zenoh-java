@@ -21,7 +21,9 @@ import io.zenoh.bytes.ZBytes
 import io.zenoh.bytes.into
 import io.zenoh.config.EntityGlobalId
 import io.zenoh.config.ZenohId
-import io.zenoh.jni.ZError
+import io.zenoh.exceptions.ZError
+
+import io.zenoh.exceptions.jniCall
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
@@ -83,9 +85,9 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
     @Throws(ZError::class)
     fun get(
         options: GetOptions
-    ): BlockingQueue<Optional<Reply>> {
+    ): BlockingQueue<Optional<Reply>>  = jniCall {
         val handler = BlockingQueueHandler<Reply>(LinkedBlockingDeque())
-        return resolveGetWithHandler(handler, options)
+        resolveGetWithHandler(handler, options)
     }
 
     /**
@@ -99,7 +101,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
     fun get(
         callback: Callback<Reply>,
         options: GetOptions
-    ) {
+    ) = jniCall {
         resolveGetWithCallback(callback, options)
     }
 
@@ -114,8 +116,8 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
     fun <R> get(
         handler: Handler<Reply, R>,
         options: GetOptions
-    ): R {
-        return resolveGetWithHandler(handler, options)
+    ): R  = jniCall {
+        resolveGetWithHandler(handler, options)
     }
 
     /**

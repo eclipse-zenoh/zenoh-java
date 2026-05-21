@@ -15,7 +15,7 @@
 package io.zenoh;
 
 import io.zenoh.config.WhatAmI;
-import io.zenoh.jni.ZError;
+import io.zenoh.exceptions.ZError;
 import io.zenoh.scouting.Hello;
 import io.zenoh.scouting.Scout;
 import io.zenoh.scouting.ScoutOptions;

@@ -21,7 +21,8 @@ import io.zenoh.bytes.ZBytes
 import io.zenoh.bytes.into
 import io.zenoh.config.EntityGlobalId
 import io.zenoh.config.ZenohId
-import io.zenoh.jni.ZError
+import io.zenoh.exceptions.ZError
+import io.zenoh.exceptions.jniCall
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
@@ -90,9 +91,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
          * @throws [ZError] in the case of a failure.
          */
         @Throws(ZError::class)
-        internal fun open(config: Config): Session {
+        internal fun open(config: Config): Session  = jniCall {
             val session = Session(config)
-            return session.launch()
+            session.launch()
         }
     }
 
@@ -155,8 +156,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @JvmOverloads
     @Throws(ZError::class)
-    fun declarePublisher(keyExpr: KeyExpr, publisherOptions: PublisherOptions = PublisherOptions()): Publisher {
-        return resolvePublisher(keyExpr, publisherOptions)
+    fun declarePublisher(keyExpr: KeyExpr, publisherOptions: PublisherOptions = PublisherOptions()): Publisher  = jniCall {
+        resolvePublisher(keyExpr, publisherOptions)
     }
 
     /**
@@ -184,8 +185,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * @return [HandlerSubscriber] with a [BlockingQueue] as a receiver.
      */
     @Throws(ZError::class)
-    fun declareSubscriber(keyExpr: KeyExpr): HandlerSubscriber<BlockingQueue<Optional<Sample>>> {
-        return resolveSubscriberWithHandler(
+    fun declareSubscriber(keyExpr: KeyExpr): HandlerSubscriber<BlockingQueue<Optional<Sample>>>  = jniCall {
+        resolveSubscriberWithHandler(
             keyExpr,
             BlockingQueueHandler(LinkedBlockingDeque())
         )
@@ -230,8 +231,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * @return A [HandlerSubscriber] with the [handler]'s receiver.
      */
     @Throws(ZError::class)
-    fun <R> declareSubscriber(keyExpr: KeyExpr, handler: Handler<Sample, R>): HandlerSubscriber<R> {
-        return resolveSubscriberWithHandler(keyExpr, handler)
+    fun <R> declareSubscriber(keyExpr: KeyExpr, handler: Handler<Sample, R>): HandlerSubscriber<R>  = jniCall {
+        resolveSubscriberWithHandler(keyExpr, handler)
     }
 
     /**
@@ -250,8 +251,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * @return A [CallbackSubscriber].
      */
     @Throws(ZError::class)
-    fun declareSubscriber(keyExpr: KeyExpr, callback: Callback<Sample>): CallbackSubscriber {
-        return resolveSubscriberWithCallback(keyExpr, callback)
+    fun declareSubscriber(keyExpr: KeyExpr, callback: Callback<Sample>): CallbackSubscriber  = jniCall {
+        resolveSubscriberWithCallback(keyExpr, callback)
     }
 
     /**
@@ -282,8 +283,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     fun declareQueryable(
         keyExpr: KeyExpr,
         options: QueryableOptions = QueryableOptions()
-    ): HandlerQueryable<BlockingQueue<Optional<Query>>> {
-        return resolveQueryableWithHandler(keyExpr, BlockingQueueHandler(LinkedBlockingDeque()), options)
+    ): HandlerQueryable<BlockingQueue<Optional<Query>>>  = jniCall {
+        resolveQueryableWithHandler(keyExpr, BlockingQueueHandler(LinkedBlockingDeque()), options)
     }
 
     /**
@@ -325,8 +326,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @Throws(ZError::class)
     @JvmOverloads
-    fun <R> declareQueryable(keyExpr: KeyExpr, handler: Handler<Query, R>, options: QueryableOptions = QueryableOptions()): HandlerQueryable<R> {
-        return resolveQueryableWithHandler(keyExpr, handler, options)
+    fun <R> declareQueryable(keyExpr: KeyExpr, handler: Handler<Query, R>, options: QueryableOptions = QueryableOptions()): HandlerQueryable<R>  = jniCall {
+        resolveQueryableWithHandler(keyExpr, handler, options)
     }
 
     /**
@@ -346,8 +347,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @Throws(ZError::class)
     @JvmOverloads
-    fun declareQueryable(keyExpr: KeyExpr, callback: Callback<Query>, options: QueryableOptions = QueryableOptions()): CallbackQueryable {
-        return resolveQueryableWithCallback(keyExpr, callback, options)
+    fun declareQueryable(keyExpr: KeyExpr, callback: Callback<Query>, options: QueryableOptions = QueryableOptions()): CallbackQueryable  = jniCall {
+        resolveQueryableWithCallback(keyExpr, callback, options)
     }
 
 
@@ -381,8 +382,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     fun declareQuerier(
         keyExpr: KeyExpr,
         options: QuerierOptions = QuerierOptions()
-    ): Querier {
-        return resolveQuerier(keyExpr, options)
+    ): Querier  = jniCall {
+        resolveQuerier(keyExpr, options)
     }
 
     /**
@@ -398,8 +399,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * @return The declared [KeyExpr].
      */
     @Throws(ZError::class)
-    fun declareKeyExpr(keyExpr: String): KeyExpr {
-        return jniSession?.run {
+    fun declareKeyExpr(keyExpr: String): KeyExpr  = jniCall {
+        jniSession?.run {
             val ke = KeyExpr(keyExpr, declareKeyExpr(keyExpr))
             strongDeclarations.add(ke)
             ke
@@ -416,7 +417,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * @return A resolvable returning the status of the undeclare operation.
      */
     @Throws(ZError::class)
-    fun undeclare(keyExpr: KeyExpr) {
+    fun undeclare(keyExpr: KeyExpr) = jniCall {
         val js = jniSession ?: throw sessionClosedException
         val nh = keyExpr.jniKeyExpr
             ?: throw ZError("Attempting to undeclare a non declared key expression.")
@@ -454,9 +455,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @JvmOverloads
     @Throws(ZError::class)
-    fun get(selector: IntoSelector, options: GetOptions = GetOptions()): BlockingQueue<Optional<Reply>> {
+    fun get(selector: IntoSelector, options: GetOptions = GetOptions()): BlockingQueue<Optional<Reply>>  = jniCall {
         val handler = BlockingQueueHandler<Reply>(LinkedBlockingDeque())
-        return resolveGetWithHandler(
+        resolveGetWithHandler(
             selector,
             handler,
             options
@@ -502,8 +503,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @JvmOverloads
     @Throws(ZError::class)
-    fun <R> get(selector: IntoSelector, handler: Handler<Reply, R>, options: GetOptions = GetOptions()): R {
-        return resolveGetWithHandler(selector, handler, options)
+    fun <R> get(selector: IntoSelector, handler: Handler<Reply, R>, options: GetOptions = GetOptions()): R  = jniCall {
+        resolveGetWithHandler(selector, handler, options)
     }
 
     /**
@@ -523,8 +524,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @JvmOverloads
     @Throws(ZError::class)
-    fun get(selector: IntoSelector, callback: Callback<Reply>, options: GetOptions = GetOptions()) {
-        return resolveGetWithCallback(selector, callback, options)
+    fun get(selector: IntoSelector, callback: Callback<Reply>, options: GetOptions = GetOptions()) = jniCall {
+        resolveGetWithCallback(selector, callback, options)
     }
 
     /**
@@ -542,7 +543,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @JvmOverloads
     @Throws(ZError::class)
-    fun put(keyExpr: KeyExpr, payload: IntoZBytes, options: PutOptions = PutOptions()) {
+    fun put(keyExpr: KeyExpr, payload: IntoZBytes, options: PutOptions = PutOptions()) = jniCall {
         resolvePut(keyExpr, payload, options)
     }
 
@@ -561,7 +562,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @JvmOverloads
     @Throws(ZError::class)
-    fun put(keyExpr: KeyExpr, payload: String, options: PutOptions = PutOptions()) {
+    fun put(keyExpr: KeyExpr, payload: String, options: PutOptions = PutOptions()) = jniCall {
         resolvePut(keyExpr, ZBytes.from(payload), options)
     }
 
@@ -573,7 +574,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @JvmOverloads
     @Throws(ZError::class)
-    fun delete(keyExpr: KeyExpr, options: DeleteOptions = DeleteOptions()) {
+    fun delete(keyExpr: KeyExpr, options: DeleteOptions = DeleteOptions()) = jniCall {
         resolveDelete(keyExpr, options)
     }
 
@@ -597,8 +598,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     @Throws(ZError::class)
-    internal fun resolvePublisher(keyExpr: KeyExpr, options: PublisherOptions): Publisher {
-        return jniSession?.run {
+    internal fun resolvePublisher(keyExpr: KeyExpr, options: PublisherOptions): Publisher  = jniCall {
+        jniSession?.run {
             val publisher = Publisher(
                 keyExpr,
                 options.congestionControl,
@@ -621,8 +622,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     internal fun <R> resolveSubscriberWithHandler(
         keyExpr: KeyExpr, handler: Handler<Sample, R>
-    ): HandlerSubscriber<R> {
-        return jniSession?.run {
+    ): HandlerSubscriber<R>  = jniCall {
+        jniSession?.run {
             val subCallback = JNISampleCallback { sample ->
                 handler.handle(sample.toPublic())
             }
@@ -635,8 +636,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     internal fun resolveSubscriberWithCallback(
         keyExpr: KeyExpr, callback: Callback<Sample>
-    ): CallbackSubscriber {
-        return jniSession?.run {
+    ): CallbackSubscriber  = jniCall {
+        jniSession?.run {
             val subCallback = JNISampleCallback { sample ->
                 callback.run(sample.toPublic())
             }
@@ -649,8 +650,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     internal fun <R> resolveQueryableWithHandler(
         keyExpr: KeyExpr, handler: Handler<Query, R>, options: QueryableOptions
-    ): HandlerQueryable<R> {
-        return jniSession?.run {
+    ): HandlerQueryable<R>  = jniCall {
+        jniSession?.run {
             val queryCallback =
                 JNIQueryableCallback { keyExpr1, selectorParams, payload, encodingId, encodingSchema, attachmentBytes, queryPtr, acceptReplies ->
                     val jniQuery = JNIQuery(queryPtr)
@@ -677,8 +678,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     internal fun resolveQueryableWithCallback(
         keyExpr: KeyExpr, callback: Callback<Query>, options: QueryableOptions
-    ): CallbackQueryable {
-        return jniSession?.run {
+    ): CallbackQueryable  = jniCall {
+        jniSession?.run {
             val queryCallback =
                 JNIQueryableCallback { keyExpr1, selectorParams, payload, encodingId, encodingSchema, attachmentBytes, queryPtr, acceptReplies ->
                     val jniQuery = JNIQuery(queryPtr)
@@ -733,8 +734,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         selector: IntoSelector,
         handler: Handler<Reply, R>,
         options: GetOptions
-    ): R {
-        return jniSession?.run {
+    ): R  = jniCall {
+        jniSession?.run {
             val getCallback = JNIGetCallback { replierZid, replierEid, success, keyExpr, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
                 val reply: Reply = if (success) {
                     val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
@@ -782,7 +783,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         selector: IntoSelector,
         callback: Callback<Reply>,
         options: GetOptions
-    ) {
+    ) = jniCall {
         jniSession?.run {
             val getCallback = JNIGetCallback { replierZid, replierEid, success, keyExpr, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
                 val reply: Reply = if (success) {
@@ -826,7 +827,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     @Throws(ZError::class)
-    internal fun resolvePut(keyExpr: KeyExpr, payload: IntoZBytes, putOptions: PutOptions) {
+    internal fun resolvePut(keyExpr: KeyExpr, payload: IntoZBytes, putOptions: PutOptions) = jniCall {
         jniSession?.run {
             val encoding = (putOptions.encoding ?: Encoding.defaultEncoding()).toJni()
             put(
@@ -844,7 +845,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     @Throws(ZError::class)
-    internal fun resolveDelete(keyExpr: KeyExpr, deleteOptions: DeleteOptions) {
+    internal fun resolveDelete(keyExpr: KeyExpr, deleteOptions: DeleteOptions) = jniCall {
         jniSession?.run {
             delete(
                 keyExpr.jniKeyExpr,
@@ -859,24 +860,24 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     }
 
     @Throws(ZError::class)
-    internal fun zid(): ZenohId {
-        return jniSession?.run { ZenohId(getZid()) } ?: throw sessionClosedException
+    internal fun zid(): ZenohId  = jniCall {
+        jniSession?.run { ZenohId(getZid()) } ?: throw sessionClosedException
     }
 
     @Throws(ZError::class)
-    internal fun getPeersId(): List<ZenohId> {
-        return jniSession?.run { getPeersZid().map { ZenohId(it) } } ?: throw sessionClosedException
+    internal fun getPeersId(): List<ZenohId>  = jniCall {
+        jniSession?.run { getPeersZid().map { ZenohId(it) } } ?: throw sessionClosedException
     }
 
     @Throws(ZError::class)
-    internal fun getRoutersId(): List<ZenohId> {
-        return jniSession?.run { getRoutersZid().map { ZenohId(it) } } ?: throw sessionClosedException
+    internal fun getRoutersId(): List<ZenohId>  = jniCall {
+        jniSession?.run { getRoutersZid().map { ZenohId(it) } } ?: throw sessionClosedException
     }
 
     /** Launches the session through the jni session, returning the [Session] on success. */
     @Throws(ZError::class)
-    private fun launch(): Session {
+    private fun launch(): Session  = jniCall {
         this.jniSession = JNISession.open(config.jniConfig)
-        return this
+        this
     }
 }

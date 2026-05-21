@@ -18,7 +18,9 @@ import io.zenoh.ZenohType
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
-import io.zenoh.jni.ZError
+import io.zenoh.exceptions.ZError
+
+import io.zenoh.exceptions.jniCall
 import io.zenoh.jni.JNIQuery
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.QoS
@@ -61,7 +63,7 @@ class Query internal constructor(
      */
     @Throws(ZError::class)
     @JvmOverloads
-    fun reply(keyExpr: KeyExpr, payload: IntoZBytes, options: ReplyOptions = ReplyOptions()) {
+    fun reply(keyExpr: KeyExpr, payload: IntoZBytes, options: ReplyOptions = ReplyOptions()) = jniCall {
         val zbytes = payload.into()
         val encoding = options.encoding
         jniQuery?.apply {
@@ -98,7 +100,7 @@ class Query internal constructor(
      */
     @JvmOverloads
     @Throws(ZError::class)
-    fun replyDel(keyExpr: KeyExpr, options: ReplyDelOptions = ReplyDelOptions()) {
+    fun replyDel(keyExpr: KeyExpr, options: ReplyDelOptions = ReplyDelOptions()) = jniCall {
         jniQuery?.apply {
             replyDelete(
                 keyExpr.jniKeyExpr ?: keyExpr.keyExpr,
@@ -118,7 +120,7 @@ class Query internal constructor(
      */
     @JvmOverloads
     @Throws(ZError::class)
-    fun replyErr(message: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
+    fun replyErr(message: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) = jniCall {
         val encoding = options.encoding
         jniQuery?.apply {
             replyError(message.into().bytes, (encoding ?: Encoding.defaultEncoding()).toJni())

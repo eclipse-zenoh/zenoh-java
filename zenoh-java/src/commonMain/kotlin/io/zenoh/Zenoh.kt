@@ -17,7 +17,8 @@ package io.zenoh
 import io.zenoh.Logger.Companion.LOG_ENV
 import io.zenoh.config.WhatAmI
 import io.zenoh.config.ZenohId
-import io.zenoh.jni.ZError
+import io.zenoh.exceptions.ZError
+import io.zenoh.exceptions.jniCall
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
@@ -38,9 +39,7 @@ object Zenoh {
      */
     @JvmStatic
     @Throws(ZError::class)
-    fun open(config: Config): Session {
-        return Session.open(config)
-    }
+    fun open(config: Config): Session = jniCall { Session.open(config) }
 
     /**
      * Scout for routers and/or peers.
@@ -54,13 +53,13 @@ object Zenoh {
     @JvmOverloads
     @JvmStatic
     @Throws(ZError::class)
-    fun scout(scoutOptions: ScoutOptions = ScoutOptions()): HandlerScout<BlockingQueue<Optional<Hello>>> {
+    fun scout(scoutOptions: ScoutOptions = ScoutOptions()): HandlerScout<BlockingQueue<Optional<Hello>>> = jniCall {
         val handler = BlockingQueueHandler(LinkedBlockingDeque<Optional<Hello>>())
         val scoutCallback = JNIScoutCallback { whatAmI, id, locators ->
             handler.handle(Hello(WhatAmI.fromInt(whatAmI), ZenohId(id), locators))
         }
         val binaryWhatAmI = scoutOptions.whatAmI.map { it.value }.reduce { acc, it -> acc or it }
-        return HandlerScout(JNIScout.scout(binaryWhatAmI, scoutCallback, handler::onClose, scoutOptions.config?.jniConfig), handler.receiver())
+        HandlerScout(JNIScout.scout(binaryWhatAmI, scoutCallback, handler::onClose, scoutOptions.config?.jniConfig), handler.receiver())
     }
 
     /**
@@ -77,12 +76,12 @@ object Zenoh {
     @JvmOverloads
     @JvmStatic
     @Throws(ZError::class)
-    fun <R> scout(handler: Handler<Hello, R>, scoutOptions: ScoutOptions = ScoutOptions()): HandlerScout<R> {
+    fun <R> scout(handler: Handler<Hello, R>, scoutOptions: ScoutOptions = ScoutOptions()): HandlerScout<R> = jniCall {
         val scoutCallback = JNIScoutCallback { whatAmI, id, locators ->
             handler.handle(Hello(WhatAmI.fromInt(whatAmI), ZenohId(id), locators))
         }
         val binaryWhatAmI = scoutOptions.whatAmI.map { it.value }.reduce { acc, it -> acc or it }
-        return HandlerScout(JNIScout.scout(binaryWhatAmI, scoutCallback, handler::onClose, scoutOptions.config?.jniConfig), handler.receiver())
+        HandlerScout(JNIScout.scout(binaryWhatAmI, scoutCallback, handler::onClose, scoutOptions.config?.jniConfig), handler.receiver())
     }
 
     /**
@@ -98,12 +97,12 @@ object Zenoh {
     @JvmOverloads
     @JvmStatic
     @Throws(ZError::class)
-    fun scout(callback: Callback<Hello>, scoutOptions: ScoutOptions = ScoutOptions()): CallbackScout {
+    fun scout(callback: Callback<Hello>, scoutOptions: ScoutOptions = ScoutOptions()): CallbackScout = jniCall {
         val scoutCallback = JNIScoutCallback { whatAmI, id, locators ->
             callback.run(Hello(WhatAmI.fromInt(whatAmI), ZenohId(id), locators))
         }
         val binaryWhatAmI = scoutOptions.whatAmI.map { it.value }.reduce { acc, it -> acc or it }
-        return CallbackScout(JNIScout.scout(binaryWhatAmI, scoutCallback, fun() {}, scoutOptions.config?.jniConfig))
+        CallbackScout(JNIScout.scout(binaryWhatAmI, scoutCallback, fun() {}, scoutOptions.config?.jniConfig))
     }
 
     /**
@@ -117,7 +116,7 @@ object Zenoh {
      */
     @JvmStatic
     @Throws(ZError::class)
-    fun tryInitLogFromEnv() {
+    fun tryInitLogFromEnv() = jniCall {
         val logEnv = System.getenv(LOG_ENV)
         if (logEnv != null) {
             ZenohLoad
@@ -137,7 +136,7 @@ object Zenoh {
      */
     @JvmStatic
     @Throws(ZError::class)
-    fun initLogFromEnvOr(fallbackFilter: String) {
+    fun initLogFromEnvOr(fallbackFilter: String) = jniCall {
         ZenohLoad
         val logLevelProp = System.getenv(LOG_ENV)
         logLevelProp?.let { Logger.start(it) } ?: Logger.start(fallbackFilter)
