@@ -89,23 +89,26 @@ pub fn write_rust<P: AsRef<Path>, E: PrebindgenExt>(
     Ok(dest.write(out_path))
 }
 
-/// Walk both type tables, dedupe each entry's stored `function` by name,
-/// sort for determinism. Names are read directly off `entry.function.sig.ident`
-/// — the plugin owns the naming.
+/// Walk both type tables, dedupe each entry's stored `function` AND each
+/// of its [`crate::core::prebindgen_ext::Stage`] functions by name, sort
+/// for determinism. Names are read directly off `function.sig.ident` —
+/// the plugin owns the naming.
 pub fn collect_converter_items<M>(registry: &Registry<M>) -> Vec<(syn::Ident, syn::ItemFn)> {
     let mut by_name: BTreeMap<String, (syn::Ident, syn::ItemFn)> = BTreeMap::new();
-    walk_resolved(&registry.input_types, |_, entry| {
+    let mut collect = |entry: &TypeEntry<M>| {
         let name = entry.function.sig.ident.clone();
         by_name
             .entry(name.to_string())
-            .or_insert((name, entry.function.clone()));
-    });
-    walk_resolved(&registry.output_types, |_, entry| {
-        let name = entry.function.sig.ident.clone();
-        by_name
-            .entry(name.to_string())
-            .or_insert((name, entry.function.clone()));
-    });
+            .or_insert_with(|| (name, entry.function.clone()));
+        for stage in &entry.pre_stages {
+            let sname = stage.function.sig.ident.clone();
+            by_name
+                .entry(sname.to_string())
+                .or_insert_with(|| (sname, stage.function.clone()));
+        }
+    };
+    walk_resolved(&registry.input_types, |_, entry| collect(entry));
+    walk_resolved(&registry.output_types, |_, entry| collect(entry));
     by_name.into_values().collect()
 }
 
@@ -159,6 +162,7 @@ mod tests {
                 function: syn::parse_quote!(
                     fn jlong_to_u64_aaaa(v: jni::sys::jlong) -> u64 { v as u64 }
                 ),
+                pre_stages: vec![],
                 subs: vec![],
                 required: true,
                 niches: crate::core::niches::Niches::empty(),
@@ -173,6 +177,7 @@ mod tests {
                 function: syn::parse_quote!(
                     fn JObject_to_Sample_bbbb(v: jni::objects::JObject) -> Sample { decode_sample(v) }
                 ),
+                pre_stages: vec![],
                 subs: vec![],
                 required: true,
                 niches: crate::core::niches::Niches::empty(),

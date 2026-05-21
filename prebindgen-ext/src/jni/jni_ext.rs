@@ -31,7 +31,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 
 use crate::core::niches::Niches;
-use crate::core::prebindgen_ext::{ConverterImpl, IntoSource, IntoSourceMode, PrebindgenExt};
+use crate::core::prebindgen_ext::{ConverterImpl, IntoSource, IntoSourceMode, PrebindgenExt, Stage};
 use crate::core::registry::{extract_fn_trait_args, Registry, TypeKey};
 use crate::jni::wire_access::jni_field_access;
 use crate::util::snake_to_camel;
@@ -217,6 +217,23 @@ pub(crate) type WrapperFn = Arc<
         + Sync,
 >;
 
+/// One registration of a value-inspecting throw stage — produced by
+/// [`JniExt::output_throw_stage`]. The closure shape is the same as
+/// [`WrapperFn`] (returns `(continue_ty, body_expr)`); the framework
+/// builds a function `fn peel_<hash>(env, v: pattern) -> Result<continue_ty, exception>`
+/// from it. The bound exception is identified by index into
+/// [`JniExt::exceptions`] so the registration owns nothing more than
+/// what's needed to look up `throws_fqn` / `throws_action` at chain
+/// composition time.
+#[derive(Clone)]
+pub(crate) struct ThrowStageEntry {
+    /// User-supplied closure producing `(continue_ty, body_expr)`.
+    pub builder: WrapperFn,
+    /// Index into [`JniExt::exceptions`] for the stage's bound
+    /// exception class.
+    pub exc_idx: usize,
+}
+
 /// Trait selecting the arity-appropriate impl of
 /// [`JniExt::input_wrapper`] / [`JniExt::output_wrapper`]. The phantom
 /// type parameter discriminates closures of arity 0..3 so a single
@@ -379,6 +396,17 @@ pub struct JniExt {
     /// Per-rank output wrappers. Same shape as [`Self::input_wrappers`].
     pub(crate) output_wrappers: [HashMap<TypeKey, WrapperFn>; 4],
 
+    /// Per-rank output **throw stages** — value-inspecting stages
+    /// registered via [`Self::output_throw_stage`]. The closure takes
+    /// the wildcard substitutions plus the registry and returns
+    /// `Some((continue_ty, body_expr))`: the stage consumes the pattern
+    /// (`v: pattern`) and produces `Result<continue_ty, exception>` —
+    /// the framework wraps `body_expr` in `Ok(...)` and resolves
+    /// `continue_ty`'s regular output converter to complete the chain.
+    /// One throw stage per pattern key; declaration carries the bound
+    /// exception's index into [`Self::exceptions`].
+    pub(crate) output_throw_stages: [HashMap<TypeKey, ThrowStageEntry>; 4],
+
     /// Tracks the last [`Self::kotlin_class`] key registered so
     /// [`Self::method`] / [`Self::suppress_kotlin_code`] know which
     /// entry to extend. Cleared after each unrelated builder call.
@@ -453,6 +481,12 @@ impl JniExt {
                 HashMap::new(),
             ],
             output_wrappers: [
+                HashMap::new(),
+                HashMap::new(),
+                HashMap::new(),
+                HashMap::new(),
+            ],
+            output_throw_stages: [
                 HashMap::new(),
                 HashMap::new(),
                 HashMap::new(),
@@ -966,6 +1000,76 @@ impl JniExt {
         self
     }
 
+    /// Register a value-inspecting **output throw stage** for `pattern`.
+    /// When the resolver encounters an output type matching `pattern`,
+    /// it composes the stage with the continue type's regular output
+    /// converter to form a multi-stage chain: the stage runs first
+    /// (consuming the rust value), then the continue type's converter
+    /// runs (producing the wire). Each stage's `Err` arm dispatches to
+    /// its own configured exception, so a single emitted JNI extern can
+    /// raise different JVM classes on different failure modes.
+    ///
+    /// The closure receives the wildcard substitutions (`args[0]` is
+    /// the first `_` in `pattern`, etc.) plus the registry. It returns
+    /// `Some((continue_ty, body_expr))` where:
+    /// * `continue_ty` is the type fed into the next stage (typically
+    ///   one of the wildcard substitutions).
+    /// * `body_expr` evaluates to `Result<continue_ty, <exception>>` —
+    ///   inspect the value via `v` (the stage's input is `v: pattern`)
+    ///   and return `Ok(continue)` or `Err(err)`.
+    ///
+    /// Example (ZResult<T> peel):
+    /// ```ignore
+    /// .output_throw_stage("ZResult < _ >", "ZError", |t, _reg| {
+    ///     Some((t.clone(), syn::parse_quote!(v)))
+    /// })
+    /// ```
+    /// Here `v: ZResult<T>` is already `Result<T, ZError>`; the stage
+    /// just returns `v` and the framework's `match` arm pulls out `T`
+    /// or throws `ZError`. The chain continues by resolving `T`'s
+    /// regular output converter.
+    ///
+    /// Panics when `exc_path` doesn't match a registered
+    /// [`Self::kotlin_exception_class`] (or `"JniBindingError"` for
+    /// the framework default).
+    pub fn output_throw_stage<A, B>(
+        mut self,
+        pattern: impl AsRef<str>,
+        exc_path: impl AsRef<str>,
+        builder: B,
+    ) -> Self
+    where
+        B: WrapperBuilder<A>,
+    {
+        let key = TypeKey::parse(pattern.as_ref());
+        let rank = B::rank();
+        let exc_idx = self.find_exception(exc_path.as_ref()).unwrap_or_else(|| {
+            panic!(
+                "JniExt::output_throw_stage: no exception class registered \
+                 matching `{}` — declare it via \
+                 `.kotlin_exception_class(\"<rust path>\")` first (or use \
+                 `\"JniBindingError\"` for the framework default)",
+                exc_path.as_ref()
+            )
+        });
+        self.output_throw_stages[rank].insert(
+            key,
+            ThrowStageEntry {
+                builder: builder.into_wrapper_fn(),
+                exc_idx,
+            },
+        );
+        // Clear the chained-state trackers — `output_throw_stage` is its
+        // own complete registration, not something further `.throws(...)`
+        // / `.kotlin_name(...)` chaining should latch onto.
+        self.last_opaque_key = None;
+        self.last_meta_key = None;
+        self.last_exception_idx = None;
+        self.last_input_wrapper_key = None;
+        self.last_output_wrapper_key = None;
+        self
+    }
+
     /// Bind the most-recently-registered [`Self::input_wrapper`] or
     /// [`Self::output_wrapper`] pattern to a named exception. `exc_path`
     /// matches a previously-declared [`Self::kotlin_exception_class`]
@@ -1175,10 +1279,92 @@ impl JniExt {
             default_err_path()
         };
         Some(ConverterImpl {
+            pre_stages: vec![],
             function: self.build_input_fn(&outer, &wire, &body, &err_type),
             destination: wire,
             niches,
             metadata,
+        })
+    }
+
+    /// Look up a registered output **throw stage** for `pat` with `args`
+    /// substituted into its `_` slots, composing it with the continue
+    /// type's regular output converter to form a 2-stage chain.
+    ///
+    /// Returns `None` if no throw stage matches `pat`, or if the continue
+    /// type's regular output converter isn't yet resolved (resolver
+    /// retries on the next phase).
+    pub(crate) fn lookup_output_throw_stage(
+        &self,
+        pat: &syn::Type,
+        args: &[syn::Type],
+        registry: &Registry<KotlinMeta>,
+    ) -> Option<ConverterImpl<KotlinMeta>> {
+        let rank = args.len();
+        if rank > 3 {
+            return None;
+        }
+        let key = TypeKey::from_type(pat);
+        let entry = self.output_throw_stages[rank].get(&key)?;
+        let (continue_ty, body_expr) = (entry.builder)(args, registry)?;
+        let exc = &self.exceptions[entry.exc_idx];
+        let throws_action = exception_throw_path(exc);
+        let outer = substitute_wildcards(pat, args);
+        // Resolve the continue type's regular output converter — the
+        // stage that follows the peel in the chain and ultimately
+        // produces the wire. Defer if it isn't yet in the registry.
+        let inner = registry.output_entry(&continue_ty)?;
+        // Build the peel stage's function: takes `v: outer` and returns
+        // `Result<continue_ty, exc.rust_path>`. The body is `Ok(body_expr)`
+        // — body_expr is expected to evaluate to
+        // `Result<continue_ty, exception>` so the `Ok` wrap unifies the
+        // success and error sides under the same Result.
+        let stage_fn = self.build_output_fn(&outer, &continue_ty, &body_expr, &exc.rust_path);
+        // …but the stage body actually produces `Result<continue_ty, exc>`
+        // already, so wrapping in another `Ok(...)` would mistype.
+        // `build_output_fn` adds the `Ok(...)` wrap; instead of inventing
+        // a new helper, override the body to be the inner `body_expr`
+        // verbatim. (Equivalent to writing the function by hand.)
+        let stage_fn = override_body_no_ok_wrap(stage_fn);
+        let stage = Stage {
+            function: stage_fn,
+            throws_fqn: exc.kotlin_fqn.clone(),
+            throws_action,
+        };
+        // Compose: pre_stages from inner + our new stage at the rust-side
+        // end (closest to rust = index 0 per the chain-order convention).
+        let mut pre_stages = vec![stage];
+        pre_stages.extend(inner.pre_stages.iter().cloned());
+        // Metadata: the wire-facing function's throws stays the inner's
+        // (the kotlin emitter unions pre_stages' throws onto it). Inherit
+        // the inner converter's `kotlin_name` (arity-1 projection) and
+        // record `args[0]`'s canonical key as `value_rust_key` so
+        // downstream typed-handle / opaque-ctor lookups can find the
+        // wrapped value's identity through the chain.
+        let (kotlin_name, value_rust_key) = if rank >= 1 {
+            (
+                inner.metadata.kotlin_name.clone(),
+                Some(TypeKey::from_type(&args[0]).as_str().to_string()),
+            )
+        } else {
+            (inner.metadata.kotlin_name.clone(), None)
+        };
+        let niches = if rank == 0 {
+            Niches::empty()
+        } else {
+            default_niches_for_wire(&inner.destination)
+        };
+        Some(ConverterImpl {
+            function: inner.function.clone(),
+            destination: inner.destination.clone(),
+            pre_stages,
+            niches,
+            metadata: KotlinMeta {
+                kotlin_name,
+                throws: inner.metadata.throws.clone(),
+                throws_action: inner.metadata.throws_action.clone(),
+                value_rust_key,
+            },
         })
     }
 
@@ -1258,6 +1444,7 @@ impl JniExt {
             value_rust_key,
         };
         Some(ConverterImpl {
+            pre_stages: vec![],
             function: self.build_output_fn(&outer, &wire, &body, &err_type),
             destination: wire,
             niches,
@@ -1277,6 +1464,32 @@ impl JniExt {
 pub(crate) fn exception_throw_path(exc: &ExceptionConfig) -> syn::Path {
     let ident = exc.throw_fn_name.clone();
     syn::Path::from(ident)
+}
+
+/// Replace the body of a function built by [`JniExt::build_output_fn`]
+/// (or its input counterpart) so that the body is treated as the full
+/// `Result<...>` expression rather than the `Ok(body)`-wrapped happy
+/// path. [`JniExt::lookup_output_throw_stage`] needs this because the
+/// stage's user-supplied body already evaluates to
+/// `Result<continue_ty, exception>` — adding an extra `Ok(...)` wrap
+/// would double-Result the type.
+fn override_body_no_ok_wrap(mut item: syn::ItemFn) -> syn::ItemFn {
+    // The wrappers built by `build_output_fn` have body shape
+    // `{ Ok(<body_expr>) }`. We replace it with `{ <body_expr> }`.
+    if let Some(stmt) = item.block.stmts.last_mut() {
+        if let syn::Stmt::Expr(expr, _) = stmt {
+            if let syn::Expr::Call(call) = expr {
+                if let syn::Expr::Path(p) = &*call.func {
+                    if p.path.segments.last().map(|s| s.ident == "Ok").unwrap_or(false) {
+                        if let Some(arg) = call.args.first() {
+                            *expr = arg.clone();
+                        }
+                    }
+                }
+            }
+        }
+    }
+    item
 }
 
 /// Bare-ident path `__JniErr` — the generated file's alias for the
@@ -1512,6 +1725,7 @@ impl JniExt {
         ConverterImpl {
             function,
             destination: wire,
+            pre_stages: vec![],
             niches: Niches::one(
                 syn::parse_quote!(0i64),
                 syn::parse_quote!(*v == 0),
@@ -1520,8 +1734,14 @@ impl JniExt {
             // The typed-handle FQN lives in [`OpaqueConfig::fqn`] and is
             // consulted by FQN-specific paths (typed-handle class
             // emission, `instanceof` dispatch, return-value constructor
-            // wrap) rather than via metadata.
-            metadata: KotlinMeta::from_name("Long"),
+            // wrap) rather than via metadata. The wrapper's `?` path
+            // surfaces an `OwnedObject::from_raw` failure as the
+            // framework `JniBindingError`, so the metadata's throws
+            // fields point at the framework exception — matches the
+            // `framework_throw` fallback the function wrapper would
+            // use anyway and lets the Kotlin @Throws emitter union
+            // `JniBindingError` onto chained throw-stage exceptions.
+            metadata: self.framework_meta(Some("Long".to_string())),
         }
     }
 
@@ -1591,13 +1811,17 @@ impl JniExt {
         ConverterImpl {
             function: self.build_output_fn(ty, &wire, &body, &err),
             destination: wire,
+            pre_stages: vec![],
             niches: Niches::one(
                 syn::parse_quote!(0i64),
                 syn::parse_quote!(*v == 0),
             ),
             // Opaque handles' value-context Kotlin name — see
-            // [`Self::opaque_handle_input`].
-            metadata: KotlinMeta::from_name("Long"),
+            // [`Self::opaque_handle_input`]. Framework throws for the
+            // same reason: a `Box::into_raw` is infallible but the
+            // wrapper's emitted match-arm still has a
+            // `JniBindingError` branch reachable via the chain.
+            metadata: self.framework_meta(Some("Long".to_string())),
         }
     }
 
@@ -1727,6 +1951,7 @@ impl JniExt {
         Some(ConverterImpl {
             function,
             destination: wire,
+            pre_stages: vec![],
             niches: Niches::empty(),
             // `impl Into<T>` parameters surface as Kotlin `Any` — the
             // safe wrapper does an `is JNI<X>` chain on the value, and
@@ -1871,6 +2096,7 @@ impl PrebindgenExt for JniExt {
             let kotlin_name = crate::jni::jni_kotlin_ext::kotlin_for_wire(&wire);
             let err = default_err_path();
             return Some(ConverterImpl {
+                pre_stages: vec![],
                 function: self.build_input_fn(ty, &wire, &body, &err),
                 destination: wire,
                 niches,
@@ -1888,6 +2114,7 @@ impl PrebindgenExt for JniExt {
                 let kotlin_name = self.types.get(&key).and_then(|c| c.kotlin_name.clone());
                 let err = default_err_path();
                 return Some(ConverterImpl {
+                    pre_stages: vec![],
                     function: self.build_input_fn(ty, &wire, &body, &err),
                     destination: wire,
                     niches,
@@ -1936,6 +2163,7 @@ impl PrebindgenExt for JniExt {
             return Some(ConverterImpl {
                 destination: inner.destination.clone(),
                 function: inner.function.clone(),
+                pre_stages: vec![],
                 niches: inner.niches.clone(),
                 metadata: KotlinMeta {
                     kotlin_name,
@@ -1956,6 +2184,7 @@ impl PrebindgenExt for JniExt {
             let kotlin_name = self.override_kotlin_name(&outer_ty, inherited);
             let err = default_err_path();
             return Some(ConverterImpl {
+                pre_stages: vec![],
                 function: self.build_input_fn(&outer_ty, &wire, &body, &err),
                 destination: wire,
                 niches,
@@ -1993,6 +2222,7 @@ impl PrebindgenExt for JniExt {
             .or_else(|| Some(self.auto_callback_fqn(args)));
         let err = default_err_path();
         Some(ConverterImpl {
+            pre_stages: vec![],
             function: self.build_input_fn(&outer_ty, &wire, &body, &err),
             destination: wire,
             niches,
@@ -2031,12 +2261,18 @@ impl PrebindgenExt for JniExt {
         registry: &Registry<KotlinMeta>,
     ) -> Option<ConverterImpl<KotlinMeta>> {
         // Structured-config overrides first (opaque handles, then user-
-        // registered rank-0 wrappers, then built-ins).
+        // registered rank-0 throw stages, then user-registered rank-0
+        // wrappers, then built-ins). Throw stages take precedence over
+        // plain wrappers — a `.output_throw_stage("X", ...)` registration
+        // wins over a `.output_wrapper("X", ...)` for the same key.
         let key = TypeKey::from_type(ty);
         if let Some(cfg) = self.types.get(&key) {
             if cfg.opaque.is_some() {
                 return Some(self.opaque_handle_output(ty));
             }
+        }
+        if let Some(conv) = self.lookup_output_throw_stage(ty, &[], registry) {
+            return Some(conv);
         }
         if let Some(conv) = self.lookup_output_wrapper(ty, &[], registry) {
             return Some(conv);
@@ -2053,6 +2289,7 @@ impl PrebindgenExt for JniExt {
             return Some(ConverterImpl {
                 function: self.build_output_fn(ty, &wire, &body, &err),
                 destination: wire,
+                pre_stages: vec![],
                 niches: Niches::empty(),
                 metadata: KotlinMeta::default(),
             });
@@ -2062,6 +2299,7 @@ impl PrebindgenExt for JniExt {
             let kotlin_name = crate::jni::jni_kotlin_ext::kotlin_for_wire(&wire);
             let err = default_err_path();
             return Some(ConverterImpl {
+                pre_stages: vec![],
                 function: self.build_output_fn(ty, &wire, &body, &err),
                 destination: wire,
                 niches,
@@ -2075,6 +2313,7 @@ impl PrebindgenExt for JniExt {
                 let kotlin_name = self.types.get(&key).and_then(|c| c.kotlin_name.clone());
                 let err = default_err_path();
                 return Some(ConverterImpl {
+                    pre_stages: vec![],
                     function: self.build_output_fn(ty, &wire, &body, &err),
                     destination: wire,
                     niches,
@@ -2091,6 +2330,11 @@ impl PrebindgenExt for JniExt {
         t1: &syn::Type,
         registry: &Registry<KotlinMeta>,
     ) -> Option<ConverterImpl<KotlinMeta>> {
+        // Throw-stage match wins over plain output_wrapper for the same
+        // pattern key — see rank-0 docs for the ordering rationale.
+        if let Some(conv) = self.lookup_output_throw_stage(pat, &[t1.clone()], registry) {
+            return Some(conv);
+        }
         if let Some(conv) = self.lookup_output_wrapper(pat, &[t1.clone()], registry) {
             return Some(conv);
         }
@@ -2107,6 +2351,7 @@ impl PrebindgenExt for JniExt {
             let kotlin_name = self.override_kotlin_name(&outer_ty, inherited);
             let err = default_err_path();
             return Some(ConverterImpl {
+                pre_stages: vec![],
                 function: self.build_output_fn(&outer_ty, &wire, &body, &err),
                 destination: wire,
                 niches,
@@ -2123,7 +2368,9 @@ impl PrebindgenExt for JniExt {
         t2: &syn::Type,
         registry: &Registry<KotlinMeta>,
     ) -> Option<ConverterImpl<KotlinMeta>> {
-        self.lookup_output_wrapper(pat, &[t1.clone(), t2.clone()], registry)
+        let args = [t1.clone(), t2.clone()];
+        self.lookup_output_throw_stage(pat, &args, registry)
+            .or_else(|| self.lookup_output_wrapper(pat, &args, registry))
     }
 
     fn on_output_type_rank_3(
@@ -2134,7 +2381,9 @@ impl PrebindgenExt for JniExt {
         t3: &syn::Type,
         registry: &Registry<KotlinMeta>,
     ) -> Option<ConverterImpl<KotlinMeta>> {
-        self.lookup_output_wrapper(pat, &[t1.clone(), t2.clone(), t3.clone()], registry)
+        let args = [t1.clone(), t2.clone(), t3.clone()];
+        self.lookup_output_throw_stage(pat, &args, registry)
+            .or_else(|| self.lookup_output_wrapper(pat, &args, registry))
     }
 
     fn into_sources(&self, target: &syn::Type) -> Vec<IntoSource> {
@@ -2257,15 +2506,58 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
         } else {
             quote!(#conv(&mut env, &#wire_ident))
         };
-        prelude.push(quote!(
-            let #arg_ident = match #decode_call {
-                ::core::result::Result::Ok(__v) => __v,
-                ::core::result::Result::Err(__e) => {
-                    #input_throw(&mut env, &__e);
-                    return #on_err;
-                }
-            };
-        ));
+        // Stage 0: wire-facing function. Pre_stages then run in REVERSE
+        // (rust-side last). Even with no pre_stages this collapses to a
+        // single `let #arg_ident = match decode_call { ... }`, byte-
+        // identical to the pre-chain emission.
+        if entry.pre_stages.is_empty() {
+            prelude.push(quote!(
+                let #arg_ident = match #decode_call {
+                    ::core::result::Result::Ok(__v) => __v,
+                    ::core::result::Result::Err(__e) => {
+                        #input_throw(&mut env, &__e);
+                        return #on_err;
+                    }
+                };
+            ));
+        } else {
+            // Multi-stage: introduce a temporary for the function's
+            // result, then thread each pre_stage in reverse onto it.
+            let stage0_ident = format_ident!("__{}_s0", arg_ident);
+            prelude.push(quote!(
+                let #stage0_ident = match #decode_call {
+                    ::core::result::Result::Ok(__v) => __v,
+                    ::core::result::Result::Err(__e) => {
+                        #input_throw(&mut env, &__e);
+                        return #on_err;
+                    }
+                };
+            ));
+            let mut prev = stage0_ident;
+            // pre_stages[0] is closest to rust → iterated last; walk
+            // back from the function-adjacent end.
+            let n = entry.pre_stages.len();
+            for (idx, stage) in entry.pre_stages.iter().enumerate().rev() {
+                let stage_fn = &stage.function.sig.ident;
+                let stage_throw = &stage.throws_action;
+                let is_last = idx == 0;
+                let out_ident = if is_last {
+                    arg_ident.clone()
+                } else {
+                    format_ident!("__{}_s{}", arg_ident, n - idx)
+                };
+                prelude.push(quote!(
+                    let #out_ident = match #stage_fn(&mut env, #prev) {
+                        ::core::result::Result::Ok(__v) => __v,
+                        ::core::result::Result::Err(__e) => {
+                            #stage_throw(&mut env, &__e);
+                            return #on_err;
+                        }
+                    };
+                ));
+                prev = out_ident;
+            }
+        }
         if matches!(arg_ty, syn::Type::Reference(_)) {
             call_args.push(quote!(&#arg_ident));
         } else {
@@ -2280,21 +2572,42 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
     // Unwrap and dispatch to the converter's `throws_action`
     // (framework `throw_JniBindingError` for plain wrappers, a domain
     // throw fn for throws-marked wrappers).
+    //
+    // Pre_stages (rust-side throw stages) run in forward order BEFORE
+    // the wire-facing function: rust → pre_stages[0] → … →
+    // pre_stages[N-1] → function → wire. Each stage's match-throw
+    // dispatches to its own configured exception class.
     let out_throw = output_entry
         .metadata
         .throws_action
         .clone()
         .unwrap_or_else(|| framework_throw.clone());
-    let output_phase = quote! {
-        let __out = #call_expr;
-        match #conv_out(&mut env, __out) {
+    let mut output_phase: TokenStream = quote! { let __out = #call_expr; };
+    let mut prev_out: TokenStream = quote!(__out);
+    for (i, stage) in output_entry.pre_stages.iter().enumerate() {
+        let stage_fn = &stage.function.sig.ident;
+        let stage_throw = &stage.throws_action;
+        let next_ident = format_ident!("__out_s{}", i);
+        output_phase.extend(quote! {
+            let #next_ident = match #stage_fn(&mut env, #prev_out) {
+                ::core::result::Result::Ok(__v) => __v,
+                ::core::result::Result::Err(__e) => {
+                    #stage_throw(&mut env, &__e);
+                    return #on_err;
+                }
+            };
+        });
+        prev_out = quote!(#next_ident);
+    }
+    output_phase.extend(quote! {
+        match #conv_out(&mut env, #prev_out) {
             ::core::result::Result::Ok(__w) => __w,
             ::core::result::Result::Err(__e) => {
                 #out_throw(&mut env, &__e);
                 #on_err
             }
         }
-    };
+    });
 
     quote! {
         #[no_mangle]
@@ -3456,6 +3769,7 @@ mod tests {
         TypeEntry {
             destination: wire,
             function: func,
+            pre_stages: vec![],
             subs: vec![],
             required: false,
             niches,

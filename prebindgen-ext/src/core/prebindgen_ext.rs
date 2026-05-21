@@ -22,6 +22,35 @@ use proc_macro2::TokenStream;
 use crate::core::niches::Niches;
 use crate::core::registry::Registry;
 
+/// One link in a converter's [stage chain](`ConverterImpl::pre_stages`) —
+/// a value-inspecting throw stage that sits between the rust value the
+/// `#[prebindgen]` fn yields/receives and the wire-facing
+/// [`ConverterImpl::function`].
+///
+/// Each stage emits an `In → Result<Out, ErrTy>` function plus a JVM
+/// exception class to raise when its `Err` arm fires. The function
+/// wrapper drives them in chain order, emitting one match-throw per
+/// stage (see `emit_jni_function_wrapper` in the JNI back-end).
+#[derive(Clone)]
+pub struct Stage {
+    /// Complete function definition for this stage. Same shape as
+    /// [`ConverterImpl::function`] but typed for this stage's own `In →
+    /// Out` and own error type.
+    pub function: syn::ItemFn,
+    /// JVM exception class FQN this stage raises on `Err` (e.g.
+    /// `"io.zenoh.jni.ZError"`). Contributes to the Kotlin emitter's
+    /// `@Throws(...)` union; the framework treats the chain's @Throws as
+    /// the set of every stage's `throws_fqn` plus the wire-facing
+    /// function's.
+    pub throws_fqn: String,
+    /// Bare-ident path to the generated `throw_<short>` free fn the
+    /// function wrapper calls on this stage's `Err` (e.g.
+    /// `throw_ZError`). Resolved through the same mechanism as
+    /// [`crate::core::registry::TypeEntry::metadata`]'s
+    /// `throws_action`.
+    pub throws_action: syn::Path,
+}
+
 /// Result of resolving one converter — the wire (destination) type the rest
 /// of the registry sees, plus the complete generated function.
 ///
@@ -37,10 +66,27 @@ pub struct ConverterImpl<M = ()> {
     /// internal calling convention; `destination` is the value the wire
     /// carries on success.
     pub destination: syn::Type,
-    /// Complete function definition. The plugin owns the parameter list,
-    /// return type, `unsafe`/`pub` modifiers, lifetime parameters, and any
-    /// attribute annotations.
+    /// Complete function definition for the **wire-facing** stage. The
+    /// plugin owns the parameter list, return type, `unsafe`/`pub`
+    /// modifiers, lifetime parameters, and any attribute annotations.
+    /// For input direction this is the FIRST stage in execution order
+    /// (it takes the wire); for output direction this is the LAST stage
+    /// (it produces the wire).
     pub function: syn::ItemFn,
+    /// **Rust-side** stages that compose with [`Self::function`] to form
+    /// the full conversion chain. Default empty — a 1-stage converter
+    /// is just `function`.
+    ///
+    /// Order is rust-side-first → function-side-last. Concretely:
+    /// * **Input** (wire → rust): chain runs `wire → function →
+    ///   pre_stages[0] → pre_stages[1] → … → pre_stages[N-1] → rust`.
+    /// * **Output** (rust → wire): chain runs `rust → pre_stages[N-1] →
+    ///   … → pre_stages[1] → pre_stages[0] → function → wire`.
+    ///
+    /// Each stage raises its own configured exception (see
+    /// [`Stage::throws_fqn`]); the function wrapper emits one match-throw
+    /// per stage.
+    pub pre_stages: Vec<Stage>,
     /// Bit-patterns the wire type can represent but this converter never
     /// produces (output) and rejects (input). Wrapper handlers like
     /// `Option<_>` consume one slot for their own discriminant and

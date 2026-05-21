@@ -189,6 +189,7 @@ fn try_resolve_entry<E: PrebindgenExt>(
         return res.map(|c| TypeEntry {
             destination: c.destination,
             function: c.function,
+            pre_stages: c.pre_stages,
             subs: vec![],
             required: scan_required,
             niches: c.niches,
@@ -269,6 +270,7 @@ fn try_resolve_entry<E: PrebindgenExt>(
             return Some(TypeEntry {
                 destination: c.destination,
                 function: c.function,
+                pre_stages: c.pre_stages,
                 subs: sub_keys,
                 required: scan_required,
                 niches: c.niches,

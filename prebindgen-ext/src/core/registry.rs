@@ -20,7 +20,7 @@ use prebindgen::SourceLocation;
 use quote::ToTokens;
 
 use crate::core::niches::Niches;
-use crate::core::prebindgen_ext::IntoSource;
+use crate::core::prebindgen_ext::{IntoSource, Stage};
 
 /// Canonical type-shape key — the `to_token_stream().to_string()` form of a
 /// `syn::Type`. Whitespace-normalised (`"Vec<u8>"` and `"Vec < u8 >"` produce
@@ -68,10 +68,16 @@ pub struct TypeEntry<M = ()> {
     /// Wire/destination type (e.g. `jni::sys::jlong`). Other converters
     /// that ask "what's the wire form of this rust type?" read this.
     pub destination: syn::Type,
-    /// Complete generated function for the converter (signature, body,
-    /// attributes, lifetimes). Plugin owns the shape. Callers compute the
-    /// converter's name via `function.sig.ident`.
+    /// Complete generated function for the **wire-facing** stage of the
+    /// converter (signature, body, attributes, lifetimes). Plugin owns
+    /// the shape. Callers compute this stage's name via
+    /// `function.sig.ident`.
     pub function: syn::ItemFn,
+    /// **Rust-side** stages that compose with [`Self::function`] to form
+    /// the full chain — copied verbatim from the resolving
+    /// [`crate::core::prebindgen_ext::ConverterImpl::pre_stages`]. See
+    /// that field's docs for the chain-order semantics.
+    pub pre_stages: Vec<Stage>,
     /// Inner types whose function delegates to their converters. Empty for
     /// rank-0 resolutions; equal to the rank-N `subs` array for rank-N≥1
     /// resolutions. Used by the post-resolution propagation pass.

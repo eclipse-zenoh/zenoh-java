@@ -36,61 +36,26 @@ fn main() {
         //     externs (its throw action catches input-decode `?`
         //     failures, since the converter body itself never errors).
         .kotlin_exception_class("zenoh_flat::errors::ZError")
-        .output_wrapper(
+        // ZResult<T> output: register a value-inspecting throw stage that
+        // peels `Result<T, ZError>` into `T`, raising `ZError` on the
+        // `Err` arm. The framework composes this stage with T's regular
+        // output converter to form a 2-stage chain — ZError comes from
+        // the peel, `JniBindingError` from T's marshalling. @Throws on
+        // the Kotlin side lists both.
+        .output_throw_stage(
             "ZResult < _ >",
-            |t: &syn::Type, reg: &Registry<KotlinMeta>| {
-                let inner = reg.output_entry(t)?;
-                let inner_wire = inner.destination.clone();
-                let inner_conv = inner.function.sig.ident.clone();
-                // Throws-marked inner converters (e.g. `()` bound via a
-                // chained `.throws("ZError")`) return bare wire — call
-                // them directly. Plain converters return
-                // `Result<wire, __JniErr>` = `Result<wire, JniBindingError>`
-                // (the framework alias); their `Err` is converted to
-                // `ZError` via `Display` and propagated to this wrapper's
-                // own match-throw. Discriminate by the inner converter's
-                // actual return type: a last-segment `Result` ⇒ plain
-                // (handle Err), anything else ⇒ bare wire.
-                //
-                // Cross-type bridging note: the inner converter's
-                // `JniBindingError` is converted to `ZError` by
-                // formatting through `Display`. This loses the JVM-class
-                // identity (a marshalling failure inside a ZResult-wrapped
-                // call surfaces as `ZError` on the JVM, not
-                // `JniBindingError`). Phase 2 of the throw-stage redesign
-                // makes this two-stage so each layer raises its own
-                // exception; for Phase 1 the inline conversion keeps the
-                // single-error pipeline compiling without a cross-crate
-                // `From` bridge that the orphan rule would forbid.
-                let inner_returns_result = matches!(
-                    &inner.function.sig.output,
-                    syn::ReturnType::Type(_, ty)
-                        if matches!(&**ty, syn::Type::Path(tp)
-                            if tp.path.segments.last()
-                                .map(|s| s.ident == "Result").unwrap_or(false))
-                );
-                let inner_call: syn::Expr = if inner_returns_result {
-                    parse_quote!(
-                        #inner_conv(env, __i)
-                            .map_err(|e| zenoh_flat::errors::ZError(e.to_string()))?
-                    )
-                } else {
-                    parse_quote!(#inner_conv(env, __i))
-                };
-                Some((
-                    inner_wire,
-                    parse_quote!({
-                        let __i = v?;
-                        #inner_call
-                    }),
-                ))
+            "ZError",
+            |_t: &syn::Type, _reg: &Registry<KotlinMeta>| {
+                // `v: ZResult<T>` is already `Result<T, ZError>`, the
+                // exact shape the framework's stage builder expects. Just
+                // return `v`; the wrapper's per-stage `match` does the
+                // Ok/Err split.
+                Some((_t.clone(), parse_quote!(v)))
             },
         )
-        .throws("ZError")
         .output_wrapper("()", |_reg: &Registry<KotlinMeta>| {
             Some((parse_quote!(()), parse_quote!({ v })))
         })
-        .throws("ZError")
         // ── Kotlin classes — `kotlin_class` configures: jlong wire
         // (input + output), `Box::into_raw`/`Box::from_raw` lifecycle,
         // `instanceof` dispatch class, and the Kotlin parameter-type

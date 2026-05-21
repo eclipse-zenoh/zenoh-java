@@ -1266,35 +1266,43 @@ fn render_wrapper_fn(
 
     let _ = ext; // ext no longer needed here — throws comes from registry metadata
     let mut out = String::new();
-    // `@Throws` is the UNION of every converter the wrapper drives:
-    //   * each input parameter's converter (its `?` failure raises that
-    //     converter's exception — framework `JniBindingError` by default,
-    //     or a custom one bound via `input_wrapper(...).throws("<exc>")`);
-    //   * the return type's output converter (raises its bound exception,
-    //     or the framework error when unwrapping a plain `output_wrapper`).
+    // `@Throws` is the UNION of every stage every converter the wrapper
+    // drives can raise:
+    //   * each input parameter's wire-facing converter (its `?` failure
+    //     raises the metadata `throws` exception — framework
+    //     `JniBindingError` by default, or a custom one bound via
+    //     `input_wrapper(...).throws("<exc>")`);
+    //   * each pre_stage on that input's chain (value-inspecting throw
+    //     stages registered via the new `.throws(pat, exc, body)` API);
+    //   * the return type's output converter and its pre_stages
+    //     (likewise).
     // Collected into a `BTreeSet` so the emitted annotation is sorted and
-    // deterministic; converters with no `throws` metadata contribute
-    // nothing.
+    // deterministic; stages/converters with no `throws` metadata
+    // contribute nothing.
     let mut throws_fqns: BTreeSet<String> = BTreeSet::new();
     for input in &f.sig.inputs {
         let syn::FnArg::Typed(pt) = input else { continue };
         let arg_ty = &*pt.ty;
-        if let Some(fqn) = registry
-            .input_entry(arg_ty)
-            .and_then(|e| e.metadata.throws.clone())
-        {
-            throws_fqns.insert(fqn);
+        if let Some(entry) = registry.input_entry(arg_ty) {
+            if let Some(fqn) = entry.metadata.throws.clone() {
+                throws_fqns.insert(fqn);
+            }
+            for stage in &entry.pre_stages {
+                throws_fqns.insert(stage.throws_fqn.clone());
+            }
         }
     }
     let return_ty: syn::Type = match &f.sig.output {
         syn::ReturnType::Default => syn::parse_quote!(()),
         syn::ReturnType::Type(_, ty) => (**ty).clone(),
     };
-    if let Some(fqn) = registry
-        .output_entry(&return_ty)
-        .and_then(|e| e.metadata.throws.clone())
-    {
-        throws_fqns.insert(fqn);
+    if let Some(entry) = registry.output_entry(&return_ty) {
+        if let Some(fqn) = entry.metadata.throws.clone() {
+            throws_fqns.insert(fqn);
+        }
+        for stage in &entry.pre_stages {
+            throws_fqns.insert(stage.throws_fqn.clone());
+        }
     }
     if !throws_fqns.is_empty() {
         let parts: Vec<String> = throws_fqns
