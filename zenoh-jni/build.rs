@@ -43,13 +43,25 @@ fn main() {
                 let inner_wire = inner.destination.clone();
                 let inner_conv = inner.function.sig.ident.clone();
                 // Throws-marked inner converters (e.g. `()` bound via a
-                // chained `.throws("ZError")`) return bare wire — the `?`
-                // operator cannot be applied. Plain converters return
-                // `Result<wire, __JniErr>` and `?` propagates the inner
-                // error to this wrapper's own match-throw. Discriminate
-                // by the inner converter's actual return type: a
-                // last-segment `Result` ⇒ plain (apply `?`), anything
-                // else ⇒ bare wire.
+                // chained `.throws("ZError")`) return bare wire — call
+                // them directly. Plain converters return
+                // `Result<wire, __JniErr>` = `Result<wire, JniBindingError>`
+                // (the framework alias); their `Err` is converted to
+                // `ZError` via `Display` and propagated to this wrapper's
+                // own match-throw. Discriminate by the inner converter's
+                // actual return type: a last-segment `Result` ⇒ plain
+                // (handle Err), anything else ⇒ bare wire.
+                //
+                // Cross-type bridging note: the inner converter's
+                // `JniBindingError` is converted to `ZError` by
+                // formatting through `Display`. This loses the JVM-class
+                // identity (a marshalling failure inside a ZResult-wrapped
+                // call surfaces as `ZError` on the JVM, not
+                // `JniBindingError`). Phase 2 of the throw-stage redesign
+                // makes this two-stage so each layer raises its own
+                // exception; for Phase 1 the inline conversion keeps the
+                // single-error pipeline compiling without a cross-crate
+                // `From` bridge that the orphan rule would forbid.
                 let inner_returns_result = matches!(
                     &inner.function.sig.output,
                     syn::ReturnType::Type(_, ty)
@@ -58,7 +70,10 @@ fn main() {
                                 .map(|s| s.ident == "Result").unwrap_or(false))
                 );
                 let inner_call: syn::Expr = if inner_returns_result {
-                    parse_quote!(#inner_conv(env, __i)?)
+                    parse_quote!(
+                        #inner_conv(env, __i)
+                            .map_err(|e| zenoh_flat::errors::ZError(e.to_string()))?
+                    )
                 } else {
                     parse_quote!(#inner_conv(env, __i))
                 };
@@ -195,15 +210,24 @@ fn main() {
         // ── Manual callback overrides — replaces the auto-generated
         // `process_kotlin_*_callback` dispatcher with a hand-written
         // one and reroutes the Kotlin FQN.
+        // The hand-written dispatcher fns
+        // (`process_kotlin_query_callback`, `process_kotlin_reply_callback`)
+        // return `ZResult<_>` natively — they do domain decoding —
+        // so chain `.throws("ZError")` to make the emitted converter
+        // type its `Result<_, ZError>`. Without this, the body's
+        // `dispatcher(env, &v)?` would land in `__JniErr =
+        // JniBindingError` with no `From<ZError>` bridge available.
         .callback_input(
             "impl Fn(Query) + Send + Sync + 'static",
             "crate::sample_callback::process_kotlin_query_callback",
         )
+        .throws("ZError")
         .kotlin_name("JNIQueryableCallback")
         .callback_input(
             "impl Fn(Reply) + Send + Sync + 'static",
             "crate::sample_callback::process_kotlin_reply_callback",
         )
+        .throws("ZError")
         .kotlin_name("JNIGetCallback")
         .callback_kotlin_name(
             "impl Fn() + Send + Sync + 'static",

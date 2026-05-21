@@ -33,14 +33,3 @@ impl fmt::Display for ZError {
         write!(f, "{}", self.0)
     }
 }
-
-/// Required by `prebindgen-ext`: every generated converter that touches a
-/// fallible JNI call constructs the configured error type from a `String`
-/// via `From<String>`. This single bound is the framework's universal
-/// internal-failure path — it replaces the per-binding error-construction
-/// macro that earlier revisions threaded through codegen.
-impl From<String> for ZError {
-    fn from(s: String) -> Self {
-        ZError(s)
-    }
-}

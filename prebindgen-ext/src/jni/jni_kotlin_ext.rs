@@ -221,15 +221,15 @@ impl JniExt {
     /// generating it here, the prebindgen-ext pipeline owns the lock
     /// primitive the rest of the auto-generated wrappers depend on.
     /// The Kotlin exception thrown on closed-handle access is the
-    /// binding's primary *application* exception (e.g. `ZError`) — a
-    /// closed-handle access is part of the public API contract, so it
-    /// keeps the domain exception rather than the framework
-    /// `JniBindingError`. Falls back to the framework exception only
-    /// when the binding declared no application exception.
+    /// framework `JniBindingError` — `NativeHandle` is itself a
+    /// framework artefact (the JNI ABI between the generated Rust
+    /// converters and the Kotlin handle), and closed-handle access is
+    /// a misuse of that infrastructure rather than a domain failure.
+    /// Keeping it on the framework exception matches the contract
+    /// drawn in [`feedback_internal_contracts`]: everything below the
+    /// public zenoh-java API surface is framework-internal.
     pub(crate) fn write_native_handle(&self, output_dir: &Path) -> Result<PathBuf, WriteKotlinError> {
-        let exc = self
-            .primary_application_exception()
-            .unwrap_or_else(|| self.framework_exception());
+        let exc = self.framework_exception();
         let file = KotlinFile {
             package: self.package.clone(),
             class_name: "NativeHandle".into(),

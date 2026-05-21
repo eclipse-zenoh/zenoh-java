@@ -762,8 +762,18 @@ impl JniExt {
 
     /// Sugar over [`Self::input_wrapper`] for the common
     /// `jint → enum` pattern: emits a rank-0 input wrapper whose body
-    /// is `decode_path(*v)?` — wire `jni::sys::jint`, body decodes the
-    /// jint into the enum (or returns an error).
+    /// decodes the jint into the enum (or surfaces the decode error as
+    /// the framework `JniBindingError` via `Display`).
+    ///
+    /// The body wraps `decode_path(*v)` in a `map_err(|e| __JniErr::from(e.to_string()))?`
+    /// chain rather than a bare `?` so the helper may return any
+    /// domain error type without needing a cross-crate `From` bridge
+    /// to `JniBindingError` (the orphan rule forbids one anyway).
+    /// `jint → enum` is a binding-layer concern, so surfacing decode
+    /// failures as `JniBindingError` is the right semantic. If a
+    /// binding wants the failure to surface as a specific domain
+    /// exception instead, write the converter directly via
+    /// [`Self::input_wrapper`] and chain [`Self::throws`].
     pub fn jint_enum(
         self,
         rust_key: impl AsRef<str>,
@@ -779,7 +789,11 @@ impl JniExt {
             let decode_path: syn::Path = syn::parse_str(&decode_path_str).ok()?;
             Some((
                 syn::parse_quote!(jni::sys::jint),
-                syn::parse_quote!(#decode_path(*v)?),
+                syn::parse_quote!(
+                    #decode_path(*v).map_err(|e| {
+                        <__JniErr as ::core::convert::From<String>>::from(e.to_string())
+                    })?
+                ),
             ))
         })
     }
@@ -1085,20 +1099,6 @@ impl JniExt {
         }
     }
 
-    /// The binding's primary *application* exception — the first
-    /// user-declared [`Self::kotlin_exception_class`] (index 1, after
-    /// the framework slot at 0), or `None` if the binding declared no
-    /// domain exception. This is the type used as the unified
-    /// `__JniErr` converter error: every converter body composes its
-    /// `?` failures into it, and zenoh-style helper fns that already
-    /// return it work without conversion. (Built-in converter failures
-    /// still *surface* as `JniBindingError` on the JVM via
-    /// per-converter `throws_action`, even though their Rust value is
-    /// this type.)
-    pub(crate) fn primary_application_exception(&self) -> Option<&ExceptionConfig> {
-        self.exceptions.get(1)
-    }
-
     // ── Wrapper-table lookups (used by PrebindgenExt impl) ───────────
 
     /// Look up a registered input wrapper for `pat` with `args` substituted
@@ -1164,8 +1164,18 @@ impl JniExt {
         };
         metadata.throws = throws_fqn;
         metadata.throws_action = throws_action;
+        // Err-type of the emitted converter. Throws-marked input wrappers
+        // produce their bound exception's value directly (so the body's
+        // `?` against a domain-error-returning helper compiles without
+        // any cross-type bridge); plain wrappers keep `__JniErr` =
+        // framework `JniBindingError`.
+        let err_type = if self.exception_owning_input_pattern(&key).is_some() {
+            exc.rust_path.clone()
+        } else {
+            default_err_path()
+        };
         Some(ConverterImpl {
-            function: self.build_input_fn(&outer, &wire, &body),
+            function: self.build_input_fn(&outer, &wire, &body, &err_type),
             destination: wire,
             niches,
             metadata,
@@ -1220,12 +1230,18 @@ impl JniExt {
         if let Some(exc) = self.exception_owning_pattern(&key) {
             let throw_path = exception_throw_path(exc);
             let sentinel = sentinel_for_wire(&wire);
+            // The closure inside the emitted throws-fn returns
+            // `Result<wire, <exc.rust_path>>`, so the body's `?` can
+            // propagate a value of the bound exception's type directly —
+            // no cross-type `From` bridge between framework and domain
+            // error types (the orphan rule forbids one anyway).
             let function = build_output_throws_fn(
                 &outer,
                 &wire,
                 &body,
                 &throw_path,
                 &sentinel,
+                &exc.rust_path,
             );
             let inherited = if rank >= 1 {
                 registry
@@ -1281,8 +1297,9 @@ impl JniExt {
             throws_action: Some(exception_throw_path(framework_exc)),
             value_rust_key: None,
         };
+        let err_type = default_err_path();
         Some(ConverterImpl {
-            function: self.build_output_fn(&outer, &wire, &body),
+            function: self.build_output_fn(&outer, &wire, &body, &err_type),
             destination: wire,
             niches,
             metadata,
@@ -1301,6 +1318,18 @@ impl JniExt {
 pub(crate) fn exception_throw_path(exc: &ExceptionConfig) -> syn::Path {
     let ident = exc.throw_fn_name.clone();
     syn::Path::from(ident)
+}
+
+/// Bare-ident path `__JniErr` — the generated file's alias for the
+/// framework `JniBindingError`. Built-in converters use this as their
+/// `Result<…, _>` error type so their bodies' `<__JniErr as
+/// From<String>>::from(...)` calls keep compiling, and so a
+/// `?`-propagated framework failure surfaces as the framework
+/// exception on the JVM. Throws-marked converters bypass this in
+/// favour of their bound exception's own path (see
+/// [`JniExt::lookup_input_wrapper`] / [`JniExt::lookup_output_wrapper`]).
+pub(crate) fn default_err_path() -> syn::Path {
+    syn::parse_quote!(__JniErr)
 }
 
 /// Construct an [`ExceptionConfig`] from a Rust path string + the
@@ -1414,11 +1443,19 @@ impl JniExt {
     /// `env: &mut JNIEnv` and `v: &<wire>` (or `v: <wire>` for raw-pointer
     /// wires); produces a value of `rust`. Returned function has its name
     /// already set per the JNI plugin's naming convention.
+    ///
+    /// `err_type` is the path spliced into the function's `Result<…, _>`
+    /// signature. Built-in converters pass `__JniErr` (which the
+    /// generated file aliases to the framework `JniBindingError`);
+    /// throws-marked input wrappers pass their bound exception's path
+    /// so the body's `?` propagates the domain error directly without
+    /// any cross-type `From` bridge.
     pub fn build_input_fn(
         &self,
         rust: &syn::Type,
         wire: &syn::Type,
         body: &syn::Expr,
+        err_type: &syn::Path,
     ) -> syn::ItemFn {
         let name = input_name(rust, wire);
         let rust_with_lifetime = annotate_borrow_with_lifetime(rust, "env");
@@ -1426,14 +1463,14 @@ impl JniExt {
         if matches!(wire, syn::Type::Ptr(_)) {
             syn::parse_quote!(
                 #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
-                pub(crate) unsafe fn #name<'env>(env: &mut jni::JNIEnv<'env>, v: #wire) -> ::core::result::Result<#rust_with_lifetime, __JniErr> {
+                pub(crate) unsafe fn #name<'env>(env: &mut jni::JNIEnv<'env>, v: #wire) -> ::core::result::Result<#rust_with_lifetime, #err_type> {
                     Ok(#body)
                 }
             )
         } else {
             syn::parse_quote!(
                 #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
-                pub(crate) unsafe fn #name<'env, 'v>(env: &mut jni::JNIEnv<'env>, v: &#wire_with_lifetime) -> ::core::result::Result<#rust_with_lifetime, __JniErr> {
+                pub(crate) unsafe fn #name<'env, 'v>(env: &mut jni::JNIEnv<'env>, v: &#wire_with_lifetime) -> ::core::result::Result<#rust_with_lifetime, #err_type> {
                     Ok(#body)
                 }
             )
@@ -1443,17 +1480,21 @@ impl JniExt {
     /// Build the standard JNI output-converter `fn`. Body assumes in-scope
     /// `env: &mut JNIEnv` and `v: <rust>` (by value — handles like
     /// `Subscriber<()>` aren't `Clone`, so callers move into the converter).
+    ///
+    /// `err_type` — see [`Self::build_input_fn`]; same semantics, output
+    /// side.
     pub fn build_output_fn(
         &self,
         rust: &syn::Type,
         wire: &syn::Type,
         body: &syn::Expr,
+        err_type: &syn::Path,
     ) -> syn::ItemFn {
         let name = output_name(rust, wire);
         let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "a");
         syn::parse_quote!(
             #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
-            pub(crate) unsafe fn #name<'a>(env: &mut jni::JNIEnv<'a>, v: #rust) -> ::core::result::Result<#wire_with_lifetime, __JniErr> {
+            pub(crate) unsafe fn #name<'a>(env: &mut jni::JNIEnv<'a>, v: #rust) -> ::core::result::Result<#wire_with_lifetime, #err_type> {
                 Ok(#body)
             }
         )
@@ -1587,8 +1628,9 @@ impl JniExt {
         let body: syn::Expr = syn::parse_quote!(
             std::boxed::Box::into_raw(std::boxed::Box::new(v)) as i64
         );
+        let err = default_err_path();
         ConverterImpl {
-            function: self.build_output_fn(ty, &wire, &body),
+            function: self.build_output_fn(ty, &wire, &body, &err),
             destination: wire,
             niches: Niches::one(
                 syn::parse_quote!(0i64),
@@ -1799,18 +1841,18 @@ impl PrebindgenExt for JniExt {
     /// the same generated file, so no `use` paths leak into the host
     /// crate's source tree.
     fn prerequisites(&self) -> Vec<syn::Item> {
-        // `__JniErr` is the unified converter error type: the binding's
-        // primary *application* exception (e.g. `ZError`) when one is
-        // declared, else the framework `JniBindingError`. Every
-        // converter body composes `?` failures into it (built-in bodies
-        // via `From<String>`, domain helpers natively), so no
-        // cross-crate `From` bridge is needed. The *thrown JVM class*
-        // is chosen per-converter via `throws_action`, independent of
-        // this type.
-        let error_exc = self
-            .primary_application_exception()
-            .unwrap_or_else(|| self.framework_exception());
-        let error_type = &error_exc.rust_path;
+        // `__JniErr` is the **framework** error type alias — always the
+        // pre-registered `JniBindingError`, never a user-declared
+        // application exception. Built-in converter bodies compose
+        // their `?` failures into this type via its `From<String>`
+        // impl, so a built-in decode failure surfaces as
+        // `JniBindingError` on the JVM. Throws-marked converters
+        // (`input_wrapper(...).throws("X")` /
+        // `output_wrapper(...).throws("X")`) instead emit functions
+        // typed `Result<…, X>` — they bypass `__JniErr` entirely so no
+        // cross-type bridge between the framework error and a domain
+        // error is needed (the orphan rule forbids one anyway).
+        let error_type = &self.framework_exception().rust_path;
         let alias: syn::Item = syn::parse_quote!(
             #[allow(dead_code)]
             pub(crate) type __JniErr = #error_type;
@@ -1868,8 +1910,9 @@ impl PrebindgenExt for JniExt {
         if let Some((wire, body)) = primitive_input(ty) {
             let niches = default_niches_for_wire(&wire);
             let kotlin_name = crate::jni::jni_kotlin_ext::kotlin_for_wire(&wire);
+            let err = default_err_path();
             return Some(ConverterImpl {
-                function: self.build_input_fn(ty, &wire, &body),
+                function: self.build_input_fn(ty, &wire, &body, &err),
                 destination: wire,
                 niches,
                 metadata: self.framework_meta(kotlin_name),
@@ -1884,8 +1927,9 @@ impl PrebindgenExt for JniExt {
                 // they didn't, leave `kotlin_name = None` — emitter
                 // surfaces this as a build-time hard error.
                 let kotlin_name = self.types.get(&key).and_then(|c| c.kotlin_name.clone());
+                let err = default_err_path();
                 return Some(ConverterImpl {
-                    function: self.build_input_fn(ty, &wire, &body),
+                    function: self.build_input_fn(ty, &wire, &body, &err),
                     destination: wire,
                     niches,
                     metadata: self.framework_meta(kotlin_name),
@@ -1951,8 +1995,9 @@ impl PrebindgenExt for JniExt {
                 .input_entry(t1)
                 .and_then(|e| e.metadata.kotlin_name.clone());
             let kotlin_name = self.override_kotlin_name(&outer_ty, inherited);
+            let err = default_err_path();
             return Some(ConverterImpl {
-                function: self.build_input_fn(&outer_ty, &wire, &body),
+                function: self.build_input_fn(&outer_ty, &wire, &body, &err),
                 destination: wire,
                 niches,
                 metadata: self.framework_meta(kotlin_name),
@@ -1987,8 +2032,9 @@ impl PrebindgenExt for JniExt {
             .get(&outer_key)
             .and_then(|c| c.callback_kotlin_fqn.clone())
             .or_else(|| Some(self.auto_callback_fqn(args)));
+        let err = default_err_path();
         Some(ConverterImpl {
-            function: self.build_input_fn(&outer_ty, &wire, &body),
+            function: self.build_input_fn(&outer_ty, &wire, &body, &err),
             destination: wire,
             niches,
             metadata: self.framework_meta(kotlin_name),
@@ -2044,8 +2090,9 @@ impl PrebindgenExt for JniExt {
         if pat_match(ty, "()") {
             let wire: syn::Type = syn::parse_quote!(());
             let body: syn::Expr = syn::parse_quote!(v);
+            let err = default_err_path();
             return Some(ConverterImpl {
-                function: self.build_output_fn(ty, &wire, &body),
+                function: self.build_output_fn(ty, &wire, &body, &err),
                 destination: wire,
                 niches: Niches::empty(),
                 metadata: KotlinMeta::default(),
@@ -2054,8 +2101,9 @@ impl PrebindgenExt for JniExt {
         if let Some((wire, body)) = primitive_output(ty) {
             let niches = default_niches_for_wire(&wire);
             let kotlin_name = crate::jni::jni_kotlin_ext::kotlin_for_wire(&wire);
+            let err = default_err_path();
             return Some(ConverterImpl {
-                function: self.build_output_fn(ty, &wire, &body),
+                function: self.build_output_fn(ty, &wire, &body, &err),
                 destination: wire,
                 niches,
                 metadata: self.framework_meta(kotlin_name),
@@ -2066,8 +2114,9 @@ impl PrebindgenExt for JniExt {
                 let (wire, body) = struct_output_body(self, s, registry)?;
                 let niches = default_niches_for_wire(&wire);
                 let kotlin_name = self.types.get(&key).and_then(|c| c.kotlin_name.clone());
+                let err = default_err_path();
                 return Some(ConverterImpl {
-                    function: self.build_output_fn(ty, &wire, &body),
+                    function: self.build_output_fn(ty, &wire, &body, &err),
                     destination: wire,
                     niches,
                     metadata: self.framework_meta(kotlin_name),
@@ -2097,8 +2146,9 @@ impl PrebindgenExt for JniExt {
                 .output_entry(t1)
                 .and_then(|e| e.metadata.kotlin_name.clone());
             let kotlin_name = self.override_kotlin_name(&outer_ty, inherited);
+            let err = default_err_path();
             return Some(ConverterImpl {
-                function: self.build_output_fn(&outer_ty, &wire, &body),
+                function: self.build_output_fn(&outer_ty, &wire, &body, &err),
                 destination: wire,
                 niches,
                 metadata: self.framework_meta(kotlin_name),
@@ -2350,27 +2400,32 @@ fn mangle_jni_name(ext: &JniExt, ident: &syn::Ident) -> syn::Ident {
 /// success path (same convention as a plain `output_wrapper` body — errors
 /// propagate via `?` for sub-conversion failures, or via `return Err(...)`
 /// for custom detection like `i32 < 0`). The framework wraps the body in a
-/// `(|| -> Result<wire, __JniErr> { Ok(body) })()` closure to give those
+/// `(|| -> Result<wire, <err_type>> { Ok(body) })()` closure to give those
 /// `?`/`return` operators somewhere to land, then `match`es the closure's
 /// result: on `Ok` it returns the wire value; on `Err` it invokes the
 /// generated `throw_<short>` free function (path resolved via
 /// [`exception_throw_path`]) and substitutes `sentinel`. The emitted
 /// function therefore returns the bare `wire` type — the converter has
 /// fully consumed the error case by throwing.
+///
+/// `err_type` is the bound exception's Rust path — the closure's `Err`
+/// arm constructs (or `?`-propagates) this exact type, so no cross-type
+/// `From` bridge is needed between framework and domain error types.
 fn build_output_throws_fn(
     rust: &syn::Type,
     wire: &syn::Type,
     body: &syn::Expr,
     throw_fn: &syn::Path,
     sentinel: &TokenStream,
+    err_type: &syn::Path,
 ) -> syn::ItemFn {
     let name = output_name(rust, wire);
     let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "a");
     syn::parse_quote!(
         #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
         pub(crate) unsafe fn #name<'a>(env: &mut jni::JNIEnv<'a>, v: #rust) -> #wire_with_lifetime {
-            let __r: ::core::result::Result<#wire_with_lifetime, __JniErr> =
-                (|| -> ::core::result::Result<#wire_with_lifetime, __JniErr> { Ok(#body) })();
+            let __r: ::core::result::Result<#wire_with_lifetime, #err_type> =
+                (|| -> ::core::result::Result<#wire_with_lifetime, #err_type> { Ok(#body) })();
             match __r {
                 Ok(__w) => __w,
                 Err(__e) => {

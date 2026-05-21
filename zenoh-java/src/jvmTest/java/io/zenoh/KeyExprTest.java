@@ -15,6 +15,7 @@
 package io.zenoh;
 
 import io.zenoh.exceptions.ZError;
+import io.zenoh.jni.JniBindingError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.keyexpr.SetIntersectionLevel;
 import org.junit.Test;
@@ -104,10 +105,16 @@ public class KeyExprTest {
 
         session.undeclare(keyExpr);
 
-        // Undeclaring twice a key expression shall fail.
-        assertThrows(ZError.class, () -> session.undeclare(keyExpr));
+        // Undeclaring twice a key expression shall fail. The first call
+        // consumes the native handle; the second is a closed-handle
+        // access on the same NativeHandle, which surfaces as the
+        // framework-owned JniBindingError (NativeHandle.kt is now wired
+        // to the framework exception, not the domain ZError).
+        assertThrows(JniBindingError.class, () -> session.undeclare(keyExpr));
 
-        // Undeclaring a key expr that was not declared through a session.
+        // Undeclaring a key expr that was not declared through a
+        // session is a domain failure (handled by the Rust side, not by
+        // NativeHandle) — still surfaces as ZError.
         KeyExpr keyExpr2 = KeyExpr.tryFrom("x/y/z");
         assertThrows(ZError.class, () -> session.undeclare(keyExpr2));
 

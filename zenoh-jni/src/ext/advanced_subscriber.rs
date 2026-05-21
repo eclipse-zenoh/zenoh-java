@@ -136,7 +136,13 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareDetectPu
             advanced_subscriber.key_expr()
         );
 
-        let cb_flat = crate::generated::process_kotlin_Sample_callback(&mut env, &callback)?;
+        // `process_kotlin_Sample_callback` is the auto-generated callback
+        // dispatcher — it returns `Result<_, JniBindingError>` (the
+        // framework error type). The enclosing closure is in a `ZResult`
+        // pipeline; convert via `Display` since the orphan rule blocks
+        // a `From<JniBindingError> for ZError` impl in any crate.
+        let cb_flat = crate::generated::process_kotlin_Sample_callback(&mut env, &callback)
+            .map_err(|e| zerror!("Sample callback: {}", e))?;
         let cb = move |zsample: zenoh::sample::Sample| {
             cb_flat((&zsample).into());
         };
@@ -197,7 +203,13 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareBackgrou
             advanced_subscriber.key_expr()
         );
 
-        let cb_flat = crate::generated::process_kotlin_Sample_callback(&mut env, &callback)?;
+        // `process_kotlin_Sample_callback` is the auto-generated callback
+        // dispatcher — it returns `Result<_, JniBindingError>` (the
+        // framework error type). The enclosing closure is in a `ZResult`
+        // pipeline; convert via `Display` since the orphan rule blocks
+        // a `From<JniBindingError> for ZError` impl in any crate.
+        let cb_flat = crate::generated::process_kotlin_Sample_callback(&mut env, &callback)
+            .map_err(|e| zerror!("Sample callback: {}", e))?;
         let cb = move |zsample: zenoh::sample::Sample| {
             cb_flat((&zsample).into());
         };
