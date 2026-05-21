@@ -373,13 +373,6 @@ pub struct JniExt {
     /// Per-rank output wrappers. Same shape as [`Self::input_wrappers`].
     pub(crate) output_wrappers: [HashMap<TypeKey, WrapperFn>; 4],
 
-    /// Author-supplied Rust items prepended to the generated file before
-    /// the framework's own prerequisites. Use for `use crate::errors::X;`
-    /// statements that bring any identifiers used in the binding's
-    /// converter patterns into scope at the include site (e.g. the
-    /// `ZResult<_>` alias zenoh registers a throwing converter for).
-    pub(crate) extra_prerequisites: Vec<syn::Item>,
-
     /// Tracks the last [`Self::kotlin_class`] key registered so
     /// [`Self::method`] / [`Self::suppress_kotlin_code`] know which
     /// entry to extend. Cleared after each unrelated builder call.
@@ -434,7 +427,6 @@ impl JniExt {
                 HashMap::new(),
                 HashMap::new(),
             ],
-            extra_prerequisites: Vec::new(),
             last_opaque_key: None,
             last_meta_key: None,
             last_exception_idx: None,
@@ -505,18 +497,6 @@ impl JniExt {
         self.last_exception_idx = Some(idx);
         self.last_opaque_key = None;
         self.last_meta_key = None;
-        self
-    }
-
-    /// Inject an extra Rust item (typically a `use` statement) into the
-    /// preamble of the generated file. Use this to bring identifiers
-    /// referenced by `output_throws` / `output_wrapper` patterns into
-    /// scope at the include site — e.g. `use crate::errors::ZResult;`
-    /// for a binding whose `#[prebindgen]` fns return `ZResult<T>` and
-    /// whose registered converter patterns use the same bare name.
-    /// The framework itself stays unaware of these aliases.
-    pub fn add_prerequisite(mut self, item: syn::Item) -> Self {
-        self.extra_prerequisites.push(item);
         self
     }
 
@@ -1600,7 +1580,6 @@ impl PrebindgenExt for JniExt {
             pub(crate) type __JniErr = #error_type;
         );
         let mut items = vec![alias];
-        items.extend(self.extra_prerequisites.iter().cloned());
         items.extend(owned_object_prerequisite_items());
         // Throw fns — one `pub(crate) fn throw_<short>(env, &err)` per
         // registered `kotlin_exception_class`. Emitted as prerequisites

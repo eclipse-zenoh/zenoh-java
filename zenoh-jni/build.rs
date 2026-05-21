@@ -17,13 +17,6 @@ use prebindgen_ext::jni::JniExt;
 fn main() {
     let jni = JniExt::new()
         .source_module("zenoh_flat")
-        // Bring `zenoh-flat`'s `ZResult<T>` alias into scope at the
-        // generated file: the source `#[prebindgen]` fns return it by
-        // short name, and the `output_throws("ZResult < _ >", ...)`
-        // registration below takes a `v: ZResult<T>` parameter, so the
-        // identifier must resolve in the include site. The framework
-        // itself stays unaware of any specific Result-shape alias.
-        .add_prerequisite(syn::parse_quote!(use zenoh_flat::errors::ZResult;))
         .package("io.zenoh.jni")
         .jni_method_suffix("ViaJNI")
         // Single error type spliced into every generated `Result<_, _>`
