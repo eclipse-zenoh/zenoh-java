@@ -1185,20 +1185,23 @@ impl JniExt {
     /// Look up a registered output wrapper for `pat` with `args` substituted
     /// into its `_` slots.
     ///
-    /// If the registration's pattern was bound via a chained
-    /// [`Self::throws`] (so `exception_owning_pattern` returns `Some`),
-    /// the emitted function returns the bare wire and the metadata
-    /// carries `throws: Some(exception_fqn)`. Otherwise (plain
-    /// [`Self::output_wrapper`]) the emitted function returns
-    /// `Result<wire, __JniErr>` and metadata carries no `throws`.
+    /// All emitted output converters return `Result<wire, <err_type>>` —
+    /// the function wrapper unwraps and dispatches to the converter's
+    /// own `throws_action` on `Err`. Throws-marked wrappers
+    /// (`output_wrapper(...).throws("X")`) splice `X` as the err_type
+    /// so the body's `?` propagates `X` directly; plain wrappers use
+    /// the framework `__JniErr` alias (= `JniBindingError`).
     ///
     /// **Rank-0 path** (`args.is_empty()`): niches default to
     /// [`Niches::empty()`] and Kotlin name is read from
     /// `types[key].kotlin_name` (or derived from the wire), so
     /// `.output_wrapper("X", …).kotlin_name("…")` chaining works.
     /// **Rank ≥1 path:** niches derive from the wire via
-    /// [`default_niches_for_wire`]; the plain-output branch leaves
-    /// metadata at [`KotlinMeta::default`] for the resolver to fill.
+    /// [`default_niches_for_wire`]; arity-1 throws-marked wrappers
+    /// inherit `kotlin_name` and stamp `value_rust_key` from `args[0]`
+    /// so downstream typed-handle / opaque-ctor lookups can find the
+    /// wrapped value's identity without baking a Result-shape into
+    /// the framework.
     pub(crate) fn lookup_output_wrapper(
         &self,
         pat: &syn::Type,
@@ -1218,86 +1221,42 @@ impl JniExt {
         } else {
             default_niches_for_wire(&wire)
         };
-        // Output-throws registration: emit a bare-wire-returning function
-        // wrapping the body in match-throw, and stamp `throws` metadata.
-        // For arity-1 wrappers the Kotlin projection of the wrapper is
-        // the inner type's projection (e.g. `ZResult<T>` → `T`); inherit
-        // `kotlin_name` from `args[0]`'s registered output entry and
-        // record `args[0]`'s canonical key as `value_rust_key` so
-        // downstream typed-handle / opaque-ctor lookups can find the
-        // wrapped value's identity without baking a Result-shape into
-        // the framework.
-        if let Some(exc) = self.exception_owning_pattern(&key) {
-            let throw_path = exception_throw_path(exc);
-            let sentinel = sentinel_for_wire(&wire);
-            // The closure inside the emitted throws-fn returns
-            // `Result<wire, <exc.rust_path>>`, so the body's `?` can
-            // propagate a value of the bound exception's type directly —
-            // no cross-type `From` bridge between framework and domain
-            // error types (the orphan rule forbids one anyway).
-            let function = build_output_throws_fn(
-                &outer,
-                &wire,
-                &body,
-                &throw_path,
-                &sentinel,
-                &exc.rust_path,
-            );
-            let inherited = if rank >= 1 {
-                registry
-                    .output_entry(&args[0])
-                    .map(|e| (e.metadata.kotlin_name.clone(),
-                              Some(TypeKey::from_type(&args[0]).as_str().to_string())))
-                    .unwrap_or((None, None))
-            } else {
-                // Rank-0 throws-marked converter: honor a user-pinned
-                // Kotlin name (`.kotlin_name(...)` / `.with_kotlin_type(...)`,
-                // stored in `types[key].kotlin_name`) before falling back
-                // to the wire's default — same precedence as the plain
-                // output branch, so e.g. `Vec<ZenohId>` keeps its
-                // `List<ByteArray>` projection even when `.throws(...)`-bound.
-                let kotlin_name = self
-                    .types
-                    .get(&key)
-                    .and_then(|c| c.kotlin_name.clone())
-                    .or_else(|| crate::jni::jni_kotlin_ext::kotlin_for_wire(&wire));
-                (kotlin_name, None)
-            };
-            return Some(ConverterImpl {
-                function,
-                destination: wire,
-                niches,
-                metadata: KotlinMeta {
-                    kotlin_name: inherited.0,
-                    throws: Some(exc.kotlin_fqn.clone()),
-                    throws_action: Some(throw_path),
-                    value_rust_key: inherited.1,
-                },
-            });
-        }
-        // Plain (non-throws-marked) output wrapper: returns
-        // `Result<wire, __JniErr>` and the function wrapper unwraps it,
-        // surfacing failures as the framework `JniBindingError`. Stamp
-        // both `throws` (FQN → `@Throws` union) and `throws_action`
-        // (`throw_JniBindingError` → the wrapper's unwrap arm). The
-        // bare-wire vs `Result` distinction is made by signature
-        // inspection in the function wrapper, not by `throws_action`.
-        let framework_exc = self.framework_exception();
-        let kotlin_name = if rank == 0 {
-            self.types
+        // Pick the throws-binding exception and err_type. Throws-marked
+        // wrappers (`output_wrapper(...).throws("X")`) splice their bound
+        // exception's path; plain wrappers fall through to the framework
+        // `__JniErr` alias and surface failures as `JniBindingError`.
+        let (exc, err_type) = match self.exception_owning_pattern(&key) {
+            Some(exc) => (exc, exc.rust_path.clone()),
+            None => (self.framework_exception(), default_err_path()),
+        };
+        let throw_path = exception_throw_path(exc);
+        // Kotlin name: arity-1 wrappers inherit from the inner type; rank-0
+        // honors a user-pinned `kotlin_name` / `with_kotlin_type`; otherwise
+        // derive from wire. Same precedence the bare-wire branch carried.
+        let (kotlin_name, value_rust_key) = if rank >= 1 {
+            registry
+                .output_entry(&args[0])
+                .map(|e| {
+                    (
+                        e.metadata.kotlin_name.clone(),
+                        Some(TypeKey::from_type(&args[0]).as_str().to_string()),
+                    )
+                })
+                .unwrap_or((None, None))
+        } else {
+            let kotlin_name = self
+                .types
                 .get(&key)
                 .and_then(|c| c.kotlin_name.clone())
-                .or_else(|| crate::jni::jni_kotlin_ext::kotlin_for_wire(&wire))
-        } else {
-            None
+                .or_else(|| crate::jni::jni_kotlin_ext::kotlin_for_wire(&wire));
+            (kotlin_name, None)
         };
         let metadata = KotlinMeta {
             kotlin_name,
-            throws: Some(framework_exc.kotlin_fqn.clone()),
-            throws_action: Some(exception_throw_path(framework_exc)),
-            value_rust_key: None,
+            throws: Some(exc.kotlin_fqn.clone()),
+            throws_action: Some(throw_path),
+            value_rust_key,
         };
-        let err_type = default_err_path();
         Some(ConverterImpl {
             function: self.build_output_fn(&outer, &wire, &body, &err_type),
             destination: wire,
@@ -2226,7 +2185,6 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
     });
     let wire_return_ty = output_entry.destination.clone();
     let conv_out = output_entry.function.sig.ident.clone();
-    let output_returns_result = converter_returns_result(&output_entry.function.sig.output);
     let wire_return_lt = annotate_jobject_with_lifetime(&wire_return_ty, "a");
     let wire_return = wire_return_lt.to_token_stream();
     let on_err: TokenStream = sentinel_for_wire(&wire_return_ty);
@@ -2317,35 +2275,24 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
 
     let call_expr = quote!(#source_module::#original_ident(#(#call_args),*));
 
-    // Output phase. Two shapes, discriminated by the output converter's
-    // emitted return type:
-    //   * bare wire  → registered via `output_wrapper(...).throws("<exc>")`;
-    //     the converter does its own internal match-throw (e.g. peels a
-    //     `ZResult` and raises `ZError` on `Err`). Call it directly.
-    //   * `Result<wire, __JniErr>` → plain `output_wrapper` / built-in;
-    //     unwrap and surface failures as the converter's designated JVM
-    //     class (its `throws_action`, framework `JniBindingError` by
-    //     default).
-    let output_phase = if output_returns_result {
-        let out_throw = output_entry
-            .metadata
-            .throws_action
-            .clone()
-            .unwrap_or_else(|| framework_throw.clone());
-        quote! {
-            let __out = #call_expr;
-            match #conv_out(&mut env, __out) {
-                ::core::result::Result::Ok(__w) => __w,
-                ::core::result::Result::Err(__e) => {
-                    #out_throw(&mut env, &__e);
-                    #on_err
-                }
+    // Output phase. Every output converter now returns
+    // `Result<wire, <err_type>>` — the bare-wire shape is gone.
+    // Unwrap and dispatch to the converter's `throws_action`
+    // (framework `throw_JniBindingError` for plain wrappers, a domain
+    // throw fn for throws-marked wrappers).
+    let out_throw = output_entry
+        .metadata
+        .throws_action
+        .clone()
+        .unwrap_or_else(|| framework_throw.clone());
+    let output_phase = quote! {
+        let __out = #call_expr;
+        match #conv_out(&mut env, __out) {
+            ::core::result::Result::Ok(__w) => __w,
+            ::core::result::Result::Err(__e) => {
+                #out_throw(&mut env, &__e);
+                #on_err
             }
-        }
-    } else {
-        quote! {
-            let __out = #call_expr;
-            #conv_out(&mut env, __out)
         }
     };
 
@@ -2394,52 +2341,6 @@ fn mangle_jni_name(ext: &JniExt, ident: &syn::Ident) -> syn::Ident {
     syn::Ident::new(&name, Span::call_site())
 }
 
-/// Build the emitted function for an [`JniExt::throws`] registration.
-///
-/// `body` is the user-supplied expression that evaluates to `wire` on the
-/// success path (same convention as a plain `output_wrapper` body — errors
-/// propagate via `?` for sub-conversion failures, or via `return Err(...)`
-/// for custom detection like `i32 < 0`). The framework wraps the body in a
-/// `(|| -> Result<wire, <err_type>> { Ok(body) })()` closure to give those
-/// `?`/`return` operators somewhere to land, then `match`es the closure's
-/// result: on `Ok` it returns the wire value; on `Err` it invokes the
-/// generated `throw_<short>` free function (path resolved via
-/// [`exception_throw_path`]) and substitutes `sentinel`. The emitted
-/// function therefore returns the bare `wire` type — the converter has
-/// fully consumed the error case by throwing.
-///
-/// `err_type` is the bound exception's Rust path — the closure's `Err`
-/// arm constructs (or `?`-propagates) this exact type, so no cross-type
-/// `From` bridge is needed between framework and domain error types.
-fn build_output_throws_fn(
-    rust: &syn::Type,
-    wire: &syn::Type,
-    body: &syn::Expr,
-    throw_fn: &syn::Path,
-    sentinel: &TokenStream,
-    err_type: &syn::Path,
-) -> syn::ItemFn {
-    let name = output_name(rust, wire);
-    let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "a");
-    syn::parse_quote!(
-        #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
-        pub(crate) unsafe fn #name<'a>(env: &mut jni::JNIEnv<'a>, v: #rust) -> #wire_with_lifetime {
-            let __r: ::core::result::Result<#wire_with_lifetime, #err_type> =
-                (|| -> ::core::result::Result<#wire_with_lifetime, #err_type> { Ok(#body) })();
-            match __r {
-                Ok(__w) => __w,
-                Err(__e) => {
-                    // `env` is `&mut JNIEnv` — pass it straight through;
-                    // the generated `throw_<short>` fn takes the same
-                    // reference type and a `&__e` borrow of the error.
-                    #throw_fn(env, &__e);
-                    #sentinel
-                }
-            }
-        }
-    )
-}
-
 /// Sentinel value to return through the wrapper signature when the inner
 /// closure errors. Must compile against any wire type we emit.
 fn sentinel_for_wire(wire: &syn::Type) -> TokenStream {
@@ -2481,22 +2382,6 @@ pub(crate) fn converter_returns_owned_object(output: &syn::ReturnType) -> bool {
     let syn::Type::Path(itp) = inner else { return false; };
     let Some(last_inner) = itp.path.segments.last() else { return false; };
     last_inner.ident == "OwnedObject"
-}
-
-/// `true` if the converter function returns `Result<…, …>` (the shape
-/// produced by [`JniExt::build_input_fn`] / [`JniExt::build_output_fn`]),
-/// `false` if it returns a bare wire (the shape produced by
-/// [`build_output_throws_fn`] for `output_wrapper(...).throws(...)`
-/// registrations). The function wrapper uses this to decide whether the
-/// output converter needs unwrapping (`Result` → match + framework
-/// throw) or can be called directly (bare wire → converter already did
-/// its own match-throw). More robust than inspecting metadata flags
-/// because it reflects the actual emitted signature.
-fn converter_returns_result(output: &syn::ReturnType) -> bool {
-    let syn::ReturnType::Type(_, ty) = output else { return false; };
-    let syn::Type::Path(tp) = &**ty else { return false; };
-    let Some(last) = tp.path.segments.last() else { return false; };
-    last.ident == "Result"
 }
 
 // ──────────────────────────────────────────────────────────────────────
