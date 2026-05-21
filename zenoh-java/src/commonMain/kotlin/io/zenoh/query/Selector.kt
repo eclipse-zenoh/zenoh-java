@@ -14,7 +14,7 @@
 
 package io.zenoh.query
 
-import io.zenoh.exceptions.ZError
+import io.zenoh.jni.ZError
 import io.zenoh.keyexpr.KeyExpr
 
 /**

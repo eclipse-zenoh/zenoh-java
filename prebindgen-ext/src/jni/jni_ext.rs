@@ -7,7 +7,8 @@
 //! * **`on_function`**: emits a JNI `extern "C"` wrapper that delegates each
 //!   parameter conversion to the auto-generated `<rust>_to_<wire>_<hash>`
 //!   converter, calls the original `#[prebindgen]` fn, and routes errors
-//!   through a configurable `throw_exception!` macro.
+//!   through the generated `throw_<RustShortName>` free function emitted
+//!   alongside the registered `kotlin_exception_class` entries.
 //! * **Primitive types**: `bool`, `i64`, `f64`, `Duration`, `String`,
 //!   `Vec<u8>` rank-0 input/output bodies.
 //! * **Wildcard wrappers**: `Option<_>` (input + output, including
@@ -60,11 +61,14 @@ pub struct KotlinMeta {
     /// `@Throws` annotations on the corresponding wrappers. `None` means
     /// "non-throwing converter" (no `@Throws` emitted).
     pub throws: Option<String>,
-    /// Rust throw-macro path the framework invokes as
-    /// `<throws_action>!(env, err)` for wrapper-internal failures (e.g.
-    /// input-decode `?` propagation) that surface above this converter.
-    /// Populated alongside [`Self::throws`] by [`JniExt::output_throws`];
-    /// `None` when no throwing behavior is configured for this converter.
+    /// Rust path of the generated `throw_<RustShortName>` free function
+    /// the framework invokes as `<throws_action>(&mut env, &err)` for
+    /// wrapper-internal failures (e.g. input-decode `?` propagation) that
+    /// surface above this converter. Populated alongside
+    /// [`Self::throws`] by [`JniExt::output_throws`]; `None` when no
+    /// throwing behavior is configured for this converter. Replaces the
+    /// earlier `throw_exception!` macro path with a direct function call
+    /// emitted by [`JniExt::write_exceptions_rust`].
     pub throws_action: Option<syn::Path>,
     /// For wrapper converters whose Kotlin projection is the *inner*
     /// type's projection (e.g. `ZResult<Publisher>` → `Publisher`),
@@ -102,6 +106,55 @@ pub(crate) struct ConverterSpec {
     pub wire: syn::Type,
     pub body: syn::Expr,
     pub niches: Niches,
+}
+
+/// Per-exception-class configuration (driven by
+/// [`JniExt::kotlin_exception_class`]).
+///
+/// One entry per Rust error type the binding surfaces to the JVM as a
+/// Java exception. Declaration order matters: `exceptions[0]` is the
+/// *primary* — its `From<String>` impl is the universal converter-failure
+/// path and its Kotlin FQN is used for `NativeHandle`'s closed-handle
+/// exception. The throw function emitted into the generated file
+/// (`throw_<rust_short>`) does the `find_class`/`throw_new` dance and
+/// is referenced by the `output_throws`-driven wrapper code through
+/// [`KotlinMeta::throws_action`].
+#[derive(Clone)]
+pub(crate) struct ExceptionConfig {
+    /// Absolute Rust path of the error type (e.g.
+    /// `zenoh_flat::errors::ZError`). Used both to splice the
+    /// `pub(crate) type __JniErr = ...` alias and as the function-
+    /// argument type of the generated `throw_<short>`.
+    pub rust_path: syn::Path,
+    /// Last path segment of `rust_path` (e.g. `"ZError"`). Used to
+    /// derive the `throw_<short>` function name and to provide the
+    /// default Kotlin class name when no `.kotlin_name(...)` override
+    /// is supplied.
+    pub rust_short: String,
+    /// Kotlin fully-qualified exception class name (e.g.
+    /// `"io.zenoh.jni.ZError"`). Defaults to `<package>.<rust_short>`;
+    /// overridden by a chained `.kotlin_name(...)`. Used for the Kotlin
+    /// class file path, `@Throws` annotations, and the JNI
+    /// `find_class("io/zenoh/jni/ZError")` literal inside the generated
+    /// `throw_<short>` body.
+    pub kotlin_fqn: String,
+    /// Identifier of the generated `throw_<short>` function. Stable
+    /// across `.kotlin_name(...)` overrides (those only change the
+    /// Kotlin class, not the Rust function name).
+    pub throw_fn_name: syn::Ident,
+    /// Result-shape patterns owned by this exception (set by chained
+    /// `.output_throws(pattern, builder)` calls). Each pattern's
+    /// resolved converter raises this exception on `Err`.
+    pub output_throws: Vec<ExceptionOutputThrows>,
+}
+
+/// One `.output_throws(pattern, builder)` registration scoped to a
+/// particular [`ExceptionConfig`]. Holds only the pattern's canonical
+/// key — the per-rank wrapper closure is stored in the regular
+/// [`JniExt::output_wrappers`] tables, looked up by the same key.
+#[derive(Clone)]
+pub(crate) struct ExceptionOutputThrows {
+    pub pattern_key: TypeKey,
 }
 
 /// Per-opaque-handle configuration (driven by `JniExt::kotlin_class`).
@@ -247,22 +300,17 @@ pub struct JniExt {
     /// the host crate of `#[prebindgen]` items). The wrapper body calls
     /// `<source_module>::<fn>(args)`.
     pub source_module: syn::Path,
-    /// The flat library's error type `E` — the single distinguished type
-    /// threaded through every generated `Result<_, E>` signature (e.g.
-    /// `crate::errors::ZError`). Emitted once as the `__JniErr` alias by
-    /// [`Self::prerequisites`]; all converters reference that alias. Must
-    /// implement `From<String>` so generated converters can manufacture an
-    /// error for internal JNI-call failures. The framework has no other
-    /// knowledge of the error model — how a final `Err` reaches the host
-    /// language is decided entirely by the registered output converters
-    /// (see [`Self::output_throws`]).
-    pub error_type: syn::Path,
-    /// Kotlin fully-qualified exception class thrown by the generated
-    /// `NativeHandle` base class when an operation touches a closed handle
-    /// (e.g. `"io.zenoh.exceptions.ZError"`). This guard is a Kotlin-side
-    /// concern not tied to any terminal converter, so it is named here
-    /// directly. Empty until set.
-    pub native_handle_exception_class: String,
+    /// Registered exception classes in declaration order. The first entry
+    /// (`exceptions[0]`) is the *primary* — its `From<String>` impl is the
+    /// universal converter-failure path (emitted as the `__JniErr` alias
+    /// by [`Self::prerequisites`]) and its Kotlin FQN is used for
+    /// `NativeHandle`'s closed-handle exception. Populated by repeated
+    /// [`Self::kotlin_exception_class`] calls; consumed by:
+    /// [`Self::prerequisites`] (primary error type → `__JniErr`),
+    /// [`Self::write_exceptions_rust`] (one `throw_<short>` per entry),
+    /// [`Self::write_native_handle`] (primary FQN), and
+    /// [`Self::lookup_output_wrapper`] (per-pattern FQN + throw fn).
+    pub(crate) exceptions: Vec<ExceptionConfig>,
     /// Single source of truth for the JVM/Kotlin namespace this binding
     /// targets, dot-separated (e.g. `io.zenoh.jni`). Empty = no prefix.
     /// Drives every derived form: slash-separated for `FindClass`,
@@ -325,13 +373,6 @@ pub struct JniExt {
     /// Per-rank output wrappers. Same shape as [`Self::input_wrappers`].
     pub(crate) output_wrappers: [HashMap<TypeKey, WrapperFn>; 4],
 
-    /// Per-output-pattern throws metadata: `(exception_fqn, throw_action)`.
-    /// Set by [`Self::output_throws`] alongside the converter body; the
-    /// emitted converter wraps the body in match-throw using these values
-    /// and stamps `KotlinMeta.throws = Some(exception_fqn)` on the
-    /// resulting `ConverterImpl` so the Kotlin `@Throws` emitter can find it.
-    pub(crate) output_throws_meta: HashMap<TypeKey, (String, syn::Path)>,
-
     /// Author-supplied Rust items prepended to the generated file before
     /// the framework's own prerequisites. Use for `use crate::errors::X;`
     /// statements that bring any identifiers used in the binding's
@@ -348,6 +389,14 @@ pub struct JniExt {
     /// [`Self::with_kotlin_name`] knows which entry to stamp. Cleared
     /// after each unrelated builder call.
     last_meta_key: Option<TypeKey>,
+
+    /// Tracks the last [`Self::kotlin_exception_class`] registration so
+    /// chained [`Self::kotlin_name`] / [`Self::output_throws`] calls know
+    /// which entry of [`Self::exceptions`] to mutate. Stored as an index
+    /// rather than a key because exception entries are identified by
+    /// position (declaration order = primary-first). Cleared after each
+    /// unrelated builder call.
+    last_exception_idx: Option<usize>,
 }
 
 impl JniExt {
@@ -356,11 +405,11 @@ impl JniExt {
     pub fn new() -> Self {
         Self {
             source_module: syn::parse_str("crate").unwrap(),
-            // No zenoh-specific default: the binding must call `.error_type(...)`.
-            // Left as a recognizable sentinel so `prerequisites()` can fail
-            // with a clear message if it was never configured.
-            error_type: syn::parse_str("__JNIEXT_ERROR_TYPE_UNSET__").unwrap(),
-            native_handle_exception_class: String::new(),
+            // No exceptions until the binding calls
+            // `.kotlin_exception_class(...)` at least once.
+            // `prerequisites()` panics with a clear message if the
+            // primary entry is still missing at write time.
+            exceptions: Vec::new(),
             package: String::new(),
             jni_native_class: "JNINative".to_string(),
             callback_subpackage: "callbacks".to_string(),
@@ -385,33 +434,80 @@ impl JniExt {
                 HashMap::new(),
                 HashMap::new(),
             ],
-            output_throws_meta: HashMap::new(),
             extra_prerequisites: Vec::new(),
             last_opaque_key: None,
             last_meta_key: None,
+            last_exception_idx: None,
         }
     }
     pub fn source_module(mut self, p: impl AsRef<str>) -> Self {
         self.source_module = syn::parse_str(p.as_ref()).expect("invalid source_module path");
         self
     }
-    /// Set the flat library's error type `E` (e.g. `"crate::errors::ZError"`).
-    /// Threaded through every generated `Result<_, E>` signature as the
-    /// `__JniErr` alias and used to construct errors at internal JNI-call
-    /// failure sites, so `E` must implement `From<String>`. This is the only
-    /// error-related type the framework needs; whether a particular output
-    /// type throws and how is decided per-type via [`Self::output_throws`].
-    pub fn error_type(mut self, p: impl AsRef<str>) -> Self {
-        self.error_type = syn::parse_str(p.as_ref()).expect("invalid error_type path");
+
+    /// Declare a Rust error type that crosses the JNI boundary as a Java
+    /// exception. The first call registers the *primary* exception: it
+    /// must impl `From<String>` (the universal converter-failure path —
+    /// threaded as `__JniErr` through every generated `Result<_, E>`
+    /// signature) and its Kotlin FQN is used for `NativeHandle`'s
+    /// closed-handle exception. Subsequent calls register additional
+    /// exception types; each one gets its own generated Kotlin class and
+    /// its own `throw_<RustShortName>` free function.
+    ///
+    /// `rust_path` is the absolute Rust path of the error type (e.g.
+    /// `"zenoh_flat::errors::ZError"`); the type must impl `Display`.
+    /// The default Kotlin class name is `<package>.<rust_short>`;
+    /// chain [`Self::kotlin_name`] to override.
+    ///
+    /// Chain [`Self::output_throws`] immediately after to associate
+    /// result-shape patterns (`"ZResult<_>"`, `"()"`) with this
+    /// exception — the matching converter's `Err` branch invokes this
+    /// exception's `throw_<short>` function.
+    pub fn kotlin_exception_class(mut self, rust_path: impl AsRef<str>) -> Self {
+        let path_str = rust_path.as_ref();
+        let path: syn::Path = syn::parse_str(path_str)
+            .unwrap_or_else(|e| panic!("kotlin_exception_class: invalid rust path `{}`: {}", path_str, e));
+        let short = path
+            .segments
+            .last()
+            .map(|s| s.ident.to_string())
+            .unwrap_or_else(|| panic!(
+                "kotlin_exception_class: rust path `{}` has no segments", path_str
+            ));
+        let kotlin_fqn = self.resolve_class_fqn(&short);
+        let throw_fn_name = format_ident!("throw_{}", short);
+
+        // Collision guard: each exception's throw_<short> needs a unique
+        // name to coexist as free fns in the same generated file. In
+        // practice zenoh-java has one exception so this is just a guard.
+        if self
+            .exceptions
+            .iter()
+            .any(|e| e.throw_fn_name == throw_fn_name)
+        {
+            panic!(
+                "kotlin_exception_class: another exception is already \
+                 registered with Rust short name `{}` — rename the Rust \
+                 type or chain `.kotlin_name(...)` after the first \
+                 declaration to disambiguate",
+                short
+            );
+        }
+
+        self.exceptions.push(ExceptionConfig {
+            rust_path: path,
+            rust_short: short,
+            kotlin_fqn,
+            throw_fn_name,
+            output_throws: Vec::new(),
+        });
+        let idx = self.exceptions.len() - 1;
+        self.last_exception_idx = Some(idx);
+        self.last_opaque_key = None;
+        self.last_meta_key = None;
         self
     }
-    /// Kotlin fully-qualified exception class thrown by the generated
-    /// `NativeHandle` base class on closed-handle access (e.g.
-    /// `"io.zenoh.exceptions.ZError"`).
-    pub fn native_handle_exception_class(mut self, fqn: impl Into<String>) -> Self {
-        self.native_handle_exception_class = fqn.into();
-        self
-    }
+
     /// Inject an extra Rust item (typically a `use` statement) into the
     /// preamble of the generated file. Use this to bring identifiers
     /// referenced by `output_throws` / `output_wrapper` patterns into
@@ -425,37 +521,40 @@ impl JniExt {
     }
 
     /// Register an output converter that may raise a JVM exception.
+    /// **Must be chained immediately after a [`Self::kotlin_exception_class`]
+    /// call** — the registration is scoped to that exception, and the
+    /// emitted converter's `Err` branch invokes that exception's
+    /// `throw_<short>` function. The Kotlin `@Throws` annotation on the
+    /// matching wrapper picks up the same exception's `kotlin_fqn`.
     ///
     /// `pattern` is the Rust type-key (with `_` placeholders for wildcards;
-    /// arity 0..3). `exception_fqn` is the Kotlin class spliced into
-    /// `@Throws` annotations on the emitted wrappers. `throw_action` is the
-    /// Rust macro path the emitted converter invokes as `<throw_action>!(env, err)`
-    /// when the body returns `Err`.
-    ///
-    /// `builder` returns `Some((wire_type, body_expr))` where `body_expr`
-    /// evaluates to `Result<wire_type, __JniErr>` (same shape as
-    /// [`Self::output_wrapper`]) — the framework wraps this in
-    /// `match { Ok(w) => w, Err(e) => { throw_action!(env, e); sentinel } }`
+    /// arity 0..3). `builder` returns `Some((wire_type, body_expr))` where
+    /// `body_expr` evaluates to `Result<wire_type, __JniErr>` (same shape
+    /// as [`Self::output_wrapper`]) — the framework wraps this in
+    /// `match { Ok(w) => w, Err(e) => { throw_<short>(&mut env, &e); sentinel } }`
     /// and emits a function returning the bare wire. The body may use `?`
     /// for sub-conversions and `return Err(...)` for custom failure
     /// detection (e.g. `i32 < 0` → error).
-    pub fn output_throws<A, B>(
-        mut self,
-        pattern: impl AsRef<str>,
-        exception_fqn: impl Into<String>,
-        throw_action: impl AsRef<str>,
-        builder: B,
-    ) -> Self
+    pub fn output_throws<A, B>(mut self, pattern: impl AsRef<str>, builder: B) -> Self
     where
         B: WrapperBuilder<A>,
     {
+        let idx = self.last_exception_idx.expect(
+            "JniExt::output_throws must be chained immediately after a \
+             `kotlin_exception_class` (and any `.kotlin_name(...)`) call — \
+             the pattern is scoped to that exception",
+        );
         let key = TypeKey::parse(pattern.as_ref());
         let rank = B::rank();
-        let action_path: syn::Path = syn::parse_str(throw_action.as_ref())
-            .expect("invalid throw_action path");
-        self.output_throws_meta
-            .insert(key.clone(), (exception_fqn.into(), action_path));
+        self.exceptions[idx]
+            .output_throws
+            .push(ExceptionOutputThrows {
+                pattern_key: key.clone(),
+            });
         self.output_wrappers[rank].insert(key, builder.into_wrapper_fn());
+        // `last_exception_idx` stays — multiple `output_throws` may
+        // chain under the same exception. `last_*_key` are cleared
+        // because the pattern itself isn't a Kotlin type registration.
         self.last_opaque_key = None;
         self.last_meta_key = None;
         self
@@ -590,6 +689,7 @@ impl JniExt {
             .push((key.as_str().to_string(), fqn));
         self.last_opaque_key = Some(key.clone());
         self.last_meta_key = Some(key);
+        self.last_exception_idx = None;
         self
     }
 
@@ -655,6 +755,7 @@ impl JniExt {
         });
         self.last_opaque_key = None;
         self.last_meta_key = Some(key);
+        self.last_exception_idx = None;
         self
     }
 
@@ -685,6 +786,7 @@ impl JniExt {
         });
         self.last_opaque_key = None;
         self.last_meta_key = Some(key);
+        self.last_exception_idx = None;
         self
     }
 
@@ -693,9 +795,20 @@ impl JniExt {
     /// resolves against [`Self::package`] for ordinary types and against
     /// `package + "." + callback_subpackage` for `impl Fn(...)` callbacks
     /// (detected via `entry.callback_kotlin_fqn` set by a prior
-    /// [`Self::callback_input`]). Panics if `name` contains a `.` or if
-    /// no per-type builder is in scope.
+    /// [`Self::callback_input`]). When chained after
+    /// [`Self::kotlin_exception_class`] the override updates that
+    /// exception's `kotlin_fqn` instead — same resolution rules apply.
+    /// Panics if `name` contains a `.` or if no per-type builder is in
+    /// scope.
     pub fn kotlin_name(mut self, name: impl AsRef<str>) -> Self {
+        // Exception-class override: takes precedence over the per-type
+        // path because exception registrations don't go through
+        // `self.types` (they live in `self.exceptions`).
+        if let Some(idx) = self.last_exception_idx {
+            let fqn = self.resolve_class_fqn(name.as_ref());
+            self.exceptions[idx].kotlin_fqn = fqn;
+            return self;
+        }
         let key = self
             .last_meta_key
             .clone()
@@ -703,7 +816,8 @@ impl JniExt {
             .expect(
                 "JniExt::kotlin_name must be chained immediately after a \
                  `kotlin_class` / `kotlin_value_type` / `input_decoder` / \
-                 `output_encoder` / `callback_input` / `callback_kotlin_name` call",
+                 `output_encoder` / `callback_input` / `callback_kotlin_name` / \
+                 `kotlin_exception_class` call",
             );
         let is_callback = self
             .types
@@ -799,6 +913,7 @@ impl JniExt {
         entry.callback_kotlin_fqn = Some(String::new());
         self.last_opaque_key = None;
         self.last_meta_key = Some(key);
+        self.last_exception_idx = None;
         self
     }
 
@@ -820,6 +935,7 @@ impl JniExt {
             .push((key.as_str().to_string(), fqn));
         self.last_opaque_key = None;
         self.last_meta_key = Some(key);
+        self.last_exception_idx = None;
         self
     }
 
@@ -838,6 +954,7 @@ impl JniExt {
             .push((key.as_str().to_string(), fqn));
         self.last_opaque_key = None;
         self.last_meta_key = Some(key);
+        self.last_exception_idx = None;
         self
     }
 
@@ -854,6 +971,7 @@ impl JniExt {
             .insert(key, sources.into_iter().collect());
         self.last_opaque_key = None;
         self.last_meta_key = None;
+        self.last_exception_idx = None;
         self
     }
 
@@ -872,6 +990,7 @@ impl JniExt {
         let rank = B::rank();
         self.input_wrappers[rank].insert(key, builder.into_wrapper_fn());
         self.last_opaque_key = None;
+        self.last_exception_idx = None;
         self
     }
 
@@ -888,7 +1007,31 @@ impl JniExt {
         let rank = B::rank();
         self.output_wrappers[rank].insert(key, builder.into_wrapper_fn());
         self.last_opaque_key = None;
+        self.last_exception_idx = None;
         self
+    }
+
+    /// Find the registered exception that owns a particular
+    /// `output_throws` pattern (by canonical [`TypeKey`]). Returns
+    /// `None` for patterns not registered under any exception (those
+    /// fall through to the plain `output_wrapper` path in
+    /// [`Self::lookup_output_wrapper`]).
+    pub(crate) fn exception_owning_pattern(
+        &self,
+        key: &TypeKey,
+    ) -> Option<&ExceptionConfig> {
+        self.exceptions
+            .iter()
+            .find(|e| e.output_throws.iter().any(|ot| &ot.pattern_key == key))
+    }
+
+    /// The primary (first-registered) exception, or `None` when no
+    /// `kotlin_exception_class` has been declared yet. Consumed by
+    /// [`Self::prerequisites`] (to splice `__JniErr`),
+    /// [`Self::write_native_handle`] (Kotlin FQN), and various Kotlin
+    /// emitters defaulting to the primary's throw fn.
+    pub(crate) fn primary_exception(&self) -> Option<&ExceptionConfig> {
+        self.exceptions.first()
     }
 
     // ── Wrapper-table lookups (used by PrebindgenExt impl) ───────────
@@ -951,13 +1094,14 @@ impl JniExt {
         // downstream typed-handle / opaque-ctor lookups can find the
         // wrapped value's identity without baking a Result-shape into
         // the framework.
-        if let Some((exc_fqn, throw_action)) = self.output_throws_meta.get(&key) {
+        if let Some(exc) = self.exception_owning_pattern(&key) {
+            let throw_path = exception_throw_path(exc);
             let sentinel = sentinel_for_wire(&wire);
             let function = build_output_throws_fn(
                 &outer,
                 &wire,
                 &body,
-                throw_action,
+                &throw_path,
                 &sentinel,
             );
             let inherited = if rank >= 1 {
@@ -978,8 +1122,8 @@ impl JniExt {
                 niches,
                 metadata: KotlinMeta {
                     kotlin_name: inherited.0,
-                    throws: Some(exc_fqn.clone()),
-                    throws_action: Some(throw_action.clone()),
+                    throws: Some(exc.kotlin_fqn.clone()),
+                    throws_action: Some(throw_path),
                     value_rust_key: inherited.1,
                 },
             });
@@ -991,6 +1135,19 @@ impl JniExt {
             metadata: KotlinMeta::default(),
         })
     }
+}
+
+/// Crate-rooted path to the generated `throw_<short>` free function for
+/// `exc` (e.g. `crate::throw_ZError`). Emitted into wrapper code as a
+/// direct call — `<path>(&mut env, &err)` — so the trait/macro dance
+/// the legacy `throw_exception!` indirection performed is replaced with
+/// a plain function call. The function itself is generated by
+/// [`JniExt::build_exception_items`] into the
+/// `zenoh_flat_jni_exceptions.rs` file the binding crate includes at
+/// crate root.
+pub(crate) fn exception_throw_path(exc: &ExceptionConfig) -> syn::Path {
+    let ident = &exc.throw_fn_name;
+    syn::parse_quote!(crate::#ident)
 }
 
 /// Substitute the wildcard `_` slots of `pat` with `args` (left-to-right
@@ -1373,6 +1530,67 @@ impl JniExt {
             metadata: KotlinMeta::from_name("Any"),
         })
     }
+
+    /// Emit the self-contained exception infrastructure file — one
+    /// `pub(crate) fn throw_<short>(env: &mut JNIEnv, err: &<RustType>)`
+    /// per registered [`Self::kotlin_exception_class`]. Each function
+    /// performs the `find_class(<slash-form>)` + `throw_new(err.to_string())`
+    /// dance and logs on failure. The binding crate `include!`s the
+    /// returned file at crate root so the throw fns land at
+    /// `crate::throw_<short>` — that's the path
+    /// [`exception_throw_path`] returns and the wrapper code in
+    /// `zenoh_flat_jni.rs` calls directly.
+    ///
+    /// `out_path` may be relative (resolved against `OUT_DIR` by
+    /// prebindgen) or absolute. Returns the path actually written.
+    /// Panics if no exception has been declared yet — the wrappers in
+    /// the companion file would reference undefined symbols, so the
+    /// build is misconfigured.
+    pub fn write_exceptions_rust(
+        &self,
+        out_path: impl AsRef<std::path::Path>,
+    ) -> std::path::PathBuf {
+        if self.exceptions.is_empty() {
+            panic!(
+                "JniExt::write_exceptions_rust: no exception class registered \
+                 — call `.kotlin_exception_class(\"path::to::ErrorType\")` first"
+            );
+        }
+        let items: Vec<syn::Item> =
+            self.exceptions.iter().map(build_throw_fn_item).collect();
+        let dest: prebindgen::collect::Destination = items.into_iter().collect();
+        dest.write(out_path)
+    }
+}
+
+/// One `pub(crate) fn throw_<short>(...)` item for an exception. The
+/// emitted body matches the legacy hand-written `impl ThrowOnJvm for
+/// ZError` exactly (find_class via slash-form FQN, throw_new with
+/// `err.to_string()`, `tracing::error!` on either failure) so swapping
+/// the macro indirection for a direct call is a pure refactor — same
+/// runtime behaviour, fewer indirections.
+fn build_throw_fn_item(exc: &ExceptionConfig) -> syn::Item {
+    let throw_fn = &exc.throw_fn_name;
+    let rust_ty = &exc.rust_path;
+    let class_path_slashes = exc.kotlin_fqn.replace('.', "/");
+    syn::parse_quote!(
+        #[allow(non_snake_case)]
+        pub(crate) fn #throw_fn(
+            env: &mut jni::JNIEnv,
+            err: &#rust_ty,
+        ) {
+            let exception_class = match env.find_class(#class_path_slashes) {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::error!("Failed to retrieve exception class: {}", e);
+                    return;
+                }
+            };
+            if let Err(e) = env.throw_new(exception_class, err.to_string()) {
+                tracing::error!("Failed to throw exception: {}", e);
+            }
+        }
+    )
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -1394,13 +1612,12 @@ impl PrebindgenExt for JniExt {
     /// the same generated file, so no `use` paths leak into the host
     /// crate's source tree.
     fn prerequisites(&self) -> Vec<syn::Item> {
-        if self.error_type.is_ident("__JNIEXT_ERROR_TYPE_UNSET__") {
-            panic!(
-                "JniExt: error_type is not configured — call `.error_type(\"path::to::ErrorType\")` \
-                 (the type must implement `From<String>`)"
-            );
-        }
-        let error_type = &self.error_type;
+        let primary = self.primary_exception().unwrap_or_else(|| panic!(
+            "JniExt: no exception class registered — call \
+             `.kotlin_exception_class(\"path::to::ErrorType\")` at least once \
+             (the primary error type must implement `From<String>`)"
+        ));
+        let error_type = &primary.rust_path;
         // Single splice point for the configured error type: every generated
         // converter signature and internal-failure construction site refers to
         // the `__JniErr` alias instead of the concrete path.
@@ -1841,16 +2058,19 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
     // The throw action for wrapper-internal failures (input-decode `?`)
     // comes from the same `output_throws` registration the return-type
     // converter is bound to — no separate global throw config. The
-    // converter's `KotlinMeta.throws_action` carries it through the
-    // registry (populated by `lookup_output_wrapper` when an
-    // `output_throws` registration matches).
-    let body = if let Some(throw_action) = output_entry.metadata.throws_action.clone() {
+    // converter's `KotlinMeta.throws_action` carries the path to the
+    // generated `throw_<short>` free function emitted by
+    // [`JniExt::build_exception_items`]; we splice a direct call to it
+    // (no macro indirection) so the generated file stays self-contained.
+    let body = if let Some(throw_fn) = output_entry.metadata.throws_action.clone() {
         // Throwing converter: wrapper-internal `?` failures get the same
         // throw treatment as the converter would apply. The closure's
         // success type is inferred from `Ok(#call_expr)` — `_` rather
         // than the source fn's literal return-type tokens, so type
         // aliases (`ZResult`, `MyResult`, ...) used by the source fn
         // need not be in scope at the generated wrappers' include site.
+        // `env` is owned by value in the extern signature; pass `&mut env`
+        // to the throw fn.
         quote! {
             {
                 let __r: ::core::result::Result<_, __JniErr> = (|| {
@@ -1860,7 +2080,7 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
                 match __r {
                     Ok(__v)  => #conv(&mut env, __v),
                     Err(__e) => {
-                        #throw_action!(env, __e);
+                        #throw_fn(&mut env, &__e);
                         #on_err
                     }
                 }
@@ -1932,15 +2152,16 @@ fn mangle_jni_name(ext: &JniExt, ident: &syn::Ident) -> syn::Ident {
 /// for custom detection like `i32 < 0`). The framework wraps the body in a
 /// `(|| -> Result<wire, __JniErr> { Ok(body) })()` closure to give those
 /// `?`/`return` operators somewhere to land, then `match`es the closure's
-/// result: on `Ok` it returns the wire value; on `Err` it invokes
-/// `<throw_action>!(env, err)` and substitutes `sentinel`. The emitted
+/// result: on `Ok` it returns the wire value; on `Err` it invokes the
+/// generated `throw_<short>` free function (path resolved via
+/// [`exception_throw_path`]) and substitutes `sentinel`. The emitted
 /// function therefore returns the bare `wire` type — the converter has
 /// fully consumed the error case by throwing.
 fn build_output_throws_fn(
     rust: &syn::Type,
     wire: &syn::Type,
     body: &syn::Expr,
-    throw_action: &syn::Path,
+    throw_fn: &syn::Path,
     sentinel: &TokenStream,
 ) -> syn::ItemFn {
     let name = output_name(rust, wire);
@@ -1953,10 +2174,10 @@ fn build_output_throws_fn(
             match __r {
                 Ok(__w) => __w,
                 Err(__e) => {
-                    // `env` is `&mut JNIEnv`; deref so the throw macro's
-                    // `&mut $env` re-borrows as `&mut JNIEnv` rather than
-                    // `&mut &mut JNIEnv`.
-                    #throw_action!(*env, __e);
+                    // `env` is `&mut JNIEnv` — pass it straight through;
+                    // the generated `throw_<short>` fn takes the same
+                    // reference type and a `&__e` borrow of the error.
+                    #throw_fn(env, &__e);
                     #sentinel
                 }
             }

@@ -15,7 +15,7 @@
 package io.zenoh.jni
 
 import io.zenoh.ZenohLoad
-import io.zenoh.exceptions.ZError
+import io.zenoh.jni.ZError
 
 /** Adapter for initializing Rust logging through JNI. */
 public object JNILogger {

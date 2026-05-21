@@ -17,7 +17,7 @@ package io.zenoh
 import io.zenoh.Logger.Companion.LOG_ENV
 import io.zenoh.config.WhatAmI
 import io.zenoh.config.ZenohId
-import io.zenoh.exceptions.ZError
+import io.zenoh.jni.ZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler

@@ -16,7 +16,7 @@ package io.zenoh.session
 
 import io.zenoh.Session
 import io.zenoh.config.ZenohId
-import io.zenoh.exceptions.ZError
+import io.zenoh.jni.ZError
 
 /**
  * Class allowing to obtain the information of a [Session].

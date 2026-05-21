@@ -14,7 +14,7 @@
 
 package io.zenoh
 
-import io.zenoh.exceptions.ZError
+import io.zenoh.jni.ZError
 import io.zenoh.jni.JNILogger
 
 /** Logger class to redirect the Rust logs from Zenoh to the kotlin environment. */

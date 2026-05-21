@@ -20,11 +20,9 @@ use jni::{
 use zenoh::bytes::ZBytes;
 use zenoh_ext::{VarInt, ZDeserializeError, ZDeserializer, ZSerializer};
 
-use crate::{
-    errors::ZResult,
-    throw_exception,
-    utils::{bytes_to_java_array, decode_byte_array},
-};
+use zenoh_flat::errors::ZResult;
+
+use crate::utils::{bytes_to_java_array, decode_byte_array};
 
 enum JavaType {
     Boolean,
@@ -173,7 +171,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIZBytes_serializeViaJNI(
         Ok(byte_array.as_raw())
     }()
     .unwrap_or_else(|err| {
-        throw_exception!(env, err);
+        crate::throw_ZError(&mut env, &err);
         JObject::default().as_raw()
     })
 }
@@ -302,7 +300,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIZBytes_deserializeViaJNI(
         Ok(obj)
     }()
     .unwrap_or_else(|err| {
-        throw_exception!(env, err);
+        crate::throw_ZError(&mut env, &err);
         JObject::default().as_raw()
     })
 }

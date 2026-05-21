@@ -25,7 +25,9 @@ use zenoh::{
     session::EntityGlobalId,
 };
 
-use crate::{errors::ZResult, utils::*};
+use zenoh_flat::errors::ZResult;
+
+use crate::utils::*;
 
 pub(crate) fn on_reply_success(
     env: &mut JNIEnv,

@@ -16,7 +16,7 @@ package io.zenoh.keyexpr
 
 import io.zenoh.Session
 import io.zenoh.session.SessionDeclaration
-import io.zenoh.exceptions.ZError
+import io.zenoh.jni.ZError
 import io.zenoh.jni.JNIKeyExpr
 import io.zenoh.query.IntoSelector
 import io.zenoh.query.Selector

@@ -23,7 +23,7 @@ use zenoh_ext::{AdvancedSubscriber, Miss, SampleMissListenerBuilder};
 
 use jni::objects::JObject;
 
-use crate::errors::ZResult;
+use zenoh_flat::errors::ZResult;
 use jni::objects::JValue;
 use zenoh::Wait;
 
@@ -32,7 +32,6 @@ use crate::session::OwnedObject;
 use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close, wrap_with_on_close};
 use std::ptr::null;
 
-use crate::throw_exception;
 
 trait SetJniSampleMissListenerCallback {
     type WithCallback;
@@ -156,7 +155,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareDetectPu
         Ok(Box::into_raw(Box::new(detect_publishers_subscriber)) as *const Subscriber<()>)
     }()
     .unwrap_or_else(|err| {
-        throw_exception!(env, err);
+        crate::throw_ZError(&mut env, &err);
         null()
     })
 }
@@ -223,7 +222,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareBackgrou
         Ok(())
     }()
     .unwrap_or_else(|err| {
-        throw_exception!(env, err);
+        crate::throw_ZError(&mut env, &err);
     });
 }
 
@@ -282,7 +281,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareSampleMi
         Ok(Box::into_raw(Box::new(sample_miss_listener)) as *const SampleMissListener<()>)
     }()
     .unwrap_or_else(|err| {
-        throw_exception!(env, err);
+        crate::throw_ZError(&mut env, &err);
         null()
     })
 }
@@ -339,7 +338,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareBackgrou
         Ok(())
     }()
     .unwrap_or_else(|err| {
-        throw_exception!(env, err);
+        crate::throw_ZError(&mut env, &err);
     })
 }
 

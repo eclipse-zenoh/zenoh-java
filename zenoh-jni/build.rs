@@ -15,41 +15,35 @@ use prebindgen_ext::jni::jni_ext::KotlinMeta;
 use prebindgen_ext::jni::JniExt;
 
 fn main() {
-    // Throws metadata shared by every error-producing output type below.
-    // Two values: the Kotlin exception class for `@Throws` annotations,
-    // and the Rust macro path the generated wrappers invoke to raise it
-    // on `JNIEnv`. There is no global throws default in `JniExt` —
-    // exception behavior is declared per output type via `output_throws`.
-    let exc = "io.zenoh.exceptions.ZError";
-    let throw = "crate::throw_exception";
-
     let jni = JniExt::new()
         .source_module("zenoh_flat")
+        // Bring `zenoh-flat`'s `ZResult<T>` alias into scope at the
+        // generated file: the source `#[prebindgen]` fns return it by
+        // short name, and the `output_throws("ZResult < _ >", ...)`
+        // registration below takes a `v: ZResult<T>` parameter, so the
+        // identifier must resolve in the include site. The framework
+        // itself stays unaware of any specific Result-shape alias.
+        .add_prerequisite(syn::parse_quote!(use zenoh_flat::errors::ZResult;))
+        .package("io.zenoh.jni")
+        .jni_method_suffix("ViaJNI")
         // Single error type spliced into every generated `Result<_, _>`
         // signature; must impl `From<String>` (see `zenoh-flat/src/errors.rs`).
-        .error_type("crate::errors::ZError")
-        // Bring zenoh's `ZResult<T>` alias into scope at the generated
-        // file: the source `#[prebindgen]` fns return it by short name, and
-        // the `output_throws("ZResult < _ >", ...)` registration below
-        // takes a `v: ZResult<T>` parameter, so the identifier must
-        // resolve in the include site. The framework itself stays unaware
-        // of any specific Result-shape alias.
-        .add_prerequisite(syn::parse_quote!(use crate::errors::ZResult;))
-        // Kotlin exception class thrown by the generated `NativeHandle`
-        // base class when an operation hits a closed handle.
-        .native_handle_exception_class(exc)
-        // Throwing output converters — one per Rust output shape that can
-        // surface a JVM exception. The framework knows nothing about
-        // `Result`/`ZResult`; the binding spells the shape out here:
+        // Also generates the `io.zenoh.jni.ZError` Kotlin class and the
+        // crate-root `crate::throw_ZError(env, &err)` free function the
+        // wrappers below dispatch to. NativeHandle's closed-handle
+        // exception is the primary (first-registered) here.
+        //
+        // Chained `.output_throws(...)` registrations are scoped to this
+        // exception. The framework knows nothing about `Result`/`ZResult`;
+        // the binding spells each shape out here:
         //   * `ZResult<T>` peels via `?` and delegates to T's inner output
         //     converter — same body the framework used to hardcode.
         //   * `()` is the identity passthrough for void-returning JNI
-        //     externs (its `throws_action` catches input-decode `?`
+        //     externs (its throw action catches input-decode `?`
         //     failures, since the converter body itself never errors).
+        .kotlin_exception_class("zenoh_flat::errors::ZError")
         .output_throws(
             "ZResult < _ >",
-            exc,
-            throw,
             |t: &syn::Type, reg: &Registry<KotlinMeta>| {
                 let inner = reg.output_entry(t)?;
                 let inner_wire = inner.destination.clone();
@@ -63,11 +57,9 @@ fn main() {
                 ))
             },
         )
-        .output_throws("()", exc, throw, |_reg: &Registry<KotlinMeta>| {
+        .output_throws("()", |_reg: &Registry<KotlinMeta>| {
             Some((syn::parse_quote!(()), syn::parse_quote!({ v })))
         })
-        .package("io.zenoh.jni")
-        .jni_method_suffix("ViaJNI")
         // ── Kotlin classes — `kotlin_class` configures: jlong wire
         // (input + output), `Box::into_raw`/`Box::from_raw` lifecycle,
         // `instanceof` dispatch class, and the Kotlin parameter-type
@@ -212,6 +204,19 @@ fn main() {
     println!(
         "cargo:warning=Generated bindings at: {}",
         rust_path.display()
+    );
+
+    // Self-contained exception infrastructure — one `pub(crate) fn
+    // throw_<short>(env, err)` per registered `kotlin_exception_class`.
+    // The binding crate `include!`s this at crate root so the throw fns
+    // land at `crate::throw_<short>` (which is what the wrapper code in
+    // `zenoh_flat_jni.rs` calls). Replaces the hand-written
+    // `src/errors.rs` (`ThrowOnJvm` trait + impl + `throw_exception!`
+    // macro) end-to-end.
+    let exc_path = jni.write_exceptions_rust("zenoh_flat_jni_exceptions.rs");
+    println!(
+        "cargo:warning=Generated exceptions at: {}",
+        exc_path.display()
     );
 
     // ── Write Kotlin output ───────────────────────────────────────────

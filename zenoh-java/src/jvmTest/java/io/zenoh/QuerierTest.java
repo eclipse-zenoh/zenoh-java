@@ -15,7 +15,7 @@
 package io.zenoh;
 
 import io.zenoh.bytes.ZBytes;
-import io.zenoh.exceptions.ZError;
+import io.zenoh.jni.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.query.Querier;
 import io.zenoh.query.Reply;

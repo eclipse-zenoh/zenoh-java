@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use crate::{errors::ZResult, throw_exception};
+use zenoh_flat::errors::ZResult;
 use jni::{
     objects::{JByteArray, JObject, JString},
     sys::jint,
@@ -72,7 +72,7 @@ pub(crate) fn get_java_vm(env: &mut JNIEnv) -> ZResult<JavaVM> {
 pub(crate) fn get_callback_global_ref(
     env: &mut JNIEnv,
     callback: &JObject,
-) -> crate::errors::ZResult<jni::objects::GlobalRef> {
+) -> zenoh_flat::errors::ZResult<jni::objects::GlobalRef> {
     env.new_global_ref(callback)
         .map_err(|err| zerror!("Unable to get reference to the provided callback: {}", err))
 }
@@ -212,9 +212,9 @@ pub(crate) fn load_on_close(
                 Ok(_) => (),
                 Err(err) => {
                     _ = env.exception_describe();
-                    throw_exception!(
-                        env,
-                        zerror!("Error while running 'onClose' callback: {}", err)
+                    crate::throw_ZError(
+                        &mut env,
+                        &zerror!("Error while running 'onClose' callback: {}", err),
                     );
                 }
             }

@@ -14,7 +14,7 @@
 
 package io.zenoh.jni
 
-import io.zenoh.exceptions.ZError
+import io.zenoh.jni.ZError
 import io.zenoh.jni.callbacks.JNIMatchingListenerCallback
 import io.zenoh.jni.callbacks.JNIOnCloseCallback
 

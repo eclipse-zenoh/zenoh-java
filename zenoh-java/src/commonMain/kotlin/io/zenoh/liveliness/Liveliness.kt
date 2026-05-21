@@ -19,7 +19,7 @@ import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.into
 import io.zenoh.config.EntityGlobalId
 import io.zenoh.config.ZenohId
-import io.zenoh.exceptions.ZError
+import io.zenoh.jni.ZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler

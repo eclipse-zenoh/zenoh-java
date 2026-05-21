@@ -14,7 +14,7 @@
 
 package io.zenoh;
 
-import io.zenoh.exceptions.ZError;
+import io.zenoh.jni.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.keyexpr.SetIntersectionLevel;
 import org.junit.Test;

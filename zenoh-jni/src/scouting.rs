@@ -24,7 +24,7 @@ use zenoh::{scouting::Scout, Config};
 
 use crate::session::OwnedObject;
 use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close};
-use crate::{errors::ZResult, throw_exception};
+use zenoh_flat::errors::ZResult;
 
 /// Start a scout.
 ///
@@ -95,7 +95,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIScout_00024Companion_scoutViaJNI(
             .map_err(|err| zerror!(err))
     }()
     .unwrap_or_else(|err| {
-        throw_exception!(env, err);
+        crate::throw_ZError(&mut env, &err);
         null()
     })
 }

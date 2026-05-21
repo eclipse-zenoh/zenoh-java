@@ -23,7 +23,7 @@ macro_rules! zerror {
     };
 }
 
-pub(crate) type ZResult<T> = core::result::Result<T, ZError>;
+pub type ZResult<T> = core::result::Result<T, ZError>;
 
 #[derive(Debug)]
 pub struct ZError(pub String);

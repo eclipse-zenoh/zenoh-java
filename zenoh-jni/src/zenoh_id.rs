@@ -12,7 +12,8 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use crate::{errors::ZResult, throw_exception, utils::decode_byte_array};
+use zenoh_flat::errors::ZResult;
+use crate::utils::decode_byte_array;
 use jni::{
     objects::{JByteArray, JClass, JList, JString},
     sys::{jbyteArray, jobject, jstring},
@@ -57,7 +58,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIZenohId_toStringViaJNI(
             .map_err(|err| zerror!(err))
     }()
     .unwrap_or_else(|err| {
-        throw_exception!(env, err);
+        crate::throw_ZError(&mut env, &err);
         JString::default()
     })
     .as_raw()

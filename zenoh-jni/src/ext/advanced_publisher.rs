@@ -26,12 +26,10 @@ use zenoh_ext::AdvancedPublisher;
 use crate::session::OwnedObject;
 use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close};
 
-use crate::throw_exception;
 
-use crate::{
-    errors::ZResult,
-    utils::{decode_byte_array, decode_jni_encoding},
-};
+use zenoh_flat::errors::ZResult;
+
+use crate::utils::{decode_byte_array, decode_jni_encoding};
 use jni::sys::jboolean;
 use std::ptr::null;
 
@@ -138,7 +136,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_declareMatchingL
         Ok(Box::into_raw(Box::new(matching_listener)) as *const MatchingListener<()>)
     }()
     .unwrap_or_else(|err| {
-        throw_exception!(env, err);
+        crate::throw_ZError(&mut env, &err);
         null()
     })
 }
@@ -195,7 +193,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_declareBackgroun
         Ok(())
     }()
     .unwrap_or_else(|err| {
-        throw_exception!(env, err);
+        crate::throw_ZError(&mut env, &err);
     });
 }
 
@@ -224,7 +222,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_getMatchingStatu
     _class: JClass,
     advanced_publisher_ptr: *const AdvancedPublisher,
 ) -> jboolean {
-    use crate::errors::ZError;
+    use zenoh_flat::errors::ZError;
 
     let advanced_publisher = OwnedObject::from_raw(advanced_publisher_ptr);
     advanced_publisher
@@ -233,7 +231,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_getMatchingStatu
         .map(|val| val.matching() as jboolean)
         .map_err(|e| zerror!(e.to_string()))
         .unwrap_or_else(|err: ZError| {
-            throw_exception!(env, err);
+            crate::throw_ZError(&mut env, &err);
             false as jboolean
         })
 }
@@ -277,7 +275,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_putViaJNI(
         };
         publication.wait().map_err(|err| zerror!(err))
     }()
-    .map_err(|err| throw_exception!(env, err));
+    .map_err(|err| crate::throw_ZError(&mut env, &err));
 }
 
 /// Performs a DELETE operation on an [AdvancedPublisher] via JNI.
@@ -311,7 +309,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_deleteViaJNI(
         };
         delete.wait().map_err(|err| zerror!(err))
     }()
-    .map_err(|err| throw_exception!(env, err));
+    .map_err(|err| crate::throw_ZError(&mut env, &err));
 }
 
 /// Frees the [AdvancedPublisher].

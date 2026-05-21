@@ -14,7 +14,7 @@
 
 package io.zenoh
 
-import io.zenoh.exceptions.ZError
+import io.zenoh.jni.ZError
 import io.zenoh.jni.JNIConfig
 import java.io.File
 import java.nio.file.Path
