@@ -43,15 +43,24 @@ fn main() {
                 let inner_wire = inner.destination.clone();
                 let inner_conv = inner.function.sig.ident.clone();
                 // Throws-marked inner converters (e.g. `()` bound via a
-                // chained `.throws()`) return bare wire — the `?`
-                // operator cannot be applied. Non-throws converters
-                // return `Result<wire, __JniErr>` and `?` propagates the
-                // inner error to this wrapper's own match-throw.
-                let inner_throws = inner.metadata.throws_action.is_some();
-                let inner_call: syn::Expr = if inner_throws {
-                    parse_quote!(#inner_conv(env, __i))
-                } else {
+                // chained `.throws("ZError")`) return bare wire — the `?`
+                // operator cannot be applied. Plain converters return
+                // `Result<wire, __JniErr>` and `?` propagates the inner
+                // error to this wrapper's own match-throw. Discriminate
+                // by the inner converter's actual return type: a
+                // last-segment `Result` ⇒ plain (apply `?`), anything
+                // else ⇒ bare wire.
+                let inner_returns_result = matches!(
+                    &inner.function.sig.output,
+                    syn::ReturnType::Type(_, ty)
+                        if matches!(&**ty, syn::Type::Path(tp)
+                            if tp.path.segments.last()
+                                .map(|s| s.ident == "Result").unwrap_or(false))
+                );
+                let inner_call: syn::Expr = if inner_returns_result {
                     parse_quote!(#inner_conv(env, __i)?)
+                } else {
+                    parse_quote!(#inner_conv(env, __i))
                 };
                 Some((
                     inner_wire,
@@ -62,11 +71,11 @@ fn main() {
                 ))
             },
         )
-        .throws()
+        .throws("ZError")
         .output_wrapper("()", |_reg: &Registry<KotlinMeta>| {
             Some((parse_quote!(()), parse_quote!({ v })))
         })
-        .throws()
+        .throws("ZError")
         // ── Kotlin classes — `kotlin_class` configures: jlong wire
         // (input + output), `Box::into_raw`/`Box::from_raw` lifecycle,
         // `instanceof` dispatch class, and the Kotlin parameter-type
@@ -134,13 +143,19 @@ fn main() {
         // ── Value-shaped custom converters. Non-primitive wires
         // (`JObject` / `jobject`) chain `kotlin_name` to bind the
         // value-context Kotlin type; primitive wires (`jint`,
-        // `jbyteArray`) auto-derive via `kotlin_for_wire`.
+        // `jbyteArray`) auto-derive via `kotlin_for_wire`. These call
+        // into zenoh code that returns `ZError`, so they chain
+        // `.throws("ZError")` — a decode/encode failure surfaces as a
+        // zenoh error, not the framework `JniBindingError`.
+        // (`SetIntersectionLevel` is an infallible `as` cast, so it
+        // keeps the framework default.)
         .input_wrapper("Encoding", |_reg: &Registry<KotlinMeta>| {
             Some((
                 parse_quote!(jni::objects::JObject),
                 parse_quote!(crate::utils::decode_jni_encoding(env, &v)?),
             ))
         })
+        .throws("ZError")
         .kotlin_name("JNIEncoding")
         .input_wrapper("Option<Encoding>", |_reg: &Registry<KotlinMeta>| {
             Some((
@@ -154,6 +169,7 @@ fn main() {
                 ),
             ))
         })
+        .throws("ZError")
         .kotlin_name("JNIEncoding")
         .output_wrapper("SetIntersectionLevel", |_reg: &Registry<KotlinMeta>| {
             Some((
@@ -167,12 +183,14 @@ fn main() {
                 parse_quote!(crate::zenoh_id::zenoh_id_to_byte_array(env, v)?),
             ))
         })
+        .throws("ZError")
         .output_wrapper("Vec<ZenohId>", |_reg: &Registry<KotlinMeta>| {
             Some((
                 parse_quote!(jni::sys::jobject),
                 parse_quote!(crate::zenoh_id::zenoh_ids_to_java_list(env, v)?),
             ))
         })
+        .throws("ZError")
         .with_kotlin_type("List<ByteArray>")
         // ── Manual callback overrides — replaces the auto-generated
         // `process_kotlin_*_callback` dispatcher with a hand-written

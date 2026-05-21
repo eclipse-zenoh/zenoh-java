@@ -221,17 +221,19 @@ impl JniExt {
     /// generating it here, the prebindgen-ext pipeline owns the lock
     /// primitive the rest of the auto-generated wrappers depend on.
     /// The Kotlin exception thrown on closed-handle access is the
-    /// *primary* (first-registered) `kotlin_exception_class`.
+    /// binding's primary *application* exception (e.g. `ZError`) — a
+    /// closed-handle access is part of the public API contract, so it
+    /// keeps the domain exception rather than the framework
+    /// `JniBindingError`. Falls back to the framework exception only
+    /// when the binding declared no application exception.
     pub(crate) fn write_native_handle(&self, output_dir: &Path) -> Result<PathBuf, WriteKotlinError> {
-        let primary = self.primary_exception().unwrap_or_else(|| panic!(
-            "JniExt: no exception class registered — call \
-             `.kotlin_exception_class(\"path::to::ErrorType\")` first \
-             (NativeHandle's closed-handle throw uses the primary)"
-        ));
+        let exc = self
+            .primary_application_exception()
+            .unwrap_or_else(|| self.framework_exception());
         let file = KotlinFile {
             package: self.package.clone(),
             class_name: "NativeHandle".into(),
-            contents: render_native_handle_source(&self.package, &primary.kotlin_fqn),
+            contents: render_native_handle_source(&self.package, &exc.kotlin_fqn),
         };
         Ok(file.write(output_dir)?)
     }
@@ -1264,11 +1266,26 @@ fn render_wrapper_fn(
 
     let _ = ext; // ext no longer needed here — throws comes from registry metadata
     let mut out = String::new();
-    // `@Throws` is driven by the return-type's output converter metadata:
-    // emit it (and import the exception class) only when the registered
-    // converter opted in via a chained `output_wrapper(...).throws()`.
-    // Non-throwing output converters (plain `output_wrapper`) carry no
-    // `throws` metadata and emit no `@Throws` annotation.
+    // `@Throws` is the UNION of every converter the wrapper drives:
+    //   * each input parameter's converter (its `?` failure raises that
+    //     converter's exception — framework `JniBindingError` by default,
+    //     or a custom one bound via `input_wrapper(...).throws("<exc>")`);
+    //   * the return type's output converter (raises its bound exception,
+    //     or the framework error when unwrapping a plain `output_wrapper`).
+    // Collected into a `BTreeSet` so the emitted annotation is sorted and
+    // deterministic; converters with no `throws` metadata contribute
+    // nothing.
+    let mut throws_fqns: BTreeSet<String> = BTreeSet::new();
+    for input in &f.sig.inputs {
+        let syn::FnArg::Typed(pt) = input else { continue };
+        let arg_ty = &*pt.ty;
+        if let Some(fqn) = registry
+            .input_entry(arg_ty)
+            .and_then(|e| e.metadata.throws.clone())
+        {
+            throws_fqns.insert(fqn);
+        }
+    }
     let return_ty: syn::Type = match &f.sig.output {
         syn::ReturnType::Default => syn::parse_quote!(()),
         syn::ReturnType::Type(_, ty) => (**ty).clone(),
@@ -1277,8 +1294,14 @@ fn render_wrapper_fn(
         .output_entry(&return_ty)
         .and_then(|e| e.metadata.throws.clone())
     {
-        let short = register_fqn(&fqn, imports);
-        let _ = writeln!(out, "@Throws({short}::class)");
+        throws_fqns.insert(fqn);
+    }
+    if !throws_fqns.is_empty() {
+        let parts: Vec<String> = throws_fqns
+            .iter()
+            .map(|fqn| format!("{}::class", register_fqn(fqn, imports)))
+            .collect();
+        let _ = writeln!(out, "@Throws({})", parts.join(", "));
     }
     let param_list: Vec<String> = params
         .iter()
