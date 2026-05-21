@@ -27,26 +27,26 @@ fn main() {
         // wrappers below dispatch to. NativeHandle's closed-handle
         // exception is the primary (first-registered) here.
         //
-        // Chained `.output_throws(...)` registrations are scoped to this
-        // exception. The framework knows nothing about `Result`/`ZResult`;
-        // the binding spells each shape out here:
+        // Chained `output_wrapper(...).throws()` registrations are scoped
+        // to this exception. The framework knows nothing about
+        // `Result`/`ZResult`; the binding spells each shape out here:
         //   * `ZResult<T>` peels via `?` and delegates to T's inner output
         //     converter — same body the framework used to hardcode.
         //   * `()` is the identity passthrough for void-returning JNI
         //     externs (its throw action catches input-decode `?`
         //     failures, since the converter body itself never errors).
         .kotlin_exception_class("zenoh_flat::errors::ZError")
-        .output_throws(
+        .output_wrapper(
             "ZResult < _ >",
             |t: &syn::Type, reg: &Registry<KotlinMeta>| {
                 let inner = reg.output_entry(t)?;
                 let inner_wire = inner.destination.clone();
                 let inner_conv = inner.function.sig.ident.clone();
-                // Throws-marked inner converters (e.g. `()` registered via
-                // `output_throws("()", …)`) return bare wire — the `?`
-                // operator cannot be applied. Non-throws converters return
-                // `Result<wire, __JniErr>` and `?` propagates the inner
-                // error to this wrapper's own match-throw.
+                // Throws-marked inner converters (e.g. `()` bound via a
+                // chained `.throws()`) return bare wire — the `?`
+                // operator cannot be applied. Non-throws converters
+                // return `Result<wire, __JniErr>` and `?` propagates the
+                // inner error to this wrapper's own match-throw.
                 let inner_throws = inner.metadata.throws_action.is_some();
                 let inner_call: syn::Expr = if inner_throws {
                     parse_quote!(#inner_conv(env, __i))
@@ -62,9 +62,11 @@ fn main() {
                 ))
             },
         )
-        .output_throws("()", |_reg: &Registry<KotlinMeta>| {
+        .throws()
+        .output_wrapper("()", |_reg: &Registry<KotlinMeta>| {
             Some((parse_quote!(()), parse_quote!({ v })))
         })
+        .throws()
         // ── Kotlin classes — `kotlin_class` configures: jlong wire
         // (input + output), `Box::into_raw`/`Box::from_raw` lifecycle,
         // `instanceof` dispatch class, and the Kotlin parameter-type

@@ -1266,9 +1266,9 @@ fn render_wrapper_fn(
     let mut out = String::new();
     // `@Throws` is driven by the return-type's output converter metadata:
     // emit it (and import the exception class) only when the registered
-    // converter declared one via [`JniExt::output_throws`]. Non-throwing
-    // output converters (plain `output_wrapper`) carry no `throws`
-    // metadata and emit no `@Throws` annotation.
+    // converter opted in via a chained `output_wrapper(...).throws()`.
+    // Non-throwing output converters (plain `output_wrapper`) carry no
+    // `throws` metadata and emit no `@Throws` annotation.
     let return_ty: syn::Type = match &f.sig.output {
         syn::ReturnType::Default => syn::parse_quote!(()),
         syn::ReturnType::Type(_, ty) => (**ty).clone(),
@@ -1459,8 +1459,8 @@ fn classify_return(
     // Detect opaque return: T (or a wrapper W<T>) whose input converter
     // returns `OwnedObject<T>` (i.e. opaque-handle type). The wrapped-
     // value identity is carried generically via
-    // `KotlinMeta::value_rust_key` — populated by
-    // `JniExt::output_throws` for arity-1 wrappers — so the framework
+    // `KotlinMeta::value_rust_key` — populated by the throws arm of
+    // `lookup_output_wrapper` for arity-1 wrappers — so the framework
     // doesn't need to peel any specific Result/Option shape here.
     let outer_meta = registry.output_entry(ty).map(|e| e.metadata.clone());
     let inner_canon = outer_meta
