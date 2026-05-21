@@ -99,15 +99,6 @@ impl KotlinMeta {
 // Structured type-conversion configuration
 // ──────────────────────────────────────────────────────────────────────
 
-/// Specification for a single direction of a custom converter — the wire
-/// type the host language sees plus the converter body expression.
-#[derive(Clone)]
-pub(crate) struct ConverterSpec {
-    pub wire: syn::Type,
-    pub body: syn::Expr,
-    pub niches: Niches,
-}
-
 /// Per-exception-class configuration (driven by
 /// [`JniExt::kotlin_exception_class`]).
 ///
@@ -193,11 +184,6 @@ pub(crate) struct TypeConfig {
     /// `Box::into_raw`/`Box::from_raw` conventions, instanceof
     /// dispatch, and Kotlin typed-handle class emission.
     pub opaque: Option<OpaqueConfig>,
-    /// Custom input converter override (rank-0). Wins over JniExt's
-    /// primitive defaults.
-    pub input: Option<ConverterSpec>,
-    /// Custom output converter override (rank-0).
-    pub output: Option<ConverterSpec>,
     /// Kotlin FQN override for `impl Fn(...)` keys (replaces the
     /// auto-derived `JNI<Stem>Callback` name).
     pub callback_kotlin_fqn: Option<String>,
@@ -356,10 +342,13 @@ pub struct JniExt {
 
     /// Structured per-type configuration keyed by canonical Rust type.
     /// One entry per `Rust type ↔ JNI/Kotlin` rule; populated by the
-    /// structured builders (`kotlin_class`, `input_decoder`,
-    /// `output_encoder`, `jint_enum`, `callback_input`,
-    /// `callback_kotlin_name`, `kotlin_value_type`). Consulted first by
-    /// the [`PrebindgenExt`] rank-0 methods and by all Kotlin emitters.
+    /// structured builders (`kotlin_class`, `kotlin_value_type`,
+    /// `jint_enum`, `input_wrapper`, `output_wrapper`, `callback_input`,
+    /// `callback_kotlin_name`). Holds opaque-handle config, Kotlin
+    /// names, and callback FQNs; the converter bodies themselves live
+    /// in [`Self::input_wrappers`] / [`Self::output_wrappers`]. The
+    /// rank-0 dispatch order is opaque → wrapper-table → primitive →
+    /// struct.
     pub(crate) types: HashMap<TypeKey, TypeConfig>,
 
     /// `impl Into<target> + Send + 'static` source arms per target type.
@@ -378,9 +367,11 @@ pub struct JniExt {
     /// entry to extend. Cleared after each unrelated builder call.
     last_opaque_key: Option<TypeKey>,
 
-    /// Tracks the last decoder/encoder key registered so
-    /// [`Self::with_kotlin_name`] knows which entry to stamp. Cleared
-    /// after each unrelated builder call.
+    /// Tracks the last rank-0 wrapper / callback registration key so
+    /// [`Self::kotlin_name`] knows which entry to stamp. Set by
+    /// `input_wrapper` / `output_wrapper` (rank 0 only), `jint_enum`,
+    /// `callback_input`, `callback_kotlin_name`, and `kotlin_value_type`;
+    /// cleared after each unrelated builder call.
     last_meta_key: Option<TypeKey>,
 
     /// Tracks the last [`Self::kotlin_exception_class`] registration so
@@ -708,68 +699,6 @@ impl JniExt {
         self
     }
 
-    /// Register a custom rank-0 input converter for `rust_key`. The
-    /// converter body sees `env: &mut JNIEnv` and `v: &<wire>` in
-    /// scope and must produce a value of the Rust type.
-    ///
-    /// Chain [`Self::with_kotlin_name`] immediately after to bind the
-    /// Kotlin type name when the wire isn't a primitive that
-    /// `kotlin_for_wire` can resolve on its own (e.g.
-    /// `jni::objects::JObject`).
-    pub fn input_decoder(
-        mut self,
-        rust_key: impl AsRef<str>,
-        wire_type: impl AsRef<str>,
-        body_expr: impl AsRef<str>,
-    ) -> Self {
-        let key = TypeKey::parse(rust_key.as_ref());
-        let wire: syn::Type = syn::parse_str(wire_type.as_ref())
-            .unwrap_or_else(|e| panic!("input_decoder: invalid wire `{}`: {}", wire_type.as_ref(), e));
-        let body: syn::Expr = syn::parse_str(body_expr.as_ref())
-            .unwrap_or_else(|e| panic!("input_decoder: invalid body `{}`: {}", body_expr.as_ref(), e));
-        let entry = self.types.entry(key.clone()).or_default();
-        entry.input = Some(ConverterSpec {
-            wire,
-            body,
-            niches: Niches::empty(),
-        });
-        self.last_opaque_key = None;
-        self.last_meta_key = Some(key);
-        self.last_exception_idx = None;
-        self
-    }
-
-    /// Register a custom rank-0 output converter for `rust_key`. The
-    /// converter body sees `env: &mut JNIEnv` and `v: <rust_type>` in
-    /// scope and must produce a value of `wire_type`.
-    ///
-    /// Chain [`Self::with_kotlin_name`] immediately after to bind the
-    /// Kotlin type name when the wire isn't a primitive that
-    /// `kotlin_for_wire` can resolve on its own (e.g.
-    /// `jni::sys::jobject`).
-    pub fn output_encoder(
-        mut self,
-        rust_key: impl AsRef<str>,
-        wire_type: impl AsRef<str>,
-        body_expr: impl AsRef<str>,
-    ) -> Self {
-        let key = TypeKey::parse(rust_key.as_ref());
-        let wire: syn::Type = syn::parse_str(wire_type.as_ref())
-            .unwrap_or_else(|e| panic!("output_encoder: invalid wire `{}`: {}", wire_type.as_ref(), e));
-        let body: syn::Expr = syn::parse_str(body_expr.as_ref())
-            .unwrap_or_else(|e| panic!("output_encoder: invalid body `{}`: {}", body_expr.as_ref(), e));
-        let entry = self.types.entry(key.clone()).or_default();
-        entry.output = Some(ConverterSpec {
-            wire,
-            body,
-            niches: Niches::empty(),
-        });
-        self.last_opaque_key = None;
-        self.last_meta_key = Some(key);
-        self.last_exception_idx = None;
-        self
-    }
-
     /// Stamp the Kotlin type name onto the entry registered by the
     /// most recent type-config builder. The relative `name` (no dots)
     /// resolves against [`Self::package`] for ordinary types and against
@@ -795,9 +724,9 @@ impl JniExt {
             .or_else(|| self.last_opaque_key.clone())
             .expect(
                 "JniExt::kotlin_name must be chained immediately after a \
-                 `kotlin_class` / `kotlin_value_type` / `input_decoder` / \
-                 `output_encoder` / `callback_input` / `callback_kotlin_name` / \
-                 `kotlin_exception_class` call",
+                 `kotlin_class` / `kotlin_value_type` / `input_wrapper` / \
+                 `output_wrapper` / `jint_enum` / `callback_input` / \
+                 `callback_kotlin_name` / `kotlin_exception_class` call",
             );
         let is_callback = self
             .types
@@ -847,16 +776,28 @@ impl JniExt {
         self
     }
 
-    /// Sugar over [`Self::input_decoder`] for the common
-    /// `jint → enum` pattern: `decode_path(*v)?` decodes the jint
-    /// into the enum (or returns an error).
+    /// Sugar over [`Self::input_wrapper`] for the common
+    /// `jint → enum` pattern: emits a rank-0 input wrapper whose body
+    /// is `decode_path(*v)?` — wire `jni::sys::jint`, body decodes the
+    /// jint into the enum (or returns an error).
     pub fn jint_enum(
         self,
         rust_key: impl AsRef<str>,
         decode_path: impl AsRef<str>,
     ) -> Self {
-        let body = format!("{}(*v)?", decode_path.as_ref());
-        self.input_decoder(rust_key, "jni::sys::jint", &body)
+        // Validate at registration time; capture the string (not the
+        // parsed `syn::Path`, which isn't `Sync` because `proc-macro2`
+        // uses `Rc` under the hood) and re-parse inside the closure.
+        let decode_path_str = decode_path.as_ref().to_string();
+        let _ = syn::parse_str::<syn::Path>(&decode_path_str)
+            .unwrap_or_else(|e| panic!("jint_enum: invalid decode path `{decode_path_str}`: {e}"));
+        self.input_wrapper(rust_key, move |_reg: &Registry<KotlinMeta>| {
+            let decode_path: syn::Path = syn::parse_str(&decode_path_str).ok()?;
+            Some((
+                syn::parse_quote!(jni::sys::jint),
+                syn::parse_quote!(#decode_path(*v)?),
+            ))
+        })
     }
 
     /// Install a manual input converter for an `impl Fn(...)` callback
@@ -871,30 +812,31 @@ impl JniExt {
         dispatcher_path: impl AsRef<str>,
     ) -> Self {
         let key = TypeKey::parse(impl_fn_key.as_ref());
-        let path: syn::Path = syn::parse_str(dispatcher_path.as_ref()).unwrap_or_else(|e| {
+        // Validate at registration time; capture the string (not the
+        // parsed `syn::Path`, which isn't `Sync`) and re-parse inside
+        // the wrapper closure.
+        let dispatcher_path_str = dispatcher_path.as_ref().to_string();
+        let _ = syn::parse_str::<syn::Path>(&dispatcher_path_str).unwrap_or_else(|e| {
             panic!(
-                "callback_input: invalid dispatcher path `{}`: {}",
-                dispatcher_path.as_ref(),
-                e
+                "callback_input: invalid dispatcher path `{dispatcher_path_str}`: {e}"
             )
-        });
-        let body: syn::Expr = syn::parse_quote!(#path(env, &v)?);
-        let wire: syn::Type = syn::parse_quote!(jni::objects::JObject);
-        let entry = self.types.entry(key.clone()).or_default();
-        entry.input = Some(ConverterSpec {
-            wire,
-            body,
-            niches: Niches::empty(),
         });
         // Marker so `kotlin_name` knows this entry is a callback and
         // resolves the relative name against the callback subpackage.
         // The actual FQN — until overridden — stays computed lazily by
         // `auto_callback_fqn` on read.
+        let entry = self.types.entry(key.clone()).or_default();
         entry.callback_kotlin_fqn = Some(String::new());
-        self.last_opaque_key = None;
-        self.last_meta_key = Some(key);
-        self.last_exception_idx = None;
-        self
+        // Register the manual converter through the same rank-0 wrapper
+        // table everything else uses. The rank-0 dispatcher picks it up
+        // before falling through to `dispatch_fn_input` (the auto path).
+        self.input_wrapper(impl_fn_key.as_ref(), move |_reg: &Registry<KotlinMeta>| {
+            let path: syn::Path = syn::parse_str(&dispatcher_path_str).ok()?;
+            Some((
+                syn::parse_quote!(jni::objects::JObject),
+                syn::parse_quote!(#path(env, &v)?),
+            ))
+        })
     }
 
     /// Override the Kotlin FQN emitted for an `impl Fn(...)` callback
@@ -968,8 +910,20 @@ impl JniExt {
     {
         let key = TypeKey::parse(pattern.as_ref());
         let rank = B::rank();
-        self.input_wrappers[rank].insert(key, builder.into_wrapper_fn());
+        self.input_wrappers[rank].insert(key.clone(), builder.into_wrapper_fn());
         self.last_opaque_key = None;
+        // Rank-0 patterns identify a concrete type, so chained
+        // `.kotlin_name("…")` writes the name into `types[key].kotlin_name`
+        // (consumed by `lookup_input_wrapper`'s rank-0 path). Ensure the
+        // entry exists so `.kotlin_name` can stamp it. Rank ≥1 patterns are
+        // wildcards — no single key to pin a name on; users override per
+        // outer type via `override_kotlin_name` instead.
+        if rank == 0 {
+            self.types.entry(key.clone()).or_default();
+            self.last_meta_key = Some(key);
+        } else {
+            self.last_meta_key = None;
+        }
         self.last_exception_idx = None;
         self
     }
@@ -985,8 +939,15 @@ impl JniExt {
     {
         let key = TypeKey::parse(pattern.as_ref());
         let rank = B::rank();
-        self.output_wrappers[rank].insert(key, builder.into_wrapper_fn());
+        self.output_wrappers[rank].insert(key.clone(), builder.into_wrapper_fn());
         self.last_opaque_key = None;
+        // Rank-0 only — see `input_wrapper` for the rationale.
+        if rank == 0 {
+            self.types.entry(key.clone()).or_default();
+            self.last_meta_key = Some(key);
+        } else {
+            self.last_meta_key = None;
+        }
         self.last_exception_idx = None;
         self
     }
@@ -1016,6 +977,21 @@ impl JniExt {
 
     // ── Wrapper-table lookups (used by PrebindgenExt impl) ───────────
 
+    /// Look up a registered input wrapper for `pat` with `args` substituted
+    /// into its `_` slots.
+    ///
+    /// **Rank-0 path** (`args.is_empty()`): wrapper key is a concrete type
+    /// like `"Encoding"`. Niches default to [`Niches::empty()`] (a rank-0
+    /// wrapper body is opaque — the framework can't assume the wire's
+    /// implicit niche is safe to expose to `Option<T>` niching unless the
+    /// author opts in). Kotlin name is read from
+    /// `types[key].kotlin_name`, so the existing
+    /// `.input_wrapper("X", …).kotlin_name("…")` chaining works.
+    ///
+    /// **Rank ≥1 path:** niches derive from the wire via
+    /// [`default_niches_for_wire`]; Kotlin name is left
+    /// [`KotlinMeta::default`] for the resolver/`override_kotlin_name` to
+    /// fill in based on the outer pattern.
     pub(crate) fn lookup_input_wrapper(
         &self,
         pat: &syn::Type,
@@ -1033,12 +1009,29 @@ impl JniExt {
         // wildcard slots of `pat` — the same shape the wrapper would have
         // had in the source.
         let outer = substitute_wildcards(pat, args);
-        let niches = default_niches_for_wire(&wire);
+        let (niches, metadata) = if rank == 0 {
+            let kotlin_name = self
+                .types
+                .get(&key)
+                .and_then(|c| c.kotlin_name.clone())
+                .or_else(|| crate::jni::jni_kotlin_ext::kotlin_for_wire(&wire));
+            (
+                Niches::empty(),
+                KotlinMeta {
+                    kotlin_name,
+                    throws: None,
+                    throws_action: None,
+                    value_rust_key: None,
+                },
+            )
+        } else {
+            (default_niches_for_wire(&wire), KotlinMeta::default())
+        };
         Some(ConverterImpl {
             function: self.build_input_fn(&outer, &wire, &body),
             destination: wire,
             niches,
-            metadata: KotlinMeta::default(),
+            metadata,
         })
     }
 
@@ -1050,6 +1043,14 @@ impl JniExt {
     /// `throws: Some(exception_fqn)`. Otherwise (plain [`Self::output_wrapper`])
     /// the emitted function returns `Result<wire, __JniErr>` and metadata
     /// carries no `throws`.
+    ///
+    /// **Rank-0 path** (`args.is_empty()`): niches default to
+    /// [`Niches::empty()`] and Kotlin name is read from
+    /// `types[key].kotlin_name` (or derived from the wire), so
+    /// `.output_wrapper("X", …).kotlin_name("…")` chaining works.
+    /// **Rank ≥1 path:** niches derive from the wire via
+    /// [`default_niches_for_wire`]; the plain-output branch leaves
+    /// metadata at [`KotlinMeta::default`] for the resolver to fill.
     pub(crate) fn lookup_output_wrapper(
         &self,
         pat: &syn::Type,
@@ -1064,7 +1065,11 @@ impl JniExt {
         let builder = self.output_wrappers[rank].get(&key)?;
         let (wire, body) = builder(args, registry)?;
         let outer = substitute_wildcards(pat, args);
-        let niches = default_niches_for_wire(&wire);
+        let niches = if rank == 0 {
+            Niches::empty()
+        } else {
+            default_niches_for_wire(&wire)
+        };
         // Output-throws registration: emit a bare-wire-returning function
         // wrapping the body in match-throw, and stamp `throws` metadata.
         // For arity-1 wrappers the Kotlin projection of the wrapper is
@@ -1108,11 +1113,26 @@ impl JniExt {
                 },
             });
         }
+        let metadata = if rank == 0 {
+            let kotlin_name = self
+                .types
+                .get(&key)
+                .and_then(|c| c.kotlin_name.clone())
+                .or_else(|| crate::jni::jni_kotlin_ext::kotlin_for_wire(&wire));
+            KotlinMeta {
+                kotlin_name,
+                throws: None,
+                throws_action: None,
+                value_rust_key: None,
+            }
+        } else {
+            KotlinMeta::default()
+        };
         Some(ConverterImpl {
             function: self.build_output_fn(&outer, &wire, &body),
             destination: wire,
             niches,
-            metadata: KotlinMeta::default(),
+            metadata,
         })
     }
 }
@@ -1618,24 +1638,16 @@ impl PrebindgenExt for JniExt {
         ty: &syn::Type,
         registry: &Registry<KotlinMeta>,
     ) -> Option<ConverterImpl<KotlinMeta>> {
-        // Structured-config overrides first (opaque handles, custom decoders).
+        // Structured-config overrides first (opaque handles, then user-
+        // registered rank-0 wrappers, then built-ins).
         let key = TypeKey::from_type(ty);
         if let Some(cfg) = self.types.get(&key) {
             if cfg.opaque.is_some() {
                 return Some(self.opaque_handle_input(ty));
             }
-            if let Some(spec) = &cfg.input {
-                let kotlin_name = cfg
-                    .kotlin_name
-                    .clone()
-                    .or_else(|| crate::jni::jni_kotlin_ext::kotlin_for_wire(&spec.wire));
-                return Some(ConverterImpl {
-                    function: self.build_input_fn(ty, &spec.wire, &spec.body),
-                    destination: spec.wire.clone(),
-                    niches: spec.niches.clone(),
-                    metadata: KotlinMeta { kotlin_name, throws: None, throws_action: None, value_rust_key: None },
-                });
-            }
+        }
+        if let Some(conv) = self.lookup_input_wrapper(ty, &[], registry) {
+            return Some(conv);
         }
         if let Some((wire, body)) = primitive_input(ty) {
             let niches = default_niches_for_wire(&wire);
@@ -1789,24 +1801,16 @@ impl PrebindgenExt for JniExt {
         ty: &syn::Type,
         registry: &Registry<KotlinMeta>,
     ) -> Option<ConverterImpl<KotlinMeta>> {
-        // Structured-config overrides first (opaque handles, custom encoders).
+        // Structured-config overrides first (opaque handles, then user-
+        // registered rank-0 wrappers, then built-ins).
         let key = TypeKey::from_type(ty);
         if let Some(cfg) = self.types.get(&key) {
             if cfg.opaque.is_some() {
                 return Some(self.opaque_handle_output(ty));
             }
-            if let Some(spec) = &cfg.output {
-                let kotlin_name = cfg
-                    .kotlin_name
-                    .clone()
-                    .or_else(|| crate::jni::jni_kotlin_ext::kotlin_for_wire(&spec.wire));
-                return Some(ConverterImpl {
-                    function: self.build_output_fn(ty, &spec.wire, &spec.body),
-                    destination: spec.wire.clone(),
-                    niches: spec.niches.clone(),
-                    metadata: KotlinMeta { kotlin_name, throws: None, throws_action: None, value_rust_key: None },
-                });
-            }
+        }
+        if let Some(conv) = self.lookup_output_wrapper(ty, &[], registry) {
+            return Some(conv);
         }
         // `()` — identity converter so `fn foo()` and `fn foo() -> ()`
         // funnel through the same uniform output path as everything else.

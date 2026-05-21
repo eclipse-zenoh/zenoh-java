@@ -1267,8 +1267,8 @@ fn render_wrapper_fn(
     // `@Throws` is driven by the return-type's output converter metadata:
     // emit it (and import the exception class) only when the registered
     // converter declared one via [`JniExt::output_throws`]. Non-throwing
-    // output converters (plain `output_wrapper` / `output_encoder`) carry
-    // no `throws` metadata and emit no `@Throws` annotation.
+    // output converters (plain `output_wrapper`) carry no `throws`
+    // metadata and emit no `@Throws` annotation.
     let return_ty: syn::Type = match &f.sig.output {
         syn::ReturnType::Default => syn::parse_quote!(()),
         syn::ReturnType::Type(_, ty) => (**ty).clone(),

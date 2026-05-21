@@ -1,7 +1,7 @@
 //! Build script — declarative configuration of the prebindgen-ext
 //! pipeline. Reads top-to-bottom as:
 //!   1. Configure `JniExt` (Rust crate paths + per-type rules: opaque
-//!      handles, jint enums, custom decoders, callback overrides,
+//!      handles, jint enums, custom wrappers, callback overrides,
 //!      data-class names, `impl Into<T>` arms).
 //!   2. Scan `zenoh_flat`'s prebindgen source and write the generated
 //!      Rust bindings (`zenoh_flat_jni.rs`).
@@ -41,11 +41,22 @@ fn main() {
                 let inner = reg.output_entry(t)?;
                 let inner_wire = inner.destination.clone();
                 let inner_conv = inner.function.sig.ident.clone();
+                // Throws-marked inner converters (e.g. `()` registered via
+                // `output_throws("()", …)`) return bare wire — the `?`
+                // operator cannot be applied. Non-throws converters return
+                // `Result<wire, __JniErr>` and `?` propagates the inner
+                // error to this wrapper's own match-throw.
+                let inner_throws = inner.metadata.throws_action.is_some();
+                let inner_call: syn::Expr = if inner_throws {
+                    syn::parse_quote!(#inner_conv(env, __i))
+                } else {
+                    syn::parse_quote!(#inner_conv(env, __i)?)
+                };
                 Some((
                     inner_wire,
                     syn::parse_quote!({
                         let __i = v?;
-                        #inner_conv(env, __i)?
+                        #inner_call
                     }),
                 ))
             },
@@ -106,7 +117,7 @@ fn main() {
         .kotlin_name("JNIMatchingListener")
         .kotlin_class("SampleMissListener")
         .kotlin_name("JNISampleMissListener")
-        // ── jint-encoded enums — sugar over `input_decoder` for the
+        // ── jint-encoded enums — sugar over `input_wrapper` for the
         // common `jint → enum` pattern.
         .jint_enum(
             "CongestionControl",
@@ -118,36 +129,47 @@ fn main() {
         .jint_enum("ConsolidationMode", "crate::utils::decode_consolidation")
         .jint_enum("ReplyKeyExpr", "crate::utils::decode_reply_key_expr")
         // ── Value-shaped custom converters. Non-primitive wires
-        // (`JObject` / `jobject`) chain `with_kotlin_name` to bind the
+        // (`JObject` / `jobject`) chain `kotlin_name` to bind the
         // value-context Kotlin type; primitive wires (`jint`,
         // `jbyteArray`) auto-derive via `kotlin_for_wire`.
-        .input_decoder(
-            "Encoding",
-            "jni::objects::JObject",
-            "crate::utils::decode_jni_encoding(env, &v)?",
-        )
+        .input_wrapper("Encoding", |_reg: &Registry<KotlinMeta>| {
+            Some((
+                syn::parse_quote!(jni::objects::JObject),
+                syn::parse_quote!(crate::utils::decode_jni_encoding(env, &v)?),
+            ))
+        })
         .kotlin_name("JNIEncoding")
-        .input_decoder(
-            "Option<Encoding>",
-            "jni::objects::JObject",
-            "if !v.is_null() { Some(crate::utils::decode_jni_encoding(env, &v)?) } else { None }",
-        )
+        .input_wrapper("Option<Encoding>", |_reg: &Registry<KotlinMeta>| {
+            Some((
+                syn::parse_quote!(jni::objects::JObject),
+                syn::parse_quote!(
+                    if !v.is_null() {
+                        Some(crate::utils::decode_jni_encoding(env, &v)?)
+                    } else {
+                        None
+                    }
+                ),
+            ))
+        })
         .kotlin_name("JNIEncoding")
-        .output_encoder(
-            "SetIntersectionLevel",
-            "jni::sys::jint",
-            "v as jni::sys::jint",
-        )
-        .output_encoder(
-            "ZenohId",
-            "jni::sys::jbyteArray",
-            "crate::zenoh_id::zenoh_id_to_byte_array(env, v)?",
-        )
-        .output_encoder(
-            "Vec<ZenohId>",
-            "jni::sys::jobject",
-            "crate::zenoh_id::zenoh_ids_to_java_list(env, v)?",
-        )
+        .output_wrapper("SetIntersectionLevel", |_reg: &Registry<KotlinMeta>| {
+            Some((
+                syn::parse_quote!(jni::sys::jint),
+                syn::parse_quote!(v as jni::sys::jint),
+            ))
+        })
+        .output_wrapper("ZenohId", |_reg: &Registry<KotlinMeta>| {
+            Some((
+                syn::parse_quote!(jni::sys::jbyteArray),
+                syn::parse_quote!(crate::zenoh_id::zenoh_id_to_byte_array(env, v)?),
+            ))
+        })
+        .output_wrapper("Vec<ZenohId>", |_reg: &Registry<KotlinMeta>| {
+            Some((
+                syn::parse_quote!(jni::sys::jobject),
+                syn::parse_quote!(crate::zenoh_id::zenoh_ids_to_java_list(env, v)?),
+            ))
+        })
         .with_kotlin_type("List<ByteArray>")
         // ── Manual callback overrides — replaces the auto-generated
         // `process_kotlin_*_callback` dispatcher with a hand-written
