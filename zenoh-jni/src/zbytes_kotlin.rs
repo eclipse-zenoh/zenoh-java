@@ -182,7 +182,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIZBytesKotlin_serializeViaJNI(
         Ok(byte_array.as_raw())
     }()
     .unwrap_or_else(|err| {
-        crate::throw_ZError(&mut env, &err);
+        crate::generated::throw_ZError(&mut env, &err);
         JObject::default().as_raw()
     })
 }
@@ -375,7 +375,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIZBytesKotlin_deserializeViaJNI(
         Ok(obj)
     }()
     .unwrap_or_else(|err| {
-        crate::throw_ZError(&mut env, &err);
+        crate::generated::throw_ZError(&mut env, &err);
         JObject::default().as_raw()
     })
 }

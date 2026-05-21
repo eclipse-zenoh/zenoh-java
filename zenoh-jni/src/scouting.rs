@@ -22,7 +22,7 @@ use jni::{
 use zenoh::{config::WhatAmIMatcher, Wait};
 use zenoh::{scouting::Scout, Config};
 
-use crate::session::OwnedObject;
+use crate::generated::OwnedObject;
 use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close};
 use zenoh_flat::errors::ZResult;
 
@@ -95,7 +95,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIScout_00024Companion_scoutViaJNI(
             .map_err(|err| zerror!(err))
     }()
     .unwrap_or_else(|err| {
-        crate::throw_ZError(&mut env, &err);
+        crate::generated::throw_ZError(&mut env, &err);
         null()
     })
 }

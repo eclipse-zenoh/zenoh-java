@@ -58,7 +58,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIZenohId_toStringViaJNI(
             .map_err(|err| zerror!(err))
     }()
     .unwrap_or_else(|err| {
-        crate::throw_ZError(&mut env, &err);
+        crate::generated::throw_ZError(&mut env, &err);
         JString::default()
     })
     .as_raw()

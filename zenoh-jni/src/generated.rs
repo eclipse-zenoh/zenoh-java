@@ -12,6 +12,15 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+//! Dedicated host for the include of the prebindgen-ext-generated
+//! `zenoh_flat_jni.rs`. Carries nothing but the `use` statements the
+//! generated code needs in scope and the `include!()` itself — so the
+//! generated artifacts (throw fns emitted from `JniExt::prerequisites`,
+//! type converters, JNI extern wrappers, opaque-handle helpers) all
+//! land in `crate::generated`. External modules in this crate reach
+//! them via that path (e.g. `crate::generated::throw_ZError`,
+//! `crate::generated::OwnedObject`).
+
 // Types referenced by the generated `zenoh_flat_jni.rs` below must be in scope.
 use std::time::Duration;
 use zenoh::{

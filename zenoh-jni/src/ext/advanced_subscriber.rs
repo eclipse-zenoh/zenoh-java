@@ -27,7 +27,7 @@ use zenoh_flat::errors::ZResult;
 use jni::objects::JValue;
 use zenoh::Wait;
 
-use crate::session::OwnedObject;
+use crate::generated::OwnedObject;
 
 use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close, wrap_with_on_close};
 use std::ptr::null;
@@ -136,7 +136,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareDetectPu
             advanced_subscriber.key_expr()
         );
 
-        let cb_flat = crate::session::process_kotlin_Sample_callback(&mut env, &callback)?;
+        let cb_flat = crate::generated::process_kotlin_Sample_callback(&mut env, &callback)?;
         let cb = move |zsample: zenoh::sample::Sample| {
             cb_flat((&zsample).into());
         };
@@ -155,7 +155,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareDetectPu
         Ok(Box::into_raw(Box::new(detect_publishers_subscriber)) as *const Subscriber<()>)
     }()
     .unwrap_or_else(|err| {
-        crate::throw_ZError(&mut env, &err);
+        crate::generated::throw_ZError(&mut env, &err);
         null()
     })
 }
@@ -197,7 +197,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareBackgrou
             advanced_subscriber.key_expr()
         );
 
-        let cb_flat = crate::session::process_kotlin_Sample_callback(&mut env, &callback)?;
+        let cb_flat = crate::generated::process_kotlin_Sample_callback(&mut env, &callback)?;
         let cb = move |zsample: zenoh::sample::Sample| {
             cb_flat((&zsample).into());
         };
@@ -222,7 +222,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareBackgrou
         Ok(())
     }()
     .unwrap_or_else(|err| {
-        crate::throw_ZError(&mut env, &err);
+        crate::generated::throw_ZError(&mut env, &err);
     });
 }
 
@@ -281,7 +281,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareSampleMi
         Ok(Box::into_raw(Box::new(sample_miss_listener)) as *const SampleMissListener<()>)
     }()
     .unwrap_or_else(|err| {
-        crate::throw_ZError(&mut env, &err);
+        crate::generated::throw_ZError(&mut env, &err);
         null()
     })
 }
@@ -338,7 +338,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareBackgrou
         Ok(())
     }()
     .unwrap_or_else(|err| {
-        crate::throw_ZError(&mut env, &err);
+        crate::generated::throw_ZError(&mut env, &err);
     })
 }
 

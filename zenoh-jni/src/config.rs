@@ -22,7 +22,7 @@ use jni::{
 use zenoh::Config;
 
 use zenoh_flat::errors::ZResult;
-use crate::session::OwnedObject;
+use crate::generated::OwnedObject;
 use prebindgen_ext::jni::decode_string;
 
 /// Loads the default configuration, returning a raw pointer to it.
@@ -59,7 +59,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadConfigFileViaJN
         Ok(Box::into_raw(Box::new(config)) as *const Config)
     }()
     .unwrap_or_else(|err| {
-        crate::throw_ZError(&mut env, &err);
+        crate::generated::throw_ZError(&mut env, &err);
         null()
     })
 }
@@ -83,7 +83,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadJsonConfigViaJN
         Ok(Box::into_raw(Box::new(config)) as *const Config)
     }()
     .unwrap_or_else(|err| {
-        crate::throw_ZError(&mut env, &err);
+        crate::generated::throw_ZError(&mut env, &err);
         null()
     })
 }
@@ -107,7 +107,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadYamlConfigViaJN
         Ok(Box::into_raw(Box::new(config)) as *const Config)
     }()
     .unwrap_or_else(|err| {
-        crate::throw_ZError(&mut env, &err);
+        crate::generated::throw_ZError(&mut env, &err);
         null()
     })
 }
@@ -130,7 +130,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_getJsonViaJN
         Ok(java_json.as_raw())
     }()
     .unwrap_or_else(|err| {
-        crate::throw_ZError(&mut env, &err);
+        crate::generated::throw_ZError(&mut env, &err);
         JString::default().as_raw()
     })
 }
@@ -157,7 +157,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_insertJson5V
         insert_result
     }()
     .unwrap_or_else(|err| {
-        crate::throw_ZError(&mut env, &err);
+        crate::generated::throw_ZError(&mut env, &err);
     })
 }
 

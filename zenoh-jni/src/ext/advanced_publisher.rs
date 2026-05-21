@@ -23,7 +23,7 @@ use zenoh::handlers::{Callback, DefaultHandler};
 use zenoh::Wait;
 use zenoh_ext::AdvancedPublisher;
 
-use crate::session::OwnedObject;
+use crate::generated::OwnedObject;
 use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close};
 
 
@@ -136,7 +136,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_declareMatchingL
         Ok(Box::into_raw(Box::new(matching_listener)) as *const MatchingListener<()>)
     }()
     .unwrap_or_else(|err| {
-        crate::throw_ZError(&mut env, &err);
+        crate::generated::throw_ZError(&mut env, &err);
         null()
     })
 }
@@ -193,7 +193,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_declareBackgroun
         Ok(())
     }()
     .unwrap_or_else(|err| {
-        crate::throw_ZError(&mut env, &err);
+        crate::generated::throw_ZError(&mut env, &err);
     });
 }
 
@@ -231,7 +231,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_getMatchingStatu
         .map(|val| val.matching() as jboolean)
         .map_err(|e| zerror!(e.to_string()))
         .unwrap_or_else(|err: ZError| {
-            crate::throw_ZError(&mut env, &err);
+            crate::generated::throw_ZError(&mut env, &err);
             false as jboolean
         })
 }
@@ -275,7 +275,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_putViaJNI(
         };
         publication.wait().map_err(|err| zerror!(err))
     }()
-    .map_err(|err| crate::throw_ZError(&mut env, &err));
+    .map_err(|err| crate::generated::throw_ZError(&mut env, &err));
 }
 
 /// Performs a DELETE operation on an [AdvancedPublisher] via JNI.
@@ -309,7 +309,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_deleteViaJNI(
         };
         delete.wait().map_err(|err| zerror!(err))
     }()
-    .map_err(|err| crate::throw_ZError(&mut env, &err));
+    .map_err(|err| crate::generated::throw_ZError(&mut env, &err));
 }
 
 /// Frees the [AdvancedPublisher].

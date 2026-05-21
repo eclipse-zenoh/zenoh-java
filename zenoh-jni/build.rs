@@ -196,6 +196,13 @@ fn main() {
         );
 
     // ── Write Rust bindings ───────────────────────────────────────────
+    // Single file: `zenoh_flat_jni.rs` carries the converters, the JNI
+    // extern wrappers, AND the throw fns generated for every registered
+    // `kotlin_exception_class` (emitted from `JniExt::prerequisites`).
+    // The throw fns sit at the top of the file so wrapper code below
+    // references them by bare name; external modules in the binding
+    // crate reach them via the include module (e.g.
+    // `crate::generated::throw_ZError`).
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
     let mut registry = Registry::from_items(source.items_all()).expect("scan failed");
     let rust_path = registry
@@ -204,19 +211,6 @@ fn main() {
     println!(
         "cargo:warning=Generated bindings at: {}",
         rust_path.display()
-    );
-
-    // Self-contained exception infrastructure — one `pub(crate) fn
-    // throw_<short>(env, err)` per registered `kotlin_exception_class`.
-    // The binding crate `include!`s this at crate root so the throw fns
-    // land at `crate::throw_<short>` (which is what the wrapper code in
-    // `zenoh_flat_jni.rs` calls). Replaces the hand-written
-    // `src/errors.rs` (`ThrowOnJvm` trait + impl + `throw_exception!`
-    // macro) end-to-end.
-    let exc_path = jni.write_exceptions_rust("zenoh_flat_jni_exceptions.rs");
-    println!(
-        "cargo:warning=Generated exceptions at: {}",
-        exc_path.display()
     );
 
     // ── Write Kotlin output ───────────────────────────────────────────

@@ -212,7 +212,7 @@ pub(crate) fn load_on_close(
                 Ok(_) => (),
                 Err(err) => {
                     _ = env.exception_describe();
-                    crate::throw_ZError(
+                    crate::generated::throw_ZError(
                         &mut env,
                         &zerror!("Error while running 'onClose' callback: {}", err),
                     );

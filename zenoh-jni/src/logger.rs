@@ -52,7 +52,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNILogger_startLogsViaJNI(
             .ok();
         Ok(())
     }()
-    .unwrap_or_else(|err| crate::throw_ZError(&mut env, &err))
+    .unwrap_or_else(|err| crate::generated::throw_ZError(&mut env, &err))
 }
 
 fn parse_filter(env: &mut JNIEnv, log_level: JString) -> ZResult<String> {
