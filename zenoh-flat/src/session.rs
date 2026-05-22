@@ -23,10 +23,12 @@ use zenoh::{
     key_expr::KeyExpr as ZKeyExpr,
     pubsub::{Publisher, Subscriber},
     query::{ConsolidationMode, Query, QueryTarget, Queryable, Querier, Reply, ReplyKeyExpr, Selector},
-    qos::{CongestionControl, Priority, Reliability},
+    qos::{CongestionControl, Reliability},
     session::{Session, ZenohId},
     Wait,
 };
+
+use crate::qos::Priority;
 
 #[cfg(feature = "zenoh-ext")]
 use crate::structs::{CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig};
@@ -83,7 +85,7 @@ pub fn declare_publisher(
     session
         .declare_publisher(ke)
         .congestion_control(congestion_control)
-        .priority(priority)
+        .priority(priority.into())
         .express(express)
         .reliability(reliability)
         .wait()
@@ -191,7 +193,7 @@ pub fn declare_querier(
         .consolidation(consolidation)
         .express(express)
         .target(query_target)
-        .priority(priority)
+        .priority(priority.into())
         .timeout(timeout)
         .accept_replies(reply_key_expr)
         .wait()
@@ -274,7 +276,7 @@ pub fn get(
         .target(query_target)
         .consolidation(consolidation)
         .congestion_control(congestion_control)
-        .priority(priority)
+        .priority(priority.into())
         .express(express)
         .timeout(timeout)
         .accept_replies(reply_key_expr);
@@ -321,7 +323,7 @@ pub fn put(
         .congestion_control(congestion_control)
         .encoding(encoding)
         .express(express)
-        .priority(priority)
+        .priority(priority.into())
         .reliability(reliability);
 
     if let Some(attachment) = attachment {
@@ -356,7 +358,7 @@ pub fn delete(
         .delete(&key_expr_zenoh)
         .congestion_control(congestion_control)
         .express(express)
-        .priority(priority)
+        .priority(priority.into())
         .reliability(reliability);
 
     if let Some(attachment) = attachment {
@@ -493,7 +495,7 @@ pub fn declare_advanced_publisher(
     let mut builder = session
         .declare_publisher(ke)
         .congestion_control(congestion_control)
-        .priority(priority)
+        .priority(priority.into())
         .express(express)
         .reliability(reliability)
         .advanced();

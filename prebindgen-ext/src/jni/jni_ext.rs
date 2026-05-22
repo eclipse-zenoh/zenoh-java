@@ -161,6 +161,24 @@ pub(crate) struct OpaqueConfig {
     pub methods: Vec<String>,
 }
 
+/// Per-enum configuration (driven by `JniExt::kotlin_enum`).
+///
+/// Marks a `#[prebindgen]`-scanned `enum` as a Kotlin enum class — the
+/// rank-0 converter arms emit `jint ↔ Rust enum` bodies (via `TryFrom<i32>`
+/// for input and `as jni::sys::jint` for output), and the Kotlin emitter
+/// writes an `enum class` file with SCREAMING_SNAKE_CASE variants and a
+/// discriminant-keyed `fromInt(...)` companion. The Kotlin FQN lives in
+/// the surrounding [`TypeConfig::kotlin_name`] slot, same as
+/// [`OpaqueConfig`].
+#[derive(Clone, Default)]
+pub(crate) struct EnumConfig {
+    /// When `false` (default), the unified Kotlin emitter writes an
+    /// `enum class` `.kt` file for this enum. Set to `true` by
+    /// [`JniExt::suppress_kotlin_code`] when the Kotlin source is
+    /// hand-maintained — only the Rust-side converter wires up.
+    pub suppress_kotlin_code: bool,
+}
+
 /// All configuration the structured builder accumulates for one
 /// canonical Rust type key. Every field is `None` by default;
 /// builder methods populate the ones they care about.
@@ -174,6 +192,11 @@ pub(crate) struct TypeConfig {
     /// `Box::into_raw`/`Box::from_raw` conventions, instanceof
     /// dispatch, and Kotlin typed-handle class emission.
     pub opaque: Option<OpaqueConfig>,
+    /// If `Some`, this is a `#[prebindgen]` enum mirrored as a Kotlin
+    /// `enum class` — gets jint wire (input + output via `TryFrom<i32>`
+    /// / `as jint`) and a generated `.kt` file. Mutually exclusive with
+    /// [`Self::opaque`]; builder enforces it.
+    pub enum_cfg: Option<EnumConfig>,
     /// Kotlin FQN override for `impl Fn(...)` keys (replaces the
     /// auto-derived `JNI<Stem>Callback` name).
     pub callback_kotlin_fqn: Option<String>,
@@ -650,20 +673,78 @@ impl JniExt {
     }
 
     /// Opt out of Kotlin class emission for the most recent
-    /// [`Self::kotlin_class`] — the `.kt` file is assumed to be
-    /// hand-written. Without this, a typed-handle shell class is
-    /// auto-emitted (plus any promoted [`Self::method`]s). Panics if
-    /// no kotlin_class is in scope.
+    /// [`Self::kotlin_class`] / [`Self::kotlin_enum`] — the `.kt` file is
+    /// assumed to be hand-written. Without this, a typed-handle shell
+    /// class (or an `enum class`) is auto-emitted. Panics if no
+    /// `kotlin_class` / `kotlin_enum` is in scope.
     pub fn suppress_kotlin_code(mut self) -> Self {
-        let key = self.last_opaque_key.clone().expect(
-            "JniExt::suppress_kotlin_code must be chained immediately after a `kotlin_class` call",
+        let key = self.last_meta_key.clone().expect(
+            "JniExt::suppress_kotlin_code must be chained immediately after a \
+             `kotlin_class` or `kotlin_enum` call",
         );
-        let entry = self.types.get_mut(&key).expect("opaque entry vanished");
-        let opaque = entry
-            .opaque
-            .as_mut()
-            .expect("suppress_kotlin_code on a non-opaque entry");
-        opaque.suppress_kotlin_code = true;
+        let entry = self.types.get_mut(&key).expect("type entry vanished");
+        if let Some(opaque) = entry.opaque.as_mut() {
+            opaque.suppress_kotlin_code = true;
+        } else if let Some(enum_cfg) = entry.enum_cfg.as_mut() {
+            enum_cfg.suppress_kotlin_code = true;
+        } else {
+            panic!(
+                "JniExt::suppress_kotlin_code: type entry for `{}` has neither \
+                 `opaque` nor `enum_cfg` set — chain after `kotlin_class` or \
+                 `kotlin_enum`",
+                key.as_str()
+            );
+        }
+        self
+    }
+
+    /// Whether `ty` was registered via [`Self::kotlin_enum`] — used by
+    /// the Kotlin wrapper generator to decide if a parameter needs a
+    /// `.value` projection between the typed enum (Kotlin signature) and
+    /// the `Int` wire (JNI `external fun`).
+    pub(crate) fn is_kotlin_enum(&self, ty: &syn::Type) -> bool {
+        let key = TypeKey::from_type(ty);
+        self.types
+            .get(&key)
+            .and_then(|c| c.enum_cfg.as_ref())
+            .is_some()
+    }
+
+    /// Declare a `#[prebindgen]`-marked `enum` as a Kotlin `enum class`.
+    /// Configures: `jni::sys::jint` wire (input + output), `TryFrom<i32>`
+    /// decode on input, `as jint` encode on output, and Kotlin enum-file
+    /// emission. The enum must be C-like (unit variants only) and either
+    /// `#[repr(i32)]` / `#[repr(u8)]` (or similar) with explicit
+    /// discriminants — the Kotlin emitter and the generated
+    /// `TryFrom<i32>` decode rely on the discriminant values matching the
+    /// jint wire.
+    ///
+    /// By default a `.kt` file is auto-emitted under [`Self::package`]; chain
+    /// [`Self::suppress_kotlin_code`] to keep the file hand-maintained,
+    /// or [`Self::kotlin_name`] to override the class name (defaults to
+    /// the Rust short name).
+    pub fn kotlin_enum(mut self, rust_type: syn::Type) -> Self {
+        let key = TypeKey::from_type(&rust_type);
+        let short = rust_short_name(&key);
+        let fqn = self.resolve_class_fqn(&short);
+        let entry = self.types.entry(key.clone()).or_default();
+        assert!(
+            entry.opaque.is_none(),
+            "JniExt::kotlin_enum: `{}` is already registered as an opaque \
+             handle via `kotlin_class` — a type can be one or the other, \
+             not both",
+            short
+        );
+        entry.enum_cfg = Some(EnumConfig::default());
+        entry.kotlin_name = Some(fqn.clone());
+        self.kotlin_type_fqns
+            .push((key.as_str().to_string(), fqn));
+        // Clear opaque tracker so a stray `.method(...)` doesn't latch onto
+        // this entry; `last_meta_key` is what `.kotlin_name` /
+        // `.suppress_kotlin_code` read for chained config.
+        self.last_opaque_key = None;
+        self.last_meta_key = Some(key);
+        self.last_exception_idx = None;
         self
     }
 
@@ -692,9 +773,10 @@ impl JniExt {
             .or_else(|| self.last_opaque_key.clone())
             .expect(
                 "JniExt::kotlin_name must be chained immediately after a \
-                 `kotlin_class` / `kotlin_value_type` / `input_wrapper` / \
-                 `output_wrapper` / `jint_enum` / `callback_input` / \
-                 `callback_kotlin_name` / `kotlin_exception_class` call",
+                 `kotlin_class` / `kotlin_enum` / `kotlin_value_type` / \
+                 `input_wrapper` / `output_wrapper` / `jint_enum` / \
+                 `callback_input` / `callback_kotlin_name` / \
+                 `kotlin_exception_class` call",
             );
         let is_callback = self
             .types
@@ -1902,6 +1984,29 @@ impl PrebindgenExt for JniExt {
                 return Some(self.opaque_handle_input(ty));
             }
         }
+        // `kotlin_enum`-declared enums: jint wire, `TryFrom<i32>` decode.
+        // Registered before the user-wrapper lookup so a stray
+        // `input_wrapper` registration on the same key would have to be
+        // intentional. The rank-0 enum arm produces a terminal converter
+        // (jint → Rust enum) with the configured Kotlin FQN in metadata.
+        if let Some(cfg) = self.types.get(&key) {
+            if cfg.enum_cfg.is_some() {
+                if let Some(name) = bare_path_ident(ty) {
+                    if let Some((e, _)) = registry.enums.get(&name) {
+                        let (wire, body) = enum_input_body(self, e);
+                        let niches = default_niches_for_wire(&wire);
+                        let kotlin_name = cfg.kotlin_name.clone();
+                        return Some(ConverterImpl {
+                            pre_stages: vec![],
+                            function: self.build_input_fn(ty, &wire, &body, None),
+                            destination: wire,
+                            niches,
+                            metadata: self.framework_meta(kotlin_name),
+                        });
+                    }
+                }
+            }
+        }
         if let Some(conv) = self.lookup_input(ty, &[], registry) {
             return Some(conv);
         }
@@ -2076,6 +2181,28 @@ impl PrebindgenExt for JniExt {
         if let Some(cfg) = self.types.get(&key) {
             if cfg.opaque.is_some() {
                 return Some(self.opaque_handle_output(ty));
+            }
+        }
+        // `kotlin_enum`-declared enums: jint wire, `as jni::sys::jint`
+        // encode. Symmetric to the input arm above; relies on
+        // `#[repr(i32)]` (or any repr that supports the cast) on the
+        // declared enum so the discriminant value round-trips identically.
+        if let Some(cfg) = self.types.get(&key) {
+            if cfg.enum_cfg.is_some() {
+                if let Some(name) = bare_path_ident(ty) {
+                    if let Some((e, _)) = registry.enums.get(&name) {
+                        let (wire, body) = enum_output_body(self, e);
+                        let niches = default_niches_for_wire(&wire);
+                        let kotlin_name = cfg.kotlin_name.clone();
+                        return Some(ConverterImpl {
+                            pre_stages: vec![],
+                            function: self.build_output_fn(ty, &wire, &body, None),
+                            destination: wire,
+                            niches,
+                            metadata: self.framework_meta(kotlin_name),
+                        });
+                    }
+                }
             }
         }
         if let Some(conv) = self.lookup_output(ty, &[], registry) {
@@ -3061,6 +3188,62 @@ fn struct_module_path(ext: &JniExt, s: &syn::ItemStruct) -> syn::Path {
     // call site by the consuming crate when needed.
     let _ = s;
     ext.source_module.clone()
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Enum rank-0 bodies
+// ──────────────────────────────────────────────────────────────────────
+
+/// `jint → Rust enum` decoder body for a `kotlin_enum`-declared enum.
+/// Wire is `jni::sys::jint`; the body calls `<ident>::try_from(*v as i32)`
+/// and surfaces decode failures as the framework `__JniErr` via `Display`
+/// (matching [`JniExt::jint_enum`]'s error semantics — a malformed jint
+/// is a binding-layer concern, not a domain error). The enum must
+/// implement `TryFrom<i32, Error = E>` where `E: Display`.
+///
+/// The body uses the bare ident — same shape as the wrapper function's
+/// `v: <ident>` signature — so binding crates can pick whichever
+/// upstream type a bare `<ident>` resolves to in their include-site
+/// `use` statements. Pairs with output body below.
+fn enum_input_body(_ext: &JniExt, e: &syn::ItemEnum) -> (syn::Type, syn::Expr) {
+    assert_only_unit_variants(e);
+    let ident = &e.ident;
+    let body: syn::Expr = syn::parse_quote!({
+        <#ident as ::core::convert::TryFrom<i32>>::try_from(*v as i32)
+            .map_err(|err| {
+                <__JniErr as ::core::convert::From<String>>::from(err.to_string())
+            })?
+    });
+    (syn::parse_quote!(jni::sys::jint), body)
+}
+
+/// `Rust enum → jint` encoder body for a `kotlin_enum`-declared enum.
+/// Wire is `jni::sys::jint`. Relies on the declared enum's repr
+/// supporting an `as` cast (i.e. C-like enum, no fields); the
+/// [`assert_only_unit_variants`] check below catches violations
+/// upstream of the cast. The body works without naming the enum type
+/// at all — `v` is already typed via the wrapper signature, so the
+/// `as` cast picks up the right type by inference.
+fn enum_output_body(_ext: &JniExt, e: &syn::ItemEnum) -> (syn::Type, syn::Expr) {
+    assert_only_unit_variants(e);
+    let body: syn::Expr = syn::parse_quote!({ v as jni::sys::jint });
+    (syn::parse_quote!(jni::sys::jint), body)
+}
+
+/// Hard error on any enum that's not C-like (unit variants only).
+/// `kotlin_enum`'s discriminant-keyed Kotlin emission and `as jint`
+/// encode both depend on unit variants — bail loudly at build time
+/// rather than emitting wrong code.
+fn assert_only_unit_variants(e: &syn::ItemEnum) {
+    for variant in &e.variants {
+        if !matches!(variant.fields, syn::Fields::Unit) {
+            panic!(
+                "kotlin_enum only supports C-like enums (unit variants), \
+                 but `{}::{}` has fields",
+                e.ident, variant.ident
+            );
+        }
+    }
 }
 
 // ──────────────────────────────────────────────────────────────────────

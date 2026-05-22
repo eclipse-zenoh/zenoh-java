@@ -29,12 +29,18 @@ use zenoh::{
     key_expr::{KeyExpr as ZKeyExpr, SetIntersectionLevel},
     liveliness::LivelinessToken,
     pubsub::{Publisher, Subscriber},
-    qos::{CongestionControl, Priority, Reliability},
+    qos::{CongestionControl, Reliability},
     query::{ConsolidationMode, Querier, Query, QueryTarget, Queryable, Reply, ReplyKeyExpr},
     session::{Session, ZenohId},
 };
 #[cfg(feature = "zenoh-ext")]
 use zenoh_ext::{AdvancedPublisher, AdvancedSubscriber};
+// `Priority` resolves to the flat enum here so the auto-generated
+// `Priority_to_jint_*` / `jint_to_Priority_*` converters (whose
+// signatures use the bare ident) typecheck against `zenoh_flat::Priority`.
+// The flat ↔ upstream `zenoh::qos::Priority` value mapping lives in
+// `zenoh-flat/src/qos.rs`.
+use zenoh_flat::qos::Priority;
 use zenoh_flat::sample::Sample;
 use zenoh_flat::errors::ZResult;
 use zenoh_flat::errors::ZError;

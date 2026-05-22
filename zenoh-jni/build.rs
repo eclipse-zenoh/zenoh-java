@@ -113,13 +113,20 @@ fn main() {
         .kotlin_name("JNIMatchingListener")
         .kotlin_class(pq!(SampleMissListener))
         .kotlin_name("JNISampleMissListener")
+        // ── Native Kotlin enum — `kotlin_enum` configures: jint wire
+        // (input + output), `TryFrom<i32>` decode, `as jint` encode, and
+        // an auto-emitted `enum class` Kotlin file under the configured
+        // package. The flat `Priority` lives in `zenoh-flat/src/qos.rs`;
+        // the flat ↔ upstream `zenoh::qos::Priority` shim is manual
+        // (in zenoh-flat) so binding-time value drift is owned there,
+        // not by the framework.
+        .kotlin_enum(pq!(Priority))
         // ── jint-encoded enums — sugar over `input_wrapper` for the
-        // common `jint → enum` pattern.
+        // common `jint → enum` pattern (input-only, custom decode map).
         .jint_enum(
             pq!(CongestionControl),
             pq!(crate::utils::decode_congestion_control),
         )
-        .jint_enum(pq!(Priority), pq!(crate::utils::decode_priority))
         .jint_enum(pq!(Reliability), pq!(crate::utils::decode_reliability))
         .jint_enum(pq!(QueryTarget), pq!(crate::utils::decode_query_target))
         .jint_enum(pq!(ConsolidationMode), pq!(crate::utils::decode_consolidation))

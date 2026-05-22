@@ -23,7 +23,7 @@ use jni::{
 use zenoh::{
     bytes::{Encoding, ZBytes},
     internal::buffers::ZSlice,
-    qos::{CongestionControl, Priority, Reliability},
+    qos::{CongestionControl, Reliability},
     query::{ConsolidationMode, QueryTarget, ReplyKeyExpr},
 };
 
@@ -88,10 +88,6 @@ pub(crate) fn decode_byte_array(env: &JNIEnv, payload: &JByteArray) -> ZResult<V
         .map_err(|err| zerror!(err))?;
     let buff: Vec<u8> = unsafe { std::mem::transmute::<Vec<i8>, Vec<u8>>(buff) };
     Ok(buff)
-}
-
-pub(crate) fn decode_priority(priority: jint) -> ZResult<Priority> {
-    Priority::try_from(priority as u8).map_err(|err| zerror!("Error retrieving priority: {}.", err))
 }
 
 pub(crate) fn decode_congestion_control(congestion_control: jint) -> ZResult<CongestionControl> {
