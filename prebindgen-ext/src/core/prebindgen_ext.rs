@@ -184,8 +184,12 @@ pub trait PrebindgenExt {
     /// of the destination file, before all auto-generated converters.
     ///
     /// Default: none. Wrapper exts that compose a base ext should
-    /// forward to / extend the base's `prerequisites()`.
-    fn prerequisites(&self) -> Vec<syn::Item> {
+    /// forward to / extend the base's `prerequisites()`. The resolved
+    /// `registry` is supplied so prerequisites can be gated on what the
+    /// (feature-aware) scan actually contains — e.g. emitting a
+    /// per-opaque-handle item only for handles a scanned `#[prebindgen]`
+    /// fn references.
+    fn prerequisites(&self, _registry: &Registry<Self::Metadata>) -> Vec<syn::Item> {
         Vec::new()
     }
 

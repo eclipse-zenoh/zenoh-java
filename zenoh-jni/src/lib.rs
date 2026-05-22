@@ -26,16 +26,9 @@ pub(crate) mod ext;
 // surface a JVM exception. Replaces the hand-written `errors.rs`
 // (`ThrowOnJvm` trait + impl + `throw_exception!` macro) end-to-end.
 mod generated;
-mod key_expr_free;
-mod liveliness;
 mod logger;
-mod publisher;
-mod querier;
-mod query;
-mod queryable;
 pub(crate) mod sample_callback;
 mod scouting;
-mod subscriber;
 mod utils;
 #[cfg(feature = "zenoh-ext")]
 mod zbytes;

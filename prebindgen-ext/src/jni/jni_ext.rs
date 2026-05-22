@@ -1864,6 +1864,84 @@ fn build_throw_fn_item(exc: &ExceptionConfig) -> syn::Item {
     )
 }
 
+/// One `#[no_mangle] extern "C"` destructor per non-suppressed opaque
+/// handle — the Rust counterpart to the `public fun free() = free {
+/// freePtr<suffix>(it) }` / `private external fun freePtr<suffix>` pair
+/// emitted by [`render_typed_handle_source`]. Each body is the uniform
+/// `drop(Box::from_raw(ptr as *mut T))`; the inner `T`'s own `Drop` runs
+/// (e.g. `Publisher` network-undeclare) with no special casing.
+///
+/// Emitted under the same `opaque && !suppress_kotlin_code` condition as
+/// the Kotlin shell, so the framework owns *both* halves of the
+/// destructor exactly when it owns the typed-handle class. Suppressed
+/// handles (hand-written Kotlin) keep their hand-written Rust destructor.
+///
+/// The symbol follows the documented scheme
+/// `Java_<package_underscores>_<class_short>_freePtr<jni_method_suffix>`,
+/// where `class_short` is the last segment of the typed-handle FQN
+/// (`TypeConfig::kotlin_name`). `ext.types` is a `HashMap`, so the items
+/// are sorted by symbol to keep generated output deterministic.
+///
+/// Emission is gated on the resolved `registry`: a destructor is only
+/// emitted for an opaque handle whose type a scanned `#[prebindgen]` fn
+/// actually references (as input or output). This mirrors converter
+/// emission and keeps feature-gated handles (e.g. `zenoh-ext`-only types
+/// whose declare/undeclare fns are `#[cfg]`'d out of the scan) from
+/// producing destructors that reference types not in scope.
+fn build_handle_destructor_items(
+    ext: &JniExt,
+    registry: &Registry<KotlinMeta>,
+) -> Vec<syn::Item> {
+    let pkg = ext.package.replace('.', "_");
+    let suffix = &ext.jni_method_suffix;
+    let mut named: Vec<(String, syn::Item)> = Vec::new();
+    for (key, cfg) in &ext.types {
+        let Some(opaque) = &cfg.opaque else { continue };
+        if opaque.suppress_kotlin_code {
+            continue;
+        }
+        // Skip handles the (feature-aware) scan never references — their
+        // type may not be in scope in the generated module.
+        let ty = key.to_type();
+        if registry.input_entry(&ty).is_none() && registry.output_entry(&ty).is_none() {
+            continue;
+        }
+        let class_short = cfg
+            .kotlin_name
+            .as_deref()
+            .and_then(|fqn| fqn.rsplit('.').next())
+            .unwrap_or_else(|| {
+                panic!(
+                    "build_handle_destructor_items: opaque handle `{}` has no \
+                     kotlin_name to derive a destructor symbol from",
+                    key.as_str()
+                )
+            });
+        let symbol = if pkg.is_empty() {
+            format!("Java_{class_short}_freePtr{suffix}")
+        } else {
+            format!("Java_{pkg}_{class_short}_freePtr{suffix}")
+        };
+        let ident = syn::Ident::new(&symbol, Span::call_site());
+        let item: syn::Item = syn::parse_quote!(
+            #[no_mangle]
+            #[allow(non_snake_case, unused_variables)]
+            pub(crate) unsafe extern "C" fn #ident(
+                _env: jni::JNIEnv,
+                _class: jni::objects::JClass,
+                ptr: jni::sys::jlong,
+            ) {
+                if ptr != 0 {
+                    drop(Box::from_raw(ptr as *mut #ty));
+                }
+            }
+        );
+        named.push((symbol, item));
+    }
+    named.sort_by(|a, b| a.0.cmp(&b.0));
+    named.into_iter().map(|(_, item)| item).collect()
+}
+
 // ──────────────────────────────────────────────────────────────────────
 // PrebindgenExt impl
 // ──────────────────────────────────────────────────────────────────────
@@ -1882,7 +1960,7 @@ impl PrebindgenExt for JniExt {
     /// The struct is referenced by an unqualified `OwnedObject` from
     /// the same generated file, so no `use` paths leak into the host
     /// crate's source tree.
-    fn prerequisites(&self) -> Vec<syn::Item> {
+    fn prerequisites(&self, registry: &Registry<KotlinMeta>) -> Vec<syn::Item> {
         // `__JniErr` is the **framework** error type alias — always the
         // pre-registered `JniBindingError`, never a user-declared
         // application exception. Built-in converter bodies compose
@@ -1907,6 +1985,10 @@ impl PrebindgenExt for JniExt {
         // them by bare name; the binding crate references them as
         // `<include_module>::throw_<short>` from outside the file.
         items.extend(self.exceptions.iter().map(build_throw_fn_item));
+        // Handle destructors — one `extern "C" freePtr<suffix>` per
+        // non-suppressed opaque handle (the Rust half of the typed-handle
+        // `free()` pair the Kotlin emitter generates).
+        items.extend(build_handle_destructor_items(self, registry));
         items
     }
 
