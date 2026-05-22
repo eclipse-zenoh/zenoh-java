@@ -76,7 +76,7 @@ fn main() {
         .kotlin_class(pq!(Config))
         .kotlin_name("JNIConfig")
         .suppress_kotlin_code()
-        .kotlin_class(pq!(ZKeyExpr<'static>))
+        .kotlin_class(pq!(KeyExpr<'static>))
         .kotlin_name("JNIKeyExpr")
         .method("try_from")
         .method("autocanonize")
@@ -220,9 +220,9 @@ fn main() {
         .kotlin_value_type(pq!(RecoveryConfig))
         // ── impl Into<T> source arms.
         .into_sources(
-            pq!(ZKeyExpr<'static>),
+            pq!(KeyExpr<'static>),
             [
-                IntoSource::borrow(pq!(ZKeyExpr<'static>)),
+                IntoSource::borrow(pq!(KeyExpr<'static>)),
                 IntoSource::borrow(pq!(String)),
             ],
         );

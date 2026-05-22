@@ -20,7 +20,7 @@ use crate::{errors::ZResult, zerror};
 use prebindgen_proc_macro::prebindgen;
 use tracing::{error, trace};
 use zenoh::{
-    key_expr::KeyExpr as ZKeyExpr,
+    key_expr::KeyExpr,
     liveliness::LivelinessToken,
     pubsub::Subscriber,
     query::Reply,
@@ -50,9 +50,9 @@ impl<F: FnOnce()> Drop for CallOnDrop<F> {
 #[prebindgen]
 pub fn declare_liveliness_token(
     session: &Session,
-    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
+    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
 ) -> ZResult<LivelinessToken> {
-    let ke: ZKeyExpr<'static> = key_expr.into();
+    let ke: KeyExpr<'static> = key_expr.into();
     let key_expr_string = ke.to_string();
     session
         .liveliness()
@@ -74,12 +74,12 @@ pub fn declare_liveliness_token(
 #[prebindgen]
 pub fn declare_liveliness_subscriber(
     session: &Session,
-    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
+    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
     callback: impl Fn(Sample) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
     history: bool,
 ) -> ZResult<Subscriber<()>> {
-    let ke: ZKeyExpr<'static> = key_expr.into();
+    let ke: KeyExpr<'static> = key_expr.into();
     let key_expr_string = ke.to_string();
     let guard = CallOnDrop::new(on_close);
     session
@@ -107,12 +107,12 @@ pub fn declare_liveliness_subscriber(
 #[prebindgen]
 pub fn liveliness_get(
     session: &Session,
-    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
+    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
     callback: impl Fn(Reply) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
     timeout: Duration,
 ) -> ZResult<()> {
-    let ke: ZKeyExpr<'static> = key_expr.into();
+    let ke: KeyExpr<'static> = key_expr.into();
     let key_expr_string = ke.to_string();
     let guard = CallOnDrop::new(on_close);
     session

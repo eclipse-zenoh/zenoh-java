@@ -26,7 +26,7 @@ use std::time::Duration;
 use zenoh::{
     bytes::Encoding,
     config::Config,
-    key_expr::{KeyExpr as ZKeyExpr, SetIntersectionLevel},
+    key_expr::{KeyExpr, SetIntersectionLevel},
     liveliness::LivelinessToken,
     pubsub::{Publisher, Subscriber},
     query::{Querier, Query, Queryable, Reply},

@@ -25,7 +25,7 @@ use prebindgen_proc_macro::prebindgen;
 use tracing::{error, trace};
 use zenoh::{
     bytes::Encoding,
-    key_expr::KeyExpr as ZKeyExpr,
+    key_expr::KeyExpr,
     query::Query,
     time::{Timestamp, TimestampId, NTP64},
     Wait,
@@ -109,14 +109,14 @@ impl From<ReplyKeyExpr> for zenoh::query::ReplyKeyExpr {
 #[prebindgen]
 pub fn reply_success(
     query: Query,
-    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
+    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
     payload: Vec<u8>,
     encoding: Encoding,
     timestamp_ntp64: Option<i64>,
     attachment: Option<Vec<u8>>,
     qos_express: bool,
 ) -> ZResult<()> {
-    let ke: ZKeyExpr<'static> = key_expr.into();
+    let ke: KeyExpr<'static> = key_expr.into();
     let mut reply_builder = query.reply(ke, payload).encoding(encoding);
     if let Some(ts) = timestamp_ntp64 {
         reply_builder = reply_builder.timestamp(Timestamp::new(NTP64(ts as u64), TimestampId::rand()));
@@ -155,12 +155,12 @@ pub fn reply_error(query: Query, payload: Vec<u8>, encoding: Encoding) -> ZResul
 #[prebindgen]
 pub fn reply_delete(
     query: Query,
-    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
+    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
     timestamp_ntp64: Option<i64>,
     attachment: Option<Vec<u8>>,
     qos_express: bool,
 ) -> ZResult<()> {
-    let ke: ZKeyExpr<'static> = key_expr.into();
+    let ke: KeyExpr<'static> = key_expr.into();
     let mut reply_builder = query.reply_del(ke);
     if let Some(ts) = timestamp_ntp64 {
         reply_builder = reply_builder.timestamp(Timestamp::new(NTP64(ts as u64), TimestampId::rand()));

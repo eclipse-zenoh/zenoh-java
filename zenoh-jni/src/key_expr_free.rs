@@ -21,7 +21,7 @@
 //! `Box`, so a real drop has to reconstruct the `Box` directly.
 
 use jni::{objects::JClass, JNIEnv};
-use zenoh::key_expr::KeyExpr as ZKeyExpr;
+use zenoh::key_expr::KeyExpr;
 
 /// Drop the `Box<KeyExpr<'static>>` whose raw pointer was previously
 /// handed to Java by the auto-generated output converter. Bound from
@@ -38,6 +38,6 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIKeyExpr_freePtrViaJNI(
     ptr: jni::sys::jlong,
 ) {
     if ptr != 0 {
-        drop(Box::from_raw(ptr as *mut ZKeyExpr<'static>));
+        drop(Box::from_raw(ptr as *mut KeyExpr<'static>));
     }
 }
