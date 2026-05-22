@@ -183,11 +183,12 @@ fn main() {
         // directly (no `?`/`Ok`). The auto `impl Fn(Sample)` callback,
         // which has no domain decode, keeps the framework default.
         // Kotlin fun-interface FQNs flow through
-        // `kotlin_callback_name_mangle` (configured above): `OnQuery` →
-        // `JNIOnQuery`, `OnReply` → `JNIOnReply`, `On` → `JNIOn`. Each
-        // call below is paired with `suppress_kotlin_callback_code` so
-        // the framework skips emitting the auto-stub — the Kotlin
-        // fun-interface lives hand-written under `zenoh-jni-runtime/`.
+        // `kotlin_callback_name_mangle` (configured above): `QueryCallback` →
+        // `JNIQueryCallback`, `ReplyCallback` → `JNIReplyCallback`,
+        // `Callback` → `JNICallback`. Each call below is paired with
+        // `suppress_kotlin_callback_code` so the framework skips emitting
+        // the auto-stub — the Kotlin fun-interface lives hand-written under
+        // `zenoh-jni-runtime/`.
         .callback_input(
             pq!(impl Fn(Query) + Send + Sync + 'static),
             Some(pq!(ZError)),

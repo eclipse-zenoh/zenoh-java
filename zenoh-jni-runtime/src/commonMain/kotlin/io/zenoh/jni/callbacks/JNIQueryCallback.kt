@@ -14,8 +14,15 @@
 
 package io.zenoh.jni.callbacks
 
-public fun interface JNIOnCloseCallback {
-
-    fun run()
-
+public fun interface JNIQueryCallback {
+    fun run(
+        keyExpr: String,
+        selectorParams: String,
+        payload: ByteArray?,
+        encodingId: Int,
+        encodingSchema: String?,
+        attachmentBytes: ByteArray?,
+        queryPtr: Long,
+        acceptReplies: Int,
+    )
 }

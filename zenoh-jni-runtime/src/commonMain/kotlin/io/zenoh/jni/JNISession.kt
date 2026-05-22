@@ -16,9 +16,9 @@ package io.zenoh.jni
 
 import io.zenoh.ZenohLoad
 import io.zenoh.jni.ZError
-import io.zenoh.jni.callbacks.JNIGetCallback
-import io.zenoh.jni.callbacks.JNIOnCloseCallback
-import io.zenoh.jni.callbacks.JNIQueryableCallback
+import io.zenoh.jni.callbacks.JNICallback
+import io.zenoh.jni.callbacks.JNIQueryCallback
+import io.zenoh.jni.callbacks.JNIReplyCallback
 import io.zenoh.jni.callbacks.JNISampleCallback
 
 /**
@@ -64,7 +64,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
         keyExprHandle: NativeHandle?,
         keyExprString: String,
         callback: JNISampleCallback,
-        onClose: JNIOnCloseCallback,
+        onClose: JNICallback,
     ): JNISubscriber = JNISubscriber(
         JNIWrappers.declareSubscriber(
             this,
@@ -78,8 +78,8 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     fun declareQueryable(
         keyExprHandle: NativeHandle?,
         keyExprString: String,
-        callback: JNIQueryableCallback,
-        onClose: JNIOnCloseCallback,
+        callback: JNIQueryCallback,
+        onClose: JNICallback,
         complete: Boolean
     ): JNIQueryable = JNIQueryable(
         JNIWrappers.declareQueryable(
@@ -129,8 +129,8 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
         keyExprHandle: NativeHandle?,
         keyExprString: String,
         selectorParams: String?,
-        callback: JNIGetCallback,
-        onClose: JNIOnCloseCallback,
+        callback: JNIReplyCallback,
+        onClose: JNICallback,
         timeoutMs: Long,
         target: QueryTarget,
         consolidation: ConsolidationMode,
@@ -215,7 +215,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
         keyExprHandle: NativeHandle?,
         keyExprStr: String,
         callback: JNISampleCallback,
-        onClose: JNIOnCloseCallback,
+        onClose: JNICallback,
         history: HistoryConfig?,
         recovery: RecoveryConfig?,
         subscriberDetection: Boolean,
@@ -270,7 +270,7 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
         keyExprString: String,
         callback: JNISampleCallback,
         history: Boolean,
-        onClose: JNIOnCloseCallback,
+        onClose: JNICallback,
     ): JNISubscriber = JNISubscriber(
         JNIWrappers.declareLivelinessSubscriber(
             this,
@@ -285,9 +285,9 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     fun livelinessGet(
         keyExprHandle: NativeHandle?,
         keyExprString: String,
-        callback: JNIGetCallback,
+        callback: JNIReplyCallback,
         timeoutMs: Long,
-        onClose: JNIOnCloseCallback,
+        onClose: JNICallback,
     ) = JNIWrappers.livelinessGet(
         this,
         (keyExprHandle ?: keyExprString),

@@ -555,15 +555,17 @@ fn render_kotlin_interface(
 
 /// Derive the auto-callback short Kotlin name for an `impl Fn(args)`
 /// signature. Always starts with the hardcoded `"On"` and appends each
-/// parameter type's Rust short ident (`Fn(Query)` → `"OnQuery"`,
-/// `Fn(Reply)` → `"OnReply"`, `Fn(K, V)` → `"OnKV"`, `Fn()` → just
-/// `"On"`). The result feeds [`JniExt::mangle_callback`] before the
-/// FQN is qualified against [`JniExt::kotlin_callback_package`].
+/// concatenated parameter type Rust short idents + `"Callback"` suffix
+/// (`Fn(Query)` → `"QueryCallback"`, `Fn(Reply)` → `"ReplyCallback"`,
+/// `Fn(K, V)` → `"KVCallback"`, `Fn()` → `"Callback"`). The result
+/// feeds [`JniExt::mangle_callback`] before the FQN is qualified
+/// against [`JniExt::kotlin_callback_package`].
 pub(crate) fn derive_callback_name(args: &[syn::Type]) -> String {
-    let mut s = String::from("On");
+    let mut s = String::new();
     for a in args {
         s.push_str(&type_short_ident(a));
     }
+    s.push_str("Callback");
     s
 }
 
@@ -967,9 +969,8 @@ fn render_jni_wrappers_source(
 ) -> String {
     // Start with the auto-derived callback FQNs and let user-provided
     // entries WIN — the user (build.rs) may need to override e.g.
-    // `impl Fn (Query)` to point at a hand-written
-    // `JNIQueryableCallback` instead of the auto-derived
-    // `JNIQueryCallback`.
+    // `impl Fn(Query)` to point at a hand-written
+    // `JNIQueryCallback` instead of the auto-derived default.
     let callback_fqns = ext.collect_kotlin_callback_fqns(registry);
     let mut merged_types = KotlinTypeMap::new();
     for (k, v) in callback_fqns.iter() {

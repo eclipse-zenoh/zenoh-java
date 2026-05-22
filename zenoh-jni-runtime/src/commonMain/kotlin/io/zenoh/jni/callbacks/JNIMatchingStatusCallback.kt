@@ -14,15 +14,7 @@
 
 package io.zenoh.jni.callbacks
 
-public fun interface JNIQueryableCallback {
-    fun run(
-        keyExpr: String,
-        selectorParams: String,
-        payload: ByteArray?,
-        encodingId: Int,
-        encodingSchema: String?,
-        attachmentBytes: ByteArray?,
-        queryPtr: Long,
-        acceptReplies: Int,
-    )
+/** Callback for matching listener notifications; receives true when matching subscribers exist. */
+public fun interface JNIMatchingStatusCallback {
+    fun run(matching: Boolean)
 }

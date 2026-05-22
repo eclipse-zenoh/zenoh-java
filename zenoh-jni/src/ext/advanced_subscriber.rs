@@ -103,7 +103,7 @@ impl<'a> SetJniSampleMissListenerCallback for SampleMissListenerBuilder<'a, Defa
 /// - `_class`: The JNI class.
 /// - `advanced_subscriber_ptr`: The raw pointer to the [AdvancedSubscriber].
 /// - `callback`: The callback function as an instance of the `JNISampleCallback` interface in Java/Kotlin.
-/// - `on_close`: A Java/Kotlin `JNIOnCloseCallback` function interface to be called upon closing the subscriber.
+/// - `on_close`: A Java/Kotlin `JNICallback` function interface to be called upon closing the subscriber.
 ///
 /// Returns:
 /// - A raw pointer to the declared [Subscriber]. In case of failure, an exception is thrown and null is returned.
@@ -136,12 +136,12 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareDetectPu
             advanced_subscriber.key_expr()
         );
 
-        // `process_kotlin_Sample_callback` is the auto-generated callback
+        // `process_kotlin_SampleCallback_callback` is the auto-generated callback
         // dispatcher — it returns `Result<_, JniBindingError>` (the
         // framework error type). The enclosing closure is in a `ZResult`
         // pipeline; convert via `Display` since the orphan rule blocks
         // a `From<JniBindingError> for ZError` impl in any crate.
-        let cb_flat = crate::generated::process_kotlin_Sample_callback(&mut env, &callback)
+        let cb_flat = crate::generated::process_kotlin_SampleCallback_callback(&mut env, &callback)
             .map_err(|e| zerror!("Sample callback: {}", e))?;
         let cb = move |zsample: zenoh::sample::Sample| {
             cb_flat((&zsample).into());
@@ -173,7 +173,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareDetectPu
 /// - `_class`: The JNI class.
 /// - `advanced_subscriber_ptr`: The raw pointer to the [AdvancedSubscriber].
 /// - `callback`: The callback function as an instance of the `JNISampleCallback` interface in Java/Kotlin.
-/// - `on_close`: A Java/Kotlin `JNIOnCloseCallback` function interface to be called upon closing the subscriber.
+/// - `on_close`: A Java/Kotlin `JNICallback` function interface to be called upon closing the subscriber.
 ///
 /// Safety:
 /// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
@@ -203,12 +203,12 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareBackgrou
             advanced_subscriber.key_expr()
         );
 
-        // `process_kotlin_Sample_callback` is the auto-generated callback
+        // `process_kotlin_SampleCallback_callback` is the auto-generated callback
         // dispatcher — it returns `Result<_, JniBindingError>` (the
         // framework error type). The enclosing closure is in a `ZResult`
         // pipeline; convert via `Display` since the orphan rule blocks
         // a `From<JniBindingError> for ZError` impl in any crate.
-        let cb_flat = crate::generated::process_kotlin_Sample_callback(&mut env, &callback)
+        let cb_flat = crate::generated::process_kotlin_SampleCallback_callback(&mut env, &callback)
             .map_err(|e| zerror!("Sample callback: {}", e))?;
         let cb = move |zsample: zenoh::sample::Sample| {
             cb_flat((&zsample).into());
@@ -244,8 +244,8 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareBackgrou
 /// - `env`: The JNI environment.
 /// - `_class`: The JNI class.
 /// - `advanced_subscriber_ptr`: The raw pointer to the [AdvancedSubscriber].
-/// - `callback`: The callback function as an instance of the `JNISampleMissListenerCallback` interface in Java/Kotlin.
-/// - `on_close`: A Java/Kotlin `JNIOnCloseCallback` function interface to be called upon closing the subscriber.
+/// - `callback`: The callback function as an instance of the `JNISampleMissedCallback` interface in Java/Kotlin.
+/// - `on_close`: A Java/Kotlin `JNICallback` function interface to be called upon closing the subscriber.
 ///
 /// Returns:
 /// - A raw pointer to the declared [SampleMissListener]. In case of failure, an exception is thrown and null is returned.
@@ -255,7 +255,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareBackgrou
 /// - It assumes that the provided [AdvancedSubscriber] pointer is valid and has not been modified or freed.
 /// - The [AdvancedSubscriber] pointer remains valid and the ownership of the [AdvancedSubscriber] is not transferred,
 ///   allowing safe usage of the [AdvancedSubscriber] after this function call.
-/// - The callback function passed as `callback` must be a valid instance of the `JNISampleMissListenerCallback` interface
+/// - The callback function passed as `callback` must be a valid instance of the `JNISampleMissedCallback` interface
 ///   in Java/Kotlin, matching the specified signature.
 /// - The function may throw a JNI exception in case of failure, which should be handled by the caller.
 ///
@@ -305,15 +305,15 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedSubscriber_declareSampleMi
 /// - `env`: The JNI environment.
 /// - `_class`: The JNI class.
 /// - `advanced_subscriber_ptr`: The raw pointer to an [AdvancedSubscriber].
-/// - `callback`: The callback function as an instance of the `JNISampleMissListenerCallback` interface in Java/Kotlin.
-/// - `on_close`: A Java/Kotlin `JNIOnCloseCallback` function interface to be called upon undeclaring the [AdvancedSubscriber].
+/// - `callback`: The callback function as an instance of the `JNISampleMissedCallback` interface in Java/Kotlin.
+/// - `on_close`: A Java/Kotlin `JNICallback` function interface to be called upon undeclaring the [AdvancedSubscriber].
 ///
 /// Safety:
 /// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
 /// - It assumes that the provided [AdvancedSubscriber] pointer is valid and has not been modified or freed.
 /// - The [AdvancedSubscriber] pointer remains valid and the ownership of the [AdvancedSubscriber] is not transferred,
 ///   allowing safe usage of the [AdvancedSubscriber] after this function call.
-/// - The callback function passed as `callback` must be a valid instance of the `JNISampleMissListenerCallback` interface
+/// - The callback function passed as `callback` must be a valid instance of the `JNISampleMissedCallback` interface
 ///   in Java/Kotlin, matching the specified signature.
 /// - The function may throw a JNI exception in case of failure, which should be handled by the caller.
 ///

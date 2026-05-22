@@ -89,8 +89,8 @@ impl<'a> SetJniMatchingStatusCallback for MatchingListenerBuilder<'a, DefaultHan
 /// - `env`: The JNI environment.
 /// - `_class`: The JNI class.
 /// - `advanced_publisher_ptr`: The raw pointer to an [AdvancedPublisher].
-/// - `callback`: The callback function as an instance of the `JNIMatchingListenerCallback` interface in Java/Kotlin.
-/// - `on_close`: A Java/Kotlin `JNIOnCloseCallback` function interface to be called upon undeclaring the [MatchingListener].
+/// - `callback`: The callback function as an instance of the `JNIMatchingStatusCallback` interface in Java/Kotlin.
+/// - `on_close`: A Java/Kotlin `JNICallback` function interface to be called upon undeclaring the [MatchingListener].
 ///
 /// Returns:
 /// - A raw pointer to the declared [MatchingListener]. In case of failure, an exception is thrown and null is returned.
@@ -100,7 +100,7 @@ impl<'a> SetJniMatchingStatusCallback for MatchingListenerBuilder<'a, DefaultHan
 /// - It assumes that the provided [AdvancedPublisher] pointer is valid and has not been modified or freed.
 /// - The [AdvancedPublisher] pointer remains valid and the ownership of the [AdvancedPublisher] is not transferred,
 ///   allowing safe usage of the [AdvancedPublisher] after this function call.
-/// - The callback function passed as `callback` must be a valid instance of the `JNIMatchingListenerCallback` interface
+/// - The callback function passed as `callback` must be a valid instance of the `JNIMatchingStatusCallback` interface
 ///   in Java/Kotlin, matching the specified signature.
 /// - The function may throw a JNI exception in case of failure, which should be handled by the caller.
 ///
@@ -148,15 +148,15 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_declareMatchingL
 /// - `env`: The JNI environment.
 /// - `_class`: The JNI class.
 /// - `advanced_publisher_ptr`: The raw pointer to an [AdvancedPublisher].
-/// - `callback`: The callback function as an instance of the `JNIMatchingListenerCallback` interface in Java/Kotlin.
-/// - `on_close`: A Java/Kotlin `JNIOnCloseCallback` function interface to be called upon undeclaring the [AdvancedPublisher].
+/// - `callback`: The callback function as an instance of the `JNIMatchingStatusCallback` interface in Java/Kotlin.
+/// - `on_close`: A Java/Kotlin `JNICallback` function interface to be called upon undeclaring the [AdvancedPublisher].
 ///
 /// Safety:
 /// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
 /// - It assumes that the provided [AdvancedPublisher] pointer is valid and has not been modified or freed.
 /// - The [AdvancedPublisher] pointer remains valid and the ownership of the [AdvancedPublisher] is not transferred,
 ///   allowing safe usage of the [AdvancedPublisher] after this function call.
-/// - The callback function passed as `callback` must be a valid instance of the `JNIMatchingListenerCallback` interface
+/// - The callback function passed as `callback` must be a valid instance of the `JNIMatchingStatusCallback` interface
 ///   in Java/Kotlin, matching the specified signature.
 /// - The function may throw a JNI exception in case of failure, which should be handled by the caller.
 ///

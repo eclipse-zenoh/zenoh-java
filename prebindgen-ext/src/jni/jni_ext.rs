@@ -381,9 +381,10 @@ pub struct JniExt {
     /// Mangler for `impl Fn(...)` callback Kotlin class names. The
     /// closure receives the auto-derived callback name
     /// ([`crate::jni::jni_kotlin_ext::derive_callback_name`], always
-    /// `"On"` + concatenated parameter type shorts — e.g. `"OnQuery"`,
-    /// `"OnReply"`, `"On"` for `Fn()`); the return value is qualified
-    /// against [`Self::kotlin_callback_package`]. Default = identity.
+    /// concatenated parameter type shorts + `"Callback"` suffix — e.g.
+    /// `"QueryCallback"`, `"ReplyCallback"`, `"Callback"` for `Fn()`);
+    /// the return value is qualified against
+    /// [`Self::kotlin_callback_package`]. Default = identity.
     pub(crate) kotlin_callback_name_mangle: Option<NameMangle>,
     /// Mangler for rank-0 user-registered
     /// [`Self::input_wrapper`] / [`Self::output_wrapper`] pattern names
@@ -586,10 +587,10 @@ impl JniExt {
     /// Set the closure that mangles `impl Fn(...)` callback class
     /// names. Receives the auto-derived callback name
     /// ([`crate::jni::jni_kotlin_ext::derive_callback_name`], always
-    /// `"On"` + concatenated parameter type shorts — e.g. `"OnQuery"`,
-    /// `"OnReply"`, `"On"` for `Fn()`); the returned relative name is
-    /// qualified against [`Self::kotlin_callback_package`]. Default =
-    /// identity.
+    /// concatenated parameter type shorts + `"Callback"` suffix — e.g.
+    /// `"QueryCallback"`, `"ReplyCallback"`, `"Callback"` for `Fn()`);
+    /// the returned relative name is qualified against
+    /// [`Self::kotlin_callback_package`]. Default = identity.
     pub fn kotlin_callback_name_mangle<F>(mut self, f: F) -> Self
     where
         F: Fn(&str) -> String + Send + Sync + 'static,
@@ -3112,10 +3113,11 @@ fn callback_input(
 }
 
 fn derive_callback_name(args: &[syn::Type]) -> String {
-    let mut s = String::from("On");
+    let mut s = String::new();
     for a in args {
         s.push_str(&type_short_ident(a));
     }
+    s.push_str("Callback");
     s
 }
 
@@ -3721,7 +3723,7 @@ fn bare_path_ident(ty: &syn::Type) -> Option<syn::Ident> {
 /// case: `impl Fn(...)` keeps the legacy `process_kotlin_<Name>_callback`
 /// name so existing hand-written call sites continue to resolve. With
 /// the current [`derive_callback_name`] algorithm `<Name>` is
-/// `"On"` + concatenated arg shorts (e.g. `process_kotlin_OnSample_callback`).
+/// concatenated arg shorts + `"Callback"` (e.g. `process_kotlin_SampleCallback_callback`).
 fn input_name(rust: &syn::Type, wire: &syn::Type) -> syn::Ident {
     if let Some(args) = extract_fn_trait_args(rust) {
         let name = derive_callback_name(&args);

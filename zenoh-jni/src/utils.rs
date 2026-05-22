@@ -125,7 +125,7 @@ impl<F: FnOnce()> Drop for CallOnDrop<F> {
 /// Wrap a decoded data callback so that the supplied Kotlin `on_close`
 /// callback fires exactly once when the data closure is dropped (via
 /// `CallOnDrop`). Used by hand-written JNI entry points whose Kotlin signatures
-/// pair a callback with an `on_close: JNIOnCloseCallback`. Generated entry
+/// pair a callback with an `on_close: JNICallback`. Generated entry
 /// points (via `JniMethodsConverter`) take `on_close` as a separate Rust parameter
 /// instead and are wrapped at the zenoh-flat layer.
 pub(crate) fn wrap_with_on_close<T, F>(

@@ -15,8 +15,8 @@
 package io.zenoh.jni
 
 import io.zenoh.jni.ZError
-import io.zenoh.jni.callbacks.JNIMatchingListenerCallback
-import io.zenoh.jni.callbacks.JNIOnCloseCallback
+import io.zenoh.jni.callbacks.JNICallback
+import io.zenoh.jni.callbacks.JNIMatchingStatusCallback
 
 /** Typed [NativeHandle] for a native Zenoh `AdvancedPublisher`. */
 public class JNIAdvancedPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
@@ -32,11 +32,11 @@ public class JNIAdvancedPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 
     @Throws(ZError::class)
-    fun declareMatchingListener(callback: JNIMatchingListenerCallback, onClose: JNIOnCloseCallback): JNIMatchingListener =
+    fun declareMatchingListener(callback: JNIMatchingStatusCallback, onClose: JNICallback): JNIMatchingListener =
         withPtr { ptr -> JNIMatchingListener(declareMatchingListenerViaJNI(ptr, callback, onClose)) }
 
     @Throws(ZError::class)
-    fun declareBackgroundMatchingListener(callback: JNIMatchingListenerCallback, onClose: JNIOnCloseCallback) =
+    fun declareBackgroundMatchingListener(callback: JNIMatchingStatusCallback, onClose: JNICallback) =
         withPtr { ptr -> declareBackgroundMatchingListenerViaJNI(ptr, callback, onClose) }
 
     @Throws(ZError::class)
@@ -54,12 +54,12 @@ public class JNIAdvancedPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     private external fun declareMatchingListenerViaJNI(
-        ptr: Long, callback: JNIMatchingListenerCallback, onClose: JNIOnCloseCallback
+        ptr: Long, callback: JNIMatchingStatusCallback, onClose: JNICallback
     ): Long
 
     @Throws(ZError::class)
     private external fun declareBackgroundMatchingListenerViaJNI(
-        ptr: Long, callback: JNIMatchingListenerCallback, onClose: JNIOnCloseCallback
+        ptr: Long, callback: JNIMatchingStatusCallback, onClose: JNICallback
     )
 
     @Throws(ZError::class)

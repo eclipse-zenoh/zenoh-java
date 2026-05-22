@@ -14,22 +14,7 @@
 
 package io.zenoh.jni.callbacks
 
-public fun interface JNIGetCallback {
+public fun interface JNIHelloCallback {
 
-    fun run(
-        replierZid: ByteArray?,
-        replierEid: Int,
-        success: Boolean,
-        keyExpr: String?,
-        payload: ByteArray,
-        encodingId: Int,
-        encodingSchema: String?,
-        kind: Int,
-        timestampNTP64: Long,
-        timestampIsValid: Boolean,
-        attachment: ByteArray?,
-        express: Boolean,
-        priority: Int,
-        congestionControl: Int,
-    )
+    fun run(whatAmI: Int, zid: ByteArray, locators: List<String>)
 }

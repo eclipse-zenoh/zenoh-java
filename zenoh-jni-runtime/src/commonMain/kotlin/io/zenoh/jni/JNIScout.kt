@@ -16,8 +16,8 @@ package io.zenoh.jni
 
 import io.zenoh.ZenohLoad
 import io.zenoh.jni.ZError
-import io.zenoh.jni.callbacks.JNIOnCloseCallback
-import io.zenoh.jni.callbacks.JNIScoutCallback
+import io.zenoh.jni.callbacks.JNICallback
+import io.zenoh.jni.callbacks.JNIHelloCallback
 
 /** Typed [NativeHandle] for a native Zenoh `Scout`. */
 public class JNIScout(initialPtr: Long) : NativeHandle(initialPtr) {
@@ -30,8 +30,8 @@ public class JNIScout(initialPtr: Long) : NativeHandle(initialPtr) {
         @Throws(ZError::class)
         fun scout(
             whatAmI: Int,
-            callback: JNIScoutCallback,
-            onClose: JNIOnCloseCallback,
+            callback: JNIHelloCallback,
+            onClose: JNICallback,
             config: JNIConfig?,
         ): JNIScout = if (config != null) {
             // Hold the config's read lock for the duration of the JNI
@@ -44,8 +44,8 @@ public class JNIScout(initialPtr: Long) : NativeHandle(initialPtr) {
         @Throws(ZError::class)
         private external fun scoutViaJNI(
             whatAmI: Int,
-            callback: JNIScoutCallback,
-            onClose: JNIOnCloseCallback,
+            callback: JNIHelloCallback,
+            onClose: JNICallback,
             configPtr: Long,
         ): Long
 
