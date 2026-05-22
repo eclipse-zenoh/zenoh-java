@@ -40,7 +40,7 @@ fn main() {
         // value-inspecting peel stage onto that type's own converter,
         // so a `ZResult<Session>` raises `ZError` on the peel and
         // `JniBindingError` on the jlong marshalling.
-        .kotlin_exception_class("zenoh_flat::errors::ZError")
+        .kotlin_exception_class(parse_quote!(zenoh_flat::errors::ZError))
         // ZResult<T> output: a throwing converter whose closure returns
         // the rust type `T` — so the framework auto-composes it as a
         // value-inspecting peel stage onto T's own output converter. The

@@ -112,12 +112,15 @@ impl KotlinMeta {
 /// [`KotlinMeta::throws_action`].
 #[derive(Clone)]
 pub(crate) struct ExceptionConfig {
-    /// Absolute Rust path of the error type (e.g.
-    /// `zenoh_flat::errors::ZError`). Used both to splice the
+    /// Absolute Rust path of the error type, as a `syn::Type::Path`
+    /// (e.g. `zenoh_flat::errors::ZError`). Used both to splice the
     /// `pub(crate) type __JniErr = ...` alias and as the function-
-    /// argument type of the generated `throw_<short>`.
-    pub rust_path: syn::Path,
-    /// Last path segment of `rust_path` (e.g. `"ZError"`). Used to
+    /// argument type of the generated `throw_<short>`. Stored as a
+    /// `syn::Type` so it round-trips identically with the
+    /// closure-slot exception bindings in [`WrapperFn`] — both ends
+    /// spell the type the same way.
+    pub rust_type: syn::Type,
+    /// Last path segment of `rust_type` (e.g. `"ZError"`). Used to
     /// derive the `throw_<short>` function name and to provide the
     /// default Kotlin class name when no `.kotlin_name(...)` override
     /// is supplied.
@@ -187,7 +190,7 @@ pub(crate) struct TypeConfig {
 ///   composed as a value-inspecting stage onto that converter's chain.
 /// * `exc` — the bound exception **as a Rust type**, matched by exact
 ///   canonical-form equality against a [`JniExt::kotlin_exception_class`]
-///   registration's `rust_path` (use the same full path the
+///   registration's `rust_type` (use the same full path the
 ///   registration was declared with, e.g.
 ///   `parse_quote!(zenoh_flat::errors::ZError)` — no short-name
 ///   matching). `Some(...)` ⇒ throwing: the body evaluates to
@@ -406,7 +409,7 @@ impl JniExt {
     /// is called, then auto-rebases via [`Self::recompute_derived`].
     pub fn new() -> Self {
         let framework_exc = build_exception_config(
-            "::prebindgen_ext::jni::JniBindingError",
+            syn::parse_quote!(::prebindgen_ext::jni::JniBindingError),
             "",
             &[],
         );
@@ -454,19 +457,25 @@ impl JniExt {
     /// its own generated Kotlin class and its own `throw_<RustShortName>`
     /// free function.
     ///
-    /// `rust_path` is the absolute Rust path of the error type (e.g.
-    /// `"zenoh_flat::errors::ZError"`); the type must impl `Display`.
-    /// Bind it to converters by emitting `Some("<rust_path or short>")`
-    /// in the closure's middle slot of [`Self::input_wrapper`] /
-    /// [`Self::output_wrapper`]. The framework's own
+    /// `rust_type` is the absolute Rust path of the error type as a
+    /// `syn::Type::Path` (e.g.
+    /// `parse_quote!(zenoh_flat::errors::ZError)`); the type must impl
+    /// `Display`. Bind it to converters by emitting
+    /// `Some(parse_quote!(<same path>))` in the closure's middle slot
+    /// of [`Self::input_wrapper`] / [`Self::output_wrapper`] — both
+    /// ends use the same form, matched by exact canonical-form equality
+    /// (see [`Self::find_exception`]). The framework's own
     /// [`crate::jni::JniBindingError`] is pre-registered at
     /// `exceptions[0]` for built-in converters; user-declared exceptions
     /// land at 1+.
     ///
+    /// Panics when `rust_type` isn't path-shaped (exception classes are
+    /// always paths; refs, tuples, and generics aren't valid here).
+    ///
     /// The default Kotlin class name is `<package>.<rust_short>`;
     /// chain [`Self::kotlin_name`] to override.
-    pub fn kotlin_exception_class(mut self, rust_path: impl AsRef<str>) -> Self {
-        let cfg = build_exception_config(rust_path.as_ref(), &self.package, &self.exceptions);
+    pub fn kotlin_exception_class(mut self, rust_type: syn::Type) -> Self {
+        let cfg = build_exception_config(rust_type, &self.package, &self.exceptions);
         self.exceptions.push(cfg);
         let idx = self.exceptions.len() - 1;
         self.last_exception_idx = Some(idx);
@@ -905,7 +914,7 @@ impl JniExt {
     /// * `exc = Some(<Rust type>)` ⇒ throwing: `body` evaluates to
     ///   `Result<ty, <Rust type>>`; framework emits it verbatim. The
     ///   type must match a [`Self::kotlin_exception_class`] declaration
-    ///   by **exact canonical-form equality** with its `rust_path` (see
+    ///   by **exact canonical-form equality** with its `rust_type` (see
     ///   [`Self::find_exception`] — no short-name fallback). The match
     ///   is validated at lookup time.
     ///
@@ -978,14 +987,14 @@ impl JniExt {
 
     /// Resolve an exception type against the registered
     /// [`Self::exceptions`] by **exact canonical-form equality** with the
-    /// declaration's `rust_path`. No short-name fallback — the closure /
+    /// declaration's `rust_type`. No short-name fallback — the closure /
     /// caller must spell the same full path
     /// `.kotlin_exception_class(...)` was declared with. Returns the
     /// index into the `exceptions` vec on match.
     fn find_exception(&self, ty: &syn::Type) -> Option<usize> {
         let needle = ty.to_token_stream().to_string();
         self.exceptions.iter().position(|e| {
-            e.rust_path.to_token_stream().to_string() == needle
+            e.rust_type.to_token_stream().to_string() == needle
         })
     }
 
@@ -1281,15 +1290,16 @@ pub(crate) fn exception_throw_path(exc: &ExceptionConfig) -> syn::Path {
     syn::Path::from(ident)
 }
 
-/// Bare-ident path `__JniErr` — the generated file's alias for the
+/// Bare-ident type `__JniErr` — the generated file's alias for the
 /// framework `JniBindingError`. Non-throwing converters use this as
 /// their `Result<…, _>` error type so their bodies' `<__JniErr as
 /// From<String>>::from(...)` calls keep compiling, and so a
 /// `?`-propagated framework failure surfaces as the framework
 /// exception on the JVM. Throwing converters bypass this in favour of
-/// their bound exception's own path (see [`JniExt::lookup_input`] /
-/// [`JniExt::lookup_output`]).
-pub(crate) fn default_err_path() -> syn::Path {
+/// their bound exception's own type (see [`JniExt::lookup_input`] /
+/// [`JniExt::lookup_output`]). Returned as `syn::Type` so it shares the
+/// `err_type` binding with [`ExceptionConfig::rust_type`].
+pub(crate) fn default_err_type() -> syn::Type {
     syn::parse_quote!(__JniErr)
 }
 
@@ -1317,30 +1327,30 @@ fn validate_path(who: &str, path: &str) -> String {
     path.to_string()
 }
 
-/// Construct an [`ExceptionConfig`] from a Rust path string + the
-/// current Kotlin package. Shared by [`JniExt::new`] (framework
+/// Construct an [`ExceptionConfig`] from a path-shaped `syn::Type` and
+/// the current Kotlin package. Shared by [`JniExt::new`] (framework
 /// `JniBindingError` slot) and [`JniExt::kotlin_exception_class`]
-/// (user-declared slots). Panics on invalid input + on collisions
-/// against `existing`'s `throw_<short>` names.
+/// (user-declared slots). Panics if `rust_type` isn't a `Type::Path`
+/// or if its short-name collides with an already-registered exception.
 fn build_exception_config(
-    rust_path_str: &str,
+    rust_type: syn::Type,
     package: &str,
     existing: &[ExceptionConfig],
 ) -> ExceptionConfig {
-    let path: syn::Path = syn::parse_str(rust_path_str).unwrap_or_else(|e| {
-        panic!(
-            "kotlin_exception_class: invalid rust path `{}`: {}",
-            rust_path_str, e
-        )
-    });
-    let short = path
-        .segments
+    let segs = match &rust_type {
+        syn::Type::Path(tp) => &tp.path.segments,
+        _ => panic!(
+            "kotlin_exception_class: expected a path-shaped type, got `{}`",
+            rust_type.to_token_stream()
+        ),
+    };
+    let short = segs
         .last()
         .map(|s| s.ident.to_string())
         .unwrap_or_else(|| {
             panic!(
-                "kotlin_exception_class: rust path `{}` has no segments",
-                rust_path_str
+                "kotlin_exception_class: rust type `{}` has no path segments",
+                rust_type.to_token_stream()
             )
         });
     let kotlin_fqn = if package.is_empty() {
@@ -1359,7 +1369,7 @@ fn build_exception_config(
         );
     }
     ExceptionConfig {
-        rust_path: path,
+        rust_type,
         rust_short: short,
         kotlin_fqn,
         throw_fn_name,
@@ -1431,7 +1441,7 @@ impl JniExt {
     /// * `None` (non-throwing) → signature `Result<rust, __JniErr>` and
     ///   the body is wrapped `Ok(<body>)`; `?` inside propagates the
     ///   framework error.
-    /// * `Some(X)` (throwing) → signature `Result<rust, X::rust_path>`
+    /// * `Some(X)` (throwing) → signature `Result<rust, X::rust_type>`
     ///   and the body is emitted as-is — `<body>` already evaluates to
     ///   that `Result`, so no `Ok` wrap (and no cross-type `From`).
     pub(crate) fn build_input_fn(
@@ -1444,7 +1454,7 @@ impl JniExt {
         let name = input_name(rust, wire);
         let rust_with_lifetime = annotate_borrow_with_lifetime(rust, "env");
         let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "v");
-        let err_type = exc.map(|e| e.rust_path.clone()).unwrap_or_else(default_err_path);
+        let err_type = exc.map(|e| e.rust_type.clone()).unwrap_or_else(default_err_type);
         let ret_body = body_for_exc(body, exc);
         if matches!(wire, syn::Type::Ptr(_)) {
             syn::parse_quote!(
@@ -1478,7 +1488,7 @@ impl JniExt {
     ) -> syn::ItemFn {
         let name = output_name(rust, wire);
         let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "a");
-        let err_type = exc.map(|e| e.rust_path.clone()).unwrap_or_else(default_err_path);
+        let err_type = exc.map(|e| e.rust_type.clone()).unwrap_or_else(default_err_type);
         let ret_body = body_for_exc(body, exc);
         syn::parse_quote!(
             #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
@@ -1851,7 +1861,7 @@ impl PrebindgenExt for JniExt {
         // typed `Result<…, X>` — they bypass `__JniErr` entirely so no
         // cross-type bridge between the framework error and a domain
         // error is needed (the orphan rule forbids one).
-        let error_type = &self.framework_exception().rust_path;
+        let error_type = &self.framework_exception().rust_type;
         let alias: syn::Item = syn::parse_quote!(
             #[allow(dead_code)]
             pub(crate) type __JniErr = #error_type;
