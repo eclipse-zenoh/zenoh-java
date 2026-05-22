@@ -37,6 +37,48 @@ pub(crate) fn is_unit(ty: &syn::Type) -> bool {
     matches!(ty, syn::Type::Tuple(t) if t.elems.is_empty())
 }
 
+/// Pull a signed integer out of a `syn::Expr` literal (`5`, `-3`,
+/// `0x07`). Returns `None` for anything else (constants, paths,
+/// arithmetic).
+pub(crate) fn extract_int_literal(expr: &syn::Expr) -> Option<i64> {
+    match expr {
+        syn::Expr::Lit(lit) => match &lit.lit {
+            syn::Lit::Int(int) => int.base10_parse::<i64>().ok(),
+            _ => None,
+        },
+        syn::Expr::Unary(syn::ExprUnary {
+            op: syn::UnOp::Neg(_),
+            expr,
+            ..
+        }) => extract_int_literal(expr).map(|v| -v),
+        _ => None,
+    }
+}
+
+/// Resolve each enum variant to its discriminant value following Rust's
+/// own assignment rule: an explicit `= N` sets the value, an implicit
+/// variant takes the previous value plus one (starting at 0). This is
+/// the single source of truth for both the Kotlin `value(N)` constants
+/// and the generated Rust `jint → variant` decode — keeping the two
+/// from drifting and removing the need for a hand-written
+/// `TryFrom<i32>` on the flat enum. Non-literal discriminants fall back
+/// to the running counter (good enough for the C-like enums
+/// `kotlin_enum` accepts).
+pub(crate) fn enum_discriminant_values(e: &syn::ItemEnum) -> Vec<(syn::Ident, i64)> {
+    let mut out = Vec::with_capacity(e.variants.len());
+    let mut next: i64 = 0;
+    for variant in &e.variants {
+        let value = variant
+            .discriminant
+            .as_ref()
+            .and_then(|(_, expr)| extract_int_literal(expr))
+            .unwrap_or(next);
+        out.push((variant.ident.clone(), value));
+        next = value + 1;
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::camel_to_screaming_snake;

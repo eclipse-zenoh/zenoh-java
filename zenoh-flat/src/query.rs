@@ -47,19 +47,6 @@ pub enum QueryTarget {
     AllComplete = 2,
 }
 
-impl TryFrom<i32> for QueryTarget {
-    type Error = String;
-
-    fn try_from(v: i32) -> Result<Self, Self::Error> {
-        Ok(match v {
-            0 => QueryTarget::BestMatching,
-            1 => QueryTarget::All,
-            2 => QueryTarget::AllComplete,
-            _ => return Err(format!("invalid QueryTarget discriminant: {}", v)),
-        })
-    }
-}
-
 impl From<QueryTarget> for zenoh::query::QueryTarget {
     fn from(t: QueryTarget) -> Self {
         match t {
@@ -80,20 +67,6 @@ pub enum ConsolidationMode {
     None = 1,
     Monotonic = 2,
     Latest = 3,
-}
-
-impl TryFrom<i32> for ConsolidationMode {
-    type Error = String;
-
-    fn try_from(v: i32) -> Result<Self, Self::Error> {
-        Ok(match v {
-            0 => ConsolidationMode::Auto,
-            1 => ConsolidationMode::None,
-            2 => ConsolidationMode::Monotonic,
-            3 => ConsolidationMode::Latest,
-            _ => return Err(format!("invalid ConsolidationMode discriminant: {}", v)),
-        })
-    }
 }
 
 impl From<ConsolidationMode> for zenoh::query::ConsolidationMode {
@@ -118,18 +91,6 @@ pub enum ReplyKeyExpr {
     #[default]
     MatchingQuery = 0,
     Any = 1,
-}
-
-impl TryFrom<i32> for ReplyKeyExpr {
-    type Error = String;
-
-    fn try_from(v: i32) -> Result<Self, Self::Error> {
-        Ok(match v {
-            0 => ReplyKeyExpr::MatchingQuery,
-            1 => ReplyKeyExpr::Any,
-            _ => return Err(format!("invalid ReplyKeyExpr discriminant: {}", v)),
-        })
-    }
 }
 
 impl From<ReplyKeyExpr> for zenoh::query::ReplyKeyExpr {

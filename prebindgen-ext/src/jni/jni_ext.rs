@@ -3157,23 +3157,36 @@ fn struct_module_path(ext: &JniExt, s: &syn::ItemStruct) -> syn::Path {
 // ──────────────────────────────────────────────────────────────────────
 
 /// `jint → Rust enum` decoder body for a `kotlin_enum`-declared enum.
-/// Wire is `jni::sys::jint`; the body calls `<ident>::try_from(*v as i32)`
-/// and surfaces decode failures as the framework `__JniErr` via `Display`
-/// (a malformed jint is a binding-layer concern, not a domain error).
-/// The enum must implement `TryFrom<i32, Error = E>` where `E: Display`.
+/// Wire is `jni::sys::jint`. The framework builds the decode `match`
+/// directly from the enum's own discriminants — no `TryFrom<i32>` impl
+/// is required on the flat enum (the enum declaration is the single
+/// source of truth for the int↔variant mapping, shared with the Kotlin
+/// `value(N)` constants via [`enum_discriminant_values`]). An unknown
+/// discriminant surfaces as the framework `__JniErr`.
 ///
-/// The body uses the bare ident — same shape as the wrapper function's
+/// The arms use the bare ident — same shape as the wrapper function's
 /// `v: <ident>` signature — so binding crates can pick whichever
 /// upstream type a bare `<ident>` resolves to in their include-site
 /// `use` statements. Pairs with output body below.
 fn enum_input_body(_ext: &JniExt, e: &syn::ItemEnum) -> (syn::Type, syn::Expr) {
     assert_only_unit_variants(e);
     let ident = &e.ident;
+    let ident_name = ident.to_string();
+    let arms = crate::util::enum_discriminant_values(e).into_iter().map(|(variant, value)| {
+        let lit = proc_macro2::Literal::i64_unsuffixed(value);
+        quote! { #lit => #ident::#variant, }
+    });
     let body: syn::Expr = syn::parse_quote!({
-        <#ident as ::core::convert::TryFrom<i32>>::try_from(*v as i32)
-            .map_err(|err| {
-                <__JniErr as ::core::convert::From<String>>::from(err.to_string())
-            })?
+        match *v as i64 {
+            #(#arms)*
+            other => {
+                return ::core::result::Result::Err(
+                    <__JniErr as ::core::convert::From<String>>::from(
+                        format!("invalid {} discriminant: {}", #ident_name, other)
+                    )
+                );
+            }
+        }
     });
     (syn::parse_quote!(jni::sys::jint), body)
 }

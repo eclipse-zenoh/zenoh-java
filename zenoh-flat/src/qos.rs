@@ -23,9 +23,11 @@
 use prebindgen_proc_macro::prebindgen;
 
 /// Flat mirror of [`zenoh::qos::Priority`]. `#[repr(i32)]` so the
-/// auto-generated `as jni::sys::jint` encode in the JNI back-end is a
-/// no-op cast, and `TryFrom<i32>` round-trips the same discriminant
-/// values that ship over the wire.
+/// auto-generated JNI converters round-trip the discriminant values
+/// over the wire: the framework derives the `jint → variant` decode and
+/// `variant as jint` encode straight from these discriminants, so no
+/// `TryFrom<i32>` is needed here — only the semantic `From`/`Into` shim
+/// to upstream below.
 #[prebindgen]
 #[repr(i32)]
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
@@ -38,23 +40,6 @@ pub enum Priority {
     Data = 5,
     DataLow = 6,
     Background = 7,
-}
-
-impl TryFrom<i32> for Priority {
-    type Error = String;
-
-    fn try_from(v: i32) -> Result<Self, Self::Error> {
-        Ok(match v {
-            1 => Priority::RealTime,
-            2 => Priority::InteractiveHigh,
-            3 => Priority::InteractiveLow,
-            4 => Priority::DataHigh,
-            5 => Priority::Data,
-            6 => Priority::DataLow,
-            7 => Priority::Background,
-            _ => return Err(format!("invalid Priority discriminant: {}", v)),
-        })
-    }
 }
 
 impl From<zenoh::qos::Priority> for Priority {
@@ -97,18 +82,6 @@ pub enum CongestionControl {
     Block = 1,
 }
 
-impl TryFrom<i32> for CongestionControl {
-    type Error = String;
-
-    fn try_from(v: i32) -> Result<Self, Self::Error> {
-        Ok(match v {
-            0 => CongestionControl::Drop,
-            1 => CongestionControl::Block,
-            _ => return Err(format!("invalid CongestionControl discriminant: {}", v)),
-        })
-    }
-}
-
 impl From<CongestionControl> for zenoh::qos::CongestionControl {
     fn from(c: CongestionControl) -> Self {
         match c {
@@ -126,18 +99,6 @@ pub enum Reliability {
     BestEffort = 0,
     #[default]
     Reliable = 1,
-}
-
-impl TryFrom<i32> for Reliability {
-    type Error = String;
-
-    fn try_from(v: i32) -> Result<Self, Self::Error> {
-        Ok(match v {
-            0 => Reliability::BestEffort,
-            1 => Reliability::Reliable,
-            _ => return Err(format!("invalid Reliability discriminant: {}", v)),
-        })
-    }
 }
 
 impl From<Reliability> for zenoh::qos::Reliability {

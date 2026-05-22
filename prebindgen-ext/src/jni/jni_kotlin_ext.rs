@@ -624,18 +624,12 @@ fn render_exception_source(package: &str, class_name: &str, rust_doc_name: &str)
 /// the hand-written `io.zenoh.qos.Priority` shape so adapter code that
 /// already speaks the `.value` / `.fromInt(...)` idiom keeps working.
 fn render_enum_source(package: &str, class_name: &str, item_enum: &syn::ItemEnum) -> String {
-    let variants: Vec<(String, i64)> = item_enum
-        .variants
-        .iter()
-        .enumerate()
-        .map(|(idx, v)| {
-            let name = crate::util::camel_to_screaming_snake(&v.ident.to_string());
-            let value = v
-                .discriminant
-                .as_ref()
-                .and_then(|(_, expr)| extract_int_literal(expr))
-                .unwrap_or(idx as i64);
-            (name, value)
+    // Same discriminant source of truth the Rust `jint → variant` decode
+    // uses, so Kotlin `value(N)` and the generated decode agree.
+    let variants: Vec<(String, i64)> = crate::util::enum_discriminant_values(item_enum)
+        .into_iter()
+        .map(|(ident, value)| {
+            (crate::util::camel_to_screaming_snake(&ident.to_string()), value)
         })
         .collect();
 
@@ -665,24 +659,6 @@ fn render_enum_source(package: &str, class_name: &str, item_enum: &syn::ItemEnum
     s.push_str("    }\n");
     s.push_str("}\n");
     s
-}
-
-/// Pull a signed integer out of a `syn::Expr` literal (`5`, `-3`,
-/// `0x07`). Returns `None` for anything else (constants, paths,
-/// arithmetic) — callers fall back to the variant's ordinal.
-fn extract_int_literal(expr: &syn::Expr) -> Option<i64> {
-    match expr {
-        syn::Expr::Lit(lit) => match &lit.lit {
-            syn::Lit::Int(int) => int.base10_parse::<i64>().ok(),
-            _ => None,
-        },
-        syn::Expr::Unary(syn::ExprUnary {
-            op: syn::UnOp::Neg(_),
-            expr,
-            ..
-        }) => extract_int_literal(expr).map(|v| -v),
-        _ => None,
-    }
 }
 
 /// `NativeHandle.kt` source — emitted verbatim into the destination
