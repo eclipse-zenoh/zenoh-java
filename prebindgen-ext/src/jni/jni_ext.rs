@@ -185,12 +185,15 @@ pub(crate) struct TypeConfig {
 ///   a wire shape (or the self-converter case) ⇒ terminal converter
 ///   with `destination = ty`; a rust type with its own converter ⇒
 ///   composed as a value-inspecting stage onto that converter's chain.
-/// * `exc` — the bound JVM exception name (e.g. `"ZError"`, or the
-///   short / full Rust path; resolved via [`JniExt::find_exception`]).
-///   `Some(...)` ⇒ throwing: the body evaluates to `Result<ty, exc>`
-///   and is emitted as-is. `None` ⇒ non-throwing: the body evaluates
-///   to a bare `ty` and the framework wraps it `Ok(body)` with
-///   `Result<ty, __JniErr>` (= `JniBindingError`).
+/// * `exc` — the bound exception **as a Rust type**, matched by exact
+///   canonical-form equality against a [`JniExt::kotlin_exception_class`]
+///   registration's `rust_path` (use the same full path the
+///   registration was declared with, e.g.
+///   `parse_quote!(zenoh_flat::errors::ZError)` — no short-name
+///   matching). `Some(...)` ⇒ throwing: the body evaluates to
+///   `Result<ty, exc>` and is emitted as-is. `None` ⇒ non-throwing:
+///   the body evaluates to a bare `ty` and the framework wraps it
+///   `Ok(body)` with `Result<ty, __JniErr>` (= `JniBindingError`).
 /// * `body` — the closure body. The decision between Ok-wrap vs
 ///   verbatim is keyed on `exc` (see [`JniExt::build_input_fn`] /
 ///   [`JniExt::build_output_fn`]).
@@ -199,7 +202,7 @@ pub(crate) struct TypeConfig {
 /// inner-type entries (`registry.output_entry(t)`).
 pub(crate) type WrapperFn = Arc<
     dyn Fn(&[syn::Type], &Registry<KotlinMeta>)
-            -> Option<(syn::Type, Option<String>, syn::Expr)>
+            -> Option<(syn::Type, Option<syn::Type>, syn::Expr)>
         + Send
         + Sync,
 >;
@@ -225,7 +228,7 @@ pub struct Arity3;
 
 impl<F> WrapperBuilder<Arity0> for F
 where
-    F: Fn(&Registry<KotlinMeta>) -> Option<(syn::Type, Option<String>, syn::Expr)>
+    F: Fn(&Registry<KotlinMeta>) -> Option<(syn::Type, Option<syn::Type>, syn::Expr)>
         + Send
         + Sync
         + 'static,
@@ -238,7 +241,7 @@ where
 
 impl<F> WrapperBuilder<Arity1> for F
 where
-    F: Fn(&syn::Type, &Registry<KotlinMeta>) -> Option<(syn::Type, Option<String>, syn::Expr)>
+    F: Fn(&syn::Type, &Registry<KotlinMeta>) -> Option<(syn::Type, Option<syn::Type>, syn::Expr)>
         + Send
         + Sync
         + 'static,
@@ -253,7 +256,7 @@ where
 
 impl<F> WrapperBuilder<Arity2> for F
 where
-    F: Fn(&syn::Type, &syn::Type, &Registry<KotlinMeta>) -> Option<(syn::Type, Option<String>, syn::Expr)>
+    F: Fn(&syn::Type, &syn::Type, &Registry<KotlinMeta>) -> Option<(syn::Type, Option<syn::Type>, syn::Expr)>
         + Send
         + Sync
         + 'static,
@@ -269,7 +272,7 @@ where
 impl<F> WrapperBuilder<Arity3> for F
 where
     F: Fn(&syn::Type, &syn::Type, &syn::Type, &Registry<KotlinMeta>)
-            -> Option<(syn::Type, Option<String>, syn::Expr)>
+            -> Option<(syn::Type, Option<syn::Type>, syn::Expr)>
         + Send
         + Sync
         + 'static,
@@ -746,8 +749,8 @@ impl JniExt {
     /// registered closure passes `None` for the exception slot. If a
     /// binding wants the failure to surface as a specific domain
     /// exception instead, register the converter directly via
-    /// [`Self::input_wrapper`] with `Some("X")` in the closure's
-    /// middle slot.
+    /// [`Self::input_wrapper`] with `Some(parse_quote!(<full path>))` in
+    /// the closure's middle slot.
     pub fn jint_enum(
         self,
         rust_key: impl AsRef<str>,
@@ -780,10 +783,12 @@ impl JniExt {
     /// * `exc = None` ⇒ non-throwing: emitted body is
     ///   `<dispatcher_path>(env, &v)?` (framework `?`-propagation); only
     ///   valid if the dispatcher returns the framework error.
-    /// * `exc = Some("X")` ⇒ throwing: the dispatcher is expected to
-    ///   return `Result<impl Fn(...), X>` (e.g. `ZResult<_>`), and the
-    ///   emitted body is the dispatcher call directly — no `?`/`Ok`,
-    ///   per the body↔exception coupling.
+    /// * `exc = Some(<Rust type>)` ⇒ throwing: the dispatcher is
+    ///   expected to return `Result<impl Fn(...), <Rust type>>` (e.g.
+    ///   `ZResult<_>`), and the emitted body is the dispatcher call
+    ///   directly — no `?`/`Ok`, per the body↔exception coupling. The
+    ///   type must match a [`Self::kotlin_exception_class`] declaration
+    ///   by exact canonical-form equality (see [`Self::find_exception`]).
     ///
     /// The Kotlin FQN auto-derives via the callback-name template
     /// (`<callback_name_prefix><stem><callback_name_postfix>`); chain
@@ -791,27 +796,32 @@ impl JniExt {
     pub fn callback_input(
         mut self,
         impl_fn_key: impl AsRef<str>,
-        exc: Option<&str>,
+        exc: Option<syn::Type>,
         dispatcher_path: impl AsRef<str>,
     ) -> Self {
         let key = TypeKey::parse(impl_fn_key.as_ref());
         let dispatcher_path_str = validate_path("callback_input", dispatcher_path.as_ref());
         let body_path = dispatcher_path_str.clone();
-        // Capture the exception name (or absence) for the builder's triple.
-        let exc_name = exc.map(str::to_string);
+        // `syn::Type` holds `Rc<TokenStream>` internally and is neither
+        // `Send` nor `Sync`, so we can't capture it directly in a builder
+        // closure that satisfies `WrapperBuilder<Arity0>`'s `Send + Sync`
+        // bounds. Serialise to its canonical token form here and re-parse
+        // inside the closure — same dance the path captures use.
+        let exc_str = exc.as_ref().map(|t| t.to_token_stream().to_string());
         let builder = move |_reg: &Registry<KotlinMeta>| {
             let path: syn::Path = syn::parse_str(&body_path).ok()?;
             // Throwing: dispatcher already returns `Result<_, exc>` — emit
             // the call verbatim. Non-throwing: framework `?`-propagation
             // unwraps, and the framework `Ok`-wraps later.
-            let body: syn::Expr = if exc_name.is_some() {
+            let body: syn::Expr = if exc_str.is_some() {
                 syn::parse_quote!(#path(env, &v))
             } else {
                 syn::parse_quote!(#path(env, &v)?)
             };
+            let exc_ty = exc_str.as_deref().and_then(|s| syn::parse_str::<syn::Type>(s).ok());
             Some((
                 syn::parse_quote!(jni::objects::JObject),
-                exc_name.clone(),
+                exc_ty,
                 body,
             ))
         };
@@ -892,10 +902,11 @@ impl JniExt {
     /// * `exc = None` ⇒ non-throwing: `body` evaluates to a bare `ty`;
     ///   framework emits `-> Result<ty, __JniErr>` with an `Ok(...)`
     ///   wrap, and `?` inside propagates the framework error.
-    /// * `exc = Some("X")` ⇒ throwing: `body` evaluates to
-    ///   `Result<ty, X>`; framework emits it verbatim. `"X"` matches a
-    ///   [`Self::kotlin_exception_class`] by Rust path or short name
-    ///   (or `"JniBindingError"` for the framework default); the name
+    /// * `exc = Some(<Rust type>)` ⇒ throwing: `body` evaluates to
+    ///   `Result<ty, <Rust type>>`; framework emits it verbatim. The
+    ///   type must match a [`Self::kotlin_exception_class`] declaration
+    ///   by **exact canonical-form equality** with its `rust_path` (see
+    ///   [`Self::find_exception`] — no short-name fallback). The match
     ///   is validated at lookup time.
     ///
     /// `ty` is auto-classified at resolve: a wire shape ⇒ terminal
@@ -915,9 +926,10 @@ impl JniExt {
     }
 
     /// Output-direction counterpart of [`Self::input_wrapper`]. Same
-    /// closure shape, same `exc = None` / `Some("X")` semantics, same
-    /// terminal-vs-composed classification — see that method's docs.
-    /// (`Some("X")` with a rust-typed `ty`, e.g. `("T", "ZError", v)` for
+    /// closure shape, same `exc = None` / `Some(<Rust type>)` semantics,
+    /// same terminal-vs-composed classification — see that method's docs.
+    /// (`Some(parse_quote!(<full path>))` with a rust-typed `ty`, e.g.
+    /// `(T, Some(parse_quote!(zenoh_flat::errors::ZError)), v)` for
     /// `ZResult<T>`, gives the auto-composed peel that the deleted
     /// `output_throw_stage` used to register.)
     pub fn output_wrapper<A, B>(self, pattern: impl AsRef<str>, builder: B) -> Self
@@ -951,32 +963,30 @@ impl JniExt {
 
     /// [`Self::find_exception`] with a uniform fail-fast panic. `who` is
     /// the caller name for the message.
-    fn find_exception_or_panic(&self, who: &str, exc_path: &str) -> usize {
-        self.find_exception(exc_path).unwrap_or_else(|| {
+    fn find_exception_or_panic(&self, who: &str, ty: &syn::Type) -> usize {
+        self.find_exception(ty).unwrap_or_else(|| {
+            let needle = ty.to_token_stream().to_string();
             panic!(
-                "JniExt::{who}: no exception class registered matching `{exc_path}` — \
-                 declare it via `.kotlin_exception_class(\"<rust path>\")` first \
-                 (or use `\"JniBindingError\"` for the framework default)"
+                "JniExt::{who}: no exception class registered matching `{needle}` — \
+                 declare it via `.kotlin_exception_class(\"<full rust path>\")` first, \
+                 and bind closures to it with `Some(parse_quote!(<the same path>))`. \
+                 The framework default is `::prebindgen_ext::jni::JniBindingError` (or \
+                 omit the closure's middle slot — pass `None` — for non-throwing)."
             )
         })
     }
 
-    /// Resolve an exception class name (Rust path or short name) against
-    /// the registered [`Self::exceptions`]. Returns the index into the
-    /// `exceptions` vec on match.
-    fn find_exception(&self, name_or_path: &str) -> Option<usize> {
-        // Match canonical rust_path first (most specific), then short.
-        // `find_map` consumes either form; the framework slot at index 0
-        // is addressable as both `"JniBindingError"` and the full path.
-        if let Some(idx) = self.exceptions.iter().position(|e| {
-            e.rust_path.to_token_stream().to_string().replace(' ', "")
-                == name_or_path.replace(' ', "")
-        }) {
-            return Some(idx);
-        }
-        self.exceptions
-            .iter()
-            .position(|e| e.rust_short == name_or_path)
+    /// Resolve an exception type against the registered
+    /// [`Self::exceptions`] by **exact canonical-form equality** with the
+    /// declaration's `rust_path`. No short-name fallback — the closure /
+    /// caller must spell the same full path
+    /// `.kotlin_exception_class(...)` was declared with. Returns the
+    /// index into the `exceptions` vec on match.
+    fn find_exception(&self, ty: &syn::Type) -> Option<usize> {
+        let needle = ty.to_token_stream().to_string();
+        self.exceptions.iter().position(|e| {
+            e.rust_path.to_token_stream().to_string() == needle
+        })
     }
 
     /// The framework's pre-registered [`crate::jni::JniBindingError`]
@@ -1014,8 +1024,9 @@ impl JniExt {
     /// Look up a registered input converter for `pat` with `args`
     /// substituted into its `_` slots. The closure's middle slot (see
     /// [`WrapperFn`]) carries the bound exception — `None` ⇒ framework
-    /// `__JniErr` with an `Ok`-wrap, `Some("X")` ⇒ `Result<ty, X>`
-    /// emitted verbatim, decided in [`Self::build_input_fn`].
+    /// `__JniErr` with an `Ok`-wrap, `Some(<Rust type>)` ⇒
+    /// `Result<ty, <Rust type>>` emitted verbatim, decided in
+    /// [`Self::build_input_fn`].
     ///
     /// The closure's returned type is classified by [`is_wire_type`]:
     /// * **wire** ⇒ terminal: a single converter `wire → outer`.
@@ -1036,14 +1047,14 @@ impl JniExt {
         }
         let key = TypeKey::from_type(pat);
         let f = self.input_wrappers[rank].get(&key)?;
-        let (ty, exc_name, body) = f(args, registry)?;
-        // Resolve the exception name lazily: validated here, at lookup
+        let (ty, exc_ty, body) = f(args, registry)?;
+        // Resolve the exception type lazily: validated here, at lookup
         // time, rather than at the `input_wrapper` call site — the
         // closure is the single source of truth for both body shape and
         // bound exception (see [`WrapperFn`]).
-        let exc = exc_name
-            .as_deref()
-            .map(|n| &self.exceptions[self.find_exception_or_panic("input_wrapper", n)]);
+        let exc = exc_ty
+            .as_ref()
+            .map(|t| &self.exceptions[self.find_exception_or_panic("input_wrapper", t)]);
         let outer = substitute_wildcards(pat, args);
         let throw_exc = exc.unwrap_or_else(|| self.framework_exception());
         // Terminal vs composed: `ty` is composed iff it's a *distinct*
@@ -1150,11 +1161,11 @@ impl JniExt {
         }
         let key = TypeKey::from_type(pat);
         let f = self.output_wrappers[rank].get(&key)?;
-        let (ty, exc_name, body) = f(args, registry)?;
+        let (ty, exc_ty, body) = f(args, registry)?;
         // Resolve at lookup — see [`Self::lookup_input`] for the rationale.
-        let exc = exc_name
-            .as_deref()
-            .map(|n| &self.exceptions[self.find_exception_or_panic("output_wrapper", n)]);
+        let exc = exc_ty
+            .as_ref()
+            .map(|t| &self.exceptions[self.find_exception_or_panic("output_wrapper", t)]);
         let outer = substitute_wildcards(pat, args);
         let throw_exc = exc.unwrap_or_else(|| self.framework_exception());
         // Terminal vs composed — see [`Self::lookup_input`] for the rule.
@@ -1835,7 +1846,7 @@ impl PrebindgenExt for JniExt {
         // their `?` failures into this type via its `From<String>`
         // impl, so a built-in decode failure surfaces as
         // `JniBindingError` on the JVM. Throwing converters
-        // (closures returning `Some("X")` in the middle slot of
+        // (closures returning `Some(parse_quote!(<full path>))` in the middle slot of
         // `input_wrapper` / `output_wrapper`) instead emit functions
         // typed `Result<…, X>` — they bypass `__JniErr` entirely so no
         // cross-type bridge between the framework error and a domain
@@ -2126,7 +2137,7 @@ impl PrebindgenExt for JniExt {
         }
         // No built-in Result/ZResult special-case: bindings register any
         // throw-on-Err behaviour via
-        // an `output_wrapper("ZResult < _ >", |t,_| Some((t, Some("X"), v)))`
+        // an `output_wrapper("ZResult < _ >", |t,_| Some((t, Some(parse_quote!(...)), v)))`
         // whose closure returns a rust type, which routes through
         // `lookup_output` above (rust-typed continue ⇒ auto-composed peel).
         if pat_match(pat, "Option < _ >") {
@@ -2195,7 +2206,7 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
     // `match`-arms that dispatch to the input converter's own throw fn
     // on `Err` and `return <sentinel>;` — so a malformed `Encoding`
     // JObject raises `JniBindingError`, while a throwing input wrapper
-    // raises whatever exception it bound via `Some("X")` in the closure.
+    // raises whatever exception it bound via `Some(parse_quote!(...))` in the closure.
     let mut prelude: Vec<TokenStream> = Vec::new();
     let mut call_args: Vec<TokenStream> = Vec::new();
 
@@ -2209,7 +2220,8 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
         panic!(
             "JniExt::on_function: return type `{}` of `{}` has no registered output \
              converter — register one via `JniExt::output_wrapper(pat, |…| Some((ty, exc, body)))` \
-             (exc = `None` for non-throwing, `Some(\"<exc>\")` to bind a domain exception)",
+             (exc = `None` for non-throwing, `Some(parse_quote!(<full path>))` \
+              to bind a domain exception)",
             TypeKey::from_type(&return_ty),
             original_ident,
         )
@@ -2242,7 +2254,8 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
         let conv = entry.function.sig.ident.clone();
         // Each input converter carries the throw fn for its failures —
         // framework `throw_JniBindingError` by default, or a custom one
-        // bound via `Some("<exc>")` in the input wrapper's closure.
+        // bound via `Some(parse_quote!(<full path>))` in the input
+        // wrapper's closure.
         let input_throw = entry
             .metadata
             .throws_action

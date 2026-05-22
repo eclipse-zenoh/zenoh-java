@@ -28,28 +28,31 @@ fn main() {
         // the framework `JniBindingError` instead (pre-registered).
         //
         // Throwing converters bind to this exception by emitting
-        // `Some("ZError")` in the closure's middle slot of
+        // `Some(parse_quote!(zenoh_flat::errors::ZError))` in the
+        // closure's middle slot of
         // `*_wrapper(pat, |…| Some((ty, exc, body)))`, where `body`
-        // returns `Result<ty, ZError>` (no `Ok` wrap). The framework
-        // knows nothing about `Result`/`ZResult`; the binding spells
-        // each shape out here. When `ty` is a rust type (e.g. `ZResult<T>`
-        // returns `T`) the framework auto-composes a value-inspecting
-        // peel stage onto that type's own converter, so a `ZResult<Session>`
-        // raises `ZError` on the peel and `JniBindingError` on the
-        // jlong marshalling.
+        // returns `Result<ty, ZError>` (no `Ok` wrap). Lookup is by
+        // exact canonical-form equality with the path passed to
+        // `kotlin_exception_class` above — no short-name fallback. The
+        // framework knows nothing about `Result`/`ZResult`; the binding
+        // spells each shape out here. When `ty` is a rust type (e.g.
+        // `ZResult<T>` returns `T`) the framework auto-composes a
+        // value-inspecting peel stage onto that type's own converter,
+        // so a `ZResult<Session>` raises `ZError` on the peel and
+        // `JniBindingError` on the jlong marshalling.
         .kotlin_exception_class("zenoh_flat::errors::ZError")
         // ZResult<T> output: a throwing converter whose closure returns
         // the rust type `T` — so the framework auto-composes it as a
         // value-inspecting peel stage onto T's own output converter. The
-        // peel raises `ZError` (Some("ZError") in the closure's middle
-        // slot); T's marshalling raises `JniBindingError`; the Kotlin
-        // `@Throws` lists both. `v: ZResult<T>` is already
+        // peel raises `ZError` (Some(parse_quote!(...ZError)) in the
+        // closure's middle slot); T's marshalling raises `JniBindingError`;
+        // the Kotlin `@Throws` lists both. `v: ZResult<T>` is already
         // `Result<T, ZError>`, the exact shape a throwing body must
         // return — so the body is just `v`.
         .output_wrapper(
             "ZResult < _ >",
             |t: &syn::Type, _reg: &Registry<KotlinMeta>| {
-                Some((t.clone(), Some("ZError".into()), parse_quote!(v)))
+                Some((t.clone(), Some(parse_quote!(zenoh_flat::errors::ZError)), parse_quote!(v)))
             },
         )
         // Non-throwing identity passthrough for `()` outputs (middle
@@ -122,18 +125,18 @@ fn main() {
         .jint_enum("ConsolidationMode", "crate::utils::decode_consolidation")
         .jint_enum("ReplyKeyExpr", "crate::utils::decode_reply_key_expr")
         // ── Value-shaped custom converters. These call into zenoh code
-        // that returns `ZResult<_>`, so the closure puts `Some("ZError")`
-        // in the middle slot: the body IS the `ZResult` — no `?`/`Ok`
-        // ceremony, the body↔exception coupling handles it. A
-        // decode/encode failure surfaces as a zenoh error, not the
-        // framework `JniBindingError`. (`SetIntersectionLevel` is an
-        // infallible `as` cast, so its middle slot is `None`.)
-        // Non-primitive wires chain `kotlin_name`; primitive wires
-        // auto-derive via `kotlin_for_wire`.
+        // that returns `ZResult<_>`, so the closure puts
+        // `Some(parse_quote!(zenoh_flat::errors::ZError))` in the middle
+        // slot: the body IS the `ZResult` — no `?`/`Ok` ceremony, the
+        // body↔exception coupling handles it. A decode/encode failure
+        // surfaces as a zenoh error, not the framework `JniBindingError`.
+        // (`SetIntersectionLevel` is an infallible `as` cast, so its
+        // middle slot is `None`.) Non-primitive wires chain
+        // `kotlin_name`; primitive wires auto-derive via `kotlin_for_wire`.
         .input_wrapper("Encoding", |_reg: &Registry<KotlinMeta>| {
             Some((
                 parse_quote!(jni::objects::JObject),
-                Some("ZError".into()),
+                Some(parse_quote!(zenoh_flat::errors::ZError)),
                 parse_quote!(crate::utils::decode_jni_encoding(env, &v)),
             ))
         })
@@ -141,7 +144,7 @@ fn main() {
         .input_wrapper("Option<Encoding>", |_reg: &Registry<KotlinMeta>| {
             Some((
                 parse_quote!(jni::objects::JObject),
-                Some("ZError".into()),
+                Some(parse_quote!(zenoh_flat::errors::ZError)),
                 parse_quote!(
                     if !v.is_null() {
                         crate::utils::decode_jni_encoding(env, &v).map(Some)
@@ -162,14 +165,14 @@ fn main() {
         .output_wrapper("ZenohId", |_reg: &Registry<KotlinMeta>| {
             Some((
                 parse_quote!(jni::sys::jbyteArray),
-                Some("ZError".into()),
+                Some(parse_quote!(zenoh_flat::errors::ZError)),
                 parse_quote!(crate::zenoh_id::zenoh_id_to_byte_array(env, v)),
             ))
         })
         .output_wrapper("Vec<ZenohId>", |_reg: &Registry<KotlinMeta>| {
             Some((
                 parse_quote!(jni::sys::jobject),
-                Some("ZError".into()),
+                Some(parse_quote!(zenoh_flat::errors::ZError)),
                 parse_quote!(crate::zenoh_id::zenoh_ids_to_java_list(env, v)),
             ))
         })
@@ -180,19 +183,19 @@ fn main() {
         // The hand-written dispatcher fns
         // (`process_kotlin_query_callback`, `process_kotlin_reply_callback`)
         // return `ZResult<_>` natively — they do domain decoding — so the
-        // `Some("ZError")` arg makes the emitted converter typed
-        // `Result<_, ZError>` and its body the dispatcher call directly
-        // (no `?`/`Ok`). The auto `impl Fn(Sample)` callback, which has
-        // no domain decode, keeps the framework default.
+        // `Some(parse_quote!(...ZError))` arg makes the emitted converter
+        // typed `Result<_, ZError>` and its body the dispatcher call
+        // directly (no `?`/`Ok`). The auto `impl Fn(Sample)` callback,
+        // which has no domain decode, keeps the framework default.
         .callback_input(
             "impl Fn(Query) + Send + Sync + 'static",
-            Some("ZError"),
+            Some(parse_quote!(zenoh_flat::errors::ZError)),
             "crate::sample_callback::process_kotlin_query_callback",
         )
         .kotlin_name("JNIQueryableCallback")
         .callback_input(
             "impl Fn(Reply) + Send + Sync + 'static",
-            Some("ZError"),
+            Some(parse_quote!(zenoh_flat::errors::ZError)),
             "crate::sample_callback::process_kotlin_reply_callback",
         )
         .kotlin_name("JNIGetCallback")
