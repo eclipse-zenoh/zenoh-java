@@ -37,6 +37,7 @@ use zenoh::{
 use zenoh_ext::{AdvancedPublisher, AdvancedSubscriber};
 use zenoh_flat::sample::Sample;
 use zenoh_flat::errors::ZResult;
+use zenoh_flat::errors::ZError;
 #[cfg(feature = "zenoh-ext")]
 use zenoh_flat::structs::{CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig};
 

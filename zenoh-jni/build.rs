@@ -40,7 +40,7 @@ fn main() {
         // value-inspecting peel stage onto that type's own converter,
         // so a `ZResult<Session>` raises `ZError` on the peel and
         // `JniBindingError` on the jlong marshalling.
-        .kotlin_exception_class(parse_quote!(zenoh_flat::errors::ZError))
+        .kotlin_exception_class(parse_quote!(ZError))
         // ZResult<T> output: a throwing converter whose closure returns
         // the rust type `T` — so the framework auto-composes it as a
         // value-inspecting peel stage onto T's own output converter. The
@@ -52,7 +52,7 @@ fn main() {
         .output_wrapper(
             "ZResult < _ >",
             |t: &syn::Type, _reg: &Registry<KotlinMeta>| {
-                Some((t.clone(), Some(parse_quote!(zenoh_flat::errors::ZError)), parse_quote!(v)))
+                Some((t.clone(), Some(parse_quote!(ZError)), parse_quote!(v)))
             },
         )
         // Non-throwing identity passthrough for `()` outputs (middle
@@ -126,7 +126,7 @@ fn main() {
         .jint_enum("ReplyKeyExpr", "crate::utils::decode_reply_key_expr")
         // ── Value-shaped custom converters. These call into zenoh code
         // that returns `ZResult<_>`, so the closure puts
-        // `Some(parse_quote!(zenoh_flat::errors::ZError))` in the middle
+        // `Some(parse_quote!(ZError))` in the middle
         // slot: the body IS the `ZResult` — no `?`/`Ok` ceremony, the
         // body↔exception coupling handles it. A decode/encode failure
         // surfaces as a zenoh error, not the framework `JniBindingError`.
@@ -136,7 +136,7 @@ fn main() {
         .input_wrapper("Encoding", |_reg: &Registry<KotlinMeta>| {
             Some((
                 parse_quote!(jni::objects::JObject),
-                Some(parse_quote!(zenoh_flat::errors::ZError)),
+                Some(parse_quote!(ZError)),
                 parse_quote!(crate::utils::decode_jni_encoding(env, &v)),
             ))
         })
@@ -144,7 +144,7 @@ fn main() {
         .input_wrapper("Option<Encoding>", |_reg: &Registry<KotlinMeta>| {
             Some((
                 parse_quote!(jni::objects::JObject),
-                Some(parse_quote!(zenoh_flat::errors::ZError)),
+                Some(parse_quote!(ZError)),
                 parse_quote!(
                     if !v.is_null() {
                         crate::utils::decode_jni_encoding(env, &v).map(Some)
@@ -165,14 +165,14 @@ fn main() {
         .output_wrapper("ZenohId", |_reg: &Registry<KotlinMeta>| {
             Some((
                 parse_quote!(jni::sys::jbyteArray),
-                Some(parse_quote!(zenoh_flat::errors::ZError)),
+                Some(parse_quote!(ZError)),
                 parse_quote!(crate::zenoh_id::zenoh_id_to_byte_array(env, v)),
             ))
         })
         .output_wrapper("Vec<ZenohId>", |_reg: &Registry<KotlinMeta>| {
             Some((
                 parse_quote!(jni::sys::jobject),
-                Some(parse_quote!(zenoh_flat::errors::ZError)),
+                Some(parse_quote!(ZError)),
                 parse_quote!(crate::zenoh_id::zenoh_ids_to_java_list(env, v)),
             ))
         })
@@ -189,13 +189,13 @@ fn main() {
         // which has no domain decode, keeps the framework default.
         .callback_input(
             "impl Fn(Query) + Send + Sync + 'static",
-            Some(parse_quote!(zenoh_flat::errors::ZError)),
+            Some(parse_quote!(ZError)),
             "crate::sample_callback::process_kotlin_query_callback",
         )
         .kotlin_name("JNIQueryableCallback")
         .callback_input(
             "impl Fn(Reply) + Send + Sync + 'static",
-            Some(parse_quote!(zenoh_flat::errors::ZError)),
+            Some(parse_quote!(ZError)),
             "crate::sample_callback::process_kotlin_reply_callback",
         )
         .kotlin_name("JNIGetCallback")
