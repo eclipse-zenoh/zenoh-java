@@ -609,7 +609,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                     keyExpr.jniKeyExpr,
                     keyExpr.keyExpr,
                     options.congestionControl.value,
-                    options.priority.value,
+                    options.priority.toJni(),
                     options.express,
                     options.reliability.ordinal
                 )
@@ -718,7 +718,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                     options.target.ordinal,
                     options.consolidationMode.ordinal,
                     options.congestionControl.value,
-                    options.priority.value,
+                    options.priority.toJni(),
                     options.express,
                     options.timeout.toMillis(),
                     options.acceptReplies.ordinal
@@ -770,7 +770,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.payload?.into()?.bytes,
                 options.encoding?.toJni(),
                 options.qos.congestionControl.value,
-                options.qos.priority.value,
+                options.qos.priority.toJni(),
                 options.qos.express,
                 options.acceptReplies.ordinal
             )
@@ -819,7 +819,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.payload?.into()?.bytes,
                 options.encoding?.toJni(),
                 options.qos.congestionControl.value,
-                options.qos.priority.value,
+                options.qos.priority.toJni(),
                 options.qos.express,
                 options.acceptReplies.ordinal
             )
@@ -836,7 +836,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 payload.into().bytes,
                 encoding,
                 putOptions.congestionControl.value,
-                putOptions.priority.value,
+                putOptions.priority.toJni(),
                 putOptions.express,
                 putOptions.attachment?.into()?.bytes,
                 putOptions.reliability.ordinal
@@ -851,7 +851,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 keyExpr.jniKeyExpr,
                 keyExpr.keyExpr,
                 deleteOptions.congestionControl.value,
-                deleteOptions.priority.value,
+                deleteOptions.priority.toJni(),
                 deleteOptions.express,
                 deleteOptions.attachment?.into()?.bytes,
                 deleteOptions.reliability.ordinal

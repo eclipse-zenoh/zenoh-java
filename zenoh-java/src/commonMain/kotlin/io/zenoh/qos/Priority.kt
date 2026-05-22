@@ -14,6 +14,8 @@
 
 package io.zenoh.qos
 
+import io.zenoh.jni.Priority as JniPriority
+
 /**
  * The Priority of Zenoh messages.
  *
@@ -31,7 +33,35 @@ enum class Priority(val value: Int) {
     DATA_LOW(6),
     BACKGROUND(7);
 
+    /**
+     * Project this public-API priority onto the JNI-layer enum that
+     * crosses the boundary. Variant-for-variant, no `Int` round-trip.
+     */
+    fun toJni(): JniPriority = when (this) {
+        REALTIME -> JniPriority.REAL_TIME
+        INTERACTIVE_HIGH -> JniPriority.INTERACTIVE_HIGH
+        INTERACTIVE_LOW -> JniPriority.INTERACTIVE_LOW
+        DATA_HIGH -> JniPriority.DATA_HIGH
+        DATA -> JniPriority.DATA
+        DATA_LOW -> JniPriority.DATA_LOW
+        BACKGROUND -> JniPriority.BACKGROUND
+    }
+
     companion object {
         fun fromInt(value: Int) = entries.first { it.value == value }
+
+        /**
+         * Lift a JNI-layer priority into the public-API enum.
+         * Variant-for-variant, no `Int` round-trip.
+         */
+        fun fromJni(p: JniPriority): Priority = when (p) {
+            JniPriority.REAL_TIME -> REALTIME
+            JniPriority.INTERACTIVE_HIGH -> INTERACTIVE_HIGH
+            JniPriority.INTERACTIVE_LOW -> INTERACTIVE_LOW
+            JniPriority.DATA_HIGH -> DATA_HIGH
+            JniPriority.DATA -> DATA
+            JniPriority.DATA_LOW -> DATA_LOW
+            JniPriority.BACKGROUND -> BACKGROUND
+        }
     }
 }

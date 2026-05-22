@@ -596,7 +596,10 @@ impl JniExt {
 
     /// Resolve a relative class name against [`Self::package`]. Panics
     /// if `name` contains a `.` (a check that catches accidental FQNs in
-    /// the relative-name builders).
+    /// the relative-name builders). The framework refuses dotted names
+    /// on purpose: a binding crate owns one package and must not write
+    /// classes into anyone else's namespace. Higher layers wrap or
+    /// re-export — they don't get injected into.
     pub(crate) fn resolve_class_fqn(&self, name: &str) -> String {
         assert!(
             !name.contains('.'),
