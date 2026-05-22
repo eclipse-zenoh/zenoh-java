@@ -17,7 +17,7 @@ use syn::parse_quote;
 
 fn main() {
     let jni = JniExt::new()
-        .source_module("zenoh_flat")
+        .source_module(parse_quote!(zenoh_flat))
         .package("io.zenoh.jni")
         .jni_method_suffix("ViaJNI")
         // Declares the domain exception `ZError`. Generates the
@@ -50,14 +50,14 @@ fn main() {
         // `Result<T, ZError>`, the exact shape a throwing body must
         // return — so the body is just `v`.
         .output_wrapper(
-            "ZResult < _ >",
+            parse_quote!(ZResult<_>),
             |t: &syn::Type, _reg: &Registry<KotlinMeta>| {
                 Some((t.clone(), Some(parse_quote!(ZError)), parse_quote!(v)))
             },
         )
         // Non-throwing identity passthrough for `()` outputs (middle
         // slot is `None`; framework `Ok`-wraps).
-        .output_wrapper("()", |_reg: &Registry<KotlinMeta>| {
+        .output_wrapper(parse_quote!(()), |_reg: &Registry<KotlinMeta>| {
             Some((parse_quote!(()), None, parse_quote!({ v })))
         })
         // ── Kotlin classes — `kotlin_class` configures: jlong wire
@@ -70,13 +70,13 @@ fn main() {
         // The Kotlin class name defaults to the Rust short-name; chain
         // `.kotlin_name("Foo")` to override (relative to the configured
         // package).
-        .kotlin_class("Session")
+        .kotlin_class(parse_quote!(Session))
         .kotlin_name("JNISession")
         .suppress_kotlin_code()
-        .kotlin_class("Config")
+        .kotlin_class(parse_quote!(Config))
         .kotlin_name("JNIConfig")
         .suppress_kotlin_code()
-        .kotlin_class("ZKeyExpr<'static>")
+        .kotlin_class(parse_quote!(ZKeyExpr<'static>))
         .kotlin_name("JNIKeyExpr")
         .method("try_from")
         .method("autocanonize")
@@ -85,45 +85,45 @@ fn main() {
         .method("relation_to")
         .method("join")
         .method("concat")
-        .kotlin_class("Publisher<'static>")
+        .kotlin_class(parse_quote!(Publisher<'static>))
         .kotlin_name("JNIPublisher")
         .method("put_publisher")
         .method("delete_publisher")
-        .kotlin_class("Subscriber<()>")
+        .kotlin_class(parse_quote!(Subscriber<()>))
         .kotlin_name("JNISubscriber")
-        .kotlin_class("Querier<'static>")
+        .kotlin_class(parse_quote!(Querier<'static>))
         .kotlin_name("JNIQuerier")
         .method("querier_get")
-        .kotlin_class("Queryable<()>")
+        .kotlin_class(parse_quote!(Queryable<()>))
         .kotlin_name("JNIQueryable")
-        .kotlin_class("Query")
+        .kotlin_class(parse_quote!(Query))
         .kotlin_name("JNIQuery")
         .method("reply_success")
         .method("reply_error")
         .method("reply_delete")
-        .kotlin_class("LivelinessToken")
+        .kotlin_class(parse_quote!(LivelinessToken))
         .kotlin_name("JNILivelinessToken")
-        .kotlin_class("AdvancedSubscriber<()>")
+        .kotlin_class(parse_quote!(AdvancedSubscriber<()>))
         .kotlin_name("JNIAdvancedSubscriber")
         .suppress_kotlin_code()
-        .kotlin_class("AdvancedPublisher<'static>")
+        .kotlin_class(parse_quote!(AdvancedPublisher<'static>))
         .kotlin_name("JNIAdvancedPublisher")
         .suppress_kotlin_code()
-        .kotlin_class("MatchingListener")
+        .kotlin_class(parse_quote!(MatchingListener))
         .kotlin_name("JNIMatchingListener")
-        .kotlin_class("SampleMissListener")
+        .kotlin_class(parse_quote!(SampleMissListener))
         .kotlin_name("JNISampleMissListener")
         // ── jint-encoded enums — sugar over `input_wrapper` for the
         // common `jint → enum` pattern.
         .jint_enum(
-            "CongestionControl",
-            "crate::utils::decode_congestion_control",
+            parse_quote!(CongestionControl),
+            parse_quote!(crate::utils::decode_congestion_control),
         )
-        .jint_enum("Priority", "crate::utils::decode_priority")
-        .jint_enum("Reliability", "crate::utils::decode_reliability")
-        .jint_enum("QueryTarget", "crate::utils::decode_query_target")
-        .jint_enum("ConsolidationMode", "crate::utils::decode_consolidation")
-        .jint_enum("ReplyKeyExpr", "crate::utils::decode_reply_key_expr")
+        .jint_enum(parse_quote!(Priority), parse_quote!(crate::utils::decode_priority))
+        .jint_enum(parse_quote!(Reliability), parse_quote!(crate::utils::decode_reliability))
+        .jint_enum(parse_quote!(QueryTarget), parse_quote!(crate::utils::decode_query_target))
+        .jint_enum(parse_quote!(ConsolidationMode), parse_quote!(crate::utils::decode_consolidation))
+        .jint_enum(parse_quote!(ReplyKeyExpr), parse_quote!(crate::utils::decode_reply_key_expr))
         // ── Value-shaped custom converters. These call into zenoh code
         // that returns `ZResult<_>`, so the closure puts
         // `Some(parse_quote!(ZError))` in the middle
@@ -133,7 +133,7 @@ fn main() {
         // (`SetIntersectionLevel` is an infallible `as` cast, so its
         // middle slot is `None`.) Non-primitive wires chain
         // `kotlin_name`; primitive wires auto-derive via `kotlin_for_wire`.
-        .input_wrapper("Encoding", |_reg: &Registry<KotlinMeta>| {
+        .input_wrapper(parse_quote!(Encoding), |_reg: &Registry<KotlinMeta>| {
             Some((
                 parse_quote!(jni::objects::JObject),
                 Some(parse_quote!(ZError)),
@@ -141,7 +141,7 @@ fn main() {
             ))
         })
         .kotlin_name("JNIEncoding")
-        .input_wrapper("Option<Encoding>", |_reg: &Registry<KotlinMeta>| {
+        .input_wrapper(parse_quote!(Option<Encoding>), |_reg: &Registry<KotlinMeta>| {
             Some((
                 parse_quote!(jni::objects::JObject),
                 Some(parse_quote!(ZError)),
@@ -155,21 +155,21 @@ fn main() {
             ))
         })
         .kotlin_name("JNIEncoding")
-        .output_wrapper("SetIntersectionLevel", |_reg: &Registry<KotlinMeta>| {
+        .output_wrapper(parse_quote!(SetIntersectionLevel), |_reg: &Registry<KotlinMeta>| {
             Some((
                 parse_quote!(jni::sys::jint),
                 None,
                 parse_quote!(v as jni::sys::jint),
             ))
         })
-        .output_wrapper("ZenohId", |_reg: &Registry<KotlinMeta>| {
+        .output_wrapper(parse_quote!(ZenohId), |_reg: &Registry<KotlinMeta>| {
             Some((
                 parse_quote!(jni::sys::jbyteArray),
                 Some(parse_quote!(ZError)),
                 parse_quote!(crate::zenoh_id::zenoh_id_to_byte_array(env, v)),
             ))
         })
-        .output_wrapper("Vec<ZenohId>", |_reg: &Registry<KotlinMeta>| {
+        .output_wrapper(parse_quote!(Vec<ZenohId>), |_reg: &Registry<KotlinMeta>| {
             Some((
                 parse_quote!(jni::sys::jobject),
                 Some(parse_quote!(ZError)),
@@ -188,19 +188,19 @@ fn main() {
         // directly (no `?`/`Ok`). The auto `impl Fn(Sample)` callback,
         // which has no domain decode, keeps the framework default.
         .callback_input(
-            "impl Fn(Query) + Send + Sync + 'static",
+            parse_quote!(impl Fn(Query) + Send + Sync + 'static),
             Some(parse_quote!(ZError)),
-            "crate::sample_callback::process_kotlin_query_callback",
+            parse_quote!(crate::sample_callback::process_kotlin_query_callback),
         )
         .kotlin_name("JNIQueryableCallback")
         .callback_input(
-            "impl Fn(Reply) + Send + Sync + 'static",
+            parse_quote!(impl Fn(Reply) + Send + Sync + 'static),
             Some(parse_quote!(ZError)),
-            "crate::sample_callback::process_kotlin_reply_callback",
+            parse_quote!(crate::sample_callback::process_kotlin_reply_callback),
         )
         .kotlin_name("JNIGetCallback")
         .callback_kotlin_name(
-            "impl Fn() + Send + Sync + 'static",
+            parse_quote!(impl Fn() + Send + Sync + 'static),
             "JNIOnCloseCallback",
         )
         // ── Kotlin names for hand-maintained data classes whose
@@ -211,14 +211,14 @@ fn main() {
         // `&T` wrapper auto-derive their Kotlin names through the
         // [`KotlinMeta`] propagation in the rank-N handlers — no
         // build.rs entry needed.
-        .kotlin_value_type("Sample")
-        .kotlin_value_type("MissDetectionConfig")
-        .kotlin_value_type("HistoryConfig")
-        .kotlin_value_type("CacheConfig")
-        .kotlin_value_type("RecoveryConfig")
+        .kotlin_value_type(parse_quote!(Sample))
+        .kotlin_value_type(parse_quote!(MissDetectionConfig))
+        .kotlin_value_type(parse_quote!(HistoryConfig))
+        .kotlin_value_type(parse_quote!(CacheConfig))
+        .kotlin_value_type(parse_quote!(RecoveryConfig))
         // ── impl Into<T> source arms.
         .into_sources(
-            "ZKeyExpr<'static>",
+            parse_quote!(ZKeyExpr<'static>),
             [
                 IntoSource::borrow(parse_quote!(ZKeyExpr<'static>)),
                 IntoSource::borrow(parse_quote!(String)),

@@ -447,8 +447,8 @@ impl JniExt {
             last_exception_idx: None,
         }
     }
-    pub fn source_module(mut self, p: impl AsRef<str>) -> Self {
-        self.source_module = syn::parse_str(p.as_ref()).expect("invalid source_module path");
+    pub fn source_module(mut self, p: syn::Path) -> Self {
+        self.source_module = p;
         self
     }
 
@@ -611,8 +611,8 @@ impl JniExt {
     /// [`Self::suppress_kotlin_code`] to keep the file hand-maintained,
     /// or chain one or more [`Self::method`] calls to promote
     /// `#[prebindgen]` functions onto the class as instance methods.
-    pub fn kotlin_class(mut self, rust_key: impl AsRef<str>) -> Self {
-        let key = TypeKey::parse(rust_key.as_ref());
+    pub fn kotlin_class(mut self, rust_type: syn::Type) -> Self {
+        let key = TypeKey::from_type(&rust_type);
         let short = rust_short_name(&key);
         let fqn = self.resolve_class_fqn(&short);
         let entry = self.types.entry(key.clone()).or_default();
@@ -762,16 +762,16 @@ impl JniExt {
     /// the closure's middle slot.
     pub fn jint_enum(
         self,
-        rust_key: impl AsRef<str>,
-        decode_path: impl AsRef<str>,
+        rust_type: syn::Type,
+        decode_path: syn::Path,
     ) -> Self {
-        // Validate at registration time; capture the string (not the
-        // parsed `syn::Path`, which isn't `Sync` because `proc-macro2`
-        // uses `Rc` under the hood) and re-parse inside the closure.
-        let decode_path_str = decode_path.as_ref().to_string();
-        let _ = syn::parse_str::<syn::Path>(&decode_path_str)
-            .unwrap_or_else(|e| panic!("jint_enum: invalid decode path `{decode_path_str}`: {e}"));
-        self.input_wrapper(rust_key, move |_reg: &Registry<KotlinMeta>| {
+        // `syn::Path` holds `Rc<TokenStream>` internally and is neither
+        // `Send` nor `Sync`, so we can't capture it directly in a builder
+        // closure that satisfies `WrapperBuilder<Arity0>`'s `Send + Sync`
+        // bounds. Serialise to its token form here and re-parse inside
+        // the closure.
+        let decode_path_str = decode_path.to_token_stream().to_string();
+        self.input_wrapper(rust_type, move |_reg: &Registry<KotlinMeta>| {
             let decode_path: syn::Path = syn::parse_str(&decode_path_str).ok()?;
             Some((
                 syn::parse_quote!(jni::sys::jint),
@@ -804,12 +804,12 @@ impl JniExt {
     /// [`Self::kotlin_name`] immediately after to override.
     pub fn callback_input(
         mut self,
-        impl_fn_key: impl AsRef<str>,
+        impl_fn_type: syn::Type,
         exc: Option<syn::Type>,
-        dispatcher_path: impl AsRef<str>,
+        dispatcher_path: syn::Path,
     ) -> Self {
-        let key = TypeKey::parse(impl_fn_key.as_ref());
-        let dispatcher_path_str = validate_path("callback_input", dispatcher_path.as_ref());
+        let key = TypeKey::from_type(&impl_fn_type);
+        let dispatcher_path_str = dispatcher_path.to_token_stream().to_string();
         let body_path = dispatcher_path_str.clone();
         // `syn::Type` holds `Rc<TokenStream>` internally and is neither
         // `Send` nor `Sync`, so we can't capture it directly in a builder
@@ -849,10 +849,10 @@ impl JniExt {
     /// `package + "." + callback_subpackage`.
     pub fn callback_kotlin_name(
         mut self,
-        impl_fn_key: impl AsRef<str>,
+        impl_fn_type: syn::Type,
         name: impl AsRef<str>,
     ) -> Self {
-        let key = TypeKey::parse(impl_fn_key.as_ref());
+        let key = TypeKey::from_type(&impl_fn_type);
         let fqn = self.resolve_callback_fqn(name.as_ref());
         let entry = self.types.entry(key.clone()).or_default();
         entry.callback_kotlin_fqn = Some(fqn.clone());
@@ -870,8 +870,8 @@ impl JniExt {
     /// lifetimes stripped); chain [`Self::kotlin_name`] for an override
     /// or [`Self::with_kotlin_type`] for a verbatim type expression.
     /// Only affects Kotlin emission — no Rust-side converter override.
-    pub fn kotlin_value_type(mut self, rust_key: impl AsRef<str>) -> Self {
-        let key = TypeKey::parse(rust_key.as_ref());
+    pub fn kotlin_value_type(mut self, rust_type: syn::Type) -> Self {
+        let key = TypeKey::from_type(&rust_type);
         let short = rust_short_name(&key);
         let fqn = self.resolve_class_fqn(&short);
         let entry = self.types.entry(key.clone()).or_default();
@@ -888,11 +888,11 @@ impl JniExt {
     /// canonical Rust type (e.g. `"ZKeyExpr<'static>"`); `sources` is
     /// an ordered list of [`IntoSource`] arms (dispatch order matches
     /// iteration order).
-    pub fn into_sources<I>(mut self, target_key: impl AsRef<str>, sources: I) -> Self
+    pub fn into_sources<I>(mut self, target_type: syn::Type, sources: I) -> Self
     where
         I: IntoIterator<Item = IntoSource>,
     {
-        let key = TypeKey::parse(target_key.as_ref());
+        let key = TypeKey::from_type(&target_type);
         self.into_sources_map
             .insert(key, sources.into_iter().collect());
         self.last_opaque_key = None;
@@ -922,11 +922,11 @@ impl JniExt {
     /// converter; a distinct rust type with its own converter ⇒ a
     /// value-inspecting stage composed onto that converter's chain
     /// (see [`Self::lookup_input`]).
-    pub fn input_wrapper<A, B>(self, pattern: impl AsRef<str>, builder: B) -> Self
+    pub fn input_wrapper<A, B>(self, pattern: syn::Type, builder: B) -> Self
     where
         B: WrapperBuilder<A>,
     {
-        let key = TypeKey::parse(pattern.as_ref());
+        let key = TypeKey::from_type(&pattern);
         let rank = B::rank();
         let mut s = self;
         s.input_wrappers[rank].insert(key.clone(), builder.into_wrapper_fn());
@@ -941,11 +941,11 @@ impl JniExt {
     /// `(T, Some(parse_quote!(zenoh_flat::errors::ZError)), v)` for
     /// `ZResult<T>`, gives the auto-composed peel that the deleted
     /// `output_throw_stage` used to register.)
-    pub fn output_wrapper<A, B>(self, pattern: impl AsRef<str>, builder: B) -> Self
+    pub fn output_wrapper<A, B>(self, pattern: syn::Type, builder: B) -> Self
     where
         B: WrapperBuilder<A>,
     {
-        let key = TypeKey::parse(pattern.as_ref());
+        let key = TypeKey::from_type(&pattern);
         let rank = B::rank();
         let mut s = self;
         s.output_wrappers[rank].insert(key.clone(), builder.into_wrapper_fn());
@@ -1314,17 +1314,6 @@ fn body_for_exc(body: &syn::Expr, exc: Option<&ExceptionConfig>) -> syn::Expr {
     } else {
         syn::parse_quote!(Ok(#body))
     }
-}
-
-/// Free-function `validate_path`: parse-check a Rust path string at
-/// registration time and return it as an owned `String` (the parsed
-/// `syn::Path` isn't `Sync` — `proc-macro2` uses `Rc` — so callers
-/// re-parse inside the `Send + Sync` builder closure). `who` names the
-/// caller for the panic message.
-fn validate_path(who: &str, path: &str) -> String {
-    let _ = syn::parse_str::<syn::Path>(path)
-        .unwrap_or_else(|e| panic!("JniExt::{who}: invalid path `{path}`: {e}"));
-    path.to_string()
 }
 
 /// Construct an [`ExceptionConfig`] from a path-shaped `syn::Type` and
