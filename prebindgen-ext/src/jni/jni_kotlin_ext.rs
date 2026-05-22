@@ -1271,10 +1271,11 @@ fn render_wrapper_fn(
     //   * each input parameter's wire-facing converter (its `?` failure
     //     raises the metadata `throws` exception — framework
     //     `JniBindingError` by default, or a custom one bound via
-    //     `input_wrapper_throwing(pat, "<exc>", body)`);
+    //     `Some("<exc>")` in the input wrapper's closure);
     //   * each pre_stage on that input's chain (value-inspecting throw
-    //     stages — a `*_wrapper_throwing` whose body returns a rust type
-    //     that gets composed onto its converter);
+    //     stages — an `input_wrapper` / `output_wrapper` whose closure
+    //     returns a rust type with `Some("<exc>")` and gets composed
+    //     onto that type's converter);
     //   * the return type's output converter and its pre_stages
     //     (likewise).
     // Collected into a `BTreeSet` so the emitted annotation is sorted and
