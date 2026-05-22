@@ -1271,9 +1271,10 @@ fn render_wrapper_fn(
     //   * each input parameter's wire-facing converter (its `?` failure
     //     raises the metadata `throws` exception — framework
     //     `JniBindingError` by default, or a custom one bound via
-    //     `input_wrapper(...).throws("<exc>")`);
+    //     `input_wrapper_throwing(pat, "<exc>", body)`);
     //   * each pre_stage on that input's chain (value-inspecting throw
-    //     stages registered via the new `.throws(pat, exc, body)` API);
+    //     stages — a `*_wrapper_throwing` whose body returns a rust type
+    //     that gets composed onto its converter);
     //   * the return type's output converter and its pre_stages
     //     (likewise).
     // Collected into a `BTreeSet` so the emitted annotation is sorted and
@@ -1490,9 +1491,9 @@ fn classify_return(
     // Detect opaque return: T (or a wrapper W<T>) whose input converter
     // returns `OwnedObject<T>` (i.e. opaque-handle type). The wrapped-
     // value identity is carried generically via
-    // `KotlinMeta::value_rust_key` — populated by the throws arm of
-    // `lookup_output_wrapper` for arity-1 wrappers — so the framework
-    // doesn't need to peel any specific Result/Option shape here.
+    // `KotlinMeta::value_rust_key` — populated by the composed branch of
+    // `lookup_output` for arity-1 wrappers — so the framework doesn't
+    // need to peel any specific Result/Option shape here.
     let outer_meta = registry.output_entry(ty).map(|e| e.metadata.clone());
     let inner_canon = outer_meta
         .as_ref()
