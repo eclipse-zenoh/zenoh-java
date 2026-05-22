@@ -122,19 +122,18 @@ pub(crate) struct ExceptionConfig {
     pub rust_type: syn::Type,
     /// Last path segment of `rust_type` (e.g. `"ZError"`). Used to
     /// derive the `throw_<short>` function name and to provide the
-    /// default Kotlin class name when no `.kotlin_name(...)` override
-    /// is supplied.
+    /// Kotlin class name (relative; qualified against
+    /// [`JniExt::package`]). Exception class names are not currently
+    /// routed through any `kotlin_*_name_mangle` closure — the
+    /// short-name lands in the FQN verbatim.
     pub rust_short: String,
     /// Kotlin fully-qualified exception class name (e.g.
-    /// `"io.zenoh.jni.ZError"`). Defaults to `<package>.<rust_short>`;
-    /// overridden by a chained `.kotlin_name(...)`. Used for the Kotlin
-    /// class file path, `@Throws` annotations, and the JNI
+    /// `"io.zenoh.jni.ZError"`) — `<package>.<rust_short>`. Used for the
+    /// Kotlin class file path, `@Throws` annotations, and the JNI
     /// `find_class("io/zenoh/jni/ZError")` literal inside the generated
     /// `throw_<short>` body.
     pub kotlin_fqn: String,
-    /// Identifier of the generated `throw_<short>` function. Stable
-    /// across `.kotlin_name(...)` overrides (those only change the
-    /// Kotlin class, not the Rust function name).
+    /// Identifier of the generated `throw_<short>` function.
     pub throw_fn_name: syn::Ident,
 }
 
@@ -232,6 +231,13 @@ pub(crate) type WrapperFn = Arc<
         + Send
         + Sync,
 >;
+
+/// Closure that transforms a Kotlin short name. Installed via the
+/// per-kind setters ([`JniExt::kotlin_fun_name_mangle`],
+/// [`JniExt::kotlin_struct_name_mangle`], etc.); the framework calls
+/// the matching closure wherever it needs to derive a Kotlin/JNI
+/// short name for a generated element. Closure-unset = identity.
+pub(crate) type NameMangle = Arc<dyn Fn(&str) -> String + Send + Sync>;
 
 /// Trait selecting the arity-appropriate impl of
 /// [`JniExt::input_wrapper`] / [`JniExt::output_wrapper`]. The phantom
@@ -346,43 +352,64 @@ pub struct JniExt {
     /// `<package>.<callback_subpackage>`; empty = same package as
     /// [`Self::package`].
     pub callback_subpackage: String,
-    /// Prefix applied to the auto-derived callback class name. Combined
-    /// with the per-callback `stem` and [`Self::callback_name_postfix`]:
-    /// `<prefix><stem><postfix>`.
-    pub callback_name_prefix: String,
-    /// Postfix applied to the auto-derived callback class name.
-    pub callback_name_postfix: String,
     /// Derived: `package.replace('.', '/')`. Read by
     /// [`struct_output_body`] when building `FindClass` strings.
     pub(crate) java_class_prefix: String,
     /// Derived: `"Java_" + package.replace('.', '_') + "_" + jni_native_class`.
     /// Read by [`Self::on_function`] when mangling fn idents.
     pub(crate) jni_class_path: String,
-    /// Suffix appended to the wrapped fn name (e.g. `ViaJNI`).
-    pub jni_method_suffix: String,
     /// Derived: `package + "." + callback_subpackage` (or just `package`
     /// when the subpackage is empty). Also drives the on-disk subdirectory
     /// under the `kotlin_root` passed to [`Self::write_kotlin`]
     /// (`a.b.c` → `a/b/c/`).
     pub(crate) kotlin_callback_package: String,
+
+    /// Mangler for function names (scanned `#[prebindgen]` free fns and
+    /// the synthetic `freePtr` destructor). Default = identity; in
+    /// zenoh-jni the closure returns `format!("{name}ViaJNI")` so the
+    /// generated JNI extern symbols and matching Kotlin `external fun`s
+    /// both pick up the `ViaJNI` suffix.
+    pub(crate) kotlin_fun_name_mangle: Option<NameMangle>,
+    /// Mangler for struct-shaped Kotlin class names — opaque handles
+    /// declared via [`Self::kotlin_class`] AND value-type data classes
+    /// declared via [`Self::kotlin_value_type`]. Default = identity.
+    pub(crate) kotlin_struct_name_mangle: Option<NameMangle>,
+    /// Mangler for [`Self::kotlin_enum`]-declared C-like enum class
+    /// names. Default = identity.
+    pub(crate) kotlin_enum_name_mangle: Option<NameMangle>,
+    /// Mangler for `impl Fn(...)` callback Kotlin class names. The
+    /// closure receives the auto-derived stem
+    /// ([`crate::jni::jni_kotlin_ext::derive_callback_stem`], e.g.
+    /// `"Query"`, `"Reply"`, `"Empty"`); the return value is qualified
+    /// against [`Self::kotlin_callback_package`]. Default = identity.
+    pub(crate) kotlin_callback_name_mangle: Option<NameMangle>,
+    /// Mangler for rank-0 user-registered
+    /// [`Self::input_wrapper`] / [`Self::output_wrapper`] pattern names
+    /// — the Rust short name of the pattern (`Encoding`,
+    /// `SetIntersectionLevel`, …). Rank-N wrappers (`Option<_>`,
+    /// `ZResult<_>`, `Vec<_>`, `&_`) are NOT routed through any
+    /// mangler — they inherit from the inner type's metadata via the
+    /// existing rank-N handlers. Default = identity.
+    pub(crate) kotlin_wrapper_name_mangle: Option<NameMangle>,
     /// Derived `<rust-type-canonical-string> → <kotlin FQN>` view —
     /// populated alongside [`Self::types`] by the structured builders
     /// ([`Self::kotlin_class`], [`Self::kotlin_value_type`],
-    /// [`Self::callback_kotlin_name`]). Internal readers
-    /// (`emit_into_dispatcher`, callback FQN merging) consume this
-    /// flat list directly; the structured `types` map is the source
-    /// of truth.
+    /// [`Self::callback_input`], [`Self::input_wrapper`] /
+    /// [`Self::output_wrapper`]). Internal readers
+    /// (`emit_into_dispatcher`, callback FQN merging) consume this flat
+    /// list directly; the structured `types` map is the source of
+    /// truth.
     pub(crate) kotlin_type_fqns: Vec<(String, String)>,
 
     /// Structured per-type configuration keyed by canonical Rust type.
     /// One entry per `Rust type ↔ JNI/Kotlin` rule; populated by the
     /// structured builders (`kotlin_class`, `kotlin_enum`,
     /// `kotlin_value_type`, `input_wrapper`, `output_wrapper`,
-    /// `callback_input`, `callback_kotlin_name`). Holds opaque-handle
-    /// config, enum config, Kotlin names, and callback FQNs; the
-    /// converter bodies themselves live in [`Self::input_wrappers`] /
-    /// [`Self::output_wrappers`]. The rank-0 dispatch order is opaque →
-    /// enum → wrapper-table → primitive → struct.
+    /// `callback_input`). Holds opaque-handle config, enum config,
+    /// Kotlin names, and callback FQNs; the converter bodies themselves
+    /// live in [`Self::input_wrappers`] / [`Self::output_wrappers`].
+    /// The rank-0 dispatch order is opaque → enum → wrapper-table →
+    /// primitive → struct.
     pub(crate) types: HashMap<TypeKey, TypeConfig>,
 
     /// `impl Into<target> + Send + 'static` source arms per target type.
@@ -405,20 +432,12 @@ pub struct JniExt {
     /// entry to extend. Cleared after each unrelated builder call.
     last_opaque_key: Option<TypeKey>,
 
-    /// Tracks the last rank-0 wrapper / callback registration key so
-    /// [`Self::kotlin_name`] knows which entry to stamp. Set by
-    /// `input_wrapper` / `output_wrapper` (rank 0 only), `kotlin_enum`,
-    /// `callback_input`, `callback_kotlin_name`, and `kotlin_value_type`;
-    /// cleared after each unrelated builder call.
+    /// Tracks the last rank-0 wrapper registration so chained per-type
+    /// builders ([`Self::suppress_kotlin_code`], [`Self::with_kotlin_type`])
+    /// know which entry to extend. Set by `input_wrapper` /
+    /// `output_wrapper` (rank 0 only), `kotlin_enum`, `callback_input`,
+    /// and `kotlin_value_type`; cleared by other unrelated builders.
     last_meta_key: Option<TypeKey>,
-
-    /// Tracks the last [`Self::kotlin_exception_class`] registration so
-    /// a chained [`Self::kotlin_name`] call knows which entry of
-    /// [`Self::exceptions`] to rename. Stored as an index rather than a
-    /// key because exception entries are identified by position
-    /// (declaration order = primary-first); cleared by other unrelated
-    /// builders.
-    last_exception_idx: Option<usize>,
 }
 
 impl JniExt {
@@ -444,12 +463,14 @@ impl JniExt {
             package: String::new(),
             jni_native_class: "JNINative".to_string(),
             callback_subpackage: "callbacks".to_string(),
-            callback_name_prefix: "JNI".to_string(),
-            callback_name_postfix: "Callback".to_string(),
             java_class_prefix: String::new(),
             jni_class_path: "Java_JNINative".to_string(),
-            jni_method_suffix: String::new(),
             kotlin_callback_package: "callbacks".to_string(),
+            kotlin_fun_name_mangle: None,
+            kotlin_struct_name_mangle: None,
+            kotlin_enum_name_mangle: None,
+            kotlin_callback_name_mangle: None,
+            kotlin_wrapper_name_mangle: None,
             kotlin_type_fqns: Vec::new(),
             types: HashMap::new(),
             into_sources_map: HashMap::new(),
@@ -467,7 +488,6 @@ impl JniExt {
             ],
             last_opaque_key: None,
             last_meta_key: None,
-            last_exception_idx: None,
         }
     }
     pub fn source_module(mut self, p: syn::Path) -> Self {
@@ -500,8 +520,6 @@ impl JniExt {
     pub fn kotlin_exception_class(mut self, rust_type: syn::Type) -> Self {
         let cfg = build_exception_config(rust_type, &self.package, &self.exceptions);
         self.exceptions.push(cfg);
-        let idx = self.exceptions.len() - 1;
-        self.last_exception_idx = Some(idx);
         self.last_opaque_key = None;
         self.last_meta_key = None;
         self
@@ -530,20 +548,64 @@ impl JniExt {
         self.recompute_derived();
         self
     }
-    /// Set the prefix applied to auto-derived callback class names
-    /// (default `"JNI"`).
-    pub fn callback_name_prefix(mut self, s: impl Into<String>) -> Self {
-        self.callback_name_prefix = s.into();
+    /// Set the closure that mangles function names. Called for every
+    /// scanned `#[prebindgen]` free function and the synthetic
+    /// `freePtr` destructor; receives the camelCased Kotlin-side name
+    /// and returns the final form (e.g. `"putPublisher"` →
+    /// `"putPublisherViaJNI"`). Default = identity.
+    pub fn kotlin_fun_name_mangle<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&str) -> String + Send + Sync + 'static,
+    {
+        self.kotlin_fun_name_mangle = Some(Arc::new(f));
         self
     }
-    /// Set the postfix applied to auto-derived callback class names
-    /// (default `"Callback"`).
-    pub fn callback_name_postfix(mut self, s: impl Into<String>) -> Self {
-        self.callback_name_postfix = s.into();
+    /// Set the closure that mangles struct-shaped Kotlin class names —
+    /// opaque handles ([`Self::kotlin_class`]) AND value-type data
+    /// classes ([`Self::kotlin_value_type`]). Receives the Rust short
+    /// name. Default = identity.
+    pub fn kotlin_struct_name_mangle<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&str) -> String + Send + Sync + 'static,
+    {
+        self.kotlin_struct_name_mangle = Some(Arc::new(f));
         self
     }
-    pub fn jni_method_suffix(mut self, s: impl Into<String>) -> Self {
-        self.jni_method_suffix = s.into();
+    /// Set the closure that mangles [`Self::kotlin_enum`]-declared
+    /// enum class names. Receives the Rust short name. Default =
+    /// identity.
+    pub fn kotlin_enum_name_mangle<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&str) -> String + Send + Sync + 'static,
+    {
+        self.kotlin_enum_name_mangle = Some(Arc::new(f));
+        self
+    }
+    /// Set the closure that mangles `impl Fn(...)` callback class
+    /// names. Receives the auto-derived stem
+    /// ([`crate::jni::jni_kotlin_ext::derive_callback_stem`], e.g.
+    /// `"Query"`, `"Reply"`, `"Empty"`); the returned relative name is
+    /// qualified against [`Self::kotlin_callback_package`]. Default =
+    /// identity.
+    pub fn kotlin_callback_name_mangle<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&str) -> String + Send + Sync + 'static,
+    {
+        self.kotlin_callback_name_mangle = Some(Arc::new(f));
+        self
+    }
+    /// Set the closure that mangles rank-0
+    /// [`Self::input_wrapper`] / [`Self::output_wrapper`] pattern
+    /// names (e.g. `"Encoding"`). Rank-N patterns are NOT routed
+    /// through this closure — they inherit from the inner type's
+    /// metadata via the existing rank-N handlers, preserving the
+    /// structural invariant `Option<Encoding>` ↔ `JNIEncoding?`.
+    /// Default = identity.
+    pub fn kotlin_wrapper_name_mangle<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&str) -> String + Send + Sync + 'static,
+    {
+        self.kotlin_wrapper_name_mangle = Some(Arc::new(f));
         self
     }
 
@@ -571,11 +633,10 @@ impl JniExt {
         };
         // Re-anchor every exception's Kotlin FQN against the (possibly
         // new) package. Each entry's `rust_short` is stable; the FQN is
-        // a derived view. User-supplied `.kotlin_name(...)` overrides
-        // landed before this `package(...)` call would be clobbered —
-        // in practice `package` is called first in every binding's
-        // build script, before any exception class is declared. The
-        // framework slot at index 0 always re-derives cleanly.
+        // a derived view. In practice `package` is called first in
+        // every binding's build script, before any exception class is
+        // declared, so the framework slot at index 0 always re-derives
+        // cleanly.
         for exc in &mut self.exceptions {
             exc.kotlin_fqn = if self.package.is_empty() {
                 exc.rust_short.clone()
@@ -585,13 +646,51 @@ impl JniExt {
         }
     }
 
-    /// Auto-derive a callback class name from the per-callback `stem`
-    /// using the configured prefix/postfix (default `"JNI<stem>Callback"`).
-    pub(crate) fn callback_class_name(&self, stem: &str) -> String {
-        format!(
-            "{}{}{}",
-            self.callback_name_prefix, stem, self.callback_name_postfix
-        )
+    /// Apply [`Self::kotlin_fun_name_mangle`] to `name`, returning the
+    /// closure result or `name` verbatim when unset. Called everywhere
+    /// the framework derives a function-shaped Kotlin/JNI short name —
+    /// scanned `#[prebindgen]` extern symbols, the synthetic `freePtr`
+    /// destructor, and the Kotlin-side `external fun` that pairs with
+    /// each.
+    pub(crate) fn mangle_fun(&self, name: &str) -> String {
+        match &self.kotlin_fun_name_mangle {
+            Some(f) => f(name),
+            None => name.to_string(),
+        }
+    }
+    /// Apply [`Self::kotlin_struct_name_mangle`] to `name`, returning
+    /// the closure result or `name` verbatim when unset. Called for
+    /// opaque-handle ([`Self::kotlin_class`]) and value-type
+    /// ([`Self::kotlin_value_type`]) class names.
+    pub(crate) fn mangle_struct(&self, name: &str) -> String {
+        match &self.kotlin_struct_name_mangle {
+            Some(f) => f(name),
+            None => name.to_string(),
+        }
+    }
+    /// Apply [`Self::kotlin_enum_name_mangle`] to `name`, returning the
+    /// closure result or `name` verbatim when unset.
+    pub(crate) fn mangle_enum(&self, name: &str) -> String {
+        match &self.kotlin_enum_name_mangle {
+            Some(f) => f(name),
+            None => name.to_string(),
+        }
+    }
+    /// Apply [`Self::kotlin_callback_name_mangle`] to `stem`, returning
+    /// the closure result or `stem` verbatim when unset.
+    pub(crate) fn mangle_callback(&self, stem: &str) -> String {
+        match &self.kotlin_callback_name_mangle {
+            Some(f) => f(stem),
+            None => stem.to_string(),
+        }
+    }
+    /// Apply [`Self::kotlin_wrapper_name_mangle`] to `name`, returning
+    /// the closure result or `name` verbatim when unset.
+    pub(crate) fn mangle_wrapper(&self, name: &str) -> String {
+        match &self.kotlin_wrapper_name_mangle {
+            Some(f) => f(name),
+            None => name.to_string(),
+        }
     }
 
     /// Resolve a relative class name against [`Self::package`]. Panics
@@ -640,7 +739,7 @@ impl JniExt {
     pub fn kotlin_class(mut self, rust_type: syn::Type) -> Self {
         let key = TypeKey::from_type(&rust_type);
         let short = rust_short_name(&key);
-        let fqn = self.resolve_class_fqn(&short);
+        let fqn = self.resolve_class_fqn(&self.mangle_struct(&short));
         let entry = self.types.entry(key.clone()).or_default();
         entry.opaque = Some(OpaqueConfig::default());
         // `kotlin_name` holds the typed-handle FQN for FQN-consumers
@@ -654,7 +753,6 @@ impl JniExt {
             .push((key.as_str().to_string(), fqn));
         self.last_opaque_key = Some(key.clone());
         self.last_meta_key = Some(key);
-        self.last_exception_idx = None;
         self
     }
 
@@ -723,13 +821,13 @@ impl JniExt {
     /// jint wire.
     ///
     /// By default a `.kt` file is auto-emitted under [`Self::package`]; chain
-    /// [`Self::suppress_kotlin_code`] to keep the file hand-maintained,
-    /// or [`Self::kotlin_name`] to override the class name (defaults to
-    /// the Rust short name).
+    /// [`Self::suppress_kotlin_code`] to keep the file hand-maintained.
+    /// The class name passes through
+    /// [`Self::kotlin_enum_name_mangle`] (default = Rust short name).
     pub fn kotlin_enum(mut self, rust_type: syn::Type) -> Self {
         let key = TypeKey::from_type(&rust_type);
         let short = rust_short_name(&key);
-        let fqn = self.resolve_class_fqn(&short);
+        let fqn = self.resolve_class_fqn(&self.mangle_enum(&short));
         let entry = self.types.entry(key.clone()).or_default();
         assert!(
             entry.opaque.is_none(),
@@ -743,75 +841,20 @@ impl JniExt {
         self.kotlin_type_fqns
             .push((key.as_str().to_string(), fqn));
         // Clear opaque tracker so a stray `.method(...)` doesn't latch onto
-        // this entry; `last_meta_key` is what `.kotlin_name` /
-        // `.suppress_kotlin_code` read for chained config.
+        // this entry; `last_meta_key` is what `.suppress_kotlin_code` reads
+        // for chained config.
         self.last_opaque_key = None;
         self.last_meta_key = Some(key);
-        self.last_exception_idx = None;
-        self
-    }
-
-    /// Stamp the Kotlin type name onto the entry registered by the
-    /// most recent type-config builder. The relative `name` (no dots)
-    /// resolves against [`Self::package`] for ordinary types and against
-    /// `package + "." + callback_subpackage` for `impl Fn(...)` callbacks
-    /// (detected via `entry.callback_kotlin_fqn` set by a prior
-    /// [`Self::callback_input`]). When chained after
-    /// [`Self::kotlin_exception_class`] the override updates that
-    /// exception's `kotlin_fqn` instead — same resolution rules apply.
-    /// Panics if `name` contains a `.` or if no per-type builder is in
-    /// scope.
-    pub fn kotlin_name(mut self, name: impl AsRef<str>) -> Self {
-        // Exception-class override: takes precedence over the per-type
-        // path because exception registrations don't go through
-        // `self.types` (they live in `self.exceptions`).
-        if let Some(idx) = self.last_exception_idx {
-            let fqn = self.resolve_class_fqn(name.as_ref());
-            self.exceptions[idx].kotlin_fqn = fqn;
-            return self;
-        }
-        let key = self
-            .last_meta_key
-            .clone()
-            .or_else(|| self.last_opaque_key.clone())
-            .expect(
-                "JniExt::kotlin_name must be chained immediately after a \
-                 `kotlin_class` / `kotlin_enum` / `kotlin_value_type` / \
-                 `input_wrapper` / `output_wrapper` / \
-                 `callback_input` / `callback_kotlin_name` / \
-                 `kotlin_exception_class` call",
-            );
-        let is_callback = self
-            .types
-            .get(&key)
-            .map(|e| e.callback_kotlin_fqn.is_some())
-            .unwrap_or(false);
-        let fqn = if is_callback {
-            self.resolve_callback_fqn(name.as_ref())
-        } else {
-            self.resolve_class_fqn(name.as_ref())
-        };
-        let entry = self.types.get_mut(&key).expect("meta entry vanished");
-        entry.kotlin_name = Some(fqn.clone());
-        if is_callback {
-            entry.callback_kotlin_fqn = Some(fqn.clone());
-        }
-        // `kotlin_class` may have pushed a default `(rust_short_name)` FQN
-        // for this key already; replace it so the JNI dispatcher's
-        // `find_class` lookup picks up the override. `find()` in
-        // `jobject_to_wire_adapter` returns the first match, so any
-        // stale entry from `kotlin_class` would otherwise win.
-        let key_str = key.as_str().to_string();
-        self.kotlin_type_fqns.retain(|(k, _)| k != &key_str);
-        self.kotlin_type_fqns.push((key_str, fqn));
         self
     }
 
     /// Stamp a verbatim Kotlin type expression (e.g. `"List<ByteArray>"`)
     /// onto the entry registered by the most recent type-config builder.
     /// Use this when the Kotlin type is not a class FQN (generics,
-    /// primitives, container types). For class names, prefer
-    /// [`Self::kotlin_name`] (relative + dot-checked).
+    /// primitives, container types). For class names, the per-kind
+    /// `kotlin_*_name_mangle` closures (configured on [`JniExt`]) own
+    /// derivation — `with_kotlin_type` is the escape hatch for verbatim
+    /// expressions that don't map onto any one element kind.
     pub fn with_kotlin_type(mut self, kotlin_expr: impl Into<String>) -> Self {
         let key = self
             .last_meta_key
@@ -843,9 +886,12 @@ impl JniExt {
     ///   type must match a [`Self::kotlin_exception_class`] declaration
     ///   by exact canonical-form equality (see [`Self::find_exception`]).
     ///
-    /// The Kotlin FQN auto-derives via the callback-name template
-    /// (`<callback_name_prefix><stem><callback_name_postfix>`); chain
-    /// [`Self::kotlin_name`] immediately after to override.
+    /// The Kotlin FQN auto-derives via
+    /// [`Self::kotlin_callback_name_mangle`] applied to the per-callback
+    /// stem ([`crate::jni::jni_kotlin_ext::derive_callback_stem`]) and
+    /// then qualified against [`Self::kotlin_callback_package`]. Set
+    /// the mangler closure on [`JniExt`] to control naming (default =
+    /// identity stem).
     pub fn callback_input(
         mut self,
         impl_fn_type: syn::Type,
@@ -878,53 +924,70 @@ impl JniExt {
                 body,
             ))
         };
-        // Marker so `kotlin_name` knows this entry is a callback and
-        // resolves the relative name against the callback subpackage.
+        // Auto-derive the callback Kotlin FQN via
+        // `kotlin_callback_name_mangle` applied to the per-callback stem.
+        // Stamped at registration time so downstream consumers
+        // (`dispatch_fn_input`, `collect_kotlin_callback_fqns`) read a
+        // resolved FQN rather than re-deriving it. The presence of
+        // `callback_kotlin_fqn` also flags this entry as a callback for
+        // emission paths that need to distinguish.
+        let args = crate::core::registry::extract_fn_trait_args(&impl_fn_type)
+            .unwrap_or_default();
+        let stem = crate::jni::jni_kotlin_ext::derive_callback_stem(&args);
+        let fqn = self.resolve_callback_fqn(&self.mangle_callback(&stem));
         let entry = self.types.entry(key.clone()).or_default();
-        entry.callback_kotlin_fqn = Some(String::new());
+        entry.callback_kotlin_fqn = Some(fqn.clone());
+        entry.kotlin_name = Some(fqn.clone());
+        self.kotlin_type_fqns
+            .push((key.as_str().to_string(), fqn));
         self.input_wrappers[0].insert(key.clone(), builder.into_wrapper_fn());
         self.note_wrapper_registration(key, 0);
         self
     }
 
-    /// Override the Kotlin FQN emitted for an `impl Fn(...)` callback
-    /// without changing its Rust-side input converter. `name` is
-    /// relative (no dots); resolves against
-    /// `package + "." + callback_subpackage`.
-    pub fn callback_kotlin_name(
-        mut self,
-        impl_fn_type: syn::Type,
-        name: impl AsRef<str>,
-    ) -> Self {
+    /// Mark an `impl Fn(...)` callback type as having a hand-written
+    /// Kotlin fun-interface. The framework keeps its default Rust-side
+    /// auto-dispatcher (no [`Self::callback_input`] override here) but
+    /// skips emitting the Kotlin auto-stub — the binding crate provides
+    /// the `<FQN>.kt` file itself. The Kotlin FQN is auto-derived via
+    /// [`Self::mangle_callback`] applied to the callback's stem so the
+    /// hand-written file name and the JNI-side mention stay in sync.
+    /// Equivalent to chaining `.suppress_kotlin_code()` after a
+    /// [`Self::kotlin_class`] / [`Self::kotlin_enum`] declaration, but
+    /// inline because callbacks don't have a `kotlin_callback` builder
+    /// to chain off.
+    pub fn suppress_kotlin_callback_code(mut self, impl_fn_type: syn::Type) -> Self {
         let key = TypeKey::from_type(&impl_fn_type);
-        let fqn = self.resolve_callback_fqn(name.as_ref());
+        let args = crate::core::registry::extract_fn_trait_args(&impl_fn_type)
+            .unwrap_or_default();
+        let stem = crate::jni::jni_kotlin_ext::derive_callback_stem(&args);
+        let fqn = self.resolve_callback_fqn(&self.mangle_callback(&stem));
         let entry = self.types.entry(key.clone()).or_default();
         entry.callback_kotlin_fqn = Some(fqn.clone());
         entry.kotlin_name = Some(fqn.clone());
         self.kotlin_type_fqns
             .push((key.as_str().to_string(), fqn));
         self.last_opaque_key = None;
-        self.last_meta_key = Some(key);
-        self.last_exception_idx = None;
+        self.last_meta_key = None;
         self
     }
 
     /// Declare a Rust value type that should appear in Kotlin under a
-    /// derived name. Default Kotlin name = Rust short name (generics /
-    /// lifetimes stripped); chain [`Self::kotlin_name`] for an override
-    /// or [`Self::with_kotlin_type`] for a verbatim type expression.
-    /// Only affects Kotlin emission — no Rust-side converter override.
+    /// derived name. The name passes through
+    /// [`Self::kotlin_struct_name_mangle`] (default = Rust short name,
+    /// generics / lifetimes stripped). Only affects Kotlin emission —
+    /// no Rust-side converter override. Chain [`Self::with_kotlin_type`]
+    /// instead for verbatim type expressions.
     pub fn kotlin_value_type(mut self, rust_type: syn::Type) -> Self {
         let key = TypeKey::from_type(&rust_type);
         let short = rust_short_name(&key);
-        let fqn = self.resolve_class_fqn(&short);
+        let fqn = self.resolve_class_fqn(&self.mangle_struct(&short));
         let entry = self.types.entry(key.clone()).or_default();
         entry.kotlin_name = Some(fqn.clone());
         self.kotlin_type_fqns
             .push((key.as_str().to_string(), fqn));
         self.last_opaque_key = None;
         self.last_meta_key = Some(key);
-        self.last_exception_idx = None;
         self
     }
 
@@ -941,7 +1004,6 @@ impl JniExt {
             .insert(key, sources.into_iter().collect());
         self.last_opaque_key = None;
         self.last_meta_key = None;
-        self.last_exception_idx = None;
         self
     }
 
@@ -998,20 +1060,38 @@ impl JniExt {
     }
 
     /// Shared post-registration bookkeeping for wrapper inserts. Rank-0
-    /// patterns identify a concrete type, so a chained `.kotlin_name(…)`
-    /// writes into `types[key].kotlin_name` — ensure the entry exists and
-    /// point `last_meta_key` at it. Rank ≥1 patterns are wildcards (no
-    /// single key to pin a name on; per-outer-type names come from
-    /// `override_kotlin_name`).
+    /// patterns identify a concrete type — auto-stamp `kotlin_name` via
+    /// [`Self::mangle_wrapper`] (skipping callback entries, whose
+    /// `kotlin_name` is already stamped via
+    /// [`Self::mangle_callback`] in [`Self::callback_input`], and
+    /// non-path patterns like `()` where there is no sensible short
+    /// name). Rank ≥1 patterns are wildcards — per-outer-type names
+    /// come from inner-metadata propagation via
+    /// [`Self::override_kotlin_name`].
     fn note_wrapper_registration(&mut self, key: TypeKey, rank: usize) {
         self.last_opaque_key = None;
         if rank == 0 {
-            self.types.entry(key.clone()).or_default();
+            let entry = self.types.entry(key.clone()).or_default();
+            // Skip callbacks (handled by callback_input) and any entry
+            // whose kotlin_name has already been stamped (e.g. by an
+            // earlier kotlin_value_type / kotlin_class call for the
+            // same type — a wrapper layered on top should not override
+            // it). Then derive the short name from the canonical
+            // TypeKey; non-path patterns ($()$, references, etc.)
+            // yield no Kotlin class name and are left as `None`.
+            if entry.kotlin_name.is_none() && entry.callback_kotlin_fqn.is_none() {
+                if let Some(short) = rust_short_name_opt(&key) {
+                    let fqn = self.resolve_class_fqn(&self.mangle_wrapper(&short));
+                    let entry = self.types.get_mut(&key).expect("just-inserted entry");
+                    entry.kotlin_name = Some(fqn.clone());
+                    self.kotlin_type_fqns
+                        .push((key.as_str().to_string(), fqn));
+                }
+            }
             self.last_meta_key = Some(key);
         } else {
             self.last_meta_key = None;
         }
-        self.last_exception_idx = None;
     }
 
     /// [`Self::find_exception`] with a uniform fail-fast panic. `who` is
@@ -1396,8 +1476,7 @@ fn build_exception_config(
         panic!(
             "kotlin_exception_class: another exception is already \
              registered with Rust short name `{}` — rename the Rust \
-             type or chain `.kotlin_name(...)` after the first \
-             declaration to disambiguate",
+             type to disambiguate",
             short
         );
     }
@@ -1634,15 +1713,13 @@ impl JniExt {
     /// Auto-derived Kotlin FQN for an `impl Fn(args)` callback. Same
     /// convention `collect_kotlin_callback_fqns` uses, exposed here so
     /// the rank-0/rank-1 callback dispatcher can stamp the FQN into
-    /// the converter's [`KotlinMeta`] at creation time.
+    /// the converter's [`KotlinMeta`] at creation time. The relative
+    /// class name passes through [`Self::mangle_callback`] before
+    /// being qualified against
+    /// [`Self::kotlin_callback_package`].
     pub(crate) fn auto_callback_fqn(&self, args: &[syn::Type]) -> String {
         let stem = crate::jni::jni_kotlin_ext::derive_callback_stem(args);
-        let class = self.callback_class_name(&stem);
-        if self.kotlin_callback_package.is_empty() {
-            class
-        } else {
-            format!("{}.{}", self.kotlin_callback_package, class)
-        }
+        self.resolve_callback_fqn(&self.mangle_callback(&stem))
     }
 
     /// Canonical input-converter name for `(rust, wire)` — exposed
@@ -1877,10 +1954,13 @@ fn build_throw_fn_item(exc: &ExceptionConfig) -> syn::Item {
 /// handles (hand-written Kotlin) keep their hand-written Rust destructor.
 ///
 /// The symbol follows the documented scheme
-/// `Java_<package_underscores>_<class_short>_freePtr<jni_method_suffix>`,
+/// `Java_<package_underscores>_<class_short>_<mangle_fun("freePtr")>`,
 /// where `class_short` is the last segment of the typed-handle FQN
-/// (`TypeConfig::kotlin_name`). `ext.types` is a `HashMap`, so the items
-/// are sorted by symbol to keep generated output deterministic.
+/// (`TypeConfig::kotlin_name`) and the `freePtr` name passes through
+/// [`JniExt::mangle_fun`] — exact symmetry with the Kotlin
+/// `external fun <mangle_fun("freePtr")>` declaration in
+/// [`render_typed_handle_source`]. `ext.types` is a `HashMap`, so the
+/// items are sorted by symbol to keep generated output deterministic.
 ///
 /// Emission is gated on the resolved `registry`: a destructor is only
 /// emitted for an opaque handle whose type a scanned `#[prebindgen]` fn
@@ -1893,7 +1973,7 @@ fn build_handle_destructor_items(
     registry: &Registry<KotlinMeta>,
 ) -> Vec<syn::Item> {
     let pkg = ext.package.replace('.', "_");
-    let suffix = &ext.jni_method_suffix;
+    let free_ptr = ext.mangle_fun("freePtr");
     let mut named: Vec<(String, syn::Item)> = Vec::new();
     for (key, cfg) in &ext.types {
         let Some(opaque) = &cfg.opaque else { continue };
@@ -1918,9 +1998,9 @@ fn build_handle_destructor_items(
                 )
             });
         let symbol = if pkg.is_empty() {
-            format!("Java_{class_short}_freePtr{suffix}")
+            format!("Java_{class_short}_{free_ptr}")
         } else {
-            format!("Java_{pkg}_{class_short}_freePtr{suffix}")
+            format!("Java_{pkg}_{class_short}_{free_ptr}")
         };
         let ident = syn::Ident::new(&symbol, Span::call_site());
         let item: syn::Item = syn::parse_quote!(
@@ -2593,29 +2673,41 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
 /// the structured builders ([`JniExt::kotlin_class`],
 /// [`JniExt::kotlin_value_type`]) to derive a default Kotlin class name from
 /// the Rust type-key. Panics for non-path types (e.g. closures, references) —
-/// chain `.kotlin_name(...)` to set the name explicitly in that case.
+/// the per-kind `kotlin_*_name_mangle` closures see only path-shaped
+/// shorts. For verbatim Kotlin expressions on non-path types, chain
+/// [`JniExt::with_kotlin_type`] after the structured builder.
 fn rust_short_name(key: &TypeKey) -> String {
+    rust_short_name_opt(key).unwrap_or_else(|| {
+        panic!(
+            "rust_short_name: cannot derive Kotlin name from type-key `{}` — \
+             only path-shaped types are supported here; use \
+             `with_kotlin_type(\"<verbatim>\")` to set the name explicitly",
+            key.as_str()
+        )
+    })
+}
+
+/// Fallible variant of [`rust_short_name`] — returns `None` for
+/// non-path types instead of panicking. Used by
+/// [`JniExt::note_wrapper_registration`] which is called for rank-0
+/// wrapper patterns including non-path shapes like `()` where there
+/// is no Kotlin short name to derive.
+fn rust_short_name_opt(key: &TypeKey) -> Option<String> {
     let ty = key.to_type();
     if let syn::Type::Path(tp) = &ty {
         if let Some(last) = tp.path.segments.last() {
-            return last.ident.to_string();
+            return Some(last.ident.to_string());
         }
     }
-    panic!(
-        "rust_short_name: cannot derive Kotlin name from type-key `{}` — \
-         chain `.kotlin_name(\"X\")` to set it explicitly",
-        key.as_str()
-    );
+    None
 }
 
 fn mangle_jni_name(ext: &JniExt, ident: &syn::Ident) -> syn::Ident {
     let camel = snake_to_camel(&ident.to_string());
+    let mangled = ext.mangle_fun(&camel);
     let mut name = ext.jni_class_path.clone();
     name.push('_');
-    name.push_str(&camel);
-    if !ext.jni_method_suffix.is_empty() {
-        name.push_str(&ext.jni_method_suffix);
-    }
+    name.push_str(&mangled);
     syn::Ident::new(&name, Span::call_site())
 }
 

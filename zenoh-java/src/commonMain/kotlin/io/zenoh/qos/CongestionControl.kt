@@ -14,7 +14,7 @@
 
 package io.zenoh.qos
 
-import io.zenoh.jni.CongestionControl as JniCongestionControl
+import io.zenoh.jni.JNICongestionControl as JniCongestionControl
 
 /** The congestion control to be applied when routing the data. */
 enum class CongestionControl (val value: Int) {

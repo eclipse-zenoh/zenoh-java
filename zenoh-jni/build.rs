@@ -19,7 +19,25 @@ fn main() {
     let jni = JniExt::new()
         .source_module(pq!(zenoh_flat))
         .package("io.zenoh.jni")
-        .jni_method_suffix("ViaJNI")
+        // ── Naming policy — one closure per Rust syntax element kind
+        // (per `feedback-per-kind-string-closures`). Defaults are
+        // identity; here every kind gets a fixed prefix/suffix.
+        .kotlin_fun_name_mangle(|n| format!("{n}ViaJNI"))
+        .kotlin_struct_name_mangle(|n| format!("JNI{n}"))
+        .kotlin_enum_name_mangle(|n| format!("JNI{n}"))
+        .kotlin_wrapper_name_mangle(|n| format!("JNI{n}"))
+        .kotlin_callback_name_mangle(|stem| match stem {
+            // Three hand-named callbacks whose Kotlin signatures don't
+            // follow the auto-derived `JNI<Stem>Callback` shape: the
+            // `Fn(Query)` dispatcher targets `JNIQueryableCallback`
+            // (Queryable's reply path), `Fn(Reply)` targets
+            // `JNIGetCallback` (Session.get's reply path), and the
+            // empty `Fn()` is the on-close hook `JNIOnCloseCallback`.
+            "Query" => "JNIQueryableCallback".to_string(),
+            "Reply" => "JNIGetCallback".to_string(),
+            "Empty" => "JNIOnCloseCallback".to_string(),
+            other   => format!("JNI{other}Callback"),
+        })
         // Declares the domain exception `ZError`. Generates the
         // `io.zenoh.jni.ZError` Kotlin class and the
         // `crate::generated::throw_ZError(env, &err)` free function the
@@ -67,17 +85,13 @@ fn main() {
         // default; chain `.method(...)` (repeat for each promoted
         // instance method) to add methods, or `.suppress_kotlin_code()`
         // to opt out of emission when the `.kt` file is hand-written.
-        // The Kotlin class name defaults to the Rust short-name; chain
-        // `.kotlin_name("Foo")` to override (relative to the configured
-        // package).
+        // The class name flows through `kotlin_struct_name_mangle`
+        // (configured above as `JNI{name}`).
         .kotlin_class(pq!(Session))
-        .kotlin_name("JNISession")
         .suppress_kotlin_code()
         .kotlin_class(pq!(Config))
-        .kotlin_name("JNIConfig")
         .suppress_kotlin_code()
         .kotlin_class(pq!(KeyExpr<'static>))
-        .kotlin_name("JNIKeyExpr")
         .method("try_from")
         .method("autocanonize")
         .method("intersects")
@@ -86,33 +100,23 @@ fn main() {
         .method("join")
         .method("concat")
         .kotlin_class(pq!(Publisher<'static>))
-        .kotlin_name("JNIPublisher")
         .method("put_publisher")
         .method("delete_publisher")
         .kotlin_class(pq!(Subscriber<()>))
-        .kotlin_name("JNISubscriber")
         .kotlin_class(pq!(Querier<'static>))
-        .kotlin_name("JNIQuerier")
         .method("querier_get")
         .kotlin_class(pq!(Queryable<()>))
-        .kotlin_name("JNIQueryable")
         .kotlin_class(pq!(Query))
-        .kotlin_name("JNIQuery")
         .method("reply_success")
         .method("reply_error")
         .method("reply_delete")
         .kotlin_class(pq!(LivelinessToken))
-        .kotlin_name("JNILivelinessToken")
         .kotlin_class(pq!(AdvancedSubscriber<()>))
-        .kotlin_name("JNIAdvancedSubscriber")
         .suppress_kotlin_code()
         .kotlin_class(pq!(AdvancedPublisher<'static>))
-        .kotlin_name("JNIAdvancedPublisher")
         .suppress_kotlin_code()
         .kotlin_class(pq!(MatchingListener))
-        .kotlin_name("JNIMatchingListener")
         .kotlin_class(pq!(SampleMissListener))
-        .kotlin_name("JNISampleMissListener")
         // ── Native Kotlin enums — `kotlin_enum` configures: jint wire
         // (input + output), `TryFrom<i32>` decode, `as jint` encode, and
         // an auto-emitted `enum class` Kotlin file under the configured
@@ -133,8 +137,11 @@ fn main() {
         // body↔exception coupling handles it. A decode/encode failure
         // surfaces as a zenoh error, not the framework `JniBindingError`.
         // (`SetIntersectionLevel` is an infallible `as` cast, so its
-        // middle slot is `None`.) Non-primitive wires chain
-        // `kotlin_name`; primitive wires auto-derive via `kotlin_for_wire`.
+        // middle slot is `None`.) Non-primitive rank-0 wires auto-derive
+        // their Kotlin class name via `kotlin_wrapper_name_mangle` (here
+        // `Encoding` → `JNIEncoding`); rank-N wrappers like
+        // `Option<Encoding>` inherit from the inner type's metadata.
+        // Primitive wires auto-derive via `kotlin_for_wire`.
         .input_wrapper(pq!(Encoding), |_reg: &Registry<KotlinMeta>| {
             Some((
                 pq!(jni::objects::JObject),
@@ -142,7 +149,6 @@ fn main() {
                 pq!(crate::utils::decode_jni_encoding(env, &v)),
             ))
         })
-        .kotlin_name("JNIEncoding")
         .input_wrapper(pq!(Option<Encoding>), |_reg: &Registry<KotlinMeta>| {
             Some((
                 pq!(jni::objects::JObject),
@@ -156,7 +162,6 @@ fn main() {
                 ),
             ))
         })
-        .kotlin_name("JNIEncoding")
         .output_wrapper(pq!(SetIntersectionLevel), |_reg: &Registry<KotlinMeta>| {
             Some((
                 pq!(jni::sys::jint),
@@ -181,30 +186,32 @@ fn main() {
         .with_kotlin_type("List<ByteArray>")
         // ── Manual callback overrides — replaces the auto-generated
         // `process_kotlin_*_callback` dispatcher with a hand-written
-        // one and reroutes the Kotlin FQN.
-        // The hand-written dispatcher fns
+        // one. The hand-written dispatcher fns
         // (`process_kotlin_query_callback`, `process_kotlin_reply_callback`)
         // return `ZResult<_>` natively — they do domain decoding — so the
         // `Some(parse_quote!(...ZError))` arg makes the emitted converter
         // typed `Result<_, ZError>` and its body the dispatcher call
         // directly (no `?`/`Ok`). The auto `impl Fn(Sample)` callback,
         // which has no domain decode, keeps the framework default.
+        // The Kotlin FQNs flow through `kotlin_callback_name_mangle`
+        // (configured above): `Query` → `JNIQueryableCallback`, `Reply`
+        // → `JNIGetCallback`, `Empty` → `JNIOnCloseCallback`.
         .callback_input(
             pq!(impl Fn(Query) + Send + Sync + 'static),
             Some(pq!(ZError)),
             pq!(crate::sample_callback::process_kotlin_query_callback),
         )
-        .kotlin_name("JNIQueryableCallback")
         .callback_input(
             pq!(impl Fn(Reply) + Send + Sync + 'static),
             Some(pq!(ZError)),
             pq!(crate::sample_callback::process_kotlin_reply_callback),
         )
-        .kotlin_name("JNIGetCallback")
-        .callback_kotlin_name(
-            pq!(impl Fn() + Send + Sync + 'static),
-            "JNIOnCloseCallback",
-        )
+        // `impl Fn()` keeps the framework's default Rust-side
+        // auto-dispatcher but its Kotlin fun-interface
+        // (`JNIOnCloseCallback`) lives hand-written in
+        // `zenoh-jni-runtime/`. Suppress the auto-stub so we don't get
+        // a duplicate-class compile error.
+        .suppress_kotlin_callback_code(pq!(impl Fn() + Send + Sync + 'static))
         // ── Kotlin names for hand-maintained data classes whose
         // converters auto-generate from the struct shape but whose
         // Kotlin form lives in JNINative.kt. Primitives, opaque

@@ -6,11 +6,11 @@
 //!   * One typed-handle class per `kotlin_class` entry without
 //!     `.suppress_kotlin_code()`.
 //!   * `JNIWrappers.kt` — top-level safe wrappers for non-promoted fns.
-//!   * One `JNI<Stem>Callback.kt` per `impl Fn(args) + Send + Sync +
-//!     'static` type (package = `kotlin_callback_package`). Callback
-//!     types overridden via [`JniExt::callback_input`] /
-//!     [`JniExt::callback_kotlin_name`] are skipped — the override
-//!     points at a hand-written interface.
+//!   * One Kotlin fun-interface file per `impl Fn(args) + Send + Sync
+//!     + 'static` type, named via [`JniExt::kotlin_callback_name_mangle`]
+//!     (default = identity stem; in zenoh-jni: `JNI<Stem>Callback`).
+//!     Callback types overridden via [`JniExt::callback_input`] are
+//!     skipped — the override points at a hand-written interface.
 //!
 //! All emitters route through [`KotlinFile::write`], which translates
 //! `package` into a sub-path under `kotlin_root`.
@@ -47,7 +47,7 @@ pub(crate) struct TypedHandle<'a> {
     /// class. The matching opaque first parameter is dropped from the
     /// signature; the method uses inherited `withPtr` / `consume`. An
     /// empty slice emits a pure shell (just `free()` + the matching
-    /// `freePtr<jni_method_suffix>` extern).
+    /// `<mangle_fun("freePtr")>` extern).
     pub functions: &'a [&'a str],
 }
 
@@ -137,9 +137,9 @@ impl JniExt {
                     }
                     let ty = key.to_type();
                     if let Some(args) = extract_fn_trait_args(&ty) {
-                        // A `callback_input`/`callback_kotlin_name`
-                        // override points the Kotlin signature at a
-                        // hand-written interface — skip the auto-stub.
+                        // A `callback_input` registration points the
+                        // Kotlin signature at a hand-written interface
+                        // — skip the auto-stub.
                         if self
                             .types
                             .get(key)
@@ -325,7 +325,7 @@ impl JniExt {
     /// class instead). Opaque-handle parameters become `NativeHandle`;
     /// the wrapper body nests `withPtr` / `consume` per the
     /// type-conversion rule (`&T` → `withPtr`, `T` → `consume`), then
-    /// delegates to the matching `JNINative.<name><jni_method_suffix>(...)`.
+    /// delegates to the matching `JNINative.<mangle_fun(name)>(...)`.
     /// Non-opaque parameters pass through with the Kotlin type from
     /// `kotlin_types`. Opaque-handle return values are wrapped in
     /// `NativeHandle(...)` before being returned.
@@ -351,7 +351,7 @@ impl JniExt {
 
     /// Emit one Kotlin file per entry in `handles` — each becomes a
     /// `public class <ClassName>(initialPtr: Long) : NativeHandle(initialPtr)`
-    /// with the standard `free()` + `private external fun freePtr<jni_method_suffix>(ptr: Long)`
+    /// with the standard `free()` + `private external fun <mangle_fun("freePtr")>(ptr: Long)`
     /// destructor pair, plus one instance method per `#[prebindgen]` fn
     /// listed in [`TypedHandle::functions`]. The promoted method's first
     /// opaque parameter matching the handle's Rust type is dropped — the
@@ -422,7 +422,6 @@ impl JniExt {
                     rust_key.as_deref(),
                     registry,
                     &merged_types,
-                    &self.jni_method_suffix,
                 ),
                 package,
                 class_name,
@@ -450,13 +449,10 @@ impl JniExt {
                     }
                     let ty = key.to_type();
                     if let Some(args) = extract_fn_trait_args(&ty) {
-                        let stem = derive_callback_stem(&args);
-                        let class = self.callback_class_name(&stem);
-                        let fqn = if self.kotlin_callback_package.is_empty() {
-                            class
-                        } else {
-                            format!("{}.{}", self.kotlin_callback_package, class)
-                        };
+                        // Re-use the single source of truth for callback
+                        // FQN derivation — same closure-mangled stem the
+                        // converter dispatcher stamps into metadata.
+                        let fqn = self.auto_callback_fqn(&args);
                         map = map.add(key.as_str(), fqn);
                     }
                 }
@@ -477,7 +473,7 @@ fn build_callback_kotlin_file(
     registry: &Registry<KotlinMeta>,
 ) -> KotlinFile {
     let stem = derive_callback_stem(args);
-    let class_name = ext.callback_class_name(&stem);
+    let class_name = ext.mangle_callback(&stem);
     let package = ext.kotlin_callback_package.clone();
 
     // Resolve each arg's Kotlin type by reading the output-direction
@@ -803,8 +799,9 @@ public open class NativeHandle(initial: Long) {
     out
 }
 
-/// Render one typed-handle Kotlin source file. Pure-shell form
-/// (assuming `jni_method_suffix = "ViaJNI"`):
+/// Render one typed-handle Kotlin source file. Pure-shell form (with
+/// the closure `|n| format!("{n}ViaJNI")` installed via
+/// [`JniExt::kotlin_fun_name_mangle`]):
 ///
 /// ```kotlin
 /// public class JNIFoo(initialPtr: Long) : NativeHandle(initialPtr) {
@@ -819,10 +816,10 @@ public open class NativeHandle(initial: Long) {
 /// signature, and its `withPtr` / `consume` wrapper uses the
 /// inherited [`NativeHandle`] scope.
 ///
-/// The free-pointer extern name is built as `freePtr<jni_method_suffix>`.
-/// Kotlin/JVM's JNI name mangler binds it to the matching
-/// `Java_<pkg>_<class>_freePtr<jni_method_suffix>` extern on the Rust
-/// side (the hand-written destructor).
+/// The free-pointer extern name is built as
+/// `<mangle_fun("freePtr")>`. Kotlin/JVM's JNI name mangler binds it
+/// to the matching `Java_<pkg>_<class>_<mangle_fun("freePtr")>`
+/// extern on the Rust side (the auto-generated destructor).
 fn render_typed_handle_source(
     ext: &JniExt,
     package: &str,
@@ -832,7 +829,6 @@ fn render_typed_handle_source(
     promoted_rust_key: Option<&str>,
     registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
-    jni_method_suffix: &str,
 ) -> String {
     // Build method bodies first so we can collect imports up front.
     // Two buckets — instance methods land in the class body; companion
@@ -856,7 +852,6 @@ fn render_typed_handle_source(
             kotlin_types,
             &mut imports,
             promoted_rust_key,
-            jni_method_suffix,
         )
         .unwrap_or_else(|| {
             panic!(
@@ -916,7 +911,7 @@ fn render_typed_handle_source(
         "public class {}(initialPtr: Long) : NativeHandle(initialPtr) {{\n",
         class_name
     ));
-    let free_extern = format!("freePtr{jni_method_suffix}");
+    let free_extern = ext.mangle_fun("freePtr");
     s.push_str(&format!(
         "    public fun free() = free {{ {free_extern}(it) }}\n"
     ));
@@ -959,7 +954,7 @@ fn render_typed_handle_source(
 /// the wrapper body nests `withPtr` / `consume` per the syntactic
 /// shape. Non-opaque parameters pass through with the Kotlin type from
 /// `kotlin_types`. The wrappers delegate to
-/// `JNINative.<name><jni_method_suffix>(...)`.
+/// `JNINative.<mangle_fun(name)>(...)`.
 fn render_jni_wrappers_source(
     ext: &JniExt,
     registry: &Registry<KotlinMeta>,
@@ -990,8 +985,8 @@ fn render_jni_wrappers_source(
     for ident in idents {
         // Skip functions promoted to a typed-handle class — their
         // top-level wrapper lives on the handle instead. The Rust-side
-        // `JNINative.<name><jni_method_suffix>` extern still exists;
-        // only the Kotlin-side safe wrapper moves.
+        // `JNINative.<mangle_fun(name)>` extern still exists; only the
+        // Kotlin-side safe wrapper moves.
         if promoted.contains(&ident.to_string()) {
             continue;
         }
@@ -1006,7 +1001,6 @@ fn render_jni_wrappers_source(
             &merged_types,
             &mut imports,
             None,
-            &ext.jni_method_suffix,
         ) {
             body.push_str(&block);
             body.push('\n');
@@ -1088,13 +1082,12 @@ fn render_wrapper_fn(
     kotlin_types: &KotlinTypeMap,
     imports: &mut BTreeSet<String>,
     promoted_handle: Option<&str>,
-    jni_method_suffix: &str,
 ) -> Option<(String, MethodKind)> {
     use std::fmt::Write;
 
     let rust_name = f.sig.ident.to_string();
     let kt_name = snake_to_camel(&rust_name);
-    let jni_call = format!("{kt_name}{jni_method_suffix}");
+    let jni_call = ext.mangle_fun(&kt_name);
 
     // Pre-parse the promoted Rust type-key (if any) so per-param matching
     // is whitespace-normalised against the canonical form.
