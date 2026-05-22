@@ -235,7 +235,7 @@ pub(crate) type WrapperFn = Arc<
 
 /// Closure that transforms a Kotlin short name. Installed via the
 /// per-kind setters ([`JniExt::kotlin_fun_name_mangle`],
-/// [`JniExt::kotlin_struct_name_mangle`], etc.); the framework calls
+/// [`JniExt::kotlin_data_class_name_mangle`], etc.); the framework calls
 /// the matching closure wherever it needs to derive a Kotlin/JNI
 /// short name for a generated element. Closure-unset = identity.
 pub(crate) type NameMangle = Arc<dyn Fn(&str) -> String + Send + Sync>;
@@ -371,10 +371,11 @@ pub struct JniExt {
     /// generated JNI extern symbols and matching Kotlin `external fun`s
     /// both pick up the `ViaJNI` suffix.
     pub(crate) kotlin_fun_name_mangle: Option<NameMangle>,
-    /// Mangler for struct-shaped Kotlin class names — opaque handles
-    /// declared via [`Self::kotlin_class`] AND value-type data classes
-    /// declared via [`Self::kotlin_value_type`]. Default = identity.
-    pub(crate) kotlin_struct_name_mangle: Option<NameMangle>,
+    /// Mangler for Kotlin data-class names declared via
+    /// [`Self::kotlin_data_class`]. Also used for
+    /// [`Self::kotlin_class`] names for backward compatibility.
+    /// Default = identity.
+    pub(crate) kotlin_data_class_name_mangle: Option<NameMangle>,
     /// Mangler for [`Self::kotlin_enum`]-declared C-like enum class
     /// names. Default = identity.
     pub(crate) kotlin_enum_name_mangle: Option<NameMangle>,
@@ -396,7 +397,7 @@ pub struct JniExt {
     pub(crate) kotlin_wrapper_name_mangle: Option<NameMangle>,
     /// Derived `<rust-type-canonical-string> → <kotlin FQN>` view —
     /// populated alongside [`Self::types`] by the structured builders
-    /// ([`Self::kotlin_class`], [`Self::kotlin_value_type`],
+    /// ([`Self::kotlin_class`], [`Self::kotlin_data_class`],
     /// [`Self::callback_input`], [`Self::input_wrapper`] /
     /// [`Self::output_wrapper`]). Internal readers
     /// (`emit_into_dispatcher`, callback FQN merging) consume this flat
@@ -407,7 +408,7 @@ pub struct JniExt {
     /// Structured per-type configuration keyed by canonical Rust type.
     /// One entry per `Rust type ↔ JNI/Kotlin` rule; populated by the
     /// structured builders (`kotlin_class`, `kotlin_enum`,
-    /// `kotlin_value_type`, `input_wrapper`, `output_wrapper`,
+    /// `kotlin_data_class`, `input_wrapper`, `output_wrapper`,
     /// `callback_input`). Holds opaque-handle config, enum config,
     /// Kotlin names, and callback FQNs; the converter bodies themselves
     /// live in [`Self::input_wrappers`] / [`Self::output_wrappers`].
@@ -439,7 +440,7 @@ pub struct JniExt {
     /// builders ([`Self::suppress_kotlin_code`], [`Self::with_kotlin_type`])
     /// know which entry to extend. Set by `input_wrapper` /
     /// `output_wrapper` (rank 0 only), `kotlin_enum`, `callback_input`,
-    /// and `kotlin_value_type`; cleared by other unrelated builders.
+    /// and `kotlin_data_class`; cleared by other unrelated builders.
     last_meta_key: Option<TypeKey>,
 }
 
@@ -470,7 +471,7 @@ impl JniExt {
             jni_class_path: "Java_JNINative".to_string(),
             kotlin_callback_package: "callbacks".to_string(),
             kotlin_fun_name_mangle: None,
-            kotlin_struct_name_mangle: None,
+            kotlin_data_class_name_mangle: None,
             kotlin_enum_name_mangle: None,
             kotlin_callback_name_mangle: None,
             kotlin_wrapper_name_mangle: None,
@@ -563,15 +564,15 @@ impl JniExt {
         self.kotlin_fun_name_mangle = Some(Arc::new(f));
         self
     }
-    /// Set the closure that mangles struct-shaped Kotlin class names —
-    /// opaque handles ([`Self::kotlin_class`]) AND value-type data
-    /// classes ([`Self::kotlin_value_type`]). Receives the Rust short
-    /// name. Default = identity.
-    pub fn kotlin_struct_name_mangle<F>(mut self, f: F) -> Self
+    /// Set the closure that mangles Kotlin data-class names declared
+    /// via [`Self::kotlin_data_class`]. The same mangler is also used
+    /// for [`Self::kotlin_class`] names for backward compatibility.
+    /// Receives the Rust short name. Default = identity.
+    pub fn kotlin_data_class_name_mangle<F>(mut self, f: F) -> Self
     where
         F: Fn(&str) -> String + Send + Sync + 'static,
     {
-        self.kotlin_struct_name_mangle = Some(Arc::new(f));
+        self.kotlin_data_class_name_mangle = Some(Arc::new(f));
         self
     }
     /// Set the closure that mangles [`Self::kotlin_enum`]-declared
@@ -662,12 +663,10 @@ impl JniExt {
             None => name.to_string(),
         }
     }
-    /// Apply [`Self::kotlin_struct_name_mangle`] to `name`, returning
-    /// the closure result or `name` verbatim when unset. Called for
-    /// opaque-handle ([`Self::kotlin_class`]) and value-type
-    /// ([`Self::kotlin_value_type`]) class names.
-    pub(crate) fn mangle_struct(&self, name: &str) -> String {
-        match &self.kotlin_struct_name_mangle {
+    /// Apply [`Self::kotlin_data_class_name_mangle`] to `name`,
+    /// returning the closure result or `name` verbatim when unset.
+    pub(crate) fn mangle_data_class(&self, name: &str) -> String {
+        match &self.kotlin_data_class_name_mangle {
             Some(f) => f(name),
             None => name.to_string(),
         }
@@ -743,7 +742,7 @@ impl JniExt {
     pub fn kotlin_class(mut self, rust_type: syn::Type) -> Self {
         let key = TypeKey::from_type(&rust_type);
         let short = rust_short_name(&key);
-        let fqn = self.resolve_class_fqn(&self.mangle_struct(&short));
+        let fqn = self.resolve_class_fqn(&self.mangle_data_class(&short));
         let entry = self.types.entry(key.clone()).or_default();
         entry.opaque = Some(OpaqueConfig::default());
         // `kotlin_name` holds the typed-handle FQN for FQN-consumers
@@ -976,16 +975,15 @@ impl JniExt {
         self
     }
 
-    /// Declare a Rust value type that should appear in Kotlin under a
-    /// derived name. The name passes through
-    /// [`Self::kotlin_struct_name_mangle`] (default = Rust short name,
-    /// generics / lifetimes stripped). Only affects Kotlin emission —
-    /// no Rust-side converter override. Chain [`Self::with_kotlin_type`]
-    /// instead for verbatim type expressions.
-    pub fn kotlin_value_type(mut self, rust_type: syn::Type) -> Self {
+    /// Declare a Rust struct that should appear in Kotlin as a data
+    /// class under a derived name. The name passes through
+    /// [`Self::kotlin_data_class_name_mangle`] (default = Rust short
+    /// name, generics / lifetimes stripped). Only affects Kotlin
+    /// emission — no Rust-side converter override.
+    pub fn kotlin_data_class(mut self, rust_type: syn::Type) -> Self {
         let key = TypeKey::from_type(&rust_type);
         let short = rust_short_name(&key);
-        let fqn = self.resolve_class_fqn(&self.mangle_struct(&short));
+        let fqn = self.resolve_class_fqn(&self.mangle_data_class(&short));
         let entry = self.types.entry(key.clone()).or_default();
         entry.kotlin_name = Some(fqn.clone());
         self.kotlin_type_fqns
@@ -1078,7 +1076,7 @@ impl JniExt {
             let entry = self.types.entry(key.clone()).or_default();
             // Skip callbacks (handled by callback_input) and any entry
             // whose kotlin_name has already been stamped (e.g. by an
-            // earlier kotlin_value_type / kotlin_class call for the
+            // earlier kotlin_data_class / kotlin_class call for the
             // same type — a wrapper layered on top should not override
             // it). Then derive the short name from the canonical
             // TypeKey; non-path patterns ($()$, references, etc.)
@@ -1688,7 +1686,7 @@ impl JniExt {
     }
 
     /// If the user pinned a Kotlin name for `outer_ty` via
-    /// [`Self::kotlin_value_type`] (or it's an opaque-handle entry that
+    /// [`Self::kotlin_data_class`] (or it's an opaque-handle entry that
     /// kept its FQN in `kotlin_name`), use that name; otherwise leave
     /// the auto-derived `inherited` value untouched. Lets handler arms
     /// inherit by default but yield to an explicit user pin when one
@@ -2154,7 +2152,7 @@ impl PrebindgenExt for JniExt {
                 let (wire, body) = struct_input_body(self, s, registry)?;
                 let niches = default_niches_for_wire(&wire);
                 // Auto-generated struct: the value-context Kotlin name is
-                // whatever the user pinned via `kotlin_value_type`. If
+                // whatever the user pinned via `kotlin_data_class`. If
                 // they didn't, leave `kotlin_name = None` — emitter
                 // surfaces this as a build-time hard error.
                 let kotlin_name = self.types.get(&key).and_then(|c| c.kotlin_name.clone());
@@ -2676,7 +2674,7 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
 /// Last-segment ident of a `TypeKey` — e.g. `"Publisher<'static>"` →
 /// `"Publisher"`, `"AdvancedSubscriber<()>"` → `"AdvancedSubscriber"`. Used by
 /// the structured builders ([`JniExt::kotlin_class`],
-/// [`JniExt::kotlin_value_type`]) to derive a default Kotlin class name from
+/// [`JniExt::kotlin_data_class`]) to derive a default Kotlin class name from
 /// the Rust type-key. Panics for non-path types (e.g. closures, references) —
 /// the per-kind `kotlin_*_name_mangle` closures see only path-shaped
 /// shorts. For verbatim Kotlin expressions on non-path types, chain

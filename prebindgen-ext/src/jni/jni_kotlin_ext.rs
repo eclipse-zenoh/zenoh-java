@@ -78,6 +78,7 @@ impl JniExt {
         written.extend(self.emit_callback_files(registry, kotlin_root)?);
         written.extend(self.write_exception_classes(kotlin_root)?);
         written.extend(self.write_enum_classes(registry, kotlin_root)?);
+        written.extend(self.write_data_classes(registry, kotlin_root)?);
         written.push(self.write_native_handle(kotlin_root)?);
 
         // Build the borrowed `TypedHandle<'_>` view from internal config.
@@ -316,6 +317,82 @@ impl JniExt {
             };
             written.push(file.write(output_dir)?);
         }
+        Ok(written)
+    }
+
+    /// Emit one Kotlin `data class` file per `kotlin_data_class`-declared
+    /// struct. Uses resolved converter metadata to derive Kotlin field
+    /// types, so wrappers and data-class declarations stay in sync.
+    pub(crate) fn write_data_classes(
+        &self,
+        registry: &Registry<KotlinMeta>,
+        output_dir: &Path,
+    ) -> Result<Vec<PathBuf>, WriteKotlinError> {
+        let mut written = Vec::new();
+        let mut rust_names: Vec<String> = Vec::new();
+        let mut aliases: Vec<(String, String)> = Vec::new();
+        let mut keys: Vec<&TypeKey> = self.types.keys().collect();
+        keys.sort_by(|a, b| a.as_str().cmp(b.as_str()));
+
+        for key in keys {
+            let cfg = &self.types[key];
+            if cfg.opaque.is_some() || cfg.enum_cfg.is_some() || cfg.callback_kotlin_fqn.is_some() {
+                continue;
+            }
+            let Some(kotlin_fqn) = &cfg.kotlin_name else {
+                continue;
+            };
+
+            let ty = key.to_type();
+            let Some(ident) = (if let syn::Type::Path(tp) = &ty {
+                tp.path.segments.last().map(|s| s.ident.clone())
+            } else {
+                None
+            }) else {
+                continue;
+            };
+            let Some((item_struct, _)) = registry.structs.get(&ident) else {
+                continue;
+            };
+            rust_names.push(item_struct.ident.to_string());
+
+            let (package, class_name) = match kotlin_fqn.rsplit_once('.') {
+                Some((p, c)) => (p.to_string(), c.to_string()),
+                None => (String::new(), kotlin_fqn.clone()),
+            };
+            if item_struct.ident.to_string() != class_name {
+                aliases.push((item_struct.ident.to_string(), class_name.clone()));
+            }
+            let file = KotlinFile {
+                contents: render_data_class_source(&package, &class_name, item_struct, registry),
+                package: package.clone(),
+                class_name,
+            };
+            written.push(file.write(output_dir)?);
+
+            // If data-class naming changed, remove stale legacy file that
+            // may have been generated under the old class name.
+            let legacy_path = output_dir
+                .join(package.replace('.', "/"))
+                .join(format!("{}.kt", item_struct.ident));
+            if item_struct.ident.to_string() != file.class_name && legacy_path.exists() {
+                let _ = std::fs::remove_file(&legacy_path);
+            }
+        }
+
+        if !rust_names.is_empty() {
+            strip_legacy_jni_native_data_classes(output_dir, &self.package, &rust_names)?;
+        }
+
+        if !aliases.is_empty() {
+            let alias_file = KotlinFile {
+                contents: render_data_class_aliases_source(&self.package, &aliases),
+                package: self.package.clone(),
+                class_name: "JNIDataClassAliases".to_string(),
+            };
+            written.push(alias_file.write(output_dir)?);
+        }
+
         Ok(written)
     }
 
@@ -661,6 +738,144 @@ fn render_enum_source(package: &str, class_name: &str, item_enum: &syn::ItemEnum
     s.push_str("    }\n");
     s.push_str("}\n");
     s
+}
+
+/// One generated Kotlin `data class` source for a `kotlin_data_class`-
+/// declared Rust struct.
+fn render_data_class_source(
+    package: &str,
+    class_name: &str,
+    item_struct: &syn::ItemStruct,
+    registry: &Registry<KotlinMeta>,
+) -> String {
+    let fields_named = match &item_struct.fields {
+        syn::Fields::Named(n) => &n.named,
+        _ => {
+            panic!(
+                "render_data_class_source: struct `{}` must use named fields to map onto Kotlin data class properties",
+                item_struct.ident
+            )
+        }
+    };
+
+    let mut imports: BTreeSet<String> = BTreeSet::new();
+    let mut field_lines: Vec<String> = Vec::new();
+    for field in fields_named {
+        let field_ident = field.ident.as_ref().unwrap_or_else(|| {
+            panic!(
+                "render_data_class_source: struct `{}` has an unnamed field in named-fields context",
+                item_struct.ident
+            )
+        });
+        let kotlin_field_name = snake_to_camel(&field_ident.to_string());
+        let kotlin_ty = registry
+            .output_entry(&field.ty)
+            .and_then(|e| e.metadata.kotlin_name.clone())
+            .or_else(|| registry.input_entry(&field.ty).and_then(|e| e.metadata.kotlin_name.clone()))
+            .unwrap_or_else(|| {
+                panic!(
+                    "render_data_class_source: field `{}.{}` has no Kotlin type mapping; register converters before declaring kotlin_data_class",
+                    item_struct.ident,
+                    field_ident
+                )
+            });
+        let short = register_fqn(&kotlin_ty, &mut imports);
+        let optional_suffix = if is_option_type(&field.ty) { "?" } else { "" };
+        field_lines.push(format!("    val {kotlin_field_name}: {short}{optional_suffix},"));
+    }
+
+    let mut import_list: Vec<String> = imports
+        .iter()
+        .filter(|fqn| {
+            let pkg = fqn.rsplit_once('.').map(|(p, _)| p).unwrap_or("");
+            !pkg.is_empty() && pkg != package
+        })
+        .cloned()
+        .collect();
+    import_list.sort();
+    import_list.dedup();
+
+    let mut s = String::new();
+    s.push_str("// Auto-generated by JniExt — do not edit by hand.\n");
+    if !package.is_empty() {
+        s.push_str(&format!("package {}\n\n", package));
+    }
+    for imp in &import_list {
+        s.push_str(&format!("import {}\n", imp));
+    }
+    if !import_list.is_empty() {
+        s.push('\n');
+    }
+    s.push_str(&format!("public data class {}(\n", class_name));
+    for line in &field_lines {
+        s.push_str(line);
+        s.push('\n');
+    }
+    s.push_str(") {\n");
+    s.push_str("    public companion object\n");
+    s.push_str("}\n");
+    s
+}
+
+fn render_data_class_aliases_source(package: &str, aliases: &[(String, String)]) -> String {
+    let mut pairs = aliases.to_vec();
+    pairs.sort_by(|a, b| a.0.cmp(&b.0));
+    pairs.dedup_by(|a, b| a.0 == b.0 && a.1 == b.1);
+
+    let mut s = String::new();
+    s.push_str("// Auto-generated by JniExt — do not edit by hand.\n");
+    if !package.is_empty() {
+        s.push_str(&format!("package {}\n\n", package));
+    }
+    s.push_str("// Compatibility aliases for legacy un-mangled data-class references.\n");
+    for (legacy, current) in pairs {
+        s.push_str(&format!("public typealias {} = {}\n", legacy, current));
+    }
+    s
+}
+
+fn strip_legacy_jni_native_data_classes(
+    output_dir: &Path,
+    package: &str,
+    _rust_names: &[String],
+) -> Result<(), WriteKotlinError> {
+    let jni_native_path = output_dir
+        .join(package.replace('.', "/"))
+        .join("JNINative.kt");
+    if !jni_native_path.exists() {
+        return Ok(());
+    }
+
+    let source = std::fs::read_to_string(&jni_native_path)?;
+    let lines: Vec<&str> = source.lines().collect();
+    let Some(object_start) = lines
+        .iter()
+        .position(|line| line.trim_start().starts_with("internal object JNINative {"))
+    else {
+        return Ok(());
+    };
+
+    let mut filtered: Vec<String> = Vec::new();
+    for line in &lines[..object_start] {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("package ")
+            || trimmed.starts_with("import ")
+            || trimmed.starts_with("//")
+            || trimmed.is_empty()
+        {
+            filtered.push((*line).to_string());
+        }
+    }
+    for line in &lines[object_start..] {
+        filtered.push((*line).to_string());
+    }
+
+    let mut out = filtered.join("\n");
+    out.push('\n');
+    if out != source {
+        std::fs::write(jni_native_path, out)?;
+    }
+    Ok(())
 }
 
 /// `NativeHandle.kt` source — emitted verbatim into the destination

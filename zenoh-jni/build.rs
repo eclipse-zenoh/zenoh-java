@@ -23,8 +23,8 @@ fn main() {
         // (per `feedback-per-kind-string-closures`). Defaults are
         // identity; here every kind gets a fixed prefix/suffix.
         .kotlin_fun_name_mangle(|n| format!("{n}ViaJNI"))
-        .kotlin_struct_name_mangle(|n| format!("JNI{n}"))
-        .kotlin_enum_name_mangle(|n| format!("JNI{n}"))
+        .kotlin_data_class_name_mangle(|n| format!("JNI{n}"))
+        .kotlin_enum_name_mangle(|n| n.to_string())
         .kotlin_wrapper_name_mangle(|n| format!("JNI{n}"))
         .kotlin_callback_name_mangle(|n| format!("JNI{n}"))
         // Declares the domain exception `ZError`. Generates the
@@ -74,7 +74,7 @@ fn main() {
         // default; chain `.method(...)` (repeat for each promoted
         // instance method) to add methods, or `.suppress_kotlin_code()`
         // to opt out of emission when the `.kt` file is hand-written.
-        // The class name flows through `kotlin_struct_name_mangle`
+        // The class name flows through `kotlin_data_class_name_mangle`
         // (configured above as `JNI{name}`).
         .kotlin_class(pq!(Session))
         .suppress_kotlin_code()
@@ -151,6 +151,7 @@ fn main() {
                 ),
             ))
         })
+        .with_kotlin_type("io.zenoh.jni.JNIEncoding")
         .output_wrapper(pq!(SetIntersectionLevel), |_reg: &Registry<KotlinMeta>| {
             Some((
                 pq!(jni::sys::jint),
@@ -158,6 +159,7 @@ fn main() {
                 pq!(v as jni::sys::jint),
             ))
         })
+        .with_kotlin_type("Int")
         .output_wrapper(pq!(ZenohId), |_reg: &Registry<KotlinMeta>| {
             Some((
                 pq!(jni::sys::jbyteArray),
@@ -165,6 +167,7 @@ fn main() {
                 pq!(crate::zenoh_id::zenoh_id_to_byte_array(env, v)),
             ))
         })
+        .with_kotlin_type("ByteArray")
         .output_wrapper(pq!(Vec<ZenohId>), |_reg: &Registry<KotlinMeta>| {
             Some((
                 pq!(jni::sys::jobject),
@@ -212,11 +215,11 @@ fn main() {
         // `&T` wrapper auto-derive their Kotlin names through the
         // [`KotlinMeta`] propagation in the rank-N handlers — no
         // build.rs entry needed.
-        .kotlin_value_type(pq!(Sample))
-        .kotlin_value_type(pq!(MissDetectionConfig))
-        .kotlin_value_type(pq!(HistoryConfig))
-        .kotlin_value_type(pq!(CacheConfig))
-        .kotlin_value_type(pq!(RecoveryConfig))
+        .kotlin_data_class(pq!(Sample))
+        .kotlin_data_class(pq!(MissDetectionConfig))
+        .kotlin_data_class(pq!(HistoryConfig))
+        .kotlin_data_class(pq!(CacheConfig))
+        .kotlin_data_class(pq!(RecoveryConfig))
         // ── impl Into<T> source arms.
         .into_sources(
             pq!(KeyExpr<'static>),
