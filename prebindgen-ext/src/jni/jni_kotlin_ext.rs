@@ -3,7 +3,7 @@
 //! [`JniExt::write_kotlin`] is the single entry point for every Kotlin
 //! file the JNI back-end emits. Given one `kotlin_root` it writes:
 //!   * `NativeHandle.kt` (package `io.zenoh.jni`).
-//!   * One typed-handle class per `kotlin_class` entry without
+//!   * One typed-handle class per `kotlin_ptr_class` entry without
 //!     `.suppress_kotlin_code()`.
 //!   * `JNIWrappers.kt` — top-level safe wrappers for non-promoted fns.
 //!   * One Kotlin fun-interface file per `impl Fn(args) + Send + Sync
@@ -65,7 +65,7 @@ fn rust_key_for_fqn<'a>(ext: &'a JniExt, fqn: &str) -> Option<&'a str> {
 impl JniExt {
     /// Unified Kotlin emission — single public entry point that fans out
     /// to per-callback fun-interface files, `NativeHandle.kt`, typed-handle
-    /// classes (one per `kotlin_class` registration), and
+    /// classes (one per `kotlin_ptr_class` registration), and
     /// `JNIWrappers.kt`. Reads all configuration (typed-handle methods,
     /// callback FQN overrides, Kotlin type names) from internal state set
     /// during the builder phase. Returns every path written.
@@ -108,7 +108,6 @@ impl JniExt {
         written.push(self.write_jni_wrappers(
             registry,
             &kotlin_types,
-            &typed_handles,
             kotlin_root,
         )?);
         Ok(written)
@@ -185,7 +184,7 @@ impl JniExt {
             handles.push(OwnedTypedHandle {
                 rust_doc,
                 kotlin_fqn: kotlin_fqn.clone(),
-                methods: opaque.methods.clone(),
+                methods: cfg.methods.clone(),
             });
         }
         handles
@@ -280,6 +279,15 @@ impl JniExt {
         output_dir: &Path,
     ) -> Result<Vec<PathBuf>, WriteKotlinError> {
         let mut written = Vec::new();
+        let callback_fqns = self.collect_kotlin_callback_fqns(registry);
+        let mut kotlin_types = KotlinTypeMap::new();
+        for (k, v) in callback_fqns.iter() {
+            kotlin_types = kotlin_types.add(k, v.clone());
+        }
+        let configured_types = self.build_kotlin_type_map();
+        for (k, v) in configured_types.iter() {
+            kotlin_types = kotlin_types.add(k, v.clone());
+        }
         // Deterministic order by canonical Rust type-key.
         let mut keys: Vec<&TypeKey> = self.types.keys().collect();
         keys.sort_by(|a, b| a.as_str().cmp(b.as_str()));
@@ -311,7 +319,15 @@ impl JniExt {
                 None => (String::new(), kotlin_fqn.clone()),
             };
             let file = KotlinFile {
-                contents: render_enum_source(&package, &class_name, item_enum),
+                contents: render_enum_source(
+                    self,
+                    &package,
+                    &class_name,
+                    item_enum,
+                    &cfg.methods,
+                    registry,
+                    &kotlin_types,
+                ),
                 package,
                 class_name,
             };
@@ -329,6 +345,15 @@ impl JniExt {
         output_dir: &Path,
     ) -> Result<Vec<PathBuf>, WriteKotlinError> {
         let mut written = Vec::new();
+        let callback_fqns = self.collect_kotlin_callback_fqns(registry);
+        let mut kotlin_types = KotlinTypeMap::new();
+        for (k, v) in callback_fqns.iter() {
+            kotlin_types = kotlin_types.add(k, v.clone());
+        }
+        let configured_types = self.build_kotlin_type_map();
+        for (k, v) in configured_types.iter() {
+            kotlin_types = kotlin_types.add(k, v.clone());
+        }
         let mut rust_names: Vec<String> = Vec::new();
         let mut aliases: Vec<(String, String)> = Vec::new();
         let mut keys: Vec<&TypeKey> = self.types.keys().collect();
@@ -364,7 +389,15 @@ impl JniExt {
                 aliases.push((item_struct.ident.to_string(), class_name.clone()));
             }
             let file = KotlinFile {
-                contents: render_data_class_source(&package, &class_name, item_struct, registry),
+                contents: render_data_class_source(
+                    self,
+                    &package,
+                    &class_name,
+                    item_struct,
+                    registry,
+                    &kotlin_types,
+                    &cfg.methods,
+                ),
                 package: package.clone(),
                 class_name,
             };
@@ -411,12 +444,12 @@ impl JniExt {
         &self,
         registry: &Registry<KotlinMeta>,
         kotlin_types: &KotlinTypeMap,
-        typed_handles: &[TypedHandle<'_>],
         output_dir: &Path,
     ) -> Result<PathBuf, WriteKotlinError> {
-        let promoted: HashSet<String> = typed_handles
-            .iter()
-            .flat_map(|h| h.functions.iter().map(|s| (*s).to_string()))
+        let promoted: HashSet<String> = self
+            .types
+            .values()
+            .flat_map(|cfg| cfg.methods.iter().cloned())
             .collect();
         let contents = render_jni_wrappers_source(self, registry, kotlin_types, &promoted);
         let file = KotlinFile {
@@ -702,7 +735,15 @@ fn render_exception_source(package: &str, class_name: &str, rust_doc_name: &str)
 /// `val value: Int`, plus a `fromInt(value: Int)` companion. Mirrors
 /// the hand-written `io.zenoh.qos.Priority` shape so adapter code that
 /// already speaks the `.value` / `.fromInt(...)` idiom keeps working.
-fn render_enum_source(package: &str, class_name: &str, item_enum: &syn::ItemEnum) -> String {
+fn render_enum_source(
+    ext: &JniExt,
+    package: &str,
+    class_name: &str,
+    item_enum: &syn::ItemEnum,
+    promoted_functions: &[String],
+    registry: &Registry<KotlinMeta>,
+    kotlin_types: &KotlinTypeMap,
+) -> String {
     // Same discriminant source of truth the Rust `jint → variant` decode
     // uses, so Kotlin `value(N)` and the generated decode agree.
     let variants: Vec<(String, i64)> = crate::util::enum_discriminant_values(item_enum)
@@ -712,10 +753,60 @@ fn render_enum_source(package: &str, class_name: &str, item_enum: &syn::ItemEnum
         })
         .collect();
 
+    let mut imports: BTreeSet<String> = BTreeSet::new();
+    let mut companion_methods = String::new();
+    for fn_name in promoted_functions {
+        let ident = syn::Ident::new(fn_name, proc_macro2::Span::call_site());
+        let (item_fn, _loc) = registry.functions.get(&ident).unwrap_or_else(|| {
+            panic!(
+                "render_enum_source: `{class_name}` promotes function `{fn_name}` \
+                 which is not present in `registry.functions` — check the spelling against \
+                 the matching `#[prebindgen]` Rust fn name."
+            )
+        });
+        let (block, _kind) = render_wrapper_fn(
+            ext,
+            item_fn,
+            registry,
+            kotlin_types,
+            &mut imports,
+            None,
+        )
+        .unwrap_or_else(|| {
+            panic!(
+                "render_enum_source: `{class_name}` promotes function `{fn_name}` \
+                 but its parameter types couldn't be Kotlin-resolved — verify that all \
+                 non-opaque parameter types are registered in `kotlin_types`."
+            )
+        });
+        if !companion_methods.is_empty() {
+            companion_methods.push('\n');
+        }
+        companion_methods.push_str(&block);
+        companion_methods.push('\n');
+    }
+
+    let mut import_list: Vec<String> = imports
+        .iter()
+        .filter(|fqn| {
+            let pkg = fqn.rsplit_once('.').map(|(p, _)| p).unwrap_or("");
+            !pkg.is_empty() && pkg != package
+        })
+        .cloned()
+        .collect();
+    import_list.sort();
+    import_list.dedup();
+
     let mut s = String::new();
     s.push_str("// Auto-generated by JniExt — do not edit by hand.\n");
     if !package.is_empty() {
         s.push_str(&format!("package {}\n\n", package));
+    }
+    for imp in &import_list {
+        s.push_str(&format!("import {}\n", imp));
+    }
+    if !import_list.is_empty() {
+        s.push('\n');
     }
     s.push_str(&format!(
         "/** JVM-side surface for the native Rust `{}` enum. */\n",
@@ -735,6 +826,18 @@ fn render_enum_source(package: &str, class_name: &str, item_enum: &syn::ItemEnum
         "        public fun fromInt(value: Int): {} = entries.first {{ it.value == value }}\n",
         class_name
     ));
+    if !companion_methods.is_empty() {
+        s.push('\n');
+        for line in companion_methods.lines() {
+            if line.is_empty() {
+                s.push('\n');
+            } else {
+                s.push_str("        ");
+                s.push_str(line);
+                s.push('\n');
+            }
+        }
+    }
     s.push_str("    }\n");
     s.push_str("}\n");
     s
@@ -743,10 +846,13 @@ fn render_enum_source(package: &str, class_name: &str, item_enum: &syn::ItemEnum
 /// One generated Kotlin `data class` source for a `kotlin_data_class`-
 /// declared Rust struct.
 fn render_data_class_source(
+    ext: &JniExt,
     package: &str,
     class_name: &str,
     item_struct: &syn::ItemStruct,
     registry: &Registry<KotlinMeta>,
+    kotlin_types: &KotlinTypeMap,
+    promoted_functions: &[String],
 ) -> String {
     let fields_named = match &item_struct.fields {
         syn::Fields::Named(n) => &n.named,
@@ -784,6 +890,38 @@ fn render_data_class_source(
         field_lines.push(format!("    val {kotlin_field_name}: {short}{optional_suffix},"));
     }
 
+    let mut companion_methods = String::new();
+    for fn_name in promoted_functions {
+        let ident = syn::Ident::new(fn_name, proc_macro2::Span::call_site());
+        let (item_fn, _loc) = registry.functions.get(&ident).unwrap_or_else(|| {
+            panic!(
+                "render_data_class_source: `{class_name}` promotes function `{fn_name}` \
+                 which is not present in `registry.functions` — check the spelling against \
+                 the matching `#[prebindgen]` Rust fn name."
+            )
+        });
+        let (block, _kind) = render_wrapper_fn(
+            ext,
+            item_fn,
+            registry,
+            kotlin_types,
+            &mut imports,
+            None,
+        )
+        .unwrap_or_else(|| {
+            panic!(
+                "render_data_class_source: `{class_name}` promotes function `{fn_name}` \
+                 but its parameter types couldn't be Kotlin-resolved — verify that all \
+                 non-opaque parameter types are registered in `kotlin_types`."
+            )
+        });
+        if !companion_methods.is_empty() {
+            companion_methods.push('\n');
+        }
+        companion_methods.push_str(&block);
+        companion_methods.push('\n');
+    }
+
     let mut import_list: Vec<String> = imports
         .iter()
         .filter(|fqn| {
@@ -812,7 +950,19 @@ fn render_data_class_source(
         s.push('\n');
     }
     s.push_str(") {\n");
-    s.push_str("    public companion object\n");
+    s.push_str("    public companion object {\n");
+    if !companion_methods.is_empty() {
+        for line in companion_methods.lines() {
+            if line.is_empty() {
+                s.push('\n');
+            } else {
+                s.push_str("        ");
+                s.push_str(line);
+                s.push('\n');
+            }
+        }
+    }
+    s.push_str("    }\n");
     s.push_str("}\n");
     s
 }

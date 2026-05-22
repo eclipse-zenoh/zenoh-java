@@ -23,6 +23,7 @@ fn main() {
         // (per `feedback-per-kind-string-closures`). Defaults are
         // identity; here every kind gets a fixed prefix/suffix.
         .kotlin_fun_name_mangle(|n| format!("{n}ViaJNI"))
+        .kotlin_ptr_class_name_mangle(|n| format!("JNI{n}"))
         .kotlin_data_class_name_mangle(|n| format!("JNI{n}"))
         .kotlin_enum_name_mangle(|n| n.to_string())
         .kotlin_wrapper_name_mangle(|n| format!("JNI{n}"))
@@ -67,20 +68,20 @@ fn main() {
         .output_wrapper(pq!(()), |_reg: &Registry<KotlinMeta>| {
             Some((pq!(()), None, pq!({ v })))
         })
-        // ── Kotlin classes — `kotlin_class` configures: jlong wire
+        // ── Kotlin ptr classes — `kotlin_ptr_class` configures: jlong wire
         // (input + output), `Box::into_raw`/`Box::from_raw` lifecycle,
         // `instanceof` dispatch class, and the Kotlin parameter-type
         // name. A typed-handle Kotlin shell class is auto-emitted by
         // default; chain `.method(...)` (repeat for each promoted
         // instance method) to add methods, or `.suppress_kotlin_code()`
         // to opt out of emission when the `.kt` file is hand-written.
-        // The class name flows through `kotlin_data_class_name_mangle`
+        // The class name flows through `kotlin_ptr_class_name_mangle`
         // (configured above as `JNI{name}`).
-        .kotlin_class(pq!(Session))
+        .kotlin_ptr_class(pq!(Session))
         .suppress_kotlin_code()
-        .kotlin_class(pq!(Config))
+        .kotlin_ptr_class(pq!(Config))
         .suppress_kotlin_code()
-        .kotlin_class(pq!(KeyExpr<'static>))
+        .kotlin_ptr_class(pq!(KeyExpr<'static>))
         .method("try_from")
         .method("autocanonize")
         .method("intersects")
@@ -88,24 +89,24 @@ fn main() {
         .method("relation_to")
         .method("join")
         .method("concat")
-        .kotlin_class(pq!(Publisher<'static>))
+        .kotlin_ptr_class(pq!(Publisher<'static>))
         .method("put_publisher")
         .method("delete_publisher")
-        .kotlin_class(pq!(Subscriber<()>))
-        .kotlin_class(pq!(Querier<'static>))
+        .kotlin_ptr_class(pq!(Subscriber<()>))
+        .kotlin_ptr_class(pq!(Querier<'static>))
         .method("querier_get")
-        .kotlin_class(pq!(Queryable<()>))
-        .kotlin_class(pq!(Query))
+        .kotlin_ptr_class(pq!(Queryable<()>))
+        .kotlin_ptr_class(pq!(Query))
         .method("reply_success")
         .method("reply_error")
         .method("reply_delete")
-        .kotlin_class(pq!(LivelinessToken))
-        .kotlin_class(pq!(AdvancedSubscriber<()>))
+        .kotlin_ptr_class(pq!(LivelinessToken))
+        .kotlin_ptr_class(pq!(AdvancedSubscriber<()>))
         .suppress_kotlin_code()
-        .kotlin_class(pq!(AdvancedPublisher<'static>))
+        .kotlin_ptr_class(pq!(AdvancedPublisher<'static>))
         .suppress_kotlin_code()
-        .kotlin_class(pq!(MatchingListener))
-        .kotlin_class(pq!(SampleMissListener))
+        .kotlin_ptr_class(pq!(MatchingListener))
+        .kotlin_ptr_class(pq!(SampleMissListener))
         // ── Native Kotlin enums — `kotlin_enum` configures: jint wire
         // (input + output), `TryFrom<i32>` decode, `as jint` encode, and
         // an auto-emitted `enum class` Kotlin file under the configured

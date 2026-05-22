@@ -137,7 +137,7 @@ pub(crate) struct ExceptionConfig {
     pub throw_fn_name: syn::Ident,
 }
 
-/// Per-opaque-handle configuration (driven by `JniExt::kotlin_class`).
+/// Per-opaque-handle configuration (driven by `JniExt::kotlin_ptr_class`).
 ///
 /// The typed-handle Kotlin FQN (e.g. `"io.zenoh.jni.JNISession"`) lives
 /// in the surrounding [`TypeConfig::kotlin_name`] slot — FQN-consumers
@@ -154,10 +154,6 @@ pub(crate) struct OpaqueConfig {
     /// hand-maintained — only the Rust-side converter and `instanceof`
     /// dispatch wire up.
     pub suppress_kotlin_code: bool,
-    /// `#[prebindgen]` fn idents promoted to instance methods on the
-    /// matching Kotlin typed-handle class. Filled by repeated
-    /// [`JniExt::method`] calls.
-    pub methods: Vec<String>,
 }
 
 /// Per-enum configuration (driven by `JniExt::kotlin_enum`).
@@ -200,6 +196,12 @@ pub(crate) struct TypeConfig {
     /// closure-mangled callback name, e.g. zenoh-jni stamps `JNIOn...`
     /// here via [`JniExt::auto_callback_fqn`]).
     pub callback_kotlin_fqn: Option<String>,
+    /// `#[prebindgen]` fn idents promoted onto the generated Kotlin
+    /// class for this type via [`JniExt::method`]. For ptr classes,
+    /// wrappers become instance methods when the promoted opaque param
+    /// matches; for enums/data classes they are emitted in
+    /// `companion object`.
+    pub methods: Vec<String>,
 }
 
 /// Boxed closure that builds a converter when applied to the wildcard
@@ -235,7 +237,7 @@ pub(crate) type WrapperFn = Arc<
 
 /// Closure that transforms a Kotlin short name. Installed via the
 /// per-kind setters ([`JniExt::kotlin_fun_name_mangle`],
-/// [`JniExt::kotlin_data_class_name_mangle`], etc.); the framework calls
+    /// [`JniExt::kotlin_data_class_name_mangle`], etc.); the framework calls
 /// the matching closure wherever it needs to derive a Kotlin/JNI
 /// short name for a generated element. Closure-unset = identity.
 pub(crate) type NameMangle = Arc<dyn Fn(&str) -> String + Send + Sync>;
@@ -371,10 +373,11 @@ pub struct JniExt {
     /// generated JNI extern symbols and matching Kotlin `external fun`s
     /// both pick up the `ViaJNI` suffix.
     pub(crate) kotlin_fun_name_mangle: Option<NameMangle>,
+    /// Mangler for Kotlin ptr-class names declared via
+    /// [`Self::kotlin_ptr_class`]. Default = identity.
+    pub(crate) kotlin_ptr_class_name_mangle: Option<NameMangle>,
     /// Mangler for Kotlin data-class names declared via
-    /// [`Self::kotlin_data_class`]. Also used for
-    /// [`Self::kotlin_class`] names for backward compatibility.
-    /// Default = identity.
+    /// [`Self::kotlin_data_class`]. Default = identity.
     pub(crate) kotlin_data_class_name_mangle: Option<NameMangle>,
     /// Mangler for [`Self::kotlin_enum`]-declared C-like enum class
     /// names. Default = identity.
@@ -397,7 +400,7 @@ pub struct JniExt {
     pub(crate) kotlin_wrapper_name_mangle: Option<NameMangle>,
     /// Derived `<rust-type-canonical-string> → <kotlin FQN>` view —
     /// populated alongside [`Self::types`] by the structured builders
-    /// ([`Self::kotlin_class`], [`Self::kotlin_data_class`],
+    /// ([`Self::kotlin_ptr_class`], [`Self::kotlin_data_class`],
     /// [`Self::callback_input`], [`Self::input_wrapper`] /
     /// [`Self::output_wrapper`]). Internal readers
     /// (`emit_into_dispatcher`, callback FQN merging) consume this flat
@@ -407,7 +410,7 @@ pub struct JniExt {
 
     /// Structured per-type configuration keyed by canonical Rust type.
     /// One entry per `Rust type ↔ JNI/Kotlin` rule; populated by the
-    /// structured builders (`kotlin_class`, `kotlin_enum`,
+    /// structured builders (`kotlin_ptr_class`, `kotlin_enum`,
     /// `kotlin_data_class`, `input_wrapper`, `output_wrapper`,
     /// `callback_input`). Holds opaque-handle config, enum config,
     /// Kotlin names, and callback FQNs; the converter bodies themselves
@@ -431,7 +434,7 @@ pub struct JniExt {
     /// Per-rank output converters. Same shape as [`Self::input_wrappers`].
     pub(crate) output_wrappers: [HashMap<TypeKey, WrapperFn>; 4],
 
-    /// Tracks the last [`Self::kotlin_class`] key registered so
+    /// Tracks the last [`Self::kotlin_ptr_class`] key registered so
     /// [`Self::method`] / [`Self::suppress_kotlin_code`] know which
     /// entry to extend. Cleared after each unrelated builder call.
     last_opaque_key: Option<TypeKey>,
@@ -471,6 +474,7 @@ impl JniExt {
             jni_class_path: "Java_JNINative".to_string(),
             kotlin_callback_package: "callbacks".to_string(),
             kotlin_fun_name_mangle: None,
+            kotlin_ptr_class_name_mangle: None,
             kotlin_data_class_name_mangle: None,
             kotlin_enum_name_mangle: None,
             kotlin_callback_name_mangle: None,
@@ -564,10 +568,19 @@ impl JniExt {
         self.kotlin_fun_name_mangle = Some(Arc::new(f));
         self
     }
+    /// Set the closure that mangles Kotlin ptr-class names declared
+    /// via [`Self::kotlin_ptr_class`]. Receives the Rust short name.
+    /// Default = identity.
+    pub fn kotlin_ptr_class_name_mangle<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&str) -> String + Send + Sync + 'static,
+    {
+        self.kotlin_ptr_class_name_mangle = Some(Arc::new(f));
+        self
+    }
     /// Set the closure that mangles Kotlin data-class names declared
-    /// via [`Self::kotlin_data_class`]. The same mangler is also used
-    /// for [`Self::kotlin_class`] names for backward compatibility.
-    /// Receives the Rust short name. Default = identity.
+    /// via [`Self::kotlin_data_class`]. Receives the Rust short name.
+    /// Default = identity.
     pub fn kotlin_data_class_name_mangle<F>(mut self, f: F) -> Self
     where
         F: Fn(&str) -> String + Send + Sync + 'static,
@@ -663,6 +676,14 @@ impl JniExt {
             None => name.to_string(),
         }
     }
+    /// Apply [`Self::kotlin_ptr_class_name_mangle`] to `name`,
+    /// returning the closure result or `name` verbatim when unset.
+    pub(crate) fn mangle_ptr_class(&self, name: &str) -> String {
+        match &self.kotlin_ptr_class_name_mangle {
+            Some(f) => f(name),
+            None => name.to_string(),
+        }
+    }
     /// Apply [`Self::kotlin_data_class_name_mangle`] to `name`,
     /// returning the closure result or `name` verbatim when unset.
     pub(crate) fn mangle_data_class(&self, name: &str) -> String {
@@ -739,10 +760,10 @@ impl JniExt {
     /// [`Self::suppress_kotlin_code`] to keep the file hand-maintained,
     /// or chain one or more [`Self::method`] calls to promote
     /// `#[prebindgen]` functions onto the class as instance methods.
-    pub fn kotlin_class(mut self, rust_type: syn::Type) -> Self {
+    pub fn kotlin_ptr_class(mut self, rust_type: syn::Type) -> Self {
         let key = TypeKey::from_type(&rust_type);
         let short = rust_short_name(&key);
-        let fqn = self.resolve_class_fqn(&self.mangle_data_class(&short));
+        let fqn = self.resolve_class_fqn(&self.mangle_ptr_class(&short));
         let entry = self.types.entry(key.clone()).or_default();
         entry.opaque = Some(OpaqueConfig::default());
         // `kotlin_name` holds the typed-handle FQN for FQN-consumers
@@ -760,31 +781,33 @@ impl JniExt {
     }
 
     /// Promote a single `#[prebindgen]` function ident to an instance
-    /// method on the Kotlin typed-handle class declared by the most
-    /// recent [`Self::kotlin_class`] call. Chain multiple calls to add
-    /// multiple methods. Panics if no kotlin_class is in scope.
+    /// method on the generated Kotlin class declared by the most
+    /// recent [`Self::kotlin_ptr_class`], [`Self::kotlin_enum`], or
+    /// [`Self::kotlin_data_class`] call. For enums/data classes, emitted
+    /// methods land in the generated `companion object`. Chain multiple
+    /// calls to add multiple methods.
     pub fn method(mut self, method: impl Into<String>) -> Self {
-        let key = self.last_opaque_key.clone().expect(
-            "JniExt::method must be chained immediately after a `kotlin_class` call",
-        );
-        let entry = self.types.get_mut(&key).expect("opaque entry vanished");
-        let opaque = entry
-            .opaque
-            .as_mut()
-            .expect("method on a non-opaque entry");
-        opaque.methods.push(method.into());
+        let key = self
+            .last_meta_key
+            .clone()
+            .or_else(|| self.last_opaque_key.clone())
+            .expect(
+                "JniExt::method must be chained immediately after a `kotlin_ptr_class`, `kotlin_enum`, or `kotlin_data_class` call",
+            );
+        let entry = self.types.get_mut(&key).expect("type entry vanished");
+        entry.methods.push(method.into());
         self
     }
 
     /// Opt out of Kotlin class emission for the most recent
-    /// [`Self::kotlin_class`] / [`Self::kotlin_enum`] — the `.kt` file is
+    /// [`Self::kotlin_ptr_class`] / [`Self::kotlin_enum`] — the `.kt` file is
     /// assumed to be hand-written. Without this, a typed-handle shell
     /// class (or an `enum class`) is auto-emitted. Panics if no
-    /// `kotlin_class` / `kotlin_enum` is in scope.
+    /// `kotlin_ptr_class` / `kotlin_enum` is in scope.
     pub fn suppress_kotlin_code(mut self) -> Self {
         let key = self.last_meta_key.clone().expect(
             "JniExt::suppress_kotlin_code must be chained immediately after a \
-             `kotlin_class` or `kotlin_enum` call",
+             `kotlin_ptr_class` or `kotlin_enum` call",
         );
         let entry = self.types.get_mut(&key).expect("type entry vanished");
         if let Some(opaque) = entry.opaque.as_mut() {
@@ -794,7 +817,7 @@ impl JniExt {
         } else {
             panic!(
                 "JniExt::suppress_kotlin_code: type entry for `{}` has neither \
-                 `opaque` nor `enum_cfg` set — chain after `kotlin_class` or \
+                 `opaque` nor `enum_cfg` set — chain after `kotlin_ptr_class` or \
                  `kotlin_enum`",
                 key.as_str()
             );
@@ -835,7 +858,7 @@ impl JniExt {
         assert!(
             entry.opaque.is_none(),
             "JniExt::kotlin_enum: `{}` is already registered as an opaque \
-             handle via `kotlin_class` — a type can be one or the other, \
+             handle via `kotlin_ptr_class` — a type can be one or the other, \
              not both",
             short
         );
@@ -956,7 +979,7 @@ impl JniExt {
     /// [`Self::mangle_callback`] applied to the callback's name so the
     /// hand-written file name and the JNI-side mention stay in sync.
     /// Equivalent to chaining `.suppress_kotlin_code()` after a
-    /// [`Self::kotlin_class`] / [`Self::kotlin_enum`] declaration, but
+    /// [`Self::kotlin_ptr_class`] / [`Self::kotlin_enum`] declaration, but
     /// inline because callbacks don't have a `kotlin_callback` builder
     /// to chain off.
     pub fn suppress_kotlin_callback_code(mut self, impl_fn_type: syn::Type) -> Self {
@@ -1076,7 +1099,7 @@ impl JniExt {
             let entry = self.types.entry(key.clone()).or_default();
             // Skip callbacks (handled by callback_input) and any entry
             // whose kotlin_name has already been stamped (e.g. by an
-            // earlier kotlin_data_class / kotlin_class call for the
+            // earlier kotlin_data_class / kotlin_ptr_class call for the
             // same type — a wrapper layered on top should not override
             // it). Then derive the short name from the canonical
             // TypeKey; non-path patterns ($()$, references, etc.)
@@ -2673,7 +2696,7 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
 
 /// Last-segment ident of a `TypeKey` — e.g. `"Publisher<'static>"` →
 /// `"Publisher"`, `"AdvancedSubscriber<()>"` → `"AdvancedSubscriber"`. Used by
-/// the structured builders ([`JniExt::kotlin_class`],
+/// the structured builders ([`JniExt::kotlin_ptr_class`],
 /// [`JniExt::kotlin_data_class`]) to derive a default Kotlin class name from
 /// the Rust type-key. Panics for non-path types (e.g. closures, references) —
 /// the per-kind `kotlin_*_name_mangle` closures see only path-shaped
