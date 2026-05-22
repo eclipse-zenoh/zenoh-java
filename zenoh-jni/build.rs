@@ -26,18 +26,7 @@ fn main() {
         .kotlin_struct_name_mangle(|n| format!("JNI{n}"))
         .kotlin_enum_name_mangle(|n| format!("JNI{n}"))
         .kotlin_wrapper_name_mangle(|n| format!("JNI{n}"))
-        .kotlin_callback_name_mangle(|stem| match stem {
-            // Three hand-named callbacks whose Kotlin signatures don't
-            // follow the auto-derived `JNI<Stem>Callback` shape: the
-            // `Fn(Query)` dispatcher targets `JNIQueryableCallback`
-            // (Queryable's reply path), `Fn(Reply)` targets
-            // `JNIGetCallback` (Session.get's reply path), and the
-            // empty `Fn()` is the on-close hook `JNIOnCloseCallback`.
-            "Query" => "JNIQueryableCallback".to_string(),
-            "Reply" => "JNIGetCallback".to_string(),
-            "Empty" => "JNIOnCloseCallback".to_string(),
-            other   => format!("JNI{other}Callback"),
-        })
+        .kotlin_callback_name_mangle(|n| format!("JNI{n}"))
         // Declares the domain exception `ZError`. Generates the
         // `io.zenoh.jni.ZError` Kotlin class and the
         // `crate::generated::throw_ZError(env, &err)` free function the
@@ -193,9 +182,12 @@ fn main() {
         // typed `Result<_, ZError>` and its body the dispatcher call
         // directly (no `?`/`Ok`). The auto `impl Fn(Sample)` callback,
         // which has no domain decode, keeps the framework default.
-        // The Kotlin FQNs flow through `kotlin_callback_name_mangle`
-        // (configured above): `Query` → `JNIQueryableCallback`, `Reply`
-        // → `JNIGetCallback`, `Empty` → `JNIOnCloseCallback`.
+        // Kotlin fun-interface FQNs flow through
+        // `kotlin_callback_name_mangle` (configured above): `OnQuery` →
+        // `JNIOnQuery`, `OnReply` → `JNIOnReply`, `On` → `JNIOn`. Each
+        // call below is paired with `suppress_kotlin_callback_code` so
+        // the framework skips emitting the auto-stub — the Kotlin
+        // fun-interface lives hand-written under `zenoh-jni-runtime/`.
         .callback_input(
             pq!(impl Fn(Query) + Send + Sync + 'static),
             Some(pq!(ZError)),
@@ -207,10 +199,9 @@ fn main() {
             pq!(crate::sample_callback::process_kotlin_reply_callback),
         )
         // `impl Fn()` keeps the framework's default Rust-side
-        // auto-dispatcher but its Kotlin fun-interface
-        // (`JNIOnCloseCallback`) lives hand-written in
-        // `zenoh-jni-runtime/`. Suppress the auto-stub so we don't get
-        // a duplicate-class compile error.
+        // auto-dispatcher but its Kotlin fun-interface (`JNIOn`) lives
+        // hand-written in `zenoh-jni-runtime/`. Suppress the auto-stub
+        // so we don't get a duplicate-class compile error.
         .suppress_kotlin_callback_code(pq!(impl Fn() + Send + Sync + 'static))
         // ── Kotlin names for hand-maintained data classes whose
         // converters auto-generate from the struct shape but whose

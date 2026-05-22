@@ -196,8 +196,9 @@ pub(crate) struct TypeConfig {
     /// / `as jint`) and a generated `.kt` file. Mutually exclusive with
     /// [`Self::opaque`]; builder enforces it.
     pub enum_cfg: Option<EnumConfig>,
-    /// Kotlin FQN override for `impl Fn(...)` keys (replaces the
-    /// auto-derived `JNI<Stem>Callback` name).
+    /// Kotlin FQN override for `impl Fn(...)` keys (the
+    /// closure-mangled callback name, e.g. zenoh-jni stamps `JNIOn...`
+    /// here via [`JniExt::auto_callback_fqn`]).
     pub callback_kotlin_fqn: Option<String>,
 }
 
@@ -378,9 +379,10 @@ pub struct JniExt {
     /// names. Default = identity.
     pub(crate) kotlin_enum_name_mangle: Option<NameMangle>,
     /// Mangler for `impl Fn(...)` callback Kotlin class names. The
-    /// closure receives the auto-derived stem
-    /// ([`crate::jni::jni_kotlin_ext::derive_callback_stem`], e.g.
-    /// `"Query"`, `"Reply"`, `"Empty"`); the return value is qualified
+    /// closure receives the auto-derived callback name
+    /// ([`crate::jni::jni_kotlin_ext::derive_callback_name`], always
+    /// `"On"` + concatenated parameter type shorts — e.g. `"OnQuery"`,
+    /// `"OnReply"`, `"On"` for `Fn()`); the return value is qualified
     /// against [`Self::kotlin_callback_package`]. Default = identity.
     pub(crate) kotlin_callback_name_mangle: Option<NameMangle>,
     /// Mangler for rank-0 user-registered
@@ -582,9 +584,10 @@ impl JniExt {
         self
     }
     /// Set the closure that mangles `impl Fn(...)` callback class
-    /// names. Receives the auto-derived stem
-    /// ([`crate::jni::jni_kotlin_ext::derive_callback_stem`], e.g.
-    /// `"Query"`, `"Reply"`, `"Empty"`); the returned relative name is
+    /// names. Receives the auto-derived callback name
+    /// ([`crate::jni::jni_kotlin_ext::derive_callback_name`], always
+    /// `"On"` + concatenated parameter type shorts — e.g. `"OnQuery"`,
+    /// `"OnReply"`, `"On"` for `Fn()`); the returned relative name is
     /// qualified against [`Self::kotlin_callback_package`]. Default =
     /// identity.
     pub fn kotlin_callback_name_mangle<F>(mut self, f: F) -> Self
@@ -676,12 +679,12 @@ impl JniExt {
             None => name.to_string(),
         }
     }
-    /// Apply [`Self::kotlin_callback_name_mangle`] to `stem`, returning
-    /// the closure result or `stem` verbatim when unset.
-    pub(crate) fn mangle_callback(&self, stem: &str) -> String {
+    /// Apply [`Self::kotlin_callback_name_mangle`] to `name`, returning
+    /// the closure result or `name` verbatim when unset.
+    pub(crate) fn mangle_callback(&self, name: &str) -> String {
         match &self.kotlin_callback_name_mangle {
-            Some(f) => f(stem),
-            None => stem.to_string(),
+            Some(f) => f(name),
+            None => name.to_string(),
         }
     }
     /// Apply [`Self::kotlin_wrapper_name_mangle`] to `name`, returning
@@ -888,10 +891,10 @@ impl JniExt {
     ///
     /// The Kotlin FQN auto-derives via
     /// [`Self::kotlin_callback_name_mangle`] applied to the per-callback
-    /// stem ([`crate::jni::jni_kotlin_ext::derive_callback_stem`]) and
+    /// name ([`crate::jni::jni_kotlin_ext::derive_callback_name`]) and
     /// then qualified against [`Self::kotlin_callback_package`]. Set
     /// the mangler closure on [`JniExt`] to control naming (default =
-    /// identity stem).
+    /// identity).
     pub fn callback_input(
         mut self,
         impl_fn_type: syn::Type,
@@ -925,7 +928,7 @@ impl JniExt {
             ))
         };
         // Auto-derive the callback Kotlin FQN via
-        // `kotlin_callback_name_mangle` applied to the per-callback stem.
+        // `kotlin_callback_name_mangle` applied to the per-callback name.
         // Stamped at registration time so downstream consumers
         // (`dispatch_fn_input`, `collect_kotlin_callback_fqns`) read a
         // resolved FQN rather than re-deriving it. The presence of
@@ -933,8 +936,8 @@ impl JniExt {
         // emission paths that need to distinguish.
         let args = crate::core::registry::extract_fn_trait_args(&impl_fn_type)
             .unwrap_or_default();
-        let stem = crate::jni::jni_kotlin_ext::derive_callback_stem(&args);
-        let fqn = self.resolve_callback_fqn(&self.mangle_callback(&stem));
+        let name = crate::jni::jni_kotlin_ext::derive_callback_name(&args);
+        let fqn = self.resolve_callback_fqn(&self.mangle_callback(&name));
         let entry = self.types.entry(key.clone()).or_default();
         entry.callback_kotlin_fqn = Some(fqn.clone());
         entry.kotlin_name = Some(fqn.clone());
@@ -950,7 +953,7 @@ impl JniExt {
     /// auto-dispatcher (no [`Self::callback_input`] override here) but
     /// skips emitting the Kotlin auto-stub — the binding crate provides
     /// the `<FQN>.kt` file itself. The Kotlin FQN is auto-derived via
-    /// [`Self::mangle_callback`] applied to the callback's stem so the
+    /// [`Self::mangle_callback`] applied to the callback's name so the
     /// hand-written file name and the JNI-side mention stay in sync.
     /// Equivalent to chaining `.suppress_kotlin_code()` after a
     /// [`Self::kotlin_class`] / [`Self::kotlin_enum`] declaration, but
@@ -960,8 +963,8 @@ impl JniExt {
         let key = TypeKey::from_type(&impl_fn_type);
         let args = crate::core::registry::extract_fn_trait_args(&impl_fn_type)
             .unwrap_or_default();
-        let stem = crate::jni::jni_kotlin_ext::derive_callback_stem(&args);
-        let fqn = self.resolve_callback_fqn(&self.mangle_callback(&stem));
+        let name = crate::jni::jni_kotlin_ext::derive_callback_name(&args);
+        let fqn = self.resolve_callback_fqn(&self.mangle_callback(&name));
         let entry = self.types.entry(key.clone()).or_default();
         entry.callback_kotlin_fqn = Some(fqn.clone());
         entry.kotlin_name = Some(fqn.clone());
@@ -1718,8 +1721,8 @@ impl JniExt {
     /// being qualified against
     /// [`Self::kotlin_callback_package`].
     pub(crate) fn auto_callback_fqn(&self, args: &[syn::Type]) -> String {
-        let stem = crate::jni::jni_kotlin_ext::derive_callback_stem(args);
-        self.resolve_callback_fqn(&self.mangle_callback(&stem))
+        let name = crate::jni::jni_kotlin_ext::derive_callback_name(args);
+        self.resolve_callback_fqn(&self.mangle_callback(&name))
     }
 
     /// Canonical input-converter name for `(rust, wire)` — exposed
@@ -2251,9 +2254,10 @@ impl PrebindgenExt for JniExt {
         let outer_ty = build_fn_type(args);
         let (wire, body) = callback_input(self, args, registry)?;
         let niches = default_niches_for_wire(&wire);
-        // Kotlin sees `impl Fn(...)` as the matching `JNI<Stem>Callback`
-        // fun-interface (or the user-overridden FQN). Use the override
-        // when set; fall back to the auto-derived stem.
+        // Kotlin sees `impl Fn(...)` as the matching mangled
+        // fun-interface (zenoh-jni: `JNIOn<Args>`). Use the
+        // registration-stamped FQN when set; fall back to the
+        // auto-derived name.
         let outer_key = TypeKey::from_type(&outer_ty);
         let kotlin_name = self
             .types
@@ -2957,7 +2961,7 @@ fn callback_input(
     args: &[syn::Type],
     registry: &Registry<KotlinMeta>,
 ) -> Option<(syn::Type, syn::Expr)> {
-    let stem = derive_callback_stem(args);
+    let name = derive_callback_name(args);
 
     // Per-arg: encode call + JNI signature chunk.
     let mut arg_idents: Vec<syn::Ident> = Vec::new();
@@ -3027,7 +3031,7 @@ fn callback_input(
         .collect();
     let _ = arg_pat_ident;
 
-    let stem_lit = syn::LitStr::new(&stem, Span::call_site());
+    let name_lit = syn::LitStr::new(&name, Span::call_site());
     let sig_lit = syn::LitStr::new(&sig, Span::call_site());
 
     // Body: capture global ref, return a Box<dyn Fn(args)>.
@@ -3081,7 +3085,7 @@ fn callback_input(
             let _ = (|| -> ::core::result::Result<(), __JniErr> {
                 let mut env = java_vm
                     .attach_current_thread_as_daemon()
-                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Attach thread for {}: {}", #stem_lit, e)))?;
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Attach thread for {}: {}", #name_lit, e)))?;
                 #(#fixed_preludes)*
                 env.call_method(
                     &callback_global_ref,
@@ -3095,7 +3099,7 @@ fn callback_input(
                 })?;
                 Ok(())
             })()
-            .map_err(|e| tracing::error!("On {} callback error: {e}", #stem_lit));
+            .map_err(|e| tracing::error!("{} callback error: {e}", #name_lit));
         })
     });
 
@@ -3107,11 +3111,8 @@ fn callback_input(
     Some((syn::parse_quote!(jni::objects::JObject), body))
 }
 
-fn derive_callback_stem(args: &[syn::Type]) -> String {
-    if args.is_empty() {
-        return "Empty".into();
-    }
-    let mut s = String::new();
+fn derive_callback_name(args: &[syn::Type]) -> String {
+    let mut s = String::from("On");
     for a in args {
         s.push_str(&type_short_ident(a));
     }
@@ -3717,12 +3718,14 @@ fn bare_path_ident(ty: &syn::Type) -> Option<syn::Ident> {
 // ──────────────────────────────────────────────────────────────────────
 
 /// INPUT: wire → rust. Format `<wire_id>_to_<rust_id>_<hash>`. Special
-/// case: `impl Fn(...)` keeps the legacy `process_kotlin_<Stem>_callback`
-/// name so existing hand-written call sites continue to resolve.
+/// case: `impl Fn(...)` keeps the legacy `process_kotlin_<Name>_callback`
+/// name so existing hand-written call sites continue to resolve. With
+/// the current [`derive_callback_name`] algorithm `<Name>` is
+/// `"On"` + concatenated arg shorts (e.g. `process_kotlin_OnSample_callback`).
 fn input_name(rust: &syn::Type, wire: &syn::Type) -> syn::Ident {
     if let Some(args) = extract_fn_trait_args(rust) {
-        let stem = derive_callback_stem(&args);
-        let s = format!("process_kotlin_{}_callback", stem);
+        let name = derive_callback_name(&args);
+        let s = format!("process_kotlin_{}_callback", name);
         return syn::Ident::new(&s, Span::call_site());
     }
     let rust_id = sanitize_for_ident(&rust.to_token_stream().to_string());

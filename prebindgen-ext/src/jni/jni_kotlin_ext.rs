@@ -8,9 +8,10 @@
 //!   * `JNIWrappers.kt` — top-level safe wrappers for non-promoted fns.
 //!   * One Kotlin fun-interface file per `impl Fn(args) + Send + Sync
 //!     + 'static` type, named via [`JniExt::kotlin_callback_name_mangle`]
-//!     (default = identity stem; in zenoh-jni: `JNI<Stem>Callback`).
-//!     Callback types overridden via [`JniExt::callback_input`] are
-//!     skipped — the override points at a hand-written interface.
+//!     (default = identity over the `"On"`-prefixed auto-derived name;
+//!     in zenoh-jni: `JNIOn<Args>`). Callback types overridden via
+//!     [`JniExt::callback_input`] are skipped — the override points at
+//!     a hand-written interface.
 //!
 //! All emitters route through [`KotlinFile::write`], which translates
 //! `package` into a sub-path under `kotlin_root`.
@@ -112,7 +113,7 @@ impl JniExt {
         Ok(written)
     }
 
-    /// Per-callback fun-interface emission (one `JNI<Stem>Callback.kt`
+    /// Per-callback fun-interface emission (one `<mangle_callback>.kt`
     /// file per `impl Fn(...)` type encountered in the resolved
     /// registry). Skips writes for `impl Fn(...)` keys whose Kotlin
     /// FQN was overridden via [`Self::callback_input`] — the override
@@ -450,7 +451,7 @@ impl JniExt {
                     let ty = key.to_type();
                     if let Some(args) = extract_fn_trait_args(&ty) {
                         // Re-use the single source of truth for callback
-                        // FQN derivation — same closure-mangled stem the
+                        // FQN derivation — same closure-mangled name the
                         // converter dispatcher stamps into metadata.
                         let fqn = self.auto_callback_fqn(&args);
                         map = map.add(key.as_str(), fqn);
@@ -472,8 +473,8 @@ fn build_callback_kotlin_file(
     args: &[syn::Type],
     registry: &Registry<KotlinMeta>,
 ) -> KotlinFile {
-    let stem = derive_callback_stem(args);
-    let class_name = ext.mangle_callback(&stem);
+    let name = derive_callback_name(args);
+    let class_name = ext.mangle_callback(&name);
     let package = ext.kotlin_callback_package.clone();
 
     // Resolve each arg's Kotlin type by reading the output-direction
@@ -552,11 +553,14 @@ fn render_kotlin_interface(
     out
 }
 
-pub(crate) fn derive_callback_stem(args: &[syn::Type]) -> String {
-    if args.is_empty() {
-        return "Empty".into();
-    }
-    let mut s = String::new();
+/// Derive the auto-callback short Kotlin name for an `impl Fn(args)`
+/// signature. Always starts with the hardcoded `"On"` and appends each
+/// parameter type's Rust short ident (`Fn(Query)` → `"OnQuery"`,
+/// `Fn(Reply)` → `"OnReply"`, `Fn(K, V)` → `"OnKV"`, `Fn()` → just
+/// `"On"`). The result feeds [`JniExt::mangle_callback`] before the
+/// FQN is qualified against [`JniExt::kotlin_callback_package`].
+pub(crate) fn derive_callback_name(args: &[syn::Type]) -> String {
+    let mut s = String::from("On");
     for a in args {
         s.push_str(&type_short_ident(a));
     }
