@@ -15,43 +15,43 @@
 package io.zenoh.jni
 
 import io.zenoh.jni.ZError
-import io.zenoh.jni.callbacks.JNICallback
-import io.zenoh.jni.callbacks.JNISampleCallback
-import io.zenoh.jni.callbacks.JNISampleMissedCallback
+import io.zenoh.jni.callbacks.JniCallback
+import io.zenoh.jni.callbacks.JniSampleCallback
+import io.zenoh.jni.callbacks.JniZSampleMissedCallback
 
 /** Typed [NativeHandle] for a native Zenoh `AdvancedSubscriber`. */
-public class JNIAdvancedSubscriber(initialPtr: Long) : NativeHandle(initialPtr) {
+public class JniZAdvancedSubscriber(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     fun declareDetectPublishersSubscriber(
         history: Boolean,
-        callback: JNISampleCallback,
-        onClose: JNICallback,
-    ): JNISubscriber = withPtr { ptr ->
-        JNISubscriber(declareDetectPublishersSubscriberViaJNI(ptr, history, callback, onClose))
+        callback: JniSampleCallback,
+        onClose: JniCallback,
+    ): JniZSubscriber = withPtr { ptr ->
+        JniZSubscriber(declareDetectPublishersSubscriberViaJNI(ptr, history, callback, onClose))
     }
 
     @Throws(ZError::class)
     fun declareBackgroundDetectPublishersSubscriber(
         history: Boolean,
-        callback: JNISampleCallback,
-        onClose: JNICallback,
+        callback: JniSampleCallback,
+        onClose: JniCallback,
     ) = withPtr { ptr ->
         declareBackgroundDetectPublishersSubscriberViaJNI(ptr, history, callback, onClose)
     }
 
     @Throws(ZError::class)
     fun declareSampleMissListener(
-        callback: JNISampleMissedCallback,
-        onClose: JNICallback,
-    ): JNISampleMissListener = withPtr { ptr ->
-        JNISampleMissListener(declareSampleMissListenerViaJNI(ptr, callback, onClose))
+        callback: JniZSampleMissedCallback,
+        onClose: JniCallback,
+    ): JniZSampleMissListener = withPtr { ptr ->
+        JniZSampleMissListener(declareSampleMissListenerViaJNI(ptr, callback, onClose))
     }
 
     @Throws(ZError::class)
     fun declareBackgroundSampleMissListener(
-        callback: JNISampleMissedCallback,
-        onClose: JNICallback,
+        callback: JniZSampleMissedCallback,
+        onClose: JniCallback,
     ) = withPtr { ptr ->
         declareBackgroundSampleMissListenerViaJNI(ptr, callback, onClose)
     }
@@ -60,22 +60,22 @@ public class JNIAdvancedSubscriber(initialPtr: Long) : NativeHandle(initialPtr) 
 
     @Throws(ZError::class)
     private external fun declareDetectPublishersSubscriberViaJNI(
-        ptr: Long, history: Boolean, callback: JNISampleCallback, onClose: JNICallback
+        ptr: Long, history: Boolean, callback: JniSampleCallback, onClose: JniCallback
     ): Long
 
     @Throws(ZError::class)
     private external fun declareBackgroundDetectPublishersSubscriberViaJNI(
-        ptr: Long, history: Boolean, callback: JNISampleCallback, onClose: JNICallback
+        ptr: Long, history: Boolean, callback: JniSampleCallback, onClose: JniCallback
     )
 
     @Throws(ZError::class)
     private external fun declareSampleMissListenerViaJNI(
-        ptr: Long, callback: JNISampleMissedCallback, onClose: JNICallback
+        ptr: Long, callback: JniZSampleMissedCallback, onClose: JniCallback
     ): Long
 
     @Throws(ZError::class)
     private external fun declareBackgroundSampleMissListenerViaJNI(
-        ptr: Long, callback: JNISampleMissedCallback, onClose: JNICallback
+        ptr: Long, callback: JniZSampleMissedCallback, onClose: JniCallback
     )
 
     private external fun freePtrViaJNI(ptr: Long)

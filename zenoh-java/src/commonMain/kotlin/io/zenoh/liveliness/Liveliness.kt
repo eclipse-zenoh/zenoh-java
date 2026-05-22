@@ -25,8 +25,8 @@ import io.zenoh.exceptions.jniCall
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
-import io.zenoh.jni.callbacks.JNIGetCallback
-import io.zenoh.jni.callbacks.JNISampleCallback
+import io.zenoh.jni.callbacks.JniZReplyCallback
+import io.zenoh.jni.callbacks.JniSampleCallback
 import io.zenoh.jni.toPublic
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.pubsub.CallbackSubscriber
@@ -136,8 +136,8 @@ class Liveliness internal constructor(private val session: Session) {
         handler.receiver()
     }
 
-    private fun buildGetCallback(callback: Callback<Reply>): JNIGetCallback =
-        JNIGetCallback { replierZid, replierEid, success, keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
+    private fun buildGetCallback(callback: Callback<Reply>): JniZReplyCallback =
+        JniZReplyCallback { replierZid, replierEid, success, keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
             val reply: Reply = if (success) {
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
                 Reply.Success(
@@ -215,8 +215,8 @@ class Liveliness internal constructor(private val session: Session) {
         HandlerSubscriber(keyExpr, jniSession.declareLivelinessSubscriber(keyExpr.jniKeyExpr, keyExpr.keyExpr, subCallback, options.history, handler::onClose), handler.receiver())
     }
 
-    private fun buildSubscriberCallback(callback: Callback<Sample>): JNISampleCallback =
-        JNISampleCallback { sample ->
+    private fun buildSubscriberCallback(callback: Callback<Sample>): JniSampleCallback =
+        JniSampleCallback { sample ->
             callback.run(sample.toPublic())
         }
 }

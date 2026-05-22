@@ -14,7 +14,7 @@
 
 package io.zenoh.query
 
-import io.zenoh.jni.JNIQueryTarget as JniQueryTarget
+import io.zenoh.jni.JniQueryTarget as JniQueryTarget
 
 /** The Queryables that should be targeted by a GET operation. */
 enum class QueryTarget {

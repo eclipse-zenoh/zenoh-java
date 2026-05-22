@@ -14,7 +14,7 @@
 
 package io.zenoh.config
 
-import io.zenoh.jni.JNIZenohId
+import io.zenoh.jni.JniZZenohId
 import kotlin.math.absoluteValue
 
 /**
@@ -23,7 +23,7 @@ import kotlin.math.absoluteValue
 data class ZenohId internal constructor(internal val bytes: ByteArray) {
 
     override fun toString(): String {
-        return JNIZenohId.toString(bytes)
+        return JniZZenohId.toString(bytes)
     }
 
     override fun equals(other: Any?): Boolean {

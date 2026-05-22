@@ -21,7 +21,7 @@ import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 
 import io.zenoh.exceptions.jniCall
-import io.zenoh.jni.JNIQuery
+import io.zenoh.jni.JniZQuery
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.QoS
 import io.zenoh.sample.Sample
@@ -47,7 +47,7 @@ class Query internal constructor(
     val encoding: Encoding?,
     val attachment: ZBytes?,
     val acceptsReplies: ReplyKeyExpr,
-    private var jniQuery: JNIQuery?
+    private var jniQuery: JniZQuery?
 ) : AutoCloseable, ZenohType {
 
     /** Shortcut to the [selector]'s parameters. */

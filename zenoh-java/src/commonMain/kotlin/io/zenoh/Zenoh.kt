@@ -22,8 +22,8 @@ import io.zenoh.exceptions.jniCall
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
-import io.zenoh.jni.JNIScout
-import io.zenoh.jni.callbacks.JNIScoutCallback
+import io.zenoh.jni.JniZScout
+import io.zenoh.jni.callbacks.JniZHelloCallback
 import io.zenoh.scouting.*
 import java.util.*
 import java.util.concurrent.BlockingQueue
@@ -55,11 +55,11 @@ object Zenoh {
     @Throws(ZError::class)
     fun scout(scoutOptions: ScoutOptions = ScoutOptions()): HandlerScout<BlockingQueue<Optional<Hello>>> = jniCall {
         val handler = BlockingQueueHandler(LinkedBlockingDeque<Optional<Hello>>())
-        val scoutCallback = JNIScoutCallback { whatAmI, id, locators ->
+        val scoutCallback = JniZHelloCallback { whatAmI, id, locators ->
             handler.handle(Hello(WhatAmI.fromInt(whatAmI), ZenohId(id), locators))
         }
         val binaryWhatAmI = scoutOptions.whatAmI.map { it.value }.reduce { acc, it -> acc or it }
-        HandlerScout(JNIScout.scout(binaryWhatAmI, scoutCallback, handler::onClose, scoutOptions.config?.jniConfig), handler.receiver())
+        HandlerScout(JniZScout.scout(binaryWhatAmI, scoutCallback, handler::onClose, scoutOptions.config?.jniConfig), handler.receiver())
     }
 
     /**
@@ -77,11 +77,11 @@ object Zenoh {
     @JvmStatic
     @Throws(ZError::class)
     fun <R> scout(handler: Handler<Hello, R>, scoutOptions: ScoutOptions = ScoutOptions()): HandlerScout<R> = jniCall {
-        val scoutCallback = JNIScoutCallback { whatAmI, id, locators ->
+        val scoutCallback = JniZHelloCallback { whatAmI, id, locators ->
             handler.handle(Hello(WhatAmI.fromInt(whatAmI), ZenohId(id), locators))
         }
         val binaryWhatAmI = scoutOptions.whatAmI.map { it.value }.reduce { acc, it -> acc or it }
-        HandlerScout(JNIScout.scout(binaryWhatAmI, scoutCallback, handler::onClose, scoutOptions.config?.jniConfig), handler.receiver())
+        HandlerScout(JniZScout.scout(binaryWhatAmI, scoutCallback, handler::onClose, scoutOptions.config?.jniConfig), handler.receiver())
     }
 
     /**
@@ -98,11 +98,11 @@ object Zenoh {
     @JvmStatic
     @Throws(ZError::class)
     fun scout(callback: Callback<Hello>, scoutOptions: ScoutOptions = ScoutOptions()): CallbackScout = jniCall {
-        val scoutCallback = JNIScoutCallback { whatAmI, id, locators ->
+        val scoutCallback = JniZHelloCallback { whatAmI, id, locators ->
             callback.run(Hello(WhatAmI.fromInt(whatAmI), ZenohId(id), locators))
         }
         val binaryWhatAmI = scoutOptions.whatAmI.map { it.value }.reduce { acc, it -> acc or it }
-        CallbackScout(JNIScout.scout(binaryWhatAmI, scoutCallback, fun() {}, scoutOptions.config?.jniConfig))
+        CallbackScout(JniZScout.scout(binaryWhatAmI, scoutCallback, fun() {}, scoutOptions.config?.jniConfig))
     }
 
     /**

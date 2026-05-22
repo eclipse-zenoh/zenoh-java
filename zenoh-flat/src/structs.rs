@@ -23,6 +23,11 @@
 use std::time::Duration;
 
 use prebindgen_proc_macro::prebindgen;
+use zenoh_ext::{
+    CacheConfig as ZCacheConfig, HistoryConfig as ZHistoryConfig,
+    MissDetectionConfig as ZMissDetectionConfig, RecoveryConfig as ZRecoveryConfig,
+    RepliesConfig as ZRepliesConfig,
+};
 
 use crate::errors::{ZError, ZResult};
 use crate::qos::{CongestionControl, Priority};
@@ -74,7 +79,7 @@ pub struct RecoveryConfig {
     pub period_ms: i64,
 }
 
-impl TryFrom<CacheConfig> for zenoh_ext::CacheConfig {
+impl TryFrom<CacheConfig> for ZCacheConfig {
     type Error = ZError;
 
     fn try_from(c: CacheConfig) -> ZResult<Self> {
@@ -82,21 +87,21 @@ impl TryFrom<CacheConfig> for zenoh_ext::CacheConfig {
             .max_samples
             .try_into()
             .map_err(|e: std::num::TryFromIntError| zerror!("CacheConfig.max_samples: {}", e))?;
-        let replies = zenoh_ext::RepliesConfig::default()
+        let replies = ZRepliesConfig::default()
             .priority(c.replies_priority.into())
             .congestion_control(c.replies_congestion_control.into())
             .express(c.replies_is_express);
-        Ok(zenoh_ext::CacheConfig::default()
+        Ok(ZCacheConfig::default()
             .max_samples(max_samples)
             .replies_config(replies))
     }
 }
 
-impl TryFrom<HistoryConfig> for zenoh_ext::HistoryConfig {
+impl TryFrom<HistoryConfig> for ZHistoryConfig {
     type Error = ZError;
 
     fn try_from(c: HistoryConfig) -> ZResult<Self> {
-        let mut cfg = zenoh_ext::HistoryConfig::default();
+        let mut cfg = ZHistoryConfig::default();
         if c.detect_late_publishers {
             cfg = cfg.detect_late_publishers();
         }
@@ -113,11 +118,11 @@ impl TryFrom<HistoryConfig> for zenoh_ext::HistoryConfig {
     }
 }
 
-impl TryFrom<MissDetectionConfig> for zenoh_ext::MissDetectionConfig {
+impl TryFrom<MissDetectionConfig> for ZMissDetectionConfig {
     type Error = ZError;
 
     fn try_from(c: MissDetectionConfig) -> ZResult<Self> {
-        let mut cfg = zenoh_ext::MissDetectionConfig::default();
+        let mut cfg = ZMissDetectionConfig::default();
         if c.enable_heartbeat {
             let period_ms: u64 = c.period_ms.try_into().map_err(
                 |e: std::num::TryFromIntError| zerror!("MissDetectionConfig.period_ms: {}", e),
@@ -133,17 +138,17 @@ impl TryFrom<MissDetectionConfig> for zenoh_ext::MissDetectionConfig {
     }
 }
 
-impl TryFrom<RecoveryConfig> for zenoh_ext::RecoveryConfig {
+impl TryFrom<RecoveryConfig> for ZRecoveryConfig {
     type Error = ZError;
 
     fn try_from(c: RecoveryConfig) -> ZResult<Self> {
         if c.is_heartbeat {
-            Ok(zenoh_ext::RecoveryConfig::default().heartbeat())
+            Ok(ZRecoveryConfig::default().heartbeat())
         } else {
             let period_ms: u64 = c.period_ms.try_into().map_err(
                 |e: std::num::TryFromIntError| zerror!("RecoveryConfig.period_ms: {}", e),
             )?;
-            Ok(zenoh_ext::RecoveryConfig::default().periodic_queries(Duration::from_millis(period_ms)))
+            Ok(ZRecoveryConfig::default().periodic_queries(Duration::from_millis(period_ms)))
         }
     }
 }

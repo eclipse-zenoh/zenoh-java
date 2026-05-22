@@ -20,9 +20,11 @@ use jni::{
     JNIEnv,
 };
 use zenoh::{
-    query::{Query, Reply, ReplyError, ReplyKeyExpr},
-    sample::Sample,
-    session::EntityGlobalId,
+    query::{
+        Query as ZQuery, Reply as ZReply, ReplyError as ZReplyError, ReplyKeyExpr as ZReplyKeyExpr,
+    },
+    sample::Sample as ZSample,
+    session::EntityGlobalId as ZEntityGlobalId,
 };
 
 use zenoh_flat::errors::ZResult;
@@ -31,8 +33,8 @@ use crate::utils::*;
 
 pub(crate) fn on_reply_success(
     env: &mut JNIEnv,
-    replier_id: Option<EntityGlobalId>,
-    sample: &Sample,
+    replier_id: Option<ZEntityGlobalId>,
+    sample: &ZSample,
     callback_global_ref: &GlobalRef,
 ) -> ZResult<()> {
     let zenoh_id = replier_id
@@ -119,8 +121,8 @@ pub(crate) fn on_reply_success(
 
 pub(crate) fn on_reply_error(
     env: &mut JNIEnv,
-    replier_id: Option<EntityGlobalId>,
-    reply_error: &ReplyError,
+    replier_id: Option<ZEntityGlobalId>,
+    reply_error: &ZReplyError,
     callback_global_ref: &GlobalRef,
 ) -> ZResult<()> {
     let zenoh_id = replier_id
@@ -179,11 +181,11 @@ pub(crate) fn on_reply_error(
 pub(crate) unsafe fn process_kotlin_reply_callback(
     env: &mut JNIEnv,
     callback: &JObject,
-) -> ZResult<impl Fn(Reply) + Send + Sync + 'static> {
+) -> ZResult<impl Fn(ZReply) + Send + Sync + 'static> {
     let java_vm = Arc::new(get_java_vm(env)?);
     let callback_global_ref = get_callback_global_ref(env, callback)?;
 
-    Ok(move |reply: Reply| {
+    Ok(move |reply: ZReply| {
         || -> ZResult<()> {
             tracing::debug!("Receiving reply through JNI: {:?}", reply);
             let mut env = java_vm.attach_current_thread_as_daemon().map_err(|err| {
@@ -211,11 +213,11 @@ pub(crate) unsafe fn process_kotlin_reply_callback(
 pub(crate) unsafe fn process_kotlin_query_callback(
     env: &mut JNIEnv,
     callback: &JObject,
-) -> ZResult<impl Fn(Query) + Send + Sync + 'static> {
+) -> ZResult<impl Fn(ZQuery) + Send + Sync + 'static> {
     let java_vm = Arc::new(get_java_vm(env)?);
     let callback_global_ref = get_callback_global_ref(env, callback)?;
 
-    Ok(move |query: Query| {
+    Ok(move |query: ZQuery| {
         let env = match java_vm.attach_current_thread_as_daemon() {
             Ok(env) => env,
             Err(err) => {
@@ -232,7 +234,7 @@ pub(crate) unsafe fn process_kotlin_query_callback(
     })
 }
 
-fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> ZResult<()> {
+fn on_query(mut env: JNIEnv, query: ZQuery, callback_global_ref: &GlobalRef) -> ZResult<()> {
     let selector_params_jstr = env
         .new_string(query.parameters().to_string())
         .map(|value| env.auto_local(value))
@@ -283,8 +285,8 @@ fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> Z
         })?;
 
     let accepts_replies: jint = match query.accepts_replies() {
-        ReplyKeyExpr::MatchingQuery => 0,
-        ReplyKeyExpr::Any => 1,
+        ZReplyKeyExpr::MatchingQuery => 0,
+        ZReplyKeyExpr::Any => 1,
     };
 
     let query_ptr = Box::into_raw(Box::new(query));

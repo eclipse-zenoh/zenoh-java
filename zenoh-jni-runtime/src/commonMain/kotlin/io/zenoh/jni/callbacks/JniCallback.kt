@@ -14,7 +14,8 @@
 
 package io.zenoh.jni.callbacks
 
-/** Callback for matching listener notifications; receives true when matching subscribers exist. */
-public fun interface JNIMatchingStatusCallback {
-    fun run(matching: Boolean)
+public fun interface JniCallback {
+
+    fun run()
+
 }

@@ -27,8 +27,8 @@ import io.zenoh.exceptions.jniCall
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
-import io.zenoh.jni.JNIQuerier
-import io.zenoh.jni.callbacks.JNIGetCallback
+import io.zenoh.jni.JniZQuerier
+import io.zenoh.jni.callbacks.JniZReplyCallback
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
@@ -63,7 +63,7 @@ import java.util.concurrent.LinkedBlockingDeque
  * @param keyExpr The [KeyExpr] of the querier.
  * @param qos The [QoS] configuration of the querier.
  */
-class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private var jniQuerier: JNIQuerier?) :
+class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private var jniQuerier: JniZQuerier?) :
     SessionDeclaration, AutoCloseable {
 
     /**
@@ -153,7 +153,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
 
     private fun resolveGetWithCallback(callback: Callback<Reply>, options: GetOptions) {
         val jni = jniQuerier ?: throw ZError("Querier is not valid.")
-        val getCallback = JNIGetCallback { replierZid, replierEid, success, keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
+        val getCallback = JniZReplyCallback { replierZid, replierEid, success, keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
             val reply: Reply = if (success) {
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
                 Reply.Success(
@@ -185,7 +185,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
 
     private fun <R> resolveGetWithHandler(handler: Handler<Reply, R>, options: GetOptions): R {
         val jni = jniQuerier ?: throw ZError("Querier is not valid.")
-        val getCallback = JNIGetCallback { replierZid, replierEid, success, keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
+        val getCallback = JniZReplyCallback { replierZid, replierEid, success, keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express, priority, congestionControl ->
             val reply: Reply = if (success) {
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
                 Reply.Success(

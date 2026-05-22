@@ -23,11 +23,11 @@ fn main() {
         // (per `feedback-per-kind-string-closures`). Defaults are
         // identity; here every kind gets a fixed prefix/suffix.
         .kotlin_fun_name_mangle(|n| format!("{n}ViaJNI"))
-        .kotlin_ptr_class_name_mangle(|n| format!("JNI{n}"))
-        .kotlin_data_class_name_mangle(|n| format!("JNI{n}"))
-        .kotlin_enum_name_mangle(|n| n.to_string())
-        .kotlin_wrapper_name_mangle(|n| format!("JNI{n}"))
-        .kotlin_callback_name_mangle(|n| format!("JNI{n}"))
+        .kotlin_ptr_class_name_mangle(|n| format!("Jni{n}"))
+        .kotlin_data_class_name_mangle(|n| format!("Jni{n}"))
+        .kotlin_enum_name_mangle(|n| format!("Jni{n}"))
+        .kotlin_wrapper_name_mangle(|n| format!("Jni{n}"))
+        .kotlin_callback_name_mangle(|n| format!("Jni{n}"))
         // Declares the domain exception `ZError`. Generates the
         // `io.zenoh.jni.ZError` Kotlin class and the
         // `crate::generated::throw_ZError(env, &err)` free function the
@@ -77,11 +77,11 @@ fn main() {
         // to opt out of emission when the `.kt` file is hand-written.
         // The class name flows through `kotlin_ptr_class_name_mangle`
         // (configured above as `JNI{name}`).
-        .kotlin_ptr_class(pq!(Session))
+        .kotlin_ptr_class(pq!(ZSession))
         .suppress_kotlin_code()
-        .kotlin_ptr_class(pq!(Config))
+        .kotlin_ptr_class(pq!(ZConfig))
         .suppress_kotlin_code()
-        .kotlin_ptr_class(pq!(KeyExpr<'static>))
+        .kotlin_ptr_class(pq!(ZKeyExpr<'static>))
         .method("try_from")
         .method("autocanonize")
         .method("intersects")
@@ -89,24 +89,24 @@ fn main() {
         .method("relation_to")
         .method("join")
         .method("concat")
-        .kotlin_ptr_class(pq!(Publisher<'static>))
+        .kotlin_ptr_class(pq!(ZPublisher<'static>))
         .method("put_publisher")
         .method("delete_publisher")
-        .kotlin_ptr_class(pq!(Subscriber<()>))
-        .kotlin_ptr_class(pq!(Querier<'static>))
+        .kotlin_ptr_class(pq!(ZSubscriber<()>))
+        .kotlin_ptr_class(pq!(ZQuerier<'static>))
         .method("querier_get")
-        .kotlin_ptr_class(pq!(Queryable<()>))
-        .kotlin_ptr_class(pq!(Query))
+        .kotlin_ptr_class(pq!(ZQueryable<()>))
+        .kotlin_ptr_class(pq!(ZQuery))
         .method("reply_success")
         .method("reply_error")
         .method("reply_delete")
-        .kotlin_ptr_class(pq!(LivelinessToken))
-        .kotlin_ptr_class(pq!(AdvancedSubscriber<()>))
+        .kotlin_ptr_class(pq!(ZLivelinessToken))
+        .kotlin_ptr_class(pq!(ZAdvancedSubscriber<()>))
         .suppress_kotlin_code()
-        .kotlin_ptr_class(pq!(AdvancedPublisher<'static>))
+        .kotlin_ptr_class(pq!(ZAdvancedPublisher<'static>))
         .suppress_kotlin_code()
-        .kotlin_ptr_class(pq!(MatchingListener))
-        .kotlin_ptr_class(pq!(SampleMissListener))
+        .kotlin_ptr_class(pq!(ZMatchingListener))
+        .kotlin_ptr_class(pq!(ZSampleMissListener))
         // ── Native Kotlin enums — `kotlin_enum` configures: jint wire
         // (input + output), `TryFrom<i32>` decode, `as jint` encode, and
         // an auto-emitted `enum class` Kotlin file under the configured
@@ -132,14 +132,14 @@ fn main() {
         // `Encoding` → `JNIEncoding`); rank-N wrappers like
         // `Option<Encoding>` inherit from the inner type's metadata.
         // Primitive wires auto-derive via `kotlin_for_wire`.
-        .input_wrapper(pq!(Encoding), |_reg: &Registry<KotlinMeta>| {
+        .input_wrapper(pq!(ZEncoding), |_reg: &Registry<KotlinMeta>| {
             Some((
                 pq!(jni::objects::JObject),
                 Some(pq!(ZError)),
                 pq!(crate::utils::decode_jni_encoding(env, &v)),
             ))
         })
-        .input_wrapper(pq!(Option<Encoding>), |_reg: &Registry<KotlinMeta>| {
+        .input_wrapper(pq!(Option<ZEncoding>), |_reg: &Registry<KotlinMeta>| {
             Some((
                 pq!(jni::objects::JObject),
                 Some(pq!(ZError)),
@@ -152,8 +152,8 @@ fn main() {
                 ),
             ))
         })
-        .with_kotlin_type("io.zenoh.jni.JNIEncoding")
-        .output_wrapper(pq!(SetIntersectionLevel), |_reg: &Registry<KotlinMeta>| {
+        .with_kotlin_type("io.zenoh.jni.JniZEncoding")
+        .output_wrapper(pq!(ZSetIntersectionLevel), |_reg: &Registry<KotlinMeta>| {
             Some((
                 pq!(jni::sys::jint),
                 None,
@@ -161,7 +161,7 @@ fn main() {
             ))
         })
         .with_kotlin_type("Int")
-        .output_wrapper(pq!(ZenohId), |_reg: &Registry<KotlinMeta>| {
+        .output_wrapper(pq!(ZZenohId), |_reg: &Registry<KotlinMeta>| {
             Some((
                 pq!(jni::sys::jbyteArray),
                 Some(pq!(ZError)),
@@ -169,7 +169,7 @@ fn main() {
             ))
         })
         .with_kotlin_type("ByteArray")
-        .output_wrapper(pq!(Vec<ZenohId>), |_reg: &Registry<KotlinMeta>| {
+        .output_wrapper(pq!(Vec<ZZenohId>), |_reg: &Registry<KotlinMeta>| {
             Some((
                 pq!(jni::sys::jobject),
                 Some(pq!(ZError)),
@@ -194,12 +194,12 @@ fn main() {
         // the auto-stub — the Kotlin fun-interface lives hand-written under
         // `zenoh-jni-runtime/`.
         .callback_input(
-            pq!(impl Fn(Query) + Send + Sync + 'static),
+            pq!(impl Fn(ZQuery) + Send + Sync + 'static),
             Some(pq!(ZError)),
             pq!(crate::sample_callback::process_kotlin_query_callback),
         )
         .callback_input(
-            pq!(impl Fn(Reply) + Send + Sync + 'static),
+            pq!(impl Fn(ZReply) + Send + Sync + 'static),
             Some(pq!(ZError)),
             pq!(crate::sample_callback::process_kotlin_reply_callback),
         )
@@ -223,9 +223,9 @@ fn main() {
         .kotlin_data_class(pq!(RecoveryConfig))
         // ── impl Into<T> source arms.
         .into_sources(
-            pq!(KeyExpr<'static>),
+            pq!(ZKeyExpr<'static>),
             [
-                IntoSource::borrow(pq!(KeyExpr<'static>)),
+                IntoSource::borrow(pq!(ZKeyExpr<'static>)),
                 IntoSource::borrow(pq!(String)),
             ],
         );

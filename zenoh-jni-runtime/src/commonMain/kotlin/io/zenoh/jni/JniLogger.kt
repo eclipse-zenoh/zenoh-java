@@ -18,7 +18,7 @@ import io.zenoh.ZenohLoad
 import io.zenoh.jni.ZError
 
 /** Adapter for initializing Rust logging through JNI. */
-public object JNILogger {
+public object JniLogger {
 
     init {
         ZenohLoad

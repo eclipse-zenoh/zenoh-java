@@ -18,13 +18,16 @@ use prebindgen_proc_macro::prebindgen;
 use tracing::{error, trace};
 
 use zenoh::{
-    bytes::Encoding,
-    config::Config,
-    key_expr::KeyExpr,
-    pubsub::{Publisher, Subscriber},
-    query::{Query, Queryable, Querier, Reply, Selector},
-    session::{Session, ZenohId},
-    Wait,
+    bytes::Encoding as ZEncoding,
+    config::Config as ZConfig,
+    key_expr::KeyExpr as ZKeyExpr,
+    pubsub::{Publisher as ZPublisher, Subscriber as ZSubscriber},
+    query::{
+        ConsolidationMode as ZConsolidationMode, Querier as ZQuerier, Query as ZQuery,
+        Queryable as ZQueryable, Reply as ZReply, Selector as ZSelector,
+    },
+    session::{Session as ZSession, ZenohId as ZZenohId},
+    Wait as ZWait,
 };
 
 use crate::qos::{CongestionControl, Priority, Reliability};
@@ -34,8 +37,8 @@ use crate::query::{ConsolidationMode, QueryTarget, ReplyKeyExpr};
 use crate::structs::{CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig};
 #[cfg(feature = "zenoh-ext")]
 use zenoh_ext::{
-    AdvancedPublisher, AdvancedPublisherBuilderExt, AdvancedSubscriber,
-    AdvancedSubscriberBuilderExt,
+    AdvancedPublisher as ZAdvancedPublisher, AdvancedPublisherBuilderExt as ZAdvancedPublisherBuilderExt,
+    AdvancedSubscriber as ZAdvancedSubscriber, AdvancedSubscriberBuilderExt as ZAdvancedSubscriberBuilderExt,
 };
 
 /// Fires `f` exactly once when dropped. Used to bind an `on_close` callback
@@ -57,7 +60,7 @@ impl<F: FnOnce()> Drop for CallOnDrop<F> {
 
 /// Open a Zenoh session using a borrowed configuration.
 #[prebindgen]
-pub fn open_session(config: &Config) -> ZResult<Session> {
+pub fn open_session(config: &ZConfig) -> ZResult<ZSession> {
     zenoh::open(config.clone())
         .wait()
         .map(|session| {
@@ -73,14 +76,14 @@ pub fn open_session(config: &Config) -> ZResult<Session> {
 /// Declare a publisher through an existing Zenoh session.
 #[prebindgen]
 pub fn declare_publisher(
-    session: &Session,
-    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
+    session: &ZSession,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     congestion_control: CongestionControl,
     priority: Priority,
     express: bool,
     reliability: Reliability,
-) -> ZResult<Publisher<'static>> {
-    let ke: KeyExpr<'static> = key_expr.into();
+) -> ZResult<ZPublisher<'static>> {
+    let ke: ZKeyExpr<'static> = key_expr.into();
     let key_expr_string = ke.to_string();
     session
         .declare_publisher(ke)
@@ -101,10 +104,10 @@ pub fn declare_publisher(
 
 /// Declare a key expression through an existing Zenoh session.
 ///
-/// Returns a session-declared [`KeyExpr<'static>`] (Arc-backed handle)
+/// Returns a session-declared [`ZKeyExpr<'static>`] (Arc-backed handle)
 /// suitable for reuse across many subsequent operations.
 #[prebindgen]
-pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<KeyExpr<'static>> {
+pub fn declare_key_expr(session: &ZSession, key_expr: String) -> ZResult<ZKeyExpr<'static>> {
     let key_expr_clone = key_expr.clone();
     session
         .declare_keyexpr(key_expr)
@@ -125,11 +128,11 @@ pub fn declare_key_expr(session: &Session, key_expr: String) -> ZResult<KeyExpr<
 
 /// Undeclare a previously-declared key expression on a Zenoh session.
 ///
-/// Takes the [`KeyExpr<'static>`] by value: ownership transfers into
+/// Takes the [`ZKeyExpr<'static>`] by value: ownership transfers into
 /// this call, so the key expression is consumed and dropped as part
 /// of the undeclare.
 #[prebindgen]
-pub fn undeclare_key_expr(session: &Session, key_expr: KeyExpr<'static>) -> ZResult<()> {
+pub fn undeclare_key_expr(session: &ZSession, key_expr: ZKeyExpr<'static>) -> ZResult<()> {
     let key_expr_string = key_expr.to_string();
     session.undeclare(key_expr).wait().map_err(|err| {
         error!(
@@ -147,12 +150,12 @@ pub fn undeclare_key_expr(session: &Session, key_expr: KeyExpr<'static>) -> ZRes
 /// Declare a subscriber through an existing Zenoh session.
 #[prebindgen]
 pub fn declare_subscriber(
-    session: &Session,
-    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
+    session: &ZSession,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     callback: impl Fn(Sample) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
-) -> ZResult<Subscriber<()>> {
-    let ke: KeyExpr<'static> = key_expr.into();
+) -> ZResult<ZSubscriber<()>> {
+    let ke: ZKeyExpr<'static> = key_expr.into();
     let key_expr_string = ke.to_string();
     let guard = CallOnDrop::new(on_close);
     session
@@ -175,8 +178,8 @@ pub fn declare_subscriber(
 /// Declare a querier through an existing Zenoh session.
 #[prebindgen]
 pub fn declare_querier(
-    session: &Session,
-    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
+    session: &ZSession,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     query_target: QueryTarget,
     consolidation: ConsolidationMode,
     congestion_control: CongestionControl,
@@ -184,13 +187,13 @@ pub fn declare_querier(
     express: bool,
     timeout: Duration,
     reply_key_expr: ReplyKeyExpr,
-) -> ZResult<Querier<'static>> {
-    let ke: KeyExpr<'static> = key_expr.into();
+) -> ZResult<ZQuerier<'static>> {
+    let ke: ZKeyExpr<'static> = key_expr.into();
     let key_expr_string = ke.to_string();
     session
         .declare_querier(ke)
         .congestion_control(congestion_control.into())
-        .consolidation(zenoh::query::ConsolidationMode::from(consolidation))
+        .consolidation(ZConsolidationMode::from(consolidation))
         .express(express)
         .target(query_target.into())
         .priority(priority.into())
@@ -209,13 +212,13 @@ pub fn declare_querier(
 /// Declare a queryable through an existing Zenoh session.
 #[prebindgen]
 pub fn declare_queryable(
-    session: &Session,
-    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
-    callback: impl Fn(Query) + Send + Sync + 'static,
+    session: &ZSession,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
+    callback: impl Fn(ZQuery) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
     complete: bool,
-) -> ZResult<Queryable<()>> {
-    let ke: KeyExpr<'static> = key_expr.into();
+) -> ZResult<ZQueryable<()>> {
+    let ke: ZKeyExpr<'static> = key_expr.into();
     let key_expr_string = ke.to_string();
     let guard = CallOnDrop::new(on_close);
     session
@@ -247,25 +250,25 @@ pub fn declare_queryable(
 /// generator can emit the wrapper without reordering.
 #[prebindgen]
 pub fn get(
-    session: &Session,
-    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
+    session: &ZSession,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     selector_params: Option<String>,
-    callback: impl Fn(Reply) + Send + Sync + 'static,
+    callback: impl Fn(ZReply) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
     timeout: Duration,
     query_target: QueryTarget,
     consolidation: ConsolidationMode,
     attachment: Option<Vec<u8>>,
     payload: Option<Vec<u8>>,
-    encoding: Option<Encoding>,
+    encoding: Option<ZEncoding>,
     congestion_control: CongestionControl,
     priority: Priority,
     express: bool,
     reply_key_expr: ReplyKeyExpr,
 ) -> ZResult<()> {
-    let key_expr_zenoh: KeyExpr<'static> = key_expr.into();
+    let key_expr_zenoh: ZKeyExpr<'static> = key_expr.into();
     let key_expr_string = key_expr_zenoh.to_string();
-    let selector = Selector::owned(&key_expr_zenoh, selector_params.unwrap_or_default());
+    let selector = ZSelector::owned(&key_expr_zenoh, selector_params.unwrap_or_default());
     let guard = CallOnDrop::new(on_close);
     let mut get_builder = session
         .get(selector)
@@ -274,7 +277,7 @@ pub fn get(
             callback(reply);
         })
         .target(query_target.into())
-        .consolidation(zenoh::query::ConsolidationMode::from(consolidation))
+        .consolidation(ZConsolidationMode::from(consolidation))
         .congestion_control(congestion_control.into())
         .priority(priority.into())
         .express(express)
@@ -306,17 +309,17 @@ pub fn get(
 /// Perform a put operation through an existing Zenoh session.
 #[prebindgen]
 pub fn put(
-    session: &Session,
-    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
+    session: &ZSession,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     payload: Vec<u8>,
-    encoding: Encoding,
+    encoding: ZEncoding,
     congestion_control: CongestionControl,
     priority: Priority,
     express: bool,
     attachment: Option<Vec<u8>>,
     reliability: Reliability,
 ) -> ZResult<()> {
-    let key_expr_zenoh: KeyExpr<'static> = key_expr.into();
+    let key_expr_zenoh: ZKeyExpr<'static> = key_expr.into();
     let key_expr_string = key_expr_zenoh.to_string();
     let mut put_builder = session
         .put(&key_expr_zenoh, payload)
@@ -344,15 +347,15 @@ pub fn put(
 /// Perform a delete operation through an existing Zenoh session.
 #[prebindgen]
 pub fn delete(
-    session: &Session,
-    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
+    session: &ZSession,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     congestion_control: CongestionControl,
     priority: Priority,
     express: bool,
     attachment: Option<Vec<u8>>,
     reliability: Reliability,
 ) -> ZResult<()> {
-    let key_expr_zenoh: KeyExpr<'static> = key_expr.into();
+    let key_expr_zenoh: ZKeyExpr<'static> = key_expr.into();
     let key_expr_string = key_expr_zenoh.to_string();
     let mut delete_builder = session
         .delete(&key_expr_zenoh)
@@ -378,25 +381,25 @@ pub fn delete(
 
 /// Return the Zenoh ID of the session.
 #[prebindgen]
-pub fn get_zid(session: &Session) -> ZResult<ZenohId> {
+pub fn get_zid(session: &ZSession) -> ZResult<ZZenohId> {
     Ok(session.info().zid().wait())
 }
 
 /// Return the Zenoh IDs of the peers connected to this session.
 #[prebindgen]
-pub fn get_peers_zid(session: &Session) -> ZResult<Vec<ZenohId>> {
+pub fn get_peers_zid(session: &ZSession) -> ZResult<Vec<ZZenohId>> {
     Ok(session.info().peers_zid().wait().collect())
 }
 
 /// Return the Zenoh IDs of the routers connected to this session.
 #[prebindgen]
-pub fn get_routers_zid(session: &Session) -> ZResult<Vec<ZenohId>> {
+pub fn get_routers_zid(session: &ZSession) -> ZResult<Vec<ZZenohId>> {
     Ok(session.info().routers_zid().wait().collect())
 }
 
 /// Close a Zenoh session using a reference to the session.
 #[prebindgen]
-pub fn close_session(session: &Session) -> ZResult<()> {
+pub fn close_session(session: &ZSession) -> ZResult<()> {
     session
         .close()
         .wait()
@@ -417,7 +420,7 @@ pub fn close_session(session: &Session) -> ZResult<()> {
 /// internally, so a single `dropSession` is the complete teardown — no
 /// separate `closeSession` step is required.
 #[prebindgen]
-pub fn drop_session(session: Session) -> ZResult<()> {
+pub fn drop_session(session: ZSession) -> ZResult<()> {
     drop(session);
     Ok(())
 }
@@ -430,15 +433,15 @@ pub fn drop_session(session: Session) -> ZResult<()> {
 #[cfg(feature = "zenoh-ext")]
 #[prebindgen]
 pub fn declare_advanced_subscriber(
-    session: &Session,
-    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
+    session: &ZSession,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     callback: impl Fn(Sample) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
     history: Option<HistoryConfig>,
     recovery: Option<RecoveryConfig>,
     subscriber_detection: bool,
-) -> ZResult<AdvancedSubscriber<()>> {
-    let ke: KeyExpr<'static> = key_expr.into();
+) -> ZResult<ZAdvancedSubscriber<()>> {
+    let ke: ZKeyExpr<'static> = key_expr.into();
     let key_expr_string = ke.to_string();
     let guard = CallOnDrop::new(on_close);
     let mut builder = session
@@ -480,8 +483,8 @@ pub fn declare_advanced_subscriber(
 #[cfg(feature = "zenoh-ext")]
 #[prebindgen]
 pub fn declare_advanced_publisher(
-    session: &Session,
-    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
+    session: &ZSession,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     congestion_control: CongestionControl,
     priority: Priority,
     express: bool,
@@ -489,8 +492,8 @@ pub fn declare_advanced_publisher(
     cache: Option<CacheConfig>,
     sample_miss_detection: Option<MissDetectionConfig>,
     publisher_detection: bool,
-) -> ZResult<AdvancedPublisher<'static>> {
-    let ke: KeyExpr<'static> = key_expr.into();
+) -> ZResult<ZAdvancedPublisher<'static>> {
+    let ke: ZKeyExpr<'static> = key_expr.into();
     let key_expr_string = ke.to_string();
     let mut builder = session
         .declare_publisher(ke)

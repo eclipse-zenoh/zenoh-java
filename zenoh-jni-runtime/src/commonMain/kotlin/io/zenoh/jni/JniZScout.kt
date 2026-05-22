@@ -16,11 +16,11 @@ package io.zenoh.jni
 
 import io.zenoh.ZenohLoad
 import io.zenoh.jni.ZError
-import io.zenoh.jni.callbacks.JNICallback
-import io.zenoh.jni.callbacks.JNIHelloCallback
+import io.zenoh.jni.callbacks.JniCallback
+import io.zenoh.jni.callbacks.JniZHelloCallback
 
 /** Typed [NativeHandle] for a native Zenoh `Scout`. */
-public class JNIScout(initialPtr: Long) : NativeHandle(initialPtr) {
+public class JniZScout(initialPtr: Long) : NativeHandle(initialPtr) {
 
     companion object {
         init {
@@ -30,22 +30,22 @@ public class JNIScout(initialPtr: Long) : NativeHandle(initialPtr) {
         @Throws(ZError::class)
         fun scout(
             whatAmI: Int,
-            callback: JNIHelloCallback,
-            onClose: JNICallback,
-            config: JNIConfig?,
-        ): JNIScout = if (config != null) {
+            callback: JniZHelloCallback,
+            onClose: JniCallback,
+            config: JniZConfig?,
+        ): JniZScout = if (config != null) {
             // Hold the config's read lock for the duration of the JNI
             // call so the inner Long can't be freed in flight.
-            config.withPtr { p -> JNIScout(scoutViaJNI(whatAmI, callback, onClose, p)) }
+            config.withPtr { p -> JniZScout(scoutViaJNI(whatAmI, callback, onClose, p)) }
         } else {
-            JNIScout(scoutViaJNI(whatAmI, callback, onClose, 0L))
+            JniZScout(scoutViaJNI(whatAmI, callback, onClose, 0L))
         }
 
         @Throws(ZError::class)
         private external fun scoutViaJNI(
             whatAmI: Int,
-            callback: JNIHelloCallback,
-            onClose: JNICallback,
+            callback: JniZHelloCallback,
+            onClose: JniCallback,
             configPtr: Long,
         ): Long
 

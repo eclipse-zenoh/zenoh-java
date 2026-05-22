@@ -12,6 +12,7 @@
 //
 
 use prebindgen_proc_macro::prebindgen;
+use zenoh::sample::Sample as ZSample;
 
 /// Flat sample shape carried across the FFI boundary.
 ///
@@ -34,11 +35,11 @@ pub struct Sample {
     pub congestion_control: i64,
 }
 
-impl From<&zenoh::sample::Sample> for Sample {
+impl From<&ZSample> for Sample {
     /// Build a flat [`Sample`] from a zenoh `Sample` by extracting every
     /// nested field down to FFI-friendly primitive / `String` / `Vec<u8>`
     /// shapes.
-    fn from(sample: &zenoh::sample::Sample) -> Self {
+    fn from(sample: &ZSample) -> Self {
         let encoding = sample.encoding();
         let encoding_id = encoding.id() as i64;
         let encoding_schema = encoding

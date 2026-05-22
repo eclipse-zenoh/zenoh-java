@@ -14,7 +14,7 @@
 
 package io.zenoh.bytes
 
-import io.zenoh.jni.JNIEncoding
+import io.zenoh.jni.JniZEncoding
 
 /**
  * Default encoding values used by Zenoh.
@@ -503,5 +503,5 @@ class Encoding private constructor(
     }
 
     /** Project this public [Encoding] into a JNI-boundary holder. */
-    internal fun toJni(): JNIEncoding = JNIEncoding(id, schema)
+    internal fun toJni(): JniZEncoding = JniZEncoding(id, schema)
 }

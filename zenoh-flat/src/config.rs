@@ -12,21 +12,21 @@
 //
 
 use crate::zerror;
-use zenoh::config::Config;
+use zenoh::config::Config as ZConfig;
 
 /// Load a Zenoh configuration from a JSON string.
-pub fn load_json_config(json: &str) -> crate::errors::ZResult<Config> {
+pub fn load_json_config(json: &str) -> crate::errors::ZResult<ZConfig> {
     let mut deserializer = json5::Deserializer::from_str(json).map_err(|err| zerror!(err))?;
-    Config::from_deserializer(&mut deserializer).map_err(|err| match err {
+    ZConfig::from_deserializer(&mut deserializer).map_err(|err| match err {
         Ok(c) => zerror!("Invalid configuration: {}", c),
         Err(e) => zerror!("JSON error: {}", e),
     })
 }
 
 /// Load a Zenoh configuration from a YAML string.
-pub fn load_yaml_config(yaml: &str) -> crate::errors::ZResult<Config> {
+pub fn load_yaml_config(yaml: &str) -> crate::errors::ZResult<ZConfig> {
     let deserializer = serde_yaml::Deserializer::from_str(yaml);
-    Config::from_deserializer(deserializer).map_err(|err| match err {
+    ZConfig::from_deserializer(deserializer).map_err(|err| match err {
         Ok(c) => zerror!("Invalid configuration: {}", c),
         Err(e) => zerror!("YAML error: {}", e),
     })

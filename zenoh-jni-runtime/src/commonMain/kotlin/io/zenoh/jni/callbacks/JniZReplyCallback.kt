@@ -14,15 +14,22 @@
 
 package io.zenoh.jni.callbacks
 
-public fun interface JNIQueryCallback {
+public fun interface JniZReplyCallback {
+
     fun run(
-        keyExpr: String,
-        selectorParams: String,
-        payload: ByteArray?,
+        replierZid: ByteArray?,
+        replierEid: Int,
+        success: Boolean,
+        keyExpr: String?,
+        payload: ByteArray,
         encodingId: Int,
         encodingSchema: String?,
-        attachmentBytes: ByteArray?,
-        queryPtr: Long,
-        acceptReplies: Int,
+        kind: Int,
+        timestampNTP64: Long,
+        timestampIsValid: Boolean,
+        attachment: ByteArray?,
+        express: Boolean,
+        priority: Int,
+        congestionControl: Int,
     )
 }

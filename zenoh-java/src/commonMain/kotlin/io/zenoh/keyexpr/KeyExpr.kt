@@ -18,7 +18,7 @@ import io.zenoh.Session
 import io.zenoh.session.SessionDeclaration
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.jniCall
-import io.zenoh.jni.JNIKeyExpr
+import io.zenoh.jni.JniZKeyExpr
 import io.zenoh.query.IntoSelector
 import io.zenoh.query.Selector
 
@@ -65,12 +65,12 @@ class KeyExpr internal constructor(
     /**
      * Typed-handle for a session-declared `Arc<KeyExpr<'static>>`;
      * `null` for string-only key expressions. The auto-generated
-     * companion methods on [JNIKeyExpr] accept either this handle or
+     * companion methods on [JniZKeyExpr] accept either this handle or
      * the raw [keyExpr] string under the same `Any` parameter — the
-     * dispatcher runs `instanceof JNIKeyExpr` to pick the lock path
+     * dispatcher runs `instanceof JniZKeyExpr` to pick the lock path
      * before crossing the JNI boundary.
      */
-    internal var jniKeyExpr: JNIKeyExpr? = null,
+    internal var jniKeyExpr: JniZKeyExpr? = null,
 ) : AutoCloseable, IntoSelector, SessionDeclaration {
 
     companion object {
@@ -89,7 +89,7 @@ class KeyExpr internal constructor(
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun tryFrom(keyExpr: String): KeyExpr = jniCall { KeyExpr(JNIKeyExpr.tryFrom(keyExpr)) }
+        fun tryFrom(keyExpr: String): KeyExpr = jniCall { KeyExpr(JniZKeyExpr.tryFrom(keyExpr)) }
 
         /**
          * Autocanonize.
@@ -103,7 +103,7 @@ class KeyExpr internal constructor(
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun autocanonize(keyExpr: String): KeyExpr = jniCall { KeyExpr(JNIKeyExpr.autocanonize(keyExpr)) }
+        fun autocanonize(keyExpr: String): KeyExpr = jniCall { KeyExpr(JniZKeyExpr.autocanonize(keyExpr)) }
     }
 
     /**
@@ -113,7 +113,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun intersects(other: KeyExpr): Boolean = jniCall {
-        JNIKeyExpr.intersects(jniKeyExpr ?: keyExpr, other.jniKeyExpr ?: other.keyExpr)
+        JniZKeyExpr.intersects(jniKeyExpr ?: keyExpr, other.jniKeyExpr ?: other.keyExpr)
     }
 
     /**
@@ -123,7 +123,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun includes(other: KeyExpr): Boolean = jniCall {
-        JNIKeyExpr.includes(jniKeyExpr ?: keyExpr, other.jniKeyExpr ?: other.keyExpr)
+        JniZKeyExpr.includes(jniKeyExpr ?: keyExpr, other.jniKeyExpr ?: other.keyExpr)
     }
 
     /**
@@ -134,7 +134,7 @@ class KeyExpr internal constructor(
     @Throws(ZError::class)
     fun relationTo(other: KeyExpr): SetIntersectionLevel = jniCall {
         SetIntersectionLevel.fromInt(
-            JNIKeyExpr.relationTo(jniKeyExpr ?: keyExpr, other.jniKeyExpr ?: other.keyExpr)
+            JniZKeyExpr.relationTo(jniKeyExpr ?: keyExpr, other.jniKeyExpr ?: other.keyExpr)
         )
     }
 
@@ -144,7 +144,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun join(other: String): KeyExpr = jniCall {
-        val handle = JNIKeyExpr.join(jniKeyExpr ?: keyExpr, other) as JNIKeyExpr
+        val handle = JniZKeyExpr.join(jniKeyExpr ?: keyExpr, other) as JniZKeyExpr
         KeyExpr("$keyExpr/$other", handle)
     }
 
@@ -154,7 +154,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun concat(other: String): KeyExpr = jniCall {
-        val handle = JNIKeyExpr.concat(jniKeyExpr ?: keyExpr, other) as JNIKeyExpr
+        val handle = JniZKeyExpr.concat(jniKeyExpr ?: keyExpr, other) as JniZKeyExpr
         KeyExpr("$keyExpr$other", handle)
     }
 

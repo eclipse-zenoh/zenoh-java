@@ -21,7 +21,7 @@ import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 
 import io.zenoh.exceptions.jniCall
-import io.zenoh.jni.JNIPublisher
+import io.zenoh.jni.JniZPublisher
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
@@ -65,7 +65,7 @@ class Publisher internal constructor(
     private var congestionControl: CongestionControl,
     private var priority: Priority,
     val encoding: Encoding,
-    private var jniPublisher: JNIPublisher?,
+    private var jniPublisher: JniZPublisher?,
 ) : SessionDeclaration, AutoCloseable {
 
     companion object {

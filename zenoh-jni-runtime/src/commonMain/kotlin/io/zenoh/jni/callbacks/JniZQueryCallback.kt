@@ -14,7 +14,15 @@
 
 package io.zenoh.jni.callbacks
 
-/** Callback for sample miss listener notifications. Parameters encode the source entity global id and missed count. */
-public fun interface JNISampleMissedCallback {
-    fun run(zidLower: Long, zidUpper: Long, eid: Long, nb: Long)
+public fun interface JniZQueryCallback {
+    fun run(
+        keyExpr: String,
+        selectorParams: String,
+        payload: ByteArray?,
+        encodingId: Int,
+        encodingSchema: String?,
+        attachmentBytes: ByteArray?,
+        queryPtr: Long,
+        acceptReplies: Int,
+    )
 }

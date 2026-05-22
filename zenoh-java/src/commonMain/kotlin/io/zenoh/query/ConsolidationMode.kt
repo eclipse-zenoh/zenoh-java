@@ -14,7 +14,7 @@
 
 package io.zenoh.query
 
-import io.zenoh.jni.JNIConsolidationMode as JniConsolidationMode
+import io.zenoh.jni.JniConsolidationMode as JniConsolidationMode
 
 /** The kind of consolidation. */
 enum class ConsolidationMode {

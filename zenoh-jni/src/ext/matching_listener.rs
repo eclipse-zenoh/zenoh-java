@@ -13,7 +13,7 @@
 //
 
 use jni::{objects::JClass, JNIEnv};
-use zenoh::matching::MatchingListener;
+use zenoh::matching::MatchingListener as ZMatchingListener;
 
 /// Frees the [MatchingListener].
 ///
@@ -30,12 +30,12 @@ use zenoh::matching::MatchingListener;
 ///
 #[no_mangle]
 #[allow(non_snake_case)]
-pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIMatchingListener_freePtrViaJNI(
+pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JniZMatchingListener_freePtrViaJNI(
     _env: JNIEnv,
     _: JClass,
-    matching_listener_ptr: *const MatchingListener<()>,
+    matching_listener_ptr: *const ZMatchingListener<()>,
 ) {
     drop(Box::from_raw(
-        matching_listener_ptr as *mut MatchingListener<()>,
+        matching_listener_ptr as *mut ZMatchingListener<()>,
     ));
 }

@@ -14,16 +14,13 @@
 
 package io.zenoh.jni
 
-import io.zenoh.ZenohLoad
-
-/** Adapter object for interacting with Zenoh IDs through JNI. */
-public object JNIZenohId {
-
-    init {
-        ZenohLoad
-    }
-
-    fun toString(bytes: ByteArray): String = toStringViaJNI(bytes)
-
-    private external fun toStringViaJNI(bytes: ByteArray): String
-}
+/**
+ * JNI-boundary holder for a Zenoh encoding.
+ *
+ * Marshaled across JNI as a single object; the native side reads [id] and
+ * [schema] via `env.get_field(...)`. Higher layers (e.g. `zenoh-java`'s
+ * `io.zenoh.bytes.Encoding`) construct this wrapper at the JNI call
+ * boundary. Keeping it here preserves the layering rule that
+ * `zenoh-jni-runtime` must not depend on `zenoh-java`.
+ */
+data class JniZEncoding(val id: Int, val schema: String?)

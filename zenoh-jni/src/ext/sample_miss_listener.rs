@@ -13,7 +13,7 @@
 //
 
 use jni::{objects::JClass, JNIEnv};
-use zenoh_ext::SampleMissListener;
+use zenoh_ext::SampleMissListener as ZSampleMissListener;
 
 /// Frees the [SampleMissListener].
 ///
@@ -30,12 +30,12 @@ use zenoh_ext::SampleMissListener;
 ///
 #[no_mangle]
 #[allow(non_snake_case)]
-pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNISampleMissListener_freePtrViaJNI(
+pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JniZSampleMissListener_freePtrViaJNI(
     _env: JNIEnv,
     _: JClass,
-    sample_miss_listener_ptr: *const SampleMissListener<()>,
+    sample_miss_listener_ptr: *const ZSampleMissListener<()>,
 ) {
     drop(Box::from_raw(
-        sample_miss_listener_ptr as *mut SampleMissListener<()>,
+        sample_miss_listener_ptr as *mut ZSampleMissListener<()>,
     ));
 }

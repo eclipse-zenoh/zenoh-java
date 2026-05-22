@@ -20,12 +20,12 @@ use crate::{errors::ZResult, zerror};
 use prebindgen_proc_macro::prebindgen;
 use tracing::{error, trace};
 use zenoh::{
-    key_expr::KeyExpr,
-    liveliness::LivelinessToken,
-    pubsub::Subscriber,
-    query::Reply,
-    session::Session,
-    Wait,
+    key_expr::KeyExpr as ZKeyExpr,
+    liveliness::LivelinessToken as ZLivelinessToken,
+    pubsub::Subscriber as ZSubscriber,
+    query::Reply as ZReply,
+    session::Session as ZSession,
+    Wait as ZWait,
 };
 
 /// Fires `f` exactly once when dropped. Bound to the data callback so
@@ -49,10 +49,10 @@ impl<F: FnOnce()> Drop for CallOnDrop<F> {
 /// until it is dropped.
 #[prebindgen]
 pub fn declare_liveliness_token(
-    session: &Session,
-    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
-) -> ZResult<LivelinessToken> {
-    let ke: KeyExpr<'static> = key_expr.into();
+    session: &ZSession,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
+) -> ZResult<ZLivelinessToken> {
+    let ke: ZKeyExpr<'static> = key_expr.into();
     let key_expr_string = ke.to_string();
     session
         .liveliness()
@@ -73,13 +73,13 @@ pub fn declare_liveliness_token(
 /// initial event for each currently-alive matching token.
 #[prebindgen]
 pub fn declare_liveliness_subscriber(
-    session: &Session,
-    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
+    session: &ZSession,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     callback: impl Fn(Sample) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
     history: bool,
-) -> ZResult<Subscriber<()>> {
-    let ke: KeyExpr<'static> = key_expr.into();
+) -> ZResult<ZSubscriber<()>> {
+    let ke: ZKeyExpr<'static> = key_expr.into();
     let key_expr_string = ke.to_string();
     let guard = CallOnDrop::new(on_close);
     session
@@ -106,13 +106,13 @@ pub fn declare_liveliness_subscriber(
 /// query session completes (either timeout or cancellation).
 #[prebindgen]
 pub fn liveliness_get(
-    session: &Session,
-    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
-    callback: impl Fn(Reply) + Send + Sync + 'static,
+    session: &ZSession,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
+    callback: impl Fn(ZReply) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
     timeout: Duration,
 ) -> ZResult<()> {
-    let ke: KeyExpr<'static> = key_expr.into();
+    let ke: ZKeyExpr<'static> = key_expr.into();
     let key_expr_string = ke.to_string();
     let guard = CallOnDrop::new(on_close);
     session

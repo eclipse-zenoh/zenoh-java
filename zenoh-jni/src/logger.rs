@@ -37,7 +37,7 @@ use zenoh_flat::errors::ZResult;
 ///
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNILogger_startLogsViaJNI(
+pub extern "C" fn Java_io_zenoh_jni_JniLogger_startLogsViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     filter: JString,

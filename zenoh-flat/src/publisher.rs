@@ -17,7 +17,7 @@
 use crate::{errors::ZResult, zerror};
 use prebindgen_proc_macro::prebindgen;
 use tracing::{error, trace};
-use zenoh::{bytes::Encoding, pubsub::Publisher, Wait};
+use zenoh::{bytes::Encoding as ZEncoding, pubsub::Publisher as ZPublisher, Wait as ZWait};
 
 /// Publish a payload on an existing [`Publisher`].
 ///
@@ -26,9 +26,9 @@ use zenoh::{bytes::Encoding, pubsub::Publisher, Wait};
 /// use it for further put/delete calls.
 #[prebindgen]
 pub fn put_publisher(
-    publisher: &Publisher<'static>,
+    publisher: &ZPublisher<'static>,
     payload: Vec<u8>,
-    encoding: Encoding,
+    encoding: ZEncoding,
     attachment: Option<Vec<u8>>,
 ) -> ZResult<()> {
     let mut publication = publisher.put(payload).encoding(encoding);
@@ -47,7 +47,7 @@ pub fn put_publisher(
 /// Delete on an existing [`Publisher`].
 #[prebindgen]
 pub fn delete_publisher(
-    publisher: &Publisher<'static>,
+    publisher: &ZPublisher<'static>,
     attachment: Option<Vec<u8>>,
 ) -> ZResult<()> {
     let mut delete = publisher.delete();

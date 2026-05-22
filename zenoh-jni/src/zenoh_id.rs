@@ -19,17 +19,17 @@ use jni::{
     sys::{jbyteArray, jobject, jstring},
     JNIEnv,
 };
-use zenoh::session::ZenohId;
+use zenoh::session::ZenohId as ZZenohId;
 
 /// Encode a single [`ZenohId`] as a Java `byte[]`.
-pub(crate) fn zenoh_id_to_byte_array(env: &JNIEnv<'_>, zid: ZenohId) -> ZResult<jbyteArray> {
+pub(crate) fn zenoh_id_to_byte_array(env: &JNIEnv<'_>, zid: ZZenohId) -> ZResult<jbyteArray> {
     env.byte_array_from_slice(&zid.to_le_bytes())
         .map(|x| x.as_raw())
         .map_err(|err| zerror!(err))
 }
 
 /// Encode a `Vec<ZenohId>` as a Java `ArrayList<byte[]>`.
-pub(crate) fn zenoh_ids_to_java_list(env: &mut JNIEnv, ids: Vec<ZenohId>) -> ZResult<jobject> {
+pub(crate) fn zenoh_ids_to_java_list(env: &mut JNIEnv, ids: Vec<ZZenohId>) -> ZResult<jobject> {
     let array_list = env
         .new_object("java/util/ArrayList", "()V", &[])
         .map_err(|err| zerror!(err))?;
@@ -46,14 +46,14 @@ pub(crate) fn zenoh_ids_to_java_list(env: &mut JNIEnv, ids: Vec<ZenohId>) -> ZRe
 /// Returns the string representation of a ZenohID.
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNIZenohId_toStringViaJNI(
+pub extern "C" fn Java_io_zenoh_jni_JniZZenohId_toStringViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     zenoh_id: JByteArray,
 ) -> jstring {
     || -> ZResult<JString> {
         let bytes = decode_byte_array(&env, &zenoh_id)?;
-        let zenohid = ZenohId::try_from(bytes.as_slice()).map_err(|err| zerror!(err))?;
+        let zenohid = ZZenohId::try_from(bytes.as_slice()).map_err(|err| zerror!(err))?;
         env.new_string(zenohid.to_string())
             .map_err(|err| zerror!(err))
     }()

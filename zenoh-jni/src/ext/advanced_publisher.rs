@@ -19,9 +19,9 @@ use jni::{
     objects::{JByteArray, JClass},
     JNIEnv,
 };
-use zenoh::handlers::{Callback, DefaultHandler};
-use zenoh::Wait;
-use zenoh_ext::AdvancedPublisher;
+use zenoh::handlers::{Callback as ZCallback, DefaultHandler as ZDefaultHandler};
+use zenoh::Wait as ZWait;
+use zenoh_ext::AdvancedPublisher as ZAdvancedPublisher;
 
 use crate::generated::OwnedObject;
 use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close};
@@ -34,7 +34,10 @@ use jni::sys::jboolean;
 use std::ptr::null;
 
 use jni::objects::JObject;
-use zenoh::matching::{MatchingListener, MatchingListenerBuilder, MatchingStatus};
+use zenoh::matching::{
+    MatchingListener as ZMatchingListener, MatchingListenerBuilder as ZMatchingListenerBuilder,
+    MatchingStatus as ZMatchingStatus,
+};
 
 trait SetJniMatchingStatusCallback {
     type WithCallback;
@@ -47,8 +50,8 @@ trait SetJniMatchingStatusCallback {
     ) -> ZResult<Self::WithCallback>;
 }
 
-impl<'a> SetJniMatchingStatusCallback for MatchingListenerBuilder<'a, DefaultHandler> {
-    type WithCallback = MatchingListenerBuilder<'a, Callback<MatchingStatus>>;
+impl<'a> SetJniMatchingStatusCallback for ZMatchingListenerBuilder<'a, ZDefaultHandler> {
+    type WithCallback = ZMatchingListenerBuilder<'a, ZCallback<ZMatchingStatus>>;
 
     unsafe fn set_jni_matching_status_callback(
         self,
@@ -83,23 +86,23 @@ impl<'a> SetJniMatchingStatusCallback for MatchingListenerBuilder<'a, DefaultHan
     }
 }
 
-/// Declare a MatchingListener for [AdvancedPublisher] via JNI.
+/// Declare a ZMatchingListener for [ZAdvancedPublisher] via JNI.
 ///
 /// Parameters:
 /// - `env`: The JNI environment.
 /// - `_class`: The JNI class.
-/// - `advanced_publisher_ptr`: The raw pointer to an [AdvancedPublisher].
+/// - `advanced_publisher_ptr`: The raw pointer to an [ZAdvancedPublisher].
 /// - `callback`: The callback function as an instance of the `JNIMatchingStatusCallback` interface in Java/Kotlin.
-/// - `on_close`: A Java/Kotlin `JNICallback` function interface to be called upon undeclaring the [MatchingListener].
+/// - `on_close`: A Java/Kotlin `JNICallback` function interface to be called upon undeclaring the [ZMatchingListener].
 ///
 /// Returns:
-/// - A raw pointer to the declared [MatchingListener]. In case of failure, an exception is thrown and null is returned.
+/// - A raw pointer to the declared [ZMatchingListener]. In case of failure, an exception is thrown and null is returned.
 ///
 /// Safety:
 /// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
-/// - It assumes that the provided [AdvancedPublisher] pointer is valid and has not been modified or freed.
-/// - The [AdvancedPublisher] pointer remains valid and the ownership of the [AdvancedPublisher] is not transferred,
-///   allowing safe usage of the [AdvancedPublisher] after this function call.
+/// - It assumes that the provided [ZAdvancedPublisher] pointer is valid and has not been modified or freed.
+/// - The [ZAdvancedPublisher] pointer remains valid and the ownership of the [ZAdvancedPublisher] is not transferred,
+///   allowing safe usage of the [ZAdvancedPublisher] after this function call.
 /// - The callback function passed as `callback` must be a valid instance of the `JNIMatchingStatusCallback` interface
 ///   in Java/Kotlin, matching the specified signature.
 /// - The function may throw a JNI exception in case of failure, which should be handled by the caller.
@@ -107,17 +110,17 @@ impl<'a> SetJniMatchingStatusCallback for MatchingListenerBuilder<'a, DefaultHan
 #[cfg(feature = "zenoh-ext")]
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_declareMatchingListenerViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JniZAdvancedPublisher_declareMatchingListenerViaJNI(
     mut env: JNIEnv,
     _class: JClass,
-    advanced_publisher_ptr: *const AdvancedPublisher,
+    advanced_publisher_ptr: *const ZAdvancedPublisher,
 
     callback: JObject,
     on_close: JObject,
-) -> *const MatchingListener<()> {
+) -> *const ZMatchingListener<()> {
     let advanced_publisher = OwnedObject::from_raw(advanced_publisher_ptr);
 
-    || -> ZResult<*const MatchingListener<()>> {
+    || -> ZResult<*const ZMatchingListener<()>> {
         tracing::debug!(
             "Declaring matching listener on '{}'...",
             advanced_publisher.key_expr()
@@ -133,7 +136,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_declareMatchingL
             "Matching listener declared on '{}'...",
             advanced_publisher.key_expr()
         );
-        Ok(Box::into_raw(Box::new(matching_listener)) as *const MatchingListener<()>)
+        Ok(Box::into_raw(Box::new(matching_listener)) as *const ZMatchingListener<()>)
     }()
     .unwrap_or_else(|err| {
         crate::generated::throw_ZError(&mut env, &err);
@@ -141,21 +144,21 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_declareMatchingL
     })
 }
 
-/// Declare a background matching listener for [AdvancedPublisher] via JNI.
-/// Register the listener callback to be run in background until the [AdvancedPublisher] is undeclared.
+/// Declare a background matching listener for [ZAdvancedPublisher] via JNI.
+/// Register the listener callback to be run in background until the [ZAdvancedPublisher] is undeclared.
 ///
 /// Parameters:
 /// - `env`: The JNI environment.
 /// - `_class`: The JNI class.
-/// - `advanced_publisher_ptr`: The raw pointer to an [AdvancedPublisher].
+/// - `advanced_publisher_ptr`: The raw pointer to an [ZAdvancedPublisher].
 /// - `callback`: The callback function as an instance of the `JNIMatchingStatusCallback` interface in Java/Kotlin.
-/// - `on_close`: A Java/Kotlin `JNICallback` function interface to be called upon undeclaring the [AdvancedPublisher].
+/// - `on_close`: A Java/Kotlin `JNICallback` function interface to be called upon undeclaring the [ZAdvancedPublisher].
 ///
 /// Safety:
 /// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
-/// - It assumes that the provided [AdvancedPublisher] pointer is valid and has not been modified or freed.
-/// - The [AdvancedPublisher] pointer remains valid and the ownership of the [AdvancedPublisher] is not transferred,
-///   allowing safe usage of the [AdvancedPublisher] after this function call.
+/// - It assumes that the provided [ZAdvancedPublisher] pointer is valid and has not been modified or freed.
+/// - The [ZAdvancedPublisher] pointer remains valid and the ownership of the [ZAdvancedPublisher] is not transferred,
+///   allowing safe usage of the [ZAdvancedPublisher] after this function call.
 /// - The callback function passed as `callback` must be a valid instance of the `JNIMatchingStatusCallback` interface
 ///   in Java/Kotlin, matching the specified signature.
 /// - The function may throw a JNI exception in case of failure, which should be handled by the caller.
@@ -163,10 +166,10 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_declareMatchingL
 #[cfg(feature = "zenoh-ext")]
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_declareBackgroundMatchingListenerViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JniZAdvancedPublisher_declareBackgroundMatchingListenerViaJNI(
     mut env: JNIEnv,
     _class: JClass,
-    advanced_publisher_ptr: *const AdvancedPublisher,
+    advanced_publisher_ptr: *const ZAdvancedPublisher,
 
     callback: JObject,
     on_close: JObject,
@@ -197,30 +200,30 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_declareBackgroun
     });
 }
 
-/// Return the matching status of the [AdvancedPublisher].
+/// Return the matching status of the [ZAdvancedPublisher].
 ///
 /// Parameters:
 /// - `env`: The JNI environment.
 /// - `_class`: The JNI class.
-/// - `advanced_publisher_ptr`: The raw pointer to an [AdvancedPublisher].
+/// - `advanced_publisher_ptr`: The raw pointer to an [ZAdvancedPublisher].
 ///
 /// Returns:
 /// - will return true if there exist Subscribers matching the Publisher's key expression and false otherwise.
 ///
 /// Safety:
 /// - The function is marked as unsafe due to raw pointer manipulation and JNI interaction.
-/// - It assumes that the provided [AdvancedPublisher] pointer is valid and has not been modified or freed.
-/// - The [AdvancedPublisher] pointer remains valid and the ownership of the [AdvancedPublisher] is not transferred,
-///   allowing safe usage of the [AdvancedPublisher] after this function call.
+/// - It assumes that the provided [ZAdvancedPublisher] pointer is valid and has not been modified or freed.
+/// - The [ZAdvancedPublisher] pointer remains valid and the ownership of the [ZAdvancedPublisher] is not transferred,
+///   allowing safe usage of the [ZAdvancedPublisher] after this function call.
 /// - The function may throw a JNI exception in case of failure, which should be handled by the caller.
 ///
 #[cfg(feature = "zenoh-ext")]
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_getMatchingStatusViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JniZAdvancedPublisher_getMatchingStatusViaJNI(
     mut env: JNIEnv,
     _class: JClass,
-    advanced_publisher_ptr: *const AdvancedPublisher,
+    advanced_publisher_ptr: *const ZAdvancedPublisher,
 ) -> jboolean {
     use zenoh_flat::errors::ZError;
 
@@ -236,7 +239,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_getMatchingStatu
         })
 }
 
-/// Performs a PUT operation on an [AdvancedPublisher] via JNI.
+/// Performs a PUT operation on an [ZAdvancedPublisher] via JNI.
 ///
 /// # Parameters
 /// - `env`: The JNI environment pointer.
@@ -245,20 +248,20 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_getMatchingStatu
 /// - `encoding_id`: The encoding ID of the payload.
 /// - `encoding_schema`: Nullable encoding schema string of the payload.
 /// - `attachment`: Nullble byte array for the attachment.
-/// - `publisher_ptr`: The raw pointer to the [AdvancedPublisher].
+/// - `publisher_ptr`: The raw pointer to the [ZAdvancedPublisher].
 ///
 /// # Safety
 /// - This function is marked as unsafe due to raw pointer manipulation and JNI interaction.
-/// - Assumes that the provided [AdvancedPublisher] pointer is valid and has not been modified or freed.
-/// - The [AdvancedPublisher] pointer remains valid after this function call.
+/// - Assumes that the provided [ZAdvancedPublisher] pointer is valid and has not been modified or freed.
+/// - The [ZAdvancedPublisher] pointer remains valid after this function call.
 /// - May throw an exception in case of failure, which must be handled by the caller.
 ///
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_putViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JniZAdvancedPublisher_putViaJNI(
     mut env: JNIEnv,
     _class: JClass,
-    publisher_ptr: *const AdvancedPublisher<'static>,
+    publisher_ptr: *const ZAdvancedPublisher<'static>,
     payload: JByteArray,
     encoding: JObject,
     attachment: /*nullable*/ JByteArray,
@@ -278,26 +281,26 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_putViaJNI(
     .map_err(|err| crate::generated::throw_ZError(&mut env, &err));
 }
 
-/// Performs a DELETE operation on an [AdvancedPublisher] via JNI.
+/// Performs a DELETE operation on an [ZAdvancedPublisher] via JNI.
 ///
 /// # Parameters
 /// - `env`: The JNI environment pointer.
 /// - `_class`: The Java class reference (unused).
 /// - `attachment`: Nullble byte array for the attachment.
-/// - `publisher_ptr`: The raw pointer to the [AdvancedPublisher].
+/// - `publisher_ptr`: The raw pointer to the [ZAdvancedPublisher].
 ///
 /// # Safety
 /// - This function is marked as unsafe due to raw pointer manipulation and JNI interaction.
-/// - Assumes that the provided [AdvancedPublisher] pointer is valid and has not been modified or freed.
-/// - The [AdvancedPublisher] pointer remains valid after this function call.
+/// - Assumes that the provided [ZAdvancedPublisher] pointer is valid and has not been modified or freed.
+/// - The [ZAdvancedPublisher] pointer remains valid after this function call.
 /// - May throw an exception in case of failure, which must be handled by the caller.
 ///
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_deleteViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JniZAdvancedPublisher_deleteViaJNI(
     mut env: JNIEnv,
     _class: JClass,
-    publisher_ptr: *const AdvancedPublisher<'static>,
+    publisher_ptr: *const ZAdvancedPublisher<'static>,
     attachment: /*nullable*/ JByteArray,
 ) {
     let publisher = OwnedObject::from_raw(publisher_ptr);
@@ -312,24 +315,24 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_deleteViaJNI(
     .map_err(|err| crate::generated::throw_ZError(&mut env, &err));
 }
 
-/// Frees the [AdvancedPublisher].
+/// Frees the [ZAdvancedPublisher].
 ///
 /// # Parameters:
 /// - `_env`: The JNI environment.
 /// - `_class`: The JNI class.
-/// - `publisher_ptr`: The raw pointer to the [AdvancedPublisher].
+/// - `publisher_ptr`: The raw pointer to the [ZAdvancedPublisher].
 ///
 /// # Safety:
 /// - The function is marked as unsafe due to raw pointer manipulation.
-/// - It assumes that the provided [AdvancedPublisher] pointer is valid and has not been modified or freed.
-/// - After calling this function, the [AdvancedPublisher] pointer becomes invalid and should not be used anymore.
+/// - It assumes that the provided [ZAdvancedPublisher] pointer is valid and has not been modified or freed.
+/// - After calling this function, the [ZAdvancedPublisher] pointer becomes invalid and should not be used anymore.
 ///
 #[no_mangle]
 #[allow(non_snake_case)]
-pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIAdvancedPublisher_freePtrViaJNI(
+pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JniZAdvancedPublisher_freePtrViaJNI(
     _env: JNIEnv,
     _: JClass,
-    publisher_ptr: *const AdvancedPublisher,
+    publisher_ptr: *const ZAdvancedPublisher,
 ) {
-    drop(Box::from_raw(publisher_ptr as *mut AdvancedPublisher));
+    drop(Box::from_raw(publisher_ptr as *mut ZAdvancedPublisher));
 }

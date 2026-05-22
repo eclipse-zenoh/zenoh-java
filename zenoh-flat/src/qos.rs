@@ -21,6 +21,9 @@
 //! renumbers a variant.
 
 use prebindgen_proc_macro::prebindgen;
+use zenoh::qos::{
+    CongestionControl as ZCongestionControl, Priority as ZPriority, Reliability as ZReliability,
+};
 
 /// Flat mirror of [`zenoh::qos::Priority`]. `#[repr(i32)]` so the
 /// auto-generated JNI converters round-trip the discriminant values
@@ -42,30 +45,30 @@ pub enum Priority {
     Background = 7,
 }
 
-impl From<zenoh::qos::Priority> for Priority {
-    fn from(p: zenoh::qos::Priority) -> Self {
+impl From<ZPriority> for Priority {
+    fn from(p: ZPriority) -> Self {
         match p {
-            zenoh::qos::Priority::RealTime => Priority::RealTime,
-            zenoh::qos::Priority::InteractiveHigh => Priority::InteractiveHigh,
-            zenoh::qos::Priority::InteractiveLow => Priority::InteractiveLow,
-            zenoh::qos::Priority::DataHigh => Priority::DataHigh,
-            zenoh::qos::Priority::Data => Priority::Data,
-            zenoh::qos::Priority::DataLow => Priority::DataLow,
-            zenoh::qos::Priority::Background => Priority::Background,
+            ZPriority::RealTime => Priority::RealTime,
+            ZPriority::InteractiveHigh => Priority::InteractiveHigh,
+            ZPriority::InteractiveLow => Priority::InteractiveLow,
+            ZPriority::DataHigh => Priority::DataHigh,
+            ZPriority::Data => Priority::Data,
+            ZPriority::DataLow => Priority::DataLow,
+            ZPriority::Background => Priority::Background,
         }
     }
 }
 
-impl From<Priority> for zenoh::qos::Priority {
+impl From<Priority> for ZPriority {
     fn from(p: Priority) -> Self {
         match p {
-            Priority::RealTime => zenoh::qos::Priority::RealTime,
-            Priority::InteractiveHigh => zenoh::qos::Priority::InteractiveHigh,
-            Priority::InteractiveLow => zenoh::qos::Priority::InteractiveLow,
-            Priority::DataHigh => zenoh::qos::Priority::DataHigh,
-            Priority::Data => zenoh::qos::Priority::Data,
-            Priority::DataLow => zenoh::qos::Priority::DataLow,
-            Priority::Background => zenoh::qos::Priority::Background,
+            Priority::RealTime => ZPriority::RealTime,
+            Priority::InteractiveHigh => ZPriority::InteractiveHigh,
+            Priority::InteractiveLow => ZPriority::InteractiveLow,
+            Priority::DataHigh => ZPriority::DataHigh,
+            Priority::Data => ZPriority::Data,
+            Priority::DataLow => ZPriority::DataLow,
+            Priority::Background => ZPriority::Background,
         }
     }
 }
@@ -82,11 +85,11 @@ pub enum CongestionControl {
     Block = 1,
 }
 
-impl From<CongestionControl> for zenoh::qos::CongestionControl {
+impl From<CongestionControl> for ZCongestionControl {
     fn from(c: CongestionControl) -> Self {
         match c {
-            CongestionControl::Drop => zenoh::qos::CongestionControl::Drop,
-            CongestionControl::Block => zenoh::qos::CongestionControl::Block,
+            CongestionControl::Drop => ZCongestionControl::Drop,
+            CongestionControl::Block => ZCongestionControl::Block,
         }
     }
 }
@@ -101,11 +104,11 @@ pub enum Reliability {
     Reliable = 1,
 }
 
-impl From<Reliability> for zenoh::qos::Reliability {
+impl From<Reliability> for ZReliability {
     fn from(r: Reliability) -> Self {
         match r {
-            Reliability::BestEffort => zenoh::qos::Reliability::BestEffort,
-            Reliability::Reliable => zenoh::qos::Reliability::Reliable,
+            Reliability::BestEffort => ZReliability::BestEffort,
+            Reliability::Reliable => ZReliability::Reliable,
         }
     }
 }

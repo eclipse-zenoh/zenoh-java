@@ -14,8 +14,7 @@
 
 package io.zenoh.jni.callbacks
 
-public fun interface JNICallback {
+public fun interface JniZHelloCallback {
 
-    fun run()
-
+    fun run(whatAmI: Int, zid: ByteArray, locators: List<String>)
 }

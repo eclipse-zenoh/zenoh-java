@@ -15,14 +15,14 @@
 package io.zenoh.jni
 
 import io.zenoh.jni.ZError
-import io.zenoh.jni.callbacks.JNICallback
-import io.zenoh.jni.callbacks.JNIMatchingStatusCallback
+import io.zenoh.jni.callbacks.JniCallback
+import io.zenoh.jni.callbacks.JniZMatchingStatusCallback
 
 /** Typed [NativeHandle] for a native Zenoh `AdvancedPublisher`. */
-public class JNIAdvancedPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
+public class JniZAdvancedPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
-    fun put(payload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?) = withPtr { ptr ->
+    fun put(payload: ByteArray, encoding: JniZEncoding, attachment: ByteArray?) = withPtr { ptr ->
         putViaJNI(ptr, payload, encoding, attachment)
     }
 
@@ -32,11 +32,11 @@ public class JNIAdvancedPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 
     @Throws(ZError::class)
-    fun declareMatchingListener(callback: JNIMatchingStatusCallback, onClose: JNICallback): JNIMatchingListener =
-        withPtr { ptr -> JNIMatchingListener(declareMatchingListenerViaJNI(ptr, callback, onClose)) }
+    fun declareMatchingListener(callback: JniZMatchingStatusCallback, onClose: JniCallback): JniZMatchingListener =
+        withPtr { ptr -> JniZMatchingListener(declareMatchingListenerViaJNI(ptr, callback, onClose)) }
 
     @Throws(ZError::class)
-    fun declareBackgroundMatchingListener(callback: JNIMatchingStatusCallback, onClose: JNICallback) =
+    fun declareBackgroundMatchingListener(callback: JniZMatchingStatusCallback, onClose: JniCallback) =
         withPtr { ptr -> declareBackgroundMatchingListenerViaJNI(ptr, callback, onClose) }
 
     @Throws(ZError::class)
@@ -46,7 +46,7 @@ public class JNIAdvancedPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     private external fun putViaJNI(
-        ptr: Long, payload: ByteArray, encoding: JNIEncoding, attachment: ByteArray?
+        ptr: Long, payload: ByteArray, encoding: JniZEncoding, attachment: ByteArray?
     )
 
     @Throws(ZError::class)
@@ -54,12 +54,12 @@ public class JNIAdvancedPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(ZError::class)
     private external fun declareMatchingListenerViaJNI(
-        ptr: Long, callback: JNIMatchingStatusCallback, onClose: JNICallback
+        ptr: Long, callback: JniZMatchingStatusCallback, onClose: JniCallback
     ): Long
 
     @Throws(ZError::class)
     private external fun declareBackgroundMatchingListenerViaJNI(
-        ptr: Long, callback: JNIMatchingStatusCallback, onClose: JNICallback
+        ptr: Long, callback: JniZMatchingStatusCallback, onClose: JniCallback
     )
 
     @Throws(ZError::class)

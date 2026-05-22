@@ -17,7 +17,7 @@ package io.zenoh.jni
 import io.zenoh.ZenohLoad
 import java.lang.reflect.Type
 
-object JNIZBytes {
+object JniZZBytes {
 
     init {
         ZenohLoad

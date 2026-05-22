@@ -14,7 +14,7 @@
 
 package io.zenoh.qos
 
-import io.zenoh.jni.JNIPriority as JniPriority
+import io.zenoh.jni.JniPriority as JniPriority
 
 /**
  * The Priority of Zenoh messages.

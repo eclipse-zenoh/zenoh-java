@@ -14,7 +14,7 @@
 
 package io.zenoh.qos
 
-import io.zenoh.jni.JNIReliability as JniReliability
+import io.zenoh.jni.JniReliability as JniReliability
 
 /**
  * The reliability policy.

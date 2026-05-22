@@ -24,16 +24,16 @@
 // Types referenced by the generated `zenoh_flat_jni.rs` below must be in scope.
 use std::time::Duration;
 use zenoh::{
-    bytes::Encoding,
-    config::Config,
-    key_expr::{KeyExpr, SetIntersectionLevel},
-    liveliness::LivelinessToken,
-    pubsub::{Publisher, Subscriber},
-    query::{Querier, Query, Queryable, Reply},
-    session::{Session, ZenohId},
+    bytes::Encoding as ZEncoding,
+    config::Config as ZConfig,
+    key_expr::{KeyExpr as ZKeyExpr, SetIntersectionLevel as ZSetIntersectionLevel},
+    liveliness::LivelinessToken as ZLivelinessToken,
+    pubsub::{Publisher as ZPublisher, Subscriber as ZSubscriber},
+    query::{Querier as ZQuerier, Query as ZQuery, Queryable as ZQueryable, Reply as ZReply},
+    session::{Session as ZSession, ZenohId as ZZenohId},
 };
 #[cfg(feature = "zenoh-ext")]
-use zenoh_ext::{AdvancedPublisher, AdvancedSubscriber};
+use zenoh_ext::{AdvancedPublisher as ZAdvancedPublisher, AdvancedSubscriber as ZAdvancedSubscriber};
 // The flat enums resolve to `zenoh_flat::{qos,query}::*` here so the
 // auto-generated `<Enum>_to_jint_*` / `jint_to_<Enum>_*` converters
 // (whose signatures use the bare ident) typecheck against the flat

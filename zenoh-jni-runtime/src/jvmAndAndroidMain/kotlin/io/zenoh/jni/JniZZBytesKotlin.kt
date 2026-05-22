@@ -31,7 +31,7 @@ import kotlin.reflect.KType
  * - Collections: List<T>, Map<K, V> (recursive)
  * - Tuples: Pair<A, B>, Triple<A, B, C>
  */
-object JNIZBytesKotlin {
+object JniZZBytesKotlin {
 
     init {
         ZenohLoad

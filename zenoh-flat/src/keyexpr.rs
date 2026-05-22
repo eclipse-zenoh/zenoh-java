@@ -27,13 +27,13 @@
 
 use crate::{errors::ZResult, zerror};
 use prebindgen_proc_macro::prebindgen;
-use zenoh::key_expr::{KeyExpr, SetIntersectionLevel};
+use zenoh::key_expr::{KeyExpr as ZKeyExpr, SetIntersectionLevel as ZSetIntersectionLevel};
 
 /// Validate that `s` is a syntactically valid Zenoh key expression and
 /// return it (unchanged).
 #[prebindgen]
 pub fn try_from(s: String) -> ZResult<String> {
-    KeyExpr::try_from(s.as_str())
+    ZKeyExpr::try_from(s.as_str())
         .map_err(|err| zerror!("Unable to create key expression: '{}'.", err))?;
     Ok(s)
 }
@@ -41,7 +41,7 @@ pub fn try_from(s: String) -> ZResult<String> {
 /// Auto-canonize `s` and return the canonized string form.
 #[prebindgen]
 pub fn autocanonize(s: String) -> ZResult<String> {
-    KeyExpr::autocanonize(s.clone())
+    ZKeyExpr::autocanonize(s.clone())
         .map(|ke| ke.to_string())
         .map_err(|err| zerror!("Unable to create key expression: '{}'", err))
 }
@@ -49,8 +49,8 @@ pub fn autocanonize(s: String) -> ZResult<String> {
 /// True if `a` and `b` intersect.
 #[prebindgen]
 pub fn intersects(
-    a: impl Into<KeyExpr<'static>> + Send + 'static,
-    b: impl Into<KeyExpr<'static>> + Send + 'static,
+    a: impl Into<ZKeyExpr<'static>> + Send + 'static,
+    b: impl Into<ZKeyExpr<'static>> + Send + 'static,
 ) -> ZResult<bool> {
     let a = a.into();
     let b = b.into();
@@ -60,8 +60,8 @@ pub fn intersects(
 /// True if `a` includes `b`.
 #[prebindgen]
 pub fn includes(
-    a: impl Into<KeyExpr<'static>> + Send + 'static,
-    b: impl Into<KeyExpr<'static>> + Send + 'static,
+    a: impl Into<ZKeyExpr<'static>> + Send + 'static,
+    b: impl Into<ZKeyExpr<'static>> + Send + 'static,
 ) -> ZResult<bool> {
     let a = a.into();
     let b = b.into();
@@ -71,9 +71,9 @@ pub fn includes(
 /// Set-intersection level of `a` and `b` from `a`'s perspective.
 #[prebindgen]
 pub fn relation_to(
-    a: impl Into<KeyExpr<'static>> + Send + 'static,
-    b: impl Into<KeyExpr<'static>> + Send + 'static,
-) -> ZResult<SetIntersectionLevel> {
+    a: impl Into<ZKeyExpr<'static>> + Send + 'static,
+    b: impl Into<ZKeyExpr<'static>> + Send + 'static,
+) -> ZResult<ZSetIntersectionLevel> {
     let a = a.into();
     let b = b.into();
     Ok(a.relation_to(&b))
@@ -84,9 +84,9 @@ pub fn relation_to(
 /// present; either way the caller sees an Arc-backed handle.
 #[prebindgen]
 pub fn join(
-    a: impl Into<KeyExpr<'static>> + Send + 'static,
+    a: impl Into<ZKeyExpr<'static>> + Send + 'static,
     other: String,
-) -> ZResult<KeyExpr<'static>> {
+) -> ZResult<ZKeyExpr<'static>> {
     let a = a.into();
     a.join(other.as_str()).map_err(|err| zerror!(err))
 }
@@ -95,9 +95,9 @@ pub fn join(
 /// result. Same handle-preservation rule as [`join`].
 #[prebindgen]
 pub fn concat(
-    a: impl Into<KeyExpr<'static>> + Send + 'static,
+    a: impl Into<ZKeyExpr<'static>> + Send + 'static,
     other: String,
-) -> ZResult<KeyExpr<'static>> {
+) -> ZResult<ZKeyExpr<'static>> {
     let a = a.into();
     a.concat(other.as_str()).map_err(|err| zerror!(err))
 }

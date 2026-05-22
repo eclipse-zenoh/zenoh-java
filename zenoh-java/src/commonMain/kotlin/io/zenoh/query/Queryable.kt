@@ -16,7 +16,7 @@ package io.zenoh.query
 
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Handler
-import io.zenoh.jni.JNIQueryable
+import io.zenoh.jni.JniZQueryable
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.session.SessionDeclaration
 
@@ -55,7 +55,7 @@ import io.zenoh.session.SessionDeclaration
  * @see HandlerQueryable
  */
 sealed class Queryable(
-    val keyExpr: KeyExpr, private var jniQueryable: JNIQueryable?
+    val keyExpr: KeyExpr, private var jniQueryable: JniZQueryable?
 ) : AutoCloseable, SessionDeclaration {
 
     fun isValid(): Boolean {
@@ -93,7 +93,7 @@ sealed class Queryable(
  * }
  * ```
  */
-class CallbackQueryable internal constructor(keyExpr: KeyExpr, jniQueryable: JNIQueryable?): Queryable(keyExpr, jniQueryable)
+class CallbackQueryable internal constructor(keyExpr: KeyExpr, jniQueryable: JniZQueryable?): Queryable(keyExpr, jniQueryable)
 
 /**
  * [Queryable] receiving replies through a [Handler].
@@ -117,7 +117,7 @@ class CallbackQueryable internal constructor(keyExpr: KeyExpr, jniQueryable: JNI
  * @param R The type of the handler's receiver.
  * @param receiver The receiver of the queryable's handler.
  */
-class HandlerQueryable<R> internal constructor(keyExpr: KeyExpr, jniQueryable: JNIQueryable?, val receiver: R): Queryable(keyExpr, jniQueryable)
+class HandlerQueryable<R> internal constructor(keyExpr: KeyExpr, jniQueryable: JniZQueryable?, val receiver: R): Queryable(keyExpr, jniQueryable)
 
 /**
  * Options for configuring a [Queryable].

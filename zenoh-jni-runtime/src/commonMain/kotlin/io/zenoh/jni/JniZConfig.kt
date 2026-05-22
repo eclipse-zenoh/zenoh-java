@@ -24,7 +24,7 @@ import io.zenoh.jni.ZError
  * companion's external funs stay here; instance methods that ARE
  * `#[prebindgen]` would delegate to [JNIWrappers].
  */
-public class JNIConfig(initialPtr: Long) : NativeHandle(initialPtr) {
+public class JniZConfig(initialPtr: Long) : NativeHandle(initialPtr) {
 
     companion object {
 
@@ -33,16 +33,16 @@ public class JNIConfig(initialPtr: Long) : NativeHandle(initialPtr) {
         }
 
         @Throws(ZError::class)
-        fun loadDefault(): JNIConfig = JNIConfig(loadDefaultConfigViaJNI())
+        fun loadDefault(): JniZConfig = JniZConfig(loadDefaultConfigViaJNI())
 
         @Throws(ZError::class)
-        fun loadFromFile(path: String): JNIConfig = JNIConfig(loadConfigFileViaJNI(path))
+        fun loadFromFile(path: String): JniZConfig = JniZConfig(loadConfigFileViaJNI(path))
 
         @Throws(ZError::class)
-        fun loadFromJson(rawConfig: String): JNIConfig = JNIConfig(loadJsonConfigViaJNI(rawConfig))
+        fun loadFromJson(rawConfig: String): JniZConfig = JniZConfig(loadJsonConfigViaJNI(rawConfig))
 
         @Throws(ZError::class)
-        fun loadFromYaml(rawConfig: String): JNIConfig = JNIConfig(loadYamlConfigViaJNI(rawConfig))
+        fun loadFromYaml(rawConfig: String): JniZConfig = JniZConfig(loadYamlConfigViaJNI(rawConfig))
 
         @Throws(ZError::class)
         private external fun loadDefaultConfigViaJNI(): Long

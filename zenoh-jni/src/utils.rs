@@ -21,16 +21,16 @@ use jni::{
     JNIEnv, JavaVM,
 };
 use zenoh::{
-    bytes::{Encoding, ZBytes},
-    internal::buffers::ZSlice,
+    bytes::{Encoding as ZEncoding, ZBytes as ZZBytes},
+    internal::buffers::ZSlice as ZZSlice,
 };
 
 pub(crate) fn decode_encoding(
     env: &mut JNIEnv,
     encoding: jint,
     schema: &JString,
-) -> ZResult<Encoding> {
-    let schema: Option<ZSlice> = if schema.is_null() {
+) -> ZResult<ZEncoding> {
+    let schema: Option<ZZSlice> = if schema.is_null() {
         None
     } else {
         // Inline String decoding logic (moved from decode_string)
@@ -44,12 +44,12 @@ pub(crate) fn decode_encoding(
     };
     let encoding_id =
         u16::try_from(encoding).map_err(|err| zerror!("Failed to decode encoding: {}", err))?;
-    Ok(Encoding::new(encoding_id, schema))
+    Ok(ZEncoding::new(encoding_id, schema))
 }
 
 /// Decode a Kotlin `io.zenoh.jni.JNIEncoding` holder into a zenoh [`Encoding`].
 /// Fields: `id: Int`, `schema: String?`.
-pub(crate) fn decode_jni_encoding(env: &mut JNIEnv, obj: &JObject) -> ZResult<Encoding> {
+pub(crate) fn decode_jni_encoding(env: &mut JNIEnv, obj: &JObject) -> ZResult<ZEncoding> {
     let id = env
         .get_field(obj, "id", "I")
         .and_then(|v| v.i())
@@ -88,12 +88,12 @@ pub(crate) fn decode_byte_array(env: &JNIEnv, payload: &JByteArray) -> ZResult<V
     Ok(buff)
 }
 
-pub(crate) fn bytes_to_java_array<'a>(env: &JNIEnv<'a>, slice: &ZBytes) -> ZResult<JByteArray<'a>> {
+pub(crate) fn bytes_to_java_array<'a>(env: &JNIEnv<'a>, slice: &ZZBytes) -> ZResult<JByteArray<'a>> {
     env.byte_array_from_slice(&slice.to_bytes())
         .map_err(|err| zerror!(err))
 }
 
-pub(crate) fn slice_to_java_string<'a>(env: &JNIEnv<'a>, slice: &ZSlice) -> ZResult<JString<'a>> {
+pub(crate) fn slice_to_java_string<'a>(env: &JNIEnv<'a>, slice: &ZZSlice) -> ZResult<JString<'a>> {
     env.new_string(
         String::from_utf8(slice.to_vec())
             .map_err(|err| zerror!("Unable to decode string: {}", err))?,

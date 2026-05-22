@@ -17,9 +17,9 @@ use crate::{errors::ZResult, zerror};
 use prebindgen_proc_macro::prebindgen;
 use tracing::{error, trace};
 use zenoh::{
-    bytes::Encoding,
-    query::{Querier, Reply},
-    Wait,
+    bytes::Encoding as ZEncoding,
+    query::{Querier as ZQuerier, Reply as ZReply},
+    Wait as ZWait,
 };
 
 /// Fires `f` exactly once when dropped. Bound to the reply callback so
@@ -47,13 +47,13 @@ impl<F: FnOnce()> Drop for CallOnDrop<F> {
 /// encoding is ignored.
 #[prebindgen]
 pub fn querier_get(
-    querier: &Querier<'static>,
+    querier: &ZQuerier<'static>,
     parameters: Option<String>,
-    callback: impl Fn(Reply) + Send + Sync + 'static,
+    callback: impl Fn(ZReply) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
     attachment: Option<Vec<u8>>,
     payload: Option<Vec<u8>>,
-    encoding: Option<Encoding>,
+    encoding: Option<ZEncoding>,
 ) -> ZResult<()> {
     let guard = CallOnDrop::new(on_close);
     let mut get_builder = querier.get().callback(move |reply| {

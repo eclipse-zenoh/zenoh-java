@@ -19,7 +19,7 @@ use jni::{
     sys::jstring,
     JNIEnv,
 };
-use zenoh::Config;
+use zenoh::Config as ZConfig;
 
 use zenoh_flat::errors::ZResult;
 use crate::generated::OwnedObject;
@@ -32,12 +32,12 @@ use prebindgen_ext::jni::decode_string;
 ///
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadDefaultConfigViaJNI(
+pub extern "C" fn Java_io_zenoh_jni_JniZConfig_00024Companion_loadDefaultConfigViaJNI(
     _env: JNIEnv,
     _class: JClass,
-) -> *const Config {
-    let config = Config::default();
-    Box::into_raw(Box::new(config)) as *const Config
+) -> *const ZConfig {
+    let config = ZConfig::default();
+    Box::into_raw(Box::new(config)) as *const ZConfig
 }
 
 /// Loads the config from a file, returning a pointer to the loaded config in case of success.
@@ -48,15 +48,15 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadDefaultConfigVi
 ///
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadConfigFileViaJNI(
+pub extern "C" fn Java_io_zenoh_jni_JniZConfig_00024Companion_loadConfigFileViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     config_path: JString,
-) -> *const Config {
-    || -> ZResult<*const Config> {
+) -> *const ZConfig {
+    || -> ZResult<*const ZConfig> {
         let config_file_path = decode_string(&mut env, &config_path).map_err(|err| zerror!(err))?;
-        let config = Config::from_file(config_file_path).map_err(|err| zerror!(err))?;
-        Ok(Box::into_raw(Box::new(config)) as *const Config)
+        let config = ZConfig::from_file(config_file_path).map_err(|err| zerror!(err))?;
+        Ok(Box::into_raw(Box::new(config)) as *const ZConfig)
     }()
     .unwrap_or_else(|err| {
         crate::generated::throw_ZError(&mut env, &err);
@@ -72,15 +72,15 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadConfigFileViaJN
 ///
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadJsonConfigViaJNI(
+pub extern "C" fn Java_io_zenoh_jni_JniZConfig_00024Companion_loadJsonConfigViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     json_config: JString,
-) -> *const Config {
-    || -> ZResult<*const Config> {
+) -> *const ZConfig {
+    || -> ZResult<*const ZConfig> {
         let json_config = decode_string(&mut env, &json_config).map_err(|err| zerror!(err))?;
         let config = zenoh_flat::config::load_json_config(&json_config)?;
-        Ok(Box::into_raw(Box::new(config)) as *const Config)
+        Ok(Box::into_raw(Box::new(config)) as *const ZConfig)
     }()
     .unwrap_or_else(|err| {
         crate::generated::throw_ZError(&mut env, &err);
@@ -96,15 +96,15 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadJsonConfigViaJN
 ///
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadYamlConfigViaJNI(
+pub extern "C" fn Java_io_zenoh_jni_JniZConfig_00024Companion_loadYamlConfigViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     yaml_config: JString,
-) -> *const Config {
-    || -> ZResult<*const Config> {
+) -> *const ZConfig {
+    || -> ZResult<*const ZConfig> {
         let yaml_config = decode_string(&mut env, &yaml_config).map_err(|err| zerror!(err))?;
         let config = zenoh_flat::config::load_yaml_config(&yaml_config)?;
-        Ok(Box::into_raw(Box::new(config)) as *const Config)
+        Ok(Box::into_raw(Box::new(config)) as *const ZConfig)
     }()
     .unwrap_or_else(|err| {
         crate::generated::throw_ZError(&mut env, &err);
@@ -116,10 +116,10 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadYamlConfigViaJN
 /// on the kotlin layer.
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_getJsonViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JniZConfig_00024Companion_getJsonViaJNI(
     mut env: JNIEnv,
     _class: JClass,
-    cfg_ptr: *const Config,
+    cfg_ptr: *const ZConfig,
     key: JString,
 ) -> jstring {
     let arc_cfg = OwnedObject::from_raw(cfg_ptr);
@@ -139,10 +139,10 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_getJsonViaJN
 /// on the kotlin layer.
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_insertJson5ViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JniZConfig_00024Companion_insertJson5ViaJNI(
     mut env: JNIEnv,
     _class: JClass,
-    cfg_ptr: *const Config,
+    cfg_ptr: *const ZConfig,
     key: JString,
     value: JString,
 ) {
@@ -166,10 +166,10 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_insertJson5V
 /// Config instance.
 #[no_mangle]
 #[allow(non_snake_case)]
-pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_freePtrViaJNI(
+pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JniZConfig_00024Companion_freePtrViaJNI(
     _env: JNIEnv,
     _: JClass,
-    config_ptr: *const Config,
+    config_ptr: *const ZConfig,
 ) {
-    drop(Box::from_raw(config_ptr as *mut Config));
+    drop(Box::from_raw(config_ptr as *mut ZConfig));
 }

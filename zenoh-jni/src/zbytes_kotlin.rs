@@ -27,8 +27,11 @@ use jni::{
     sys::jobject,
     JNIEnv,
 };
-use zenoh::bytes::ZBytes;
-use zenoh_ext::{VarInt, ZDeserializeError, ZDeserializer, ZSerializer};
+use zenoh::bytes::ZBytes as ZZBytes;
+use zenoh_ext::{
+    VarInt as ZVarInt, ZDeserializeError as ZZDeserializeError, ZDeserializer as ZZDeserializer,
+    ZSerializer as ZZSerializer,
+};
 
 use zenoh_flat::errors::ZResult;
 
@@ -167,7 +170,7 @@ fn decode_ktype(env: &mut JNIEnv, ktype: JObject) -> ZResult<KotlinType> {
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNIZBytesKotlin_serializeViaJNI(
+pub extern "C" fn Java_io_zenoh_jni_JniZZBytesKotlin_serializeViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     any: JObject,
@@ -175,7 +178,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIZBytesKotlin_serializeViaJNI(
 ) -> jobject {
     || -> ZResult<jobject> {
         let kotlin_type = decode_ktype(&mut env, ktype)?;
-        let mut serializer = ZSerializer::new();
+        let mut serializer = ZZSerializer::new();
         serialize(&mut env, &mut serializer, any, &kotlin_type)?;
         let zbytes = serializer.finish();
         let byte_array = bytes_to_java_array(&env, &zbytes).map_err(|err| zerror!(err))?;
@@ -189,7 +192,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIZBytesKotlin_serializeViaJNI(
 
 fn serialize(
     env: &mut JNIEnv,
-    serializer: &mut ZSerializer,
+    serializer: &mut ZZSerializer,
     any: JObject,
     ktype: &KotlinType,
 ) -> ZResult<()> {
@@ -297,7 +300,7 @@ fn serialize(
         KotlinType::List(inner) => {
             let jlist = JList::from_env(env, &any).map_err(|err| zerror!(err))?;
             let size = jlist.size(env).map_err(|err| zerror!(err))?;
-            serializer.serialize(VarInt(size as usize));
+            serializer.serialize(ZVarInt(size as usize));
             let mut iter = jlist.iter(env).map_err(|err| zerror!(err))?;
             while let Some(item) = iter.next(env).map_err(|err| zerror!(err))? {
                 serialize(env, serializer, item, inner)?;
@@ -310,7 +313,7 @@ fn serialize(
                 .map_err(|err| zerror!(err))?
                 .i()
                 .map_err(|err| zerror!(err))?;
-            serializer.serialize(VarInt(size as usize));
+            serializer.serialize(ZVarInt(size as usize));
             let mut iter = jmap.iter(env).map_err(|err| zerror!(err))?;
             while let Some((k, v)) = iter.next(env).map_err(|err| zerror!(err))? {
                 serialize(env, serializer, k, key_type)?;
@@ -357,7 +360,7 @@ fn serialize(
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNIZBytesKotlin_deserializeViaJNI(
+pub extern "C" fn Java_io_zenoh_jni_JniZZBytesKotlin_deserializeViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     bytes: JByteArray,
@@ -365,12 +368,12 @@ pub extern "C" fn Java_io_zenoh_jni_JNIZBytesKotlin_deserializeViaJNI(
 ) -> jobject {
     || -> ZResult<jobject> {
         let raw = decode_byte_array(&env, &bytes)?;
-        let zbytes = ZBytes::from(raw);
-        let mut deserializer = ZDeserializer::new(&zbytes);
+        let zbytes = ZZBytes::from(raw);
+        let mut deserializer = ZZDeserializer::new(&zbytes);
         let kotlin_type = decode_ktype(&mut env, ktype)?;
         let obj = deserialize(&mut env, &mut deserializer, &kotlin_type)?;
         if !deserializer.done() {
-            return Err(zerror!(ZDeserializeError));
+            return Err(zerror!(ZZDeserializeError));
         }
         Ok(obj)
     }()
@@ -382,7 +385,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIZBytesKotlin_deserializeViaJNI(
 
 fn deserialize(
     env: &mut JNIEnv,
-    deserializer: &mut ZDeserializer,
+    deserializer: &mut ZZDeserializer,
     ktype: &KotlinType,
 ) -> ZResult<jobject> {
     match ktype {
@@ -503,7 +506,7 @@ fn deserialize(
         }
         KotlinType::List(inner) => {
             let size = deserializer
-                .deserialize::<VarInt<usize>>()
+                .deserialize::<ZVarInt<usize>>()
                 .map_err(|err| zerror!(err))?
                 .0;
             let array_list = env
@@ -519,7 +522,7 @@ fn deserialize(
         }
         KotlinType::Map(key_type, val_type) => {
             let size = deserializer
-                .deserialize::<VarInt<usize>>()
+                .deserialize::<ZVarInt<usize>>()
                 .map_err(|err| zerror!(err))?
                 .0;
             let hash_map = env

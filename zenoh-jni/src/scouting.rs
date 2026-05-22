@@ -19,8 +19,8 @@ use jni::{
     sys::jint,
     JNIEnv,
 };
-use zenoh::{config::WhatAmIMatcher, Wait};
-use zenoh::{scouting::Scout, Config};
+use zenoh::{config::WhatAmIMatcher as ZWhatAmIMatcher, Wait as ZWait};
+use zenoh::{scouting::Scout as ZScout, Config as ZConfig};
 
 use crate::generated::OwnedObject;
 use crate::utils::{get_callback_global_ref, get_java_vm, load_on_close};
@@ -38,22 +38,22 @@ use zenoh_flat::errors::ZResult;
 ///
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNIScout_00024Companion_scoutViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JniZScout_00024Companion_scoutViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     whatAmI: jint,
     callback: JObject,
     on_close: JObject,
-    config_ptr: /*nullable=*/ *const Config,
-) -> *const Scout<()> {
-    || -> ZResult<*const Scout<()>> {
+    config_ptr: /*nullable=*/ *const ZConfig,
+) -> *const ZScout<()> {
+    || -> ZResult<*const ZScout<()>> {
         let callback_global_ref = get_callback_global_ref(&mut env, &callback)?;
         let java_vm = Arc::new(get_java_vm(&mut env)?);
         let on_close_global_ref: GlobalRef = get_callback_global_ref(&mut env, &on_close)?;
         let on_close = load_on_close(&java_vm, on_close_global_ref);
-        let whatAmIMatcher: WhatAmIMatcher = (whatAmI as u8).try_into().unwrap(); // The validity of the operation is guaranteed on the kotlin layer.
+        let whatAmIMatcher: ZWhatAmIMatcher = (whatAmI as u8).try_into().unwrap(); // The validity of the operation is guaranteed on the kotlin layer.
         let config = if config_ptr.is_null() {
-            Config::default()
+            ZConfig::default()
         } else {
             let arc_cfg = OwnedObject::from_raw(config_ptr);
             (*arc_cfg).clone()
@@ -91,7 +91,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIScout_00024Companion_scoutViaJNI(
                 .map_err(|err| tracing::error!("Error while scouting: ${err}"));
             })
             .wait()
-            .map(|scout| Box::into_raw(Box::new(scout)) as *const Scout<()>)
+            .map(|scout| Box::into_raw(Box::new(scout)) as *const ZScout<()>)
             .map_err(|err| zerror!(err))
     }()
     .unwrap_or_else(|err| {
@@ -103,10 +103,10 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIScout_00024Companion_scoutViaJNI(
 /// Frees the scout.
 #[no_mangle]
 #[allow(non_snake_case)]
-pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIScout_00024Companion_freePtrViaJNI(
+pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JniZScout_00024Companion_freePtrViaJNI(
     _env: JNIEnv,
     _: JClass,
-    scout_ptr: *const Scout<()>,
+    scout_ptr: *const ZScout<()>,
 ) {
-    drop(Box::from_raw(scout_ptr as *mut Scout<()>));
+    drop(Box::from_raw(scout_ptr as *mut ZScout<()>));
 }

@@ -14,7 +14,7 @@
 
 package io.zenoh.scouting
 
-import io.zenoh.jni.JNIScout
+import io.zenoh.jni.JniZScout
 
 /**
  * Scout for routers and/or peers.
@@ -62,7 +62,7 @@ import io.zenoh.jni.JNIScout
  * @see HandlerScout
  */
 sealed class Scout (
-    private var jniScout: JNIScout?
+    private var jniScout: JniZScout?
 ) : AutoCloseable {
 
     /**
@@ -93,7 +93,7 @@ sealed class Scout (
  * CallbackScout scout = Zenoh.scout(hello -> {...});
  * ```
  */
-class CallbackScout internal constructor(jniScout: JNIScout?) : Scout(jniScout)
+class CallbackScout internal constructor(jniScout: JniZScout?) : Scout(jniScout)
 
 /**
  * Scout using a handler to handle incoming [Hello] messages.
@@ -106,4 +106,4 @@ class CallbackScout internal constructor(jniScout: JNIScout?) : Scout(jniScout)
  * @param R The type of the receiver.
  * @param receiver The receiver of the scout's handler.
  */
-class HandlerScout<R> internal constructor(jniScout: JNIScout?, val receiver: R) : Scout(jniScout)
+class HandlerScout<R> internal constructor(jniScout: JniZScout?, val receiver: R) : Scout(jniScout)

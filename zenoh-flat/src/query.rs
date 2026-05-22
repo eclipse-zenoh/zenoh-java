@@ -24,11 +24,14 @@ use crate::{errors::ZResult, zerror};
 use prebindgen_proc_macro::prebindgen;
 use tracing::{error, trace};
 use zenoh::{
-    bytes::Encoding,
-    key_expr::KeyExpr,
-    query::Query,
-    time::{Timestamp, TimestampId, NTP64},
-    Wait,
+    bytes::Encoding as ZEncoding,
+    key_expr::KeyExpr as ZKeyExpr,
+    query::{
+        ConsolidationMode as ZConsolidationMode, Query as ZQuery, QueryTarget as ZQueryTarget,
+        ReplyKeyExpr as ZReplyKeyExpr,
+    },
+    time::{Timestamp as ZTimestamp, TimestampId as ZTimestampId, NTP64 as ZNTP64},
+    Wait as ZWait,
 };
 
 // ── Flat query enums ──────────────────────────────────────────────────
@@ -47,12 +50,12 @@ pub enum QueryTarget {
     AllComplete = 2,
 }
 
-impl From<QueryTarget> for zenoh::query::QueryTarget {
+impl From<QueryTarget> for ZQueryTarget {
     fn from(t: QueryTarget) -> Self {
         match t {
-            QueryTarget::BestMatching => zenoh::query::QueryTarget::BestMatching,
-            QueryTarget::All => zenoh::query::QueryTarget::All,
-            QueryTarget::AllComplete => zenoh::query::QueryTarget::AllComplete,
+            QueryTarget::BestMatching => ZQueryTarget::BestMatching,
+            QueryTarget::All => ZQueryTarget::All,
+            QueryTarget::AllComplete => ZQueryTarget::AllComplete,
         }
     }
 }
@@ -69,13 +72,13 @@ pub enum ConsolidationMode {
     Latest = 3,
 }
 
-impl From<ConsolidationMode> for zenoh::query::ConsolidationMode {
+impl From<ConsolidationMode> for ZConsolidationMode {
     fn from(m: ConsolidationMode) -> Self {
         match m {
-            ConsolidationMode::Auto => zenoh::query::ConsolidationMode::Auto,
-            ConsolidationMode::None => zenoh::query::ConsolidationMode::None,
-            ConsolidationMode::Monotonic => zenoh::query::ConsolidationMode::Monotonic,
-            ConsolidationMode::Latest => zenoh::query::ConsolidationMode::Latest,
+            ConsolidationMode::Auto => ZConsolidationMode::Auto,
+            ConsolidationMode::None => ZConsolidationMode::None,
+            ConsolidationMode::Monotonic => ZConsolidationMode::Monotonic,
+            ConsolidationMode::Latest => ZConsolidationMode::Latest,
         }
     }
 }
@@ -93,11 +96,11 @@ pub enum ReplyKeyExpr {
     Any = 1,
 }
 
-impl From<ReplyKeyExpr> for zenoh::query::ReplyKeyExpr {
+impl From<ReplyKeyExpr> for ZReplyKeyExpr {
     fn from(r: ReplyKeyExpr) -> Self {
         match r {
-            ReplyKeyExpr::MatchingQuery => zenoh::query::ReplyKeyExpr::MatchingQuery,
-            ReplyKeyExpr::Any => zenoh::query::ReplyKeyExpr::Any,
+            ReplyKeyExpr::MatchingQuery => ZReplyKeyExpr::MatchingQuery,
+            ReplyKeyExpr::Any => ZReplyKeyExpr::Any,
         }
     }
 }
@@ -108,18 +111,18 @@ impl From<ReplyKeyExpr> for zenoh::query::ReplyKeyExpr {
 /// timestamp ID is generated locally. The query is consumed.
 #[prebindgen]
 pub fn reply_success(
-    query: Query,
-    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
+    query: ZQuery,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     payload: Vec<u8>,
-    encoding: Encoding,
+    encoding: ZEncoding,
     timestamp_ntp64: Option<i64>,
     attachment: Option<Vec<u8>>,
     qos_express: bool,
 ) -> ZResult<()> {
-    let ke: KeyExpr<'static> = key_expr.into();
+    let ke: ZKeyExpr<'static> = key_expr.into();
     let mut reply_builder = query.reply(ke, payload).encoding(encoding);
     if let Some(ts) = timestamp_ntp64 {
-        reply_builder = reply_builder.timestamp(Timestamp::new(NTP64(ts as u64), TimestampId::rand()));
+        reply_builder = reply_builder.timestamp(ZTimestamp::new(ZNTP64(ts as u64), ZTimestampId::rand()));
     }
     if let Some(attachment) = attachment {
         reply_builder = reply_builder.attachment::<Vec<u8>>(attachment);
@@ -136,7 +139,7 @@ pub fn reply_success(
 
 /// Reply with an error to a [`Query`]. The query is consumed.
 #[prebindgen]
-pub fn reply_error(query: Query, payload: Vec<u8>, encoding: Encoding) -> ZResult<()> {
+pub fn reply_error(query: ZQuery, payload: Vec<u8>, encoding: ZEncoding) -> ZResult<()> {
     query
         .reply_err(payload)
         .encoding(encoding)
@@ -154,16 +157,16 @@ pub fn reply_error(query: Query, payload: Vec<u8>, encoding: Encoding) -> ZResul
 /// timestamp ID is generated locally. The query is consumed.
 #[prebindgen]
 pub fn reply_delete(
-    query: Query,
-    key_expr: impl Into<KeyExpr<'static>> + Send + 'static,
+    query: ZQuery,
+    key_expr: impl Into<ZKeyExpr<'static>> + Send + 'static,
     timestamp_ntp64: Option<i64>,
     attachment: Option<Vec<u8>>,
     qos_express: bool,
 ) -> ZResult<()> {
-    let ke: KeyExpr<'static> = key_expr.into();
+    let ke: ZKeyExpr<'static> = key_expr.into();
     let mut reply_builder = query.reply_del(ke);
     if let Some(ts) = timestamp_ntp64 {
-        reply_builder = reply_builder.timestamp(Timestamp::new(NTP64(ts as u64), TimestampId::rand()));
+        reply_builder = reply_builder.timestamp(ZTimestamp::new(ZNTP64(ts as u64), ZTimestampId::rand()));
     }
     if let Some(attachment) = attachment {
         reply_builder = reply_builder.attachment::<Vec<u8>>(attachment);

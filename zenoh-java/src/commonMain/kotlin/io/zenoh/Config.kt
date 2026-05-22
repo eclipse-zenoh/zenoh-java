@@ -16,7 +16,7 @@ package io.zenoh
 
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.jniCall
-import io.zenoh.jni.JNIConfig
+import io.zenoh.jni.JniZConfig
 import java.io.File
 import java.nio.file.Path
 
@@ -36,7 +36,7 @@ import java.nio.file.Path
  * Visit the [default configuration](https://github.com/eclipse-zenoh/zenoh/blob/main/DEFAULT_CONFIG.json5) for more
  * information on the Zenoh config parameters.
  */
-class Config internal constructor(internal val jniConfig: JNIConfig) {
+class Config internal constructor(internal val jniConfig: JniZConfig) {
 
     companion object {
 
@@ -47,7 +47,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         fun loadDefault(): Config {
-            return Config(JNIConfig.loadDefault())
+            return Config(JniZConfig.loadDefault())
         }
 
         /**
@@ -59,7 +59,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromFile(file: File): Config = jniCall { Config(JNIConfig.loadFromFile(file.toString())) }
+        fun fromFile(file: File): Config = jniCall { Config(JniZConfig.loadFromFile(file.toString())) }
 
         /**
          * Loads the configuration from the [Path] specified.
@@ -70,7 +70,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromFile(path: Path): Config = jniCall { Config(JNIConfig.loadFromFile(path.toString())) }
+        fun fromFile(path: Path): Config = jniCall { Config(JniZConfig.loadFromFile(path.toString())) }
 
         /**
          * Loads the configuration from json-formatted string.
@@ -83,7 +83,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromJson(config: String): Config = jniCall { Config(JNIConfig.loadFromJson(config)) }
+        fun fromJson(config: String): Config = jniCall { Config(JniZConfig.loadFromJson(config)) }
 
         /**
          * Loads the configuration from json5-formatted string.
@@ -96,7 +96,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromJson5(config: String): Config = jniCall { Config(JNIConfig.loadFromJson(config)) }
+        fun fromJson5(config: String): Config = jniCall { Config(JniZConfig.loadFromJson(config)) }
 
         /**
          * Loads the configuration from yaml-formatted string.
@@ -109,7 +109,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromYaml(config: String): Config = jniCall { Config(JNIConfig.loadFromYaml(config)) }
+        fun fromYaml(config: String): Config = jniCall { Config(JniZConfig.loadFromYaml(config)) }
 
         /**
          * Loads the configuration from the env variable [CONFIG_ENV].

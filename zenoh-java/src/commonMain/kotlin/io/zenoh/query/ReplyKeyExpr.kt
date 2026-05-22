@@ -14,7 +14,7 @@
 
 package io.zenoh.query
 
-import io.zenoh.jni.JNIReplyKeyExpr as JniReplyKeyExpr
+import io.zenoh.jni.JniReplyKeyExpr as JniReplyKeyExpr
 
 /**
  * The key expressions accepted by a query reply.
