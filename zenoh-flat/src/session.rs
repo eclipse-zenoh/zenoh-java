@@ -22,13 +22,13 @@ use zenoh::{
     config::Config,
     key_expr::KeyExpr as ZKeyExpr,
     pubsub::{Publisher, Subscriber},
-    query::{ConsolidationMode, Query, QueryTarget, Queryable, Querier, Reply, ReplyKeyExpr, Selector},
-    qos::{CongestionControl, Reliability},
+    query::{Query, Queryable, Querier, Reply, Selector},
     session::{Session, ZenohId},
     Wait,
 };
 
-use crate::qos::Priority;
+use crate::qos::{CongestionControl, Priority, Reliability};
+use crate::query::{ConsolidationMode, QueryTarget, ReplyKeyExpr};
 
 #[cfg(feature = "zenoh-ext")]
 use crate::structs::{CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig};
@@ -84,10 +84,10 @@ pub fn declare_publisher(
     let key_expr_string = ke.to_string();
     session
         .declare_publisher(ke)
-        .congestion_control(congestion_control)
+        .congestion_control(congestion_control.into())
         .priority(priority.into())
         .express(express)
-        .reliability(reliability)
+        .reliability(reliability.into())
         .wait()
         .map(|publisher| {
             trace!("Declared publisher on '{}'.", key_expr_string);
@@ -189,13 +189,13 @@ pub fn declare_querier(
     let key_expr_string = ke.to_string();
     session
         .declare_querier(ke)
-        .congestion_control(congestion_control)
-        .consolidation(consolidation)
+        .congestion_control(congestion_control.into())
+        .consolidation(zenoh::query::ConsolidationMode::from(consolidation))
         .express(express)
-        .target(query_target)
+        .target(query_target.into())
         .priority(priority.into())
         .timeout(timeout)
-        .accept_replies(reply_key_expr)
+        .accept_replies(reply_key_expr.into())
         .wait()
         .inspect(|_| {
             trace!("Declared querier on '{}'.", key_expr_string);
@@ -273,13 +273,13 @@ pub fn get(
             let _ = &guard; // capture the guard
             callback(reply);
         })
-        .target(query_target)
-        .consolidation(consolidation)
-        .congestion_control(congestion_control)
+        .target(query_target.into())
+        .consolidation(zenoh::query::ConsolidationMode::from(consolidation))
+        .congestion_control(congestion_control.into())
         .priority(priority.into())
         .express(express)
         .timeout(timeout)
-        .accept_replies(reply_key_expr);
+        .accept_replies(reply_key_expr.into());
 
     if let Some(payload) = payload {
         if let Some(encoding) = encoding {
@@ -320,11 +320,11 @@ pub fn put(
     let key_expr_string = key_expr_zenoh.to_string();
     let mut put_builder = session
         .put(&key_expr_zenoh, payload)
-        .congestion_control(congestion_control)
+        .congestion_control(congestion_control.into())
         .encoding(encoding)
         .express(express)
         .priority(priority.into())
-        .reliability(reliability);
+        .reliability(reliability.into());
 
     if let Some(attachment) = attachment {
         put_builder = put_builder.attachment(attachment);
@@ -356,10 +356,10 @@ pub fn delete(
     let key_expr_string = key_expr_zenoh.to_string();
     let mut delete_builder = session
         .delete(&key_expr_zenoh)
-        .congestion_control(congestion_control)
+        .congestion_control(congestion_control.into())
         .express(express)
         .priority(priority.into())
-        .reliability(reliability);
+        .reliability(reliability.into());
 
     if let Some(attachment) = attachment {
         delete_builder = delete_builder.attachment(attachment);
@@ -494,10 +494,10 @@ pub fn declare_advanced_publisher(
     let key_expr_string = ke.to_string();
     let mut builder = session
         .declare_publisher(ke)
-        .congestion_control(congestion_control)
+        .congestion_control(congestion_control.into())
         .priority(priority.into())
         .express(express)
-        .reliability(reliability)
+        .reliability(reliability.into())
         .advanced();
     if let Some(cache) = cache {
         builder = builder.cache(cache.try_into()?);

@@ -23,8 +23,6 @@ use jni::{
 use zenoh::{
     bytes::{Encoding, ZBytes},
     internal::buffers::ZSlice,
-    qos::{CongestionControl, Reliability},
-    query::{ConsolidationMode, QueryTarget, ReplyKeyExpr},
 };
 
 pub(crate) fn decode_encoding(
@@ -88,49 +86,6 @@ pub(crate) fn decode_byte_array(env: &JNIEnv, payload: &JByteArray) -> ZResult<V
         .map_err(|err| zerror!(err))?;
     let buff: Vec<u8> = unsafe { std::mem::transmute::<Vec<i8>, Vec<u8>>(buff) };
     Ok(buff)
-}
-
-pub(crate) fn decode_congestion_control(congestion_control: jint) -> ZResult<CongestionControl> {
-    match congestion_control {
-        1 => Ok(CongestionControl::Block),
-        0 => Ok(CongestionControl::Drop),
-        value => Err(zerror!("Unknown congestion control '{}'.", value)),
-    }
-}
-
-pub(crate) fn decode_query_target(target: jint) -> ZResult<QueryTarget> {
-    match target {
-        0 => Ok(QueryTarget::BestMatching),
-        1 => Ok(QueryTarget::All),
-        2 => Ok(QueryTarget::AllComplete),
-        value => Err(zerror!("Unable to decode QueryTarget '{}'.", value)),
-    }
-}
-
-pub(crate) fn decode_reply_key_expr(reply_key_expr: jint) -> ZResult<ReplyKeyExpr> {
-    match reply_key_expr {
-        0 => Ok(ReplyKeyExpr::MatchingQuery),
-        1 => Ok(ReplyKeyExpr::Any),
-        value => Err(zerror!("Unable to decode ReplyKeyExpr '{}'.", value)),
-    }
-}
-
-pub(crate) fn decode_consolidation(consolidation: jint) -> ZResult<ConsolidationMode> {
-    match consolidation {
-        0 => Ok(ConsolidationMode::Auto),
-        1 => Ok(ConsolidationMode::None),
-        2 => Ok(ConsolidationMode::Monotonic),
-        3 => Ok(ConsolidationMode::Latest),
-        value => Err(zerror!("Unable to decode consolidation '{}'", value)),
-    }
-}
-
-pub(crate) fn decode_reliability(reliability: jint) -> ZResult<Reliability> {
-    match reliability {
-        0 => Ok(Reliability::BestEffort),
-        1 => Ok(Reliability::Reliable),
-        value => Err(zerror!("Unable to decode reliability '{}'", value)),
-    }
 }
 
 pub(crate) fn bytes_to_java_array<'a>(env: &JNIEnv<'a>, slice: &ZBytes) -> ZResult<JByteArray<'a>> {

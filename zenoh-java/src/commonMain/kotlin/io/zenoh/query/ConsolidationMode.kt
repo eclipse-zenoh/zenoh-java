@@ -14,6 +14,8 @@
 
 package io.zenoh.query
 
+import io.zenoh.jni.ConsolidationMode as JniConsolidationMode
+
 /** The kind of consolidation. */
 enum class ConsolidationMode {
     /** Apply automatic consolidation based on queryable's preferences. */
@@ -35,4 +37,12 @@ enum class ConsolidationMode {
 
     /** Holds back samples to only send the set of samples that had the highest timestamp for their key. */
     LATEST;
+
+    /** Project onto the JNI-layer enum that crosses the boundary. */
+    fun toJni(): JniConsolidationMode = when (this) {
+        AUTO -> JniConsolidationMode.AUTO
+        NONE -> JniConsolidationMode.NONE
+        MONOTONIC -> JniConsolidationMode.MONOTONIC
+        LATEST -> JniConsolidationMode.LATEST
+    }
 }

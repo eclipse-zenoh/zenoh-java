@@ -23,10 +23,9 @@
 use std::time::Duration;
 
 use prebindgen_proc_macro::prebindgen;
-use zenoh::qos::CongestionControl;
 
 use crate::errors::{ZError, ZResult};
-use crate::qos::Priority;
+use crate::qos::{CongestionControl, Priority};
 use crate::zerror;
 
 /// Flat cache configuration for an [`zenoh_ext::AdvancedPublisher`].
@@ -84,8 +83,8 @@ impl TryFrom<CacheConfig> for zenoh_ext::CacheConfig {
             .try_into()
             .map_err(|e: std::num::TryFromIntError| zerror!("CacheConfig.max_samples: {}", e))?;
         let replies = zenoh_ext::RepliesConfig::default()
-            .priority(zenoh::qos::Priority::from(c.replies_priority))
-            .congestion_control(c.replies_congestion_control)
+            .priority(c.replies_priority.into())
+            .congestion_control(c.replies_congestion_control.into())
             .express(c.replies_is_express);
         Ok(zenoh_ext::CacheConfig::default()
             .max_samples(max_samples)

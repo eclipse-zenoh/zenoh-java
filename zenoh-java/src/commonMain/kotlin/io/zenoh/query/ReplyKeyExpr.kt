@@ -14,6 +14,8 @@
 
 package io.zenoh.query
 
+import io.zenoh.jni.ReplyKeyExpr as JniReplyKeyExpr
+
 /**
  * The key expressions accepted by a query reply.
  *
@@ -31,4 +33,10 @@ enum class ReplyKeyExpr {
      * Accept replies whose key expressions may not match the query key expression.
      */
     ANY;
+
+    /** Project onto the JNI-layer enum that crosses the boundary. */
+    fun toJni(): JniReplyKeyExpr = when (this) {
+        MATCHING_QUERY -> JniReplyKeyExpr.MATCHING_QUERY
+        ANY -> JniReplyKeyExpr.ANY
+    }
 }

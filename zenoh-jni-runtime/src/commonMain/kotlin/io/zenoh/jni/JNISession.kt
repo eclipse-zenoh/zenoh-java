@@ -44,10 +44,10 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     fun declarePublisher(
         keyExprHandle: NativeHandle?,
         keyExprString: String,
-        congestionControl: Int,
+        congestionControl: CongestionControl,
         priority: Priority,
         express: Boolean,
-        reliability: Int
+        reliability: Reliability
     ): JNIPublisher = JNIPublisher(
         JNIWrappers.declarePublisher(
             this,
@@ -95,13 +95,13 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     fun declareQuerier(
         keyExprHandle: NativeHandle?,
         keyExprString: String,
-        target: Int,
-        consolidation: Int,
-        congestionControl: Int,
+        target: QueryTarget,
+        consolidation: ConsolidationMode,
+        congestionControl: CongestionControl,
         priority: Priority,
         express: Boolean,
         timeoutMs: Long,
-        acceptReplies: Int
+        acceptReplies: ReplyKeyExpr
     ): JNIQuerier = JNIQuerier(
         JNIWrappers.declareQuerier(
             this,
@@ -132,15 +132,15 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
         callback: JNIGetCallback,
         onClose: JNIOnCloseCallback,
         timeoutMs: Long,
-        target: Int,
-        consolidation: Int,
+        target: QueryTarget,
+        consolidation: ConsolidationMode,
         attachmentBytes: ByteArray?,
         payload: ByteArray?,
         encoding: JNIEncoding?,
-        congestionControl: Int,
+        congestionControl: CongestionControl,
         priority: Priority,
         express: Boolean,
-        acceptReplies: Int,
+        acceptReplies: ReplyKeyExpr,
     ) = JNIWrappers.get(
         this,
         (keyExprHandle ?: keyExprString),
@@ -165,11 +165,11 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
         keyExprString: String,
         valuePayload: ByteArray,
         valueEncoding: JNIEncoding,
-        congestionControl: Int,
+        congestionControl: CongestionControl,
         priority: Priority,
         express: Boolean,
         attachmentBytes: ByteArray?,
-        reliability: Int
+        reliability: Reliability
     ) = JNIWrappers.put(
         this,
         (keyExprHandle ?: keyExprString),
@@ -186,11 +186,11 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     fun delete(
         keyExprHandle: NativeHandle?,
         keyExprString: String,
-        congestionControl: Int,
+        congestionControl: CongestionControl,
         priority: Priority,
         express: Boolean,
         attachmentBytes: ByteArray?,
-        reliability: Int
+        reliability: Reliability
     ) = JNIWrappers.delete(
         this,
         (keyExprHandle ?: keyExprString),
@@ -235,10 +235,10 @@ public class JNISession(initialPtr: Long) : NativeHandle(initialPtr) {
     fun declareAdvancedPublisher(
         keyExprHandle: NativeHandle?,
         keyExprStr: String,
-        congestionControl: Int,
+        congestionControl: CongestionControl,
         priority: Priority,
         isExpress: Boolean,
-        reliability: Int,
+        reliability: Reliability,
         cache: CacheConfig?,
         sampleMissDetection: MissDetectionConfig?,
         publisherDetection: Boolean,

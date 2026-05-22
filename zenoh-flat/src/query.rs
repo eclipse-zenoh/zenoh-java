@@ -31,6 +31,116 @@ use zenoh::{
     Wait,
 };
 
+// ── Flat query enums ──────────────────────────────────────────────────
+// Mirror their upstream `zenoh::query::*` counterparts but are owned by
+// `zenoh-flat`: discriminants are the wire values bindings send, and the
+// `From` impls are the manual flat → upstream shim.
+
+/// Flat mirror of [`zenoh::query::QueryTarget`].
+#[prebindgen]
+#[repr(i32)]
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum QueryTarget {
+    #[default]
+    BestMatching = 0,
+    All = 1,
+    AllComplete = 2,
+}
+
+impl TryFrom<i32> for QueryTarget {
+    type Error = String;
+
+    fn try_from(v: i32) -> Result<Self, Self::Error> {
+        Ok(match v {
+            0 => QueryTarget::BestMatching,
+            1 => QueryTarget::All,
+            2 => QueryTarget::AllComplete,
+            _ => return Err(format!("invalid QueryTarget discriminant: {}", v)),
+        })
+    }
+}
+
+impl From<QueryTarget> for zenoh::query::QueryTarget {
+    fn from(t: QueryTarget) -> Self {
+        match t {
+            QueryTarget::BestMatching => zenoh::query::QueryTarget::BestMatching,
+            QueryTarget::All => zenoh::query::QueryTarget::All,
+            QueryTarget::AllComplete => zenoh::query::QueryTarget::AllComplete,
+        }
+    }
+}
+
+/// Flat mirror of [`zenoh::query::ConsolidationMode`].
+#[prebindgen]
+#[repr(i32)]
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum ConsolidationMode {
+    #[default]
+    Auto = 0,
+    None = 1,
+    Monotonic = 2,
+    Latest = 3,
+}
+
+impl TryFrom<i32> for ConsolidationMode {
+    type Error = String;
+
+    fn try_from(v: i32) -> Result<Self, Self::Error> {
+        Ok(match v {
+            0 => ConsolidationMode::Auto,
+            1 => ConsolidationMode::None,
+            2 => ConsolidationMode::Monotonic,
+            3 => ConsolidationMode::Latest,
+            _ => return Err(format!("invalid ConsolidationMode discriminant: {}", v)),
+        })
+    }
+}
+
+impl From<ConsolidationMode> for zenoh::query::ConsolidationMode {
+    fn from(m: ConsolidationMode) -> Self {
+        match m {
+            ConsolidationMode::Auto => zenoh::query::ConsolidationMode::Auto,
+            ConsolidationMode::None => zenoh::query::ConsolidationMode::None,
+            ConsolidationMode::Monotonic => zenoh::query::ConsolidationMode::Monotonic,
+            ConsolidationMode::Latest => zenoh::query::ConsolidationMode::Latest,
+        }
+    }
+}
+
+/// Flat mirror of [`zenoh::query::ReplyKeyExpr`]. Note the discriminants
+/// follow the binding's wire order (`MatchingQuery = 0`, `Any = 1`),
+/// which differs from upstream's variant declaration order — the `From`
+/// impl maps by variant identity, not value.
+#[prebindgen]
+#[repr(i32)]
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum ReplyKeyExpr {
+    #[default]
+    MatchingQuery = 0,
+    Any = 1,
+}
+
+impl TryFrom<i32> for ReplyKeyExpr {
+    type Error = String;
+
+    fn try_from(v: i32) -> Result<Self, Self::Error> {
+        Ok(match v {
+            0 => ReplyKeyExpr::MatchingQuery,
+            1 => ReplyKeyExpr::Any,
+            _ => return Err(format!("invalid ReplyKeyExpr discriminant: {}", v)),
+        })
+    }
+}
+
+impl From<ReplyKeyExpr> for zenoh::query::ReplyKeyExpr {
+    fn from(r: ReplyKeyExpr) -> Self {
+        match r {
+            ReplyKeyExpr::MatchingQuery => zenoh::query::ReplyKeyExpr::MatchingQuery,
+            ReplyKeyExpr::Any => zenoh::query::ReplyKeyExpr::Any,
+        }
+    }
+}
+
 /// Reply with a successful sample to a [`Query`].
 ///
 /// `timestamp_ntp64` carries an NTP64 value when `Some`; the reply's

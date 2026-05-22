@@ -608,10 +608,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 declarePublisher(
                     keyExpr.jniKeyExpr,
                     keyExpr.keyExpr,
-                    options.congestionControl.value,
+                    options.congestionControl.toJni(),
                     options.priority.toJni(),
                     options.express,
-                    options.reliability.ordinal
+                    options.reliability.toJni()
                 )
             )
             weakDeclarations.add(WeakReference(publisher))
@@ -715,13 +715,13 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 declareQuerier(
                     keyExpr.jniKeyExpr,
                     keyExpr.keyExpr,
-                    options.target.ordinal,
-                    options.consolidationMode.ordinal,
-                    options.congestionControl.value,
+                    options.target.toJni(),
+                    options.consolidationMode.toJni(),
+                    options.congestionControl.toJni(),
                     options.priority.toJni(),
                     options.express,
                     options.timeout.toMillis(),
-                    options.acceptReplies.ordinal
+                    options.acceptReplies.toJni()
                 )
             )
             weakDeclarations.add(WeakReference(querier))
@@ -764,15 +764,15 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 getCallback,
                 handler::onClose,
                 options.timeout.toMillis(),
-                options.target.ordinal,
-                options.consolidation.ordinal,
+                options.target.toJni(),
+                options.consolidation.toJni(),
                 options.attachment?.into()?.bytes,
                 options.payload?.into()?.bytes,
                 options.encoding?.toJni(),
-                options.qos.congestionControl.value,
+                options.qos.congestionControl.toJni(),
                 options.qos.priority.toJni(),
                 options.qos.express,
-                options.acceptReplies.ordinal
+                options.acceptReplies.toJni()
             )
             handler.receiver()
         } ?: throw sessionClosedException
@@ -813,15 +813,15 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 getCallback,
                 fun() {},
                 options.timeout.toMillis(),
-                options.target.ordinal,
-                options.consolidation.ordinal,
+                options.target.toJni(),
+                options.consolidation.toJni(),
                 options.attachment?.into()?.bytes,
                 options.payload?.into()?.bytes,
                 options.encoding?.toJni(),
-                options.qos.congestionControl.value,
+                options.qos.congestionControl.toJni(),
                 options.qos.priority.toJni(),
                 options.qos.express,
-                options.acceptReplies.ordinal
+                options.acceptReplies.toJni()
             )
         } ?: throw sessionClosedException
     }
@@ -835,11 +835,11 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 keyExpr.keyExpr,
                 payload.into().bytes,
                 encoding,
-                putOptions.congestionControl.value,
+                putOptions.congestionControl.toJni(),
                 putOptions.priority.toJni(),
                 putOptions.express,
                 putOptions.attachment?.into()?.bytes,
-                putOptions.reliability.ordinal
+                putOptions.reliability.toJni()
             )
         }
     }
@@ -850,11 +850,11 @@ class Session private constructor(private val config: Config) : AutoCloseable {
             delete(
                 keyExpr.jniKeyExpr,
                 keyExpr.keyExpr,
-                deleteOptions.congestionControl.value,
+                deleteOptions.congestionControl.toJni(),
                 deleteOptions.priority.toJni(),
                 deleteOptions.express,
                 deleteOptions.attachment?.into()?.bytes,
-                deleteOptions.reliability.ordinal
+                deleteOptions.reliability.toJni()
             )
         }
     }

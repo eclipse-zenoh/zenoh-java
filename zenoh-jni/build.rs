@@ -113,24 +113,19 @@ fn main() {
         .kotlin_name("JNIMatchingListener")
         .kotlin_class(pq!(SampleMissListener))
         .kotlin_name("JNISampleMissListener")
-        // ── Native Kotlin enum — `kotlin_enum` configures: jint wire
+        // ── Native Kotlin enums — `kotlin_enum` configures: jint wire
         // (input + output), `TryFrom<i32>` decode, `as jint` encode, and
         // an auto-emitted `enum class` Kotlin file under the configured
-        // package. The flat `Priority` lives in `zenoh-flat/src/qos.rs`;
-        // the flat ↔ upstream `zenoh::qos::Priority` shim is manual
-        // (in zenoh-flat) so binding-time value drift is owned there,
-        // not by the framework.
+        // package. Each flat enum lives in `zenoh-flat` (qos.rs /
+        // query.rs); the flat ↔ upstream `zenoh::{qos,query}::*` shim is
+        // manual (in zenoh-flat) so binding-time value drift is owned
+        // there, not by the framework.
         .kotlin_enum(pq!(Priority))
-        // ── jint-encoded enums — sugar over `input_wrapper` for the
-        // common `jint → enum` pattern (input-only, custom decode map).
-        .jint_enum(
-            pq!(CongestionControl),
-            pq!(crate::utils::decode_congestion_control),
-        )
-        .jint_enum(pq!(Reliability), pq!(crate::utils::decode_reliability))
-        .jint_enum(pq!(QueryTarget), pq!(crate::utils::decode_query_target))
-        .jint_enum(pq!(ConsolidationMode), pq!(crate::utils::decode_consolidation))
-        .jint_enum(pq!(ReplyKeyExpr), pq!(crate::utils::decode_reply_key_expr))
+        .kotlin_enum(pq!(CongestionControl))
+        .kotlin_enum(pq!(Reliability))
+        .kotlin_enum(pq!(QueryTarget))
+        .kotlin_enum(pq!(ConsolidationMode))
+        .kotlin_enum(pq!(ReplyKeyExpr))
         // ── Value-shaped custom converters. These call into zenoh code
         // that returns `ZResult<_>`, so the closure puts
         // `Some(parse_quote!(ZError))` in the middle
@@ -213,7 +208,7 @@ fn main() {
         // ── Kotlin names for hand-maintained data classes whose
         // converters auto-generate from the struct shape but whose
         // Kotlin form lives in JNINative.kt. Primitives, opaque
-        // handles, `jint_enum`s, `with_kotlin_name`-tagged
+        // handles, `kotlin_enum`s, `with_kotlin_name`-tagged
         // decoders/encoders, and every `Option<T>` / `ZResult<T>` /
         // `&T` wrapper auto-derive their Kotlin names through the
         // [`KotlinMeta`] propagation in the rank-N handlers — no

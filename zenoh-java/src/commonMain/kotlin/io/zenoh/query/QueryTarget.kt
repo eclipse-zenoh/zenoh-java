@@ -14,6 +14,8 @@
 
 package io.zenoh.query
 
+import io.zenoh.jni.QueryTarget as JniQueryTarget
+
 /** The Queryables that should be targeted by a GET operation. */
 enum class QueryTarget {
 
@@ -31,5 +33,12 @@ enum class QueryTarget {
      * All Complete queryables.
      */
     ALL_COMPLETE;
+
+    /** Project onto the JNI-layer enum that crosses the boundary. */
+    fun toJni(): JniQueryTarget = when (this) {
+        BEST_MATCHING -> JniQueryTarget.BEST_MATCHING
+        ALL -> JniQueryTarget.ALL
+        ALL_COMPLETE -> JniQueryTarget.ALL_COMPLETE
+    }
 }
 

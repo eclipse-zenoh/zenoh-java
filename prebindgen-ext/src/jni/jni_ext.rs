@@ -376,13 +376,13 @@ pub struct JniExt {
 
     /// Structured per-type configuration keyed by canonical Rust type.
     /// One entry per `Rust type ↔ JNI/Kotlin` rule; populated by the
-    /// structured builders (`kotlin_class`, `kotlin_value_type`,
-    /// `jint_enum`, `input_wrapper`, `output_wrapper`, `callback_input`,
-    /// `callback_kotlin_name`). Holds opaque-handle config, Kotlin
-    /// names, and callback FQNs; the converter bodies themselves live
-    /// in [`Self::input_wrappers`] / [`Self::output_wrappers`]. The
-    /// rank-0 dispatch order is opaque → wrapper-table → primitive →
-    /// struct.
+    /// structured builders (`kotlin_class`, `kotlin_enum`,
+    /// `kotlin_value_type`, `input_wrapper`, `output_wrapper`,
+    /// `callback_input`, `callback_kotlin_name`). Holds opaque-handle
+    /// config, enum config, Kotlin names, and callback FQNs; the
+    /// converter bodies themselves live in [`Self::input_wrappers`] /
+    /// [`Self::output_wrappers`]. The rank-0 dispatch order is opaque →
+    /// enum → wrapper-table → primitive → struct.
     pub(crate) types: HashMap<TypeKey, TypeConfig>,
 
     /// `impl Into<target> + Send + 'static` source arms per target type.
@@ -407,7 +407,7 @@ pub struct JniExt {
 
     /// Tracks the last rank-0 wrapper / callback registration key so
     /// [`Self::kotlin_name`] knows which entry to stamp. Set by
-    /// `input_wrapper` / `output_wrapper` (rank 0 only), `jint_enum`,
+    /// `input_wrapper` / `output_wrapper` (rank 0 only), `kotlin_enum`,
     /// `callback_input`, `callback_kotlin_name`, and `kotlin_value_type`;
     /// cleared after each unrelated builder call.
     last_meta_key: Option<TypeKey>,
@@ -777,7 +777,7 @@ impl JniExt {
             .expect(
                 "JniExt::kotlin_name must be chained immediately after a \
                  `kotlin_class` / `kotlin_enum` / `kotlin_value_type` / \
-                 `input_wrapper` / `output_wrapper` / `jint_enum` / \
+                 `input_wrapper` / `output_wrapper` / \
                  `callback_input` / `callback_kotlin_name` / \
                  `kotlin_exception_class` call",
             );
@@ -827,47 +827,6 @@ impl JniExt {
         self.kotlin_type_fqns
             .push((key.as_str().to_string(), expr));
         self
-    }
-
-    /// Sugar over [`Self::input_wrapper`] for the common
-    /// `jint → enum` pattern: emits a rank-0 input wrapper whose body
-    /// decodes the jint into the enum (or surfaces the decode error as
-    /// the framework `JniBindingError` via `Display`).
-    ///
-    /// The body wraps `decode_path(*v)` in a `map_err(|e| __JniErr::from(e.to_string()))?`
-    /// chain rather than a bare `?` so the helper may return any
-    /// domain error type without needing a cross-crate `From` bridge
-    /// to `JniBindingError` (the orphan rule forbids one anyway).
-    /// `jint → enum` is a binding-layer concern, so surfacing decode
-    /// failures as `JniBindingError` is the right semantic — the
-    /// registered closure passes `None` for the exception slot. If a
-    /// binding wants the failure to surface as a specific domain
-    /// exception instead, register the converter directly via
-    /// [`Self::input_wrapper`] with `Some(parse_quote!(<full path>))` in
-    /// the closure's middle slot.
-    pub fn jint_enum(
-        self,
-        rust_type: syn::Type,
-        decode_path: syn::Path,
-    ) -> Self {
-        // `syn::Path` holds `Rc<TokenStream>` internally and is neither
-        // `Send` nor `Sync`, so we can't capture it directly in a builder
-        // closure that satisfies `WrapperBuilder<Arity0>`'s `Send + Sync`
-        // bounds. Serialise to its token form here and re-parse inside
-        // the closure.
-        let decode_path_str = decode_path.to_token_stream().to_string();
-        self.input_wrapper(rust_type, move |_reg: &Registry<KotlinMeta>| {
-            let decode_path: syn::Path = syn::parse_str(&decode_path_str).ok()?;
-            Some((
-                syn::parse_quote!(jni::sys::jint),
-                None,
-                syn::parse_quote!(
-                    #decode_path(*v).map_err(|e| {
-                        <__JniErr as ::core::convert::From<String>>::from(e.to_string())
-                    })?
-                ),
-            ))
-        })
     }
 
     /// Install a manual input converter for an `impl Fn(...)` callback
@@ -3200,9 +3159,8 @@ fn struct_module_path(ext: &JniExt, s: &syn::ItemStruct) -> syn::Path {
 /// `jint → Rust enum` decoder body for a `kotlin_enum`-declared enum.
 /// Wire is `jni::sys::jint`; the body calls `<ident>::try_from(*v as i32)`
 /// and surfaces decode failures as the framework `__JniErr` via `Display`
-/// (matching [`JniExt::jint_enum`]'s error semantics — a malformed jint
-/// is a binding-layer concern, not a domain error). The enum must
-/// implement `TryFrom<i32, Error = E>` where `E: Display`.
+/// (a malformed jint is a binding-layer concern, not a domain error).
+/// The enum must implement `TryFrom<i32, Error = E>` where `E: Display`.
 ///
 /// The body uses the bare ident — same shape as the wrapper function's
 /// `v: <ident>` signature — so binding crates can pick whichever

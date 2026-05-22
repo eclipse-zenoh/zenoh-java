@@ -14,9 +14,11 @@
 
 package io.zenoh.qos
 
+import io.zenoh.jni.CongestionControl as JniCongestionControl
+
 /** The congestion control to be applied when routing the data. */
 enum class CongestionControl (val value: Int) {
-    
+
     /**
      * Allows the message to be dropped if all buffers are full.
      */
@@ -27,6 +29,12 @@ enum class CongestionControl (val value: Int) {
      * In the face of heavy congestion on a part of the network, this could result in your publisher node blocking.
      */
     BLOCK(1);
+
+    /** Project onto the JNI-layer enum that crosses the boundary. */
+    fun toJni(): JniCongestionControl = when (this) {
+        DROP -> JniCongestionControl.DROP
+        BLOCK -> JniCongestionControl.BLOCK
+    }
 
     companion object {
         fun fromInt(value: Int) = entries.first { it.value == value }

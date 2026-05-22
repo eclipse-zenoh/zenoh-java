@@ -14,6 +14,8 @@
 
 package io.zenoh.qos
 
+import io.zenoh.jni.Reliability as JniReliability
+
 /**
  * The reliability policy.
  *
@@ -35,5 +37,11 @@ enum class Reliability {
      * Note that if a publisher puts a sample with the [io.zenoh.prelude.CongestionControl.DROP] option,
      * this reliability requirement may be infringed to prevent slow readers from blocking the network.
      */
-    RELIABLE,
+    RELIABLE;
+
+    /** Project onto the JNI-layer enum that crosses the boundary. */
+    fun toJni(): JniReliability = when (this) {
+        BEST_EFFORT -> JniReliability.BEST_EFFORT
+        RELIABLE -> JniReliability.RELIABLE
+    }
 }

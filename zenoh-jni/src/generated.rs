@@ -29,18 +29,18 @@ use zenoh::{
     key_expr::{KeyExpr as ZKeyExpr, SetIntersectionLevel},
     liveliness::LivelinessToken,
     pubsub::{Publisher, Subscriber},
-    qos::{CongestionControl, Reliability},
-    query::{ConsolidationMode, Querier, Query, QueryTarget, Queryable, Reply, ReplyKeyExpr},
+    query::{Querier, Query, Queryable, Reply},
     session::{Session, ZenohId},
 };
 #[cfg(feature = "zenoh-ext")]
 use zenoh_ext::{AdvancedPublisher, AdvancedSubscriber};
-// `Priority` resolves to the flat enum here so the auto-generated
-// `Priority_to_jint_*` / `jint_to_Priority_*` converters (whose
-// signatures use the bare ident) typecheck against `zenoh_flat::Priority`.
-// The flat ↔ upstream `zenoh::qos::Priority` value mapping lives in
-// `zenoh-flat/src/qos.rs`.
-use zenoh_flat::qos::Priority;
+// The flat enums resolve to `zenoh_flat::{qos,query}::*` here so the
+// auto-generated `<Enum>_to_jint_*` / `jint_to_<Enum>_*` converters
+// (whose signatures use the bare ident) typecheck against the flat
+// types. The flat ↔ upstream `zenoh::{qos,query}::*` value mappings
+// live in `zenoh-flat` (qos.rs / query.rs).
+use zenoh_flat::qos::{CongestionControl, Priority, Reliability};
+use zenoh_flat::query::{ConsolidationMode, QueryTarget, ReplyKeyExpr};
 use zenoh_flat::sample::Sample;
 use zenoh_flat::errors::ZResult;
 use zenoh_flat::errors::ZError;

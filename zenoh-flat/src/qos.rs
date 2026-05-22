@@ -84,3 +84,67 @@ impl From<Priority> for zenoh::qos::Priority {
         }
     }
 }
+
+/// Flat mirror of [`zenoh::qos::CongestionControl`]. Discriminants are
+/// the wire values the binding sends; `#[repr(i32)]` keeps the JNI
+/// `as jint` round-trip a no-op cast.
+#[prebindgen]
+#[repr(i32)]
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum CongestionControl {
+    #[default]
+    Drop = 0,
+    Block = 1,
+}
+
+impl TryFrom<i32> for CongestionControl {
+    type Error = String;
+
+    fn try_from(v: i32) -> Result<Self, Self::Error> {
+        Ok(match v {
+            0 => CongestionControl::Drop,
+            1 => CongestionControl::Block,
+            _ => return Err(format!("invalid CongestionControl discriminant: {}", v)),
+        })
+    }
+}
+
+impl From<CongestionControl> for zenoh::qos::CongestionControl {
+    fn from(c: CongestionControl) -> Self {
+        match c {
+            CongestionControl::Drop => zenoh::qos::CongestionControl::Drop,
+            CongestionControl::Block => zenoh::qos::CongestionControl::Block,
+        }
+    }
+}
+
+/// Flat mirror of [`zenoh::qos::Reliability`].
+#[prebindgen]
+#[repr(i32)]
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum Reliability {
+    BestEffort = 0,
+    #[default]
+    Reliable = 1,
+}
+
+impl TryFrom<i32> for Reliability {
+    type Error = String;
+
+    fn try_from(v: i32) -> Result<Self, Self::Error> {
+        Ok(match v {
+            0 => Reliability::BestEffort,
+            1 => Reliability::Reliable,
+            _ => return Err(format!("invalid Reliability discriminant: {}", v)),
+        })
+    }
+}
+
+impl From<Reliability> for zenoh::qos::Reliability {
+    fn from(r: Reliability) -> Self {
+        match r {
+            Reliability::BestEffort => zenoh::qos::Reliability::BestEffort,
+            Reliability::Reliable => zenoh::qos::Reliability::Reliable,
+        }
+    }
+}
