@@ -35,10 +35,10 @@ macro_rules! zerror {
     };
 }
 
-pub(crate) type ZResult<T> = core::result::Result<T, ZError>;
+pub type ZResult<T> = core::result::Result<T, ZError>;
 
 #[derive(Debug)]
-pub(crate) struct ZError(pub String);
+pub struct ZError(pub String);
 
 impl fmt::Display for ZError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

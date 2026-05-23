@@ -35,7 +35,7 @@ use crate::{errors::ZResult, throw_exception, zerror};
 /// # Errors:
 /// - If there is an error parsing the log level string, a `JNIException` is thrown on the JVM.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub extern "C" fn Java_io_zenoh_Logger_00024Companion_startLogsViaJNI(
     mut env: JNIEnv,

@@ -35,7 +35,7 @@ use crate::{errors::ZResult, throw_exception, zerror};
 /// Returns a pointer to the scout, which must be freed afterwards.
 /// If starting the scout fails, an exception is thrown on the JVM, and a null pointer is returned.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNIScout_00024Companion_scoutViaJNI(
     mut env: JNIEnv,
@@ -54,10 +54,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIScout_00024Companion_scoutViaJNI(
         let config = if config_ptr.is_null() {
             Config::default()
         } else {
-            let arc_cfg = Arc::from_raw(config_ptr);
-            let config_clone = arc_cfg.as_ref().clone();
-            std::mem::forget(arc_cfg);
-            config_clone
+            (*config_ptr).clone()
         };
         zenoh::scout(whatAmIMatcher, config)
             .callback(move |hello| {
@@ -92,7 +89,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIScout_00024Companion_scoutViaJNI(
                 .map_err(|err| tracing::error!("Error while scouting: ${err}"));
             })
             .wait()
-            .map(|scout| Arc::into_raw(Arc::new(scout)))
+            .map(|scout| Box::into_raw(Box::new(scout)) as *const _)
             .map_err(|err| zerror!(err))
     }()
     .unwrap_or_else(|err| {
@@ -102,12 +99,12 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIScout_00024Companion_scoutViaJNI(
 }
 
 /// Frees the scout.
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
-pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIScout_00024Companion_freePtrViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNIScout_00024Companion_freePtrViaJNI(
     _env: JNIEnv,
     _: JClass,
     scout_ptr: *const Scout<()>,
 ) {
-    Arc::from_raw(scout_ptr);
+    let _ = Box::from_raw(scout_ptr as *mut Scout<()>);
 }

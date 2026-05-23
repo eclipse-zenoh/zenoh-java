@@ -12,8 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::sync::Arc;
-
 use jni::{objects::JClass, JNIEnv};
 use zenoh::query::Queryable;
 
@@ -30,12 +28,12 @@ use zenoh::query::Queryable;
 /// - The function takes ownership of the raw pointer and releases the associated memory.
 /// - After calling this function, the queryable pointer becomes invalid and should not be used anymore.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
-pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQueryable_freePtrViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQueryable_freePtrViaJNI(
     _env: JNIEnv,
     _: JClass,
     queryable_ptr: *const Queryable<()>,
 ) {
-    Arc::from_raw(queryable_ptr);
+    let _ = Box::from_raw(queryable_ptr as *mut Queryable<()>);
 }

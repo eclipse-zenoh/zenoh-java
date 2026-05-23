@@ -12,7 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::{mem, ops::Deref, ptr::null, sync::Arc, time::Duration};
+use std::{ptr::null, sync::Arc, time::Duration};
 
 use jni::{
     objects::{GlobalRef, JByteArray, JClass, JList, JObject, JString, JValue},
@@ -46,7 +46,7 @@ use crate::{
 /// - `_class`: The JNI class (parameter required by the JNI interface but unused).
 /// - `config_path`: Nullable path to the Zenoh config file. If null, the default configuration will be loaded.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_00024Companion_openSessionViaJNI(
     mut env: JNIEnv,
@@ -55,7 +55,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_00024Companion_openSession
 ) -> *const Session {
     let session = open_session(config_ptr);
     match session {
-        Ok(session) => Arc::into_raw(Arc::new(session)),
+        Ok(session) => Box::into_raw(Box::new(session)) as *const _,
         Err(err) => {
             tracing::error!("Unable to open session: {}", err);
             throw_exception!(env, zerror!(err));
@@ -69,12 +69,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_00024Companion_openSession
 /// If the config path provided is null then the default configuration is loaded.
 ///
 unsafe fn open_session(config_ptr: *const Config) -> ZResult<Session> {
-    let config = Arc::from_raw(config_ptr);
-    let result = zenoh::open(config.as_ref().clone())
+    zenoh::open((*config_ptr).clone())
         .wait()
-        .map_err(|err| zerror!(err));
-    mem::forget(config);
-    result
+        .map_err(|err| zerror!(err))
 }
 
 /// Open a Zenoh session with a JSON configuration.
@@ -90,7 +87,7 @@ unsafe fn open_session(config_ptr: *const Config) -> ZResult<Session> {
 /// - `_class`: The JNI class (parameter required by the JNI interface but unused).
 /// - `json_config`: Configuration as a JSON string.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub extern "C" fn Java_io_zenoh_jni_JNISession_openSessionWithJsonConfigViaJNI(
     mut env: JNIEnv,
@@ -99,7 +96,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNISession_openSessionWithJsonConfigViaJNI(
 ) -> *const Session {
     let session = open_session_with_json_config(&mut env, json_config);
     match session {
-        Ok(session) => Arc::into_raw(Arc::new(session)),
+        Ok(session) => Box::into_raw(Box::new(session)) as *const _,
         Err(err) => {
             tracing::error!("Unable to open session: {}", err);
             throw_exception!(env, zerror!(err));
@@ -134,7 +131,7 @@ fn open_session_with_json_config(env: &mut JNIEnv, json_config: JString) -> ZRes
 /// - `_class`: The JNI class (parameter required by the JNI interface but unused).
 /// - `yaml_config`: Configuration as a YAML string.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub extern "C" fn Java_io_zenoh_jni_JNISession_openSessionWithYamlConfigViaJNI(
     mut env: JNIEnv,
@@ -143,7 +140,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNISession_openSessionWithYamlConfigViaJNI(
 ) -> *const Session {
     let session = open_session_with_yaml_config(&mut env, yaml_config);
     match session {
-        Ok(session) => Arc::into_raw(Arc::new(session)),
+        Ok(session) => Box::into_raw(Box::new(session)) as *const _,
         Err(err) => {
             tracing::error!("Unable to open session: {}", err);
             throw_exception!(env, zerror!(err));
@@ -177,14 +174,14 @@ fn open_session_with_yaml_config(env: &mut JNIEnv, yaml_config: JString) -> ZRes
 /// - The function may throw a JNI exception in case of failure, which should be handled by the caller.
 /// - After the session is closed, the provided pointer is no more valid.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case, unused)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_closeSessionViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     session_ptr: *const Session,
 ) {
-    Arc::from_raw(session_ptr);
+    let _ = Box::from_raw(session_ptr as *mut Session);
 }
 
 /// Declare a Zenoh publisher via JNI.
@@ -212,7 +209,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_closeSessionViaJNI(
 ///   after this function call so it is safe to use it after this call.
 /// - The function may throw an exception in case of failure, which should be handled by the caller.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declarePublisherViaJNI(
     mut env: JNIEnv,
@@ -225,7 +222,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declarePublisherViaJNI(
     is_express: jboolean,
     reliability: jint,
 ) -> *const Publisher<'static> {
-    let session = Arc::from_raw(session_ptr);
+    let session: &Session = &*session_ptr;
     let publisher_ptr = || -> ZResult<*const Publisher<'static>> {
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let congestion_control = decode_congestion_control(congestion_control)?;
@@ -239,7 +236,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declarePublisherViaJNI(
             .reliability(reliability)
             .wait();
         match result {
-            Ok(publisher) => Ok(Arc::into_raw(Arc::new(publisher))),
+            Ok(publisher) => Ok(Box::into_raw(Box::new(publisher)) as *const _),
             Err(err) => Err(zerror!(err)),
         }
     }()
@@ -247,7 +244,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declarePublisherViaJNI(
         throw_exception!(env, err);
         null()
     });
-    std::mem::forget(session);
     publisher_ptr
 }
 
@@ -277,7 +273,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declarePublisherViaJNI(
 ///   allowing safe usage of the session after this function call.
 /// - The function may throw an exception in case of failure, which should be handled by the Java/Kotlin caller.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
     mut env: JNIEnv,
@@ -294,7 +290,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
     attachment: JByteArray,
     reliability: jint,
 ) {
-    let session = Arc::from_raw(session_ptr);
+    let session: &Session = &*session_ptr;
     let _ = || -> ZResult<()> {
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let payload = decode_byte_array(&env, payload)?;
@@ -322,7 +318,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
             .map_err(|err| zerror!(err))
     }()
     .map_err(|err| throw_exception!(env, err));
-    std::mem::forget(session);
 }
 
 /// Performs a `delete` operation in the Zenoh session via JNI.
@@ -349,7 +344,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_putViaJNI(
 /// - The function may throw a JNI exception or a Session exception in case of failure, which
 ///   should be handled by the Java/Kotlin caller.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_deleteViaJNI(
     mut env: JNIEnv,
@@ -363,7 +358,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_deleteViaJNI(
     attachment: JByteArray,
     reliability: jint,
 ) {
-    let session = Arc::from_raw(session_ptr);
+    let session: &Session = &*session_ptr;
     let _ = || -> ZResult<()> {
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let congestion_control = decode_congestion_control(congestion_control)?;
@@ -388,7 +383,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_deleteViaJNI(
             .map_err(|err| zerror!(err))
     }()
     .map_err(|err| throw_exception!(env, err));
-    std::mem::forget(session);
 }
 
 /// Declare a Zenoh subscriber via JNI.
@@ -416,7 +410,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_deleteViaJNI(
 ///   in Java/Kotlin, matching the specified signature.
 /// - The function may throw a JNI exception in case of failure, which should be handled by the caller.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareSubscriberViaJNI(
     mut env: JNIEnv,
@@ -427,7 +421,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareSubscriberViaJNI(
     callback: JObject,
     on_close: JObject,
 ) -> *const Subscriber<()> {
-    let session = Arc::from_raw(session_ptr);
+    let session: &Session = &*session_ptr;
     || -> ZResult<*const Subscriber<()>> {
         let java_vm = Arc::new(get_java_vm(&mut env)?);
         let callback_global_ref = get_callback_global_ref(&mut env, callback)?;
@@ -505,8 +499,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareSubscriberViaJNI(
         let subscriber = result.map_err(|err| zerror!("Unable to declare subscriber: {}", err))?;
 
         tracing::debug!("Subscriber declared on '{}'.", key_expr);
-        std::mem::forget(session);
-        Ok(Arc::into_raw(Arc::new(subscriber)))
+        Ok(Box::into_raw(Box::new(subscriber)) as *const _)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
@@ -531,7 +524,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareSubscriberViaJNI(
 /// - `priority`: The ordinal value of the priority enum value.
 /// - `is_express`: The boolean express value of the QoS provided.
 /// - `timeout_ms`: The timeout in milliseconds.
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
     mut env: JNIEnv,
@@ -547,7 +540,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
     timeout_ms: jlong,
     accept_replies: jint,
 ) -> *const Querier<'static> {
-    let session = Arc::from_raw(session_ptr);
+    let session: &Session = &*session_ptr;
     || -> ZResult<*const Querier<'static>> {
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let query_target = decode_query_target(target)?;
@@ -571,8 +564,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
             .map_err(|err| zerror!(err))?;
 
         tracing::debug!("Querier declared on '{}'.", key_expr);
-        std::mem::forget(session);
-        Ok(Arc::into_raw(Arc::new(querier)))
+        Ok(Box::into_raw(Box::new(querier)) as *const _)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
@@ -608,7 +600,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQuerierViaJNI(
 ///   in Java/Kotlin, matching the specified signature.
 /// - The function may throw a JNI exception in case of failure, which should be handled by the caller.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQueryableViaJNI(
     mut env: JNIEnv,
@@ -620,7 +612,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQueryableViaJNI(
     on_close: JObject,
     complete: jboolean,
 ) -> *const Queryable<()> {
-    let session = Arc::from_raw(session_ptr);
+    let session: &Session = &*session_ptr;
     let query_ptr = || -> ZResult<*const Queryable<()>> {
         let java_vm = Arc::new(get_java_vm(&mut env)?);
         let callback_global_ref = get_callback_global_ref(&mut env, callback)?;
@@ -652,13 +644,12 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareQueryableViaJNI(
         let queryable = builder
             .wait()
             .map_err(|err| zerror!("Error declaring queryable: {}", err))?;
-        Ok(Arc::into_raw(Arc::new(queryable)))
+        Ok(Box::into_raw(Box::new(queryable)) as *const _)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
         null()
     });
-    std::mem::forget(session);
     query_ptr
 }
 
@@ -717,7 +708,7 @@ fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> Z
         ReplyKeyExpr::Any => 1,
     };
 
-    let query_ptr = Arc::into_raw(Arc::new(query));
+    let query_ptr = Box::into_raw(Box::new(query)) as *const Query;
 
     let result = env
         .call_method(
@@ -742,7 +733,7 @@ fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> Z
             // and remains unaltered, it is safe to reclaim ownership of the memory by converting
             // the raw pointers back into an `Arc` and freeing the memory.
             unsafe {
-                Arc::from_raw(query_ptr);
+                let _ = Box::from_raw(query_ptr as *mut Query);
             };
             _ = env.exception_describe();
             zerror!(err)
@@ -768,7 +759,7 @@ fn on_query(mut env: JNIEnv, query: Query, callback_global_ref: &GlobalRef) -> Z
 ///   allowing safe usage of the session after this function call.
 /// - The function may throw an exception in case of failure, which should be handled by the caller.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareKeyExprViaJNI(
     mut env: JNIEnv,
@@ -776,7 +767,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareKeyExprViaJNI(
     session_ptr: *const Session,
     key_expr_str: JString,
 ) -> *const KeyExpr<'static> {
-    let session: Arc<Session> = Arc::from_raw(session_ptr);
+    let session: &Session = &*session_ptr;
     let key_expr_ptr = || -> ZResult<*const KeyExpr<'static>> {
         let key_expr_str = decode_string(&mut env, &key_expr_str)?;
         let key_expr = session
@@ -789,13 +780,12 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareKeyExprViaJNI(
                     err
                 )
             })?;
-        Ok(Arc::into_raw(Arc::new(key_expr)))
+        Ok(Box::into_raw(Box::new(key_expr)) as *const _)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
         null()
     });
-    mem::forget(session);
     key_expr_ptr
 }
 
@@ -819,7 +809,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_declareKeyExprViaJNI(
 /// - The key expression pointer is voided after this function call.
 /// - The function may throw an exception in case of failure, which should be handled by the caller.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_undeclareKeyExprViaJNI(
     mut env: JNIEnv,
@@ -827,9 +817,9 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_undeclareKeyExprViaJNI(
     session_ptr: *const Session,
     key_expr_ptr: *const KeyExpr<'static>,
 ) {
-    let session = Arc::from_raw(session_ptr);
-    let key_expr = Arc::from_raw(key_expr_ptr);
-    let key_expr_clone = key_expr.deref().clone();
+    let session: &Session = &*session_ptr;
+    let key_expr = Box::from_raw(key_expr_ptr as *mut KeyExpr<'static>);
+    let key_expr_clone = (*key_expr).clone();
     match session.undeclare(key_expr_clone).wait() {
         Ok(_) => {}
         Err(err) => {
@@ -839,8 +829,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_undeclareKeyExprViaJNI(
             );
         }
     }
-    std::mem::forget(session);
-    // `key_expr` is intentionally left to be freed by Rust
+    // `key_expr` Box is dropped here, freeing the KeyExpr
 }
 
 /// Performs a `get` operation in the Zenoh session via JNI with Value.
@@ -877,7 +866,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_undeclareKeyExprViaJNI(
 /// Throws:
 /// - An exception in case of failure handling the query.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getViaJNI(
     mut env: JNIEnv,
@@ -900,7 +889,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getViaJNI(
     is_express: jboolean,
     accept_replies: jint,
 ) {
-    let session = Arc::from_raw(session_ptr);
+    let session: &Session = &*session_ptr;
     let _ = || -> ZResult<()> {
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let java_vm = Arc::new(get_java_vm(&mut env)?);
@@ -971,7 +960,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getViaJNI(
             .map_err(|err| zerror!(err))
     }()
     .map_err(|err| throw_exception!(env, err));
-    std::mem::forget(session);
 }
 
 pub(crate) fn on_reply_success(
@@ -1123,14 +1111,14 @@ pub(crate) fn on_reply_error(
 
 /// Returns a list of zenoh ids as byte arrays corresponding to the peers connected to the session provided.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getPeersZidViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     session_ptr: *const Session,
 ) -> jobject {
-    let session = Arc::from_raw(session_ptr);
+    let session: &Session = &*session_ptr;
     let ids = {
         let peers_zid = session.info().peers_zid().wait();
         let ids = peers_zid.collect::<Vec<ZenohId>>();
@@ -1140,20 +1128,19 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getPeersZidViaJNI(
         throw_exception!(env, err);
         JObject::default().as_raw()
     });
-    std::mem::forget(session);
     ids
 }
 
 /// Returns a list of zenoh ids as byte arrays corresponding to the routers connected to the session provided.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getRoutersZidViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     session_ptr: *const Session,
 ) -> jobject {
-    let session = Arc::from_raw(session_ptr);
+    let session: &Session = &*session_ptr;
     let ids = {
         let peers_zid = session.info().routers_zid().wait();
         let ids = peers_zid.collect::<Vec<ZenohId>>();
@@ -1163,19 +1150,18 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getRoutersZidViaJNI(
         throw_exception!(env, err);
         JObject::default().as_raw()
     });
-    std::mem::forget(session);
     ids
 }
 
 /// Returns the Zenoh ID as a byte array of the session.
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getZidViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     session_ptr: *const Session,
 ) -> jbyteArray {
-    let session = Arc::from_raw(session_ptr);
+    let session: &Session = &*session_ptr;
     let ids = {
         let zid = session.info().zid().wait();
         env.byte_array_from_slice(&zid.to_le_bytes())
@@ -1186,7 +1172,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNISession_getZidViaJNI(
         throw_exception!(env, err);
         JByteArray::default().as_raw()
     });
-    std::mem::forget(session);
     ids
 }
 

@@ -12,8 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::sync::Arc;
-
 use crate::utils::{decode_byte_array, decode_encoding};
 use crate::zerror;
 use crate::{errors::ZResult, key_expr::process_kotlin_key_expr, throw_exception};
@@ -55,9 +53,9 @@ use zenoh::{
 ///   therefore the query isn't valid anymore after that.
 /// - May throw a JNI exception in case of failure, which should be handled by the caller.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
-pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replySuccessViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replySuccessViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     query_ptr: *const Query,
@@ -72,7 +70,7 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replySuccessViaJNI(
     qos_express: jboolean,
 ) {
     let _ = || -> ZResult<()> {
-        let query = Arc::from_raw(query_ptr);
+        let query: Query = *Box::from_raw(query_ptr as *mut Query);
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let payload = decode_byte_array(&env, payload)?;
         let mut reply_builder = query.reply(key_expr, payload);
@@ -108,9 +106,9 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replySuccessViaJNI(
 /// - The query pointer is freed after calling this function (queries shouldn't be replied more than once),
 ///   therefore the query isn't valid anymore after that.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
-pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replyErrorViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replyErrorViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     query_ptr: *const Query,
@@ -119,7 +117,7 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replyErrorViaJNI(
     encoding_schema: /*nullable*/ JString,
 ) {
     let _ = || -> ZResult<()> {
-        let query = Arc::from_raw(query_ptr);
+        let query: Query = *Box::from_raw(query_ptr as *mut Query);
         let encoding = decode_encoding(&mut env, encoding_id, &encoding_schema)?;
         query
             .reply_err(decode_byte_array(&env, payload)?)
@@ -152,9 +150,9 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replyErrorViaJNI(
 /// - The query pointer is freed after calling this function (queries shouldn't be replied more than once),
 ///   therefore the query isn't valid anymore after that.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
-pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replyDeleteViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replyDeleteViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     query_ptr: *const Query,
@@ -166,7 +164,7 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replyDeleteViaJNI(
     qos_express: jboolean,
 ) {
     let _ = || -> ZResult<()> {
-        let query = Arc::from_raw(query_ptr);
+        let query: Query = *Box::from_raw(query_ptr as *mut Query);
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let mut reply_builder = query.reply_del(key_expr);
         if timestamp_enabled != 0 {
@@ -195,12 +193,12 @@ pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_replyDeleteViaJNI(
 /// - The function takes ownership of the raw pointer and releases the associated memory.
 /// - After calling this function, the query pointer becomes invalid and should not be used anymore.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
-pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_freePtrViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuery_freePtrViaJNI(
     _env: JNIEnv,
     _: JClass,
     query_ptr: *const Query,
 ) {
-    Arc::from_raw(query_ptr);
+    let _ = Box::from_raw(query_ptr as *mut Query);
 }

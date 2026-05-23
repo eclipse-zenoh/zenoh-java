@@ -53,7 +53,7 @@ use crate::{
 /// - `encoding_id`: Encoding id of the payload provided.
 /// - `encoding_schema`: Encoding schema of the payload provided.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_getViaJNI(
     mut env: JNIEnv,
@@ -69,7 +69,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_getViaJNI(
     encoding_id: jint,
     encoding_schema: /*nullable*/ JString,
 ) {
-    let querier = Arc::from_raw(querier_ptr);
+    let querier: &Querier = &*querier_ptr;
     let _ = || -> ZResult<()> {
         let key_expr = process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr)?;
         let java_vm = Arc::new(get_java_vm(&mut env)?);
@@ -118,7 +118,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_getViaJNI(
             .map_err(|err| zerror!(err))
     }()
     .map_err(|err| throw_exception!(env, err));
-    std::mem::forget(querier);
 }
 
 ///
@@ -126,12 +125,12 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_getViaJNI(
 ///
 /// After a call to this function, no further jni operations should be performed using the querier associated to the raw pointer provided.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
-pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_freePtrViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_freePtrViaJNI(
     _env: JNIEnv,
     _: JClass,
     querier_ptr: *const Querier<'static>,
 ) {
-    Arc::from_raw(querier_ptr);
+    let _ = Box::from_raw(querier_ptr as *mut Querier<'static>);
 }

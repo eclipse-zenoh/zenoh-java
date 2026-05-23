@@ -12,7 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::{ptr::null, sync::Arc};
+use std::ptr::null;
 
 use jni::{
     objects::{JClass, JString},
@@ -29,14 +29,14 @@ use crate::{throw_exception, utils::decode_string};
 /// The pointer to the config is expected to be freed later on upon the destruction of the
 /// Kotlin Config instance.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadDefaultConfigViaJNI(
     _env: JNIEnv,
     _class: JClass,
 ) -> *const Config {
     let config = Config::default();
-    Arc::into_raw(Arc::new(config))
+    Box::into_raw(Box::new(config)) as *const _
 }
 
 /// Loads the config from a file, returning a pointer to the loaded config in case of success.
@@ -45,7 +45,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadDefaultConfigVi
 /// The pointer to the config is expected to be freed later on upon the destruction of the
 /// Kotlin Config instance.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadConfigFileViaJNI(
     mut env: JNIEnv,
@@ -55,7 +55,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadConfigFileViaJN
     || -> ZResult<*const Config> {
         let config_file_path = decode_string(&mut env, &config_path)?;
         let config = Config::from_file(config_file_path).map_err(|err| zerror!(err))?;
-        Ok(Arc::into_raw(Arc::new(config)))
+        Ok(Box::into_raw(Box::new(config)) as *const _)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
@@ -69,7 +69,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadConfigFileViaJN
 /// The pointer to the config is expected to be freed later on upon the destruction of the
 /// Kotlin Config instance.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadJsonConfigViaJNI(
     mut env: JNIEnv,
@@ -84,7 +84,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadJsonConfigViaJN
             Ok(c) => zerror!("Invalid configuration: {}", c),
             Err(e) => zerror!("JSON error: {}", e),
         })?;
-        Ok(Arc::into_raw(Arc::new(config)))
+        Ok(Box::into_raw(Box::new(config)) as *const _)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
@@ -98,7 +98,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadJsonConfigViaJN
 /// The pointer to the config is expected to be freed later on upon the destruction of the
 /// Kotlin Config instance.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadYamlConfigViaJNI(
     mut env: JNIEnv,
@@ -112,7 +112,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadYamlConfigViaJN
             Ok(c) => zerror!("Invalid configuration: {}", c),
             Err(e) => zerror!("YAML error: {}", e),
         })?;
-        Ok(Arc::into_raw(Arc::new(config)))
+        Ok(Box::into_raw(Box::new(config)) as *const _)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
@@ -122,7 +122,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_loadYamlConfigViaJN
 
 /// Returns the json value associated to the provided [key]. May throw an exception in case of failure, which must be handled
 /// on the kotlin layer.
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_getJsonViaJNI(
     mut env: JNIEnv,
@@ -130,24 +130,22 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_getJsonViaJN
     cfg_ptr: *const Config,
     key: JString,
 ) -> jstring {
-    let arc_cfg: Arc<Config> = Arc::from_raw(cfg_ptr);
-    let result = || -> ZResult<jstring> {
+    let cfg: &Config = &*cfg_ptr;
+    || -> ZResult<jstring> {
         let key = decode_string(&mut env, &key)?;
-        let json = arc_cfg.get_json(&key).map_err(|err| zerror!(err))?;
+        let json = cfg.get_json(&key).map_err(|err| zerror!(err))?;
         let java_json = env.new_string(json).map_err(|err| zerror!(err))?;
         Ok(java_json.as_raw())
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
         JString::default().as_raw()
-    });
-    std::mem::forget(arc_cfg);
-    result
+    })
 }
 
 /// Inserts a json5 value associated to the provided [key]. May throw an exception in case of failure, which must be handled
 /// on the kotlin layer.
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_insertJson5ViaJNI(
     mut env: JNIEnv,
@@ -174,12 +172,12 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_insertJson5V
 /// Frees the pointer to the config. The pointer should be valid and should have been obtained through
 /// one of the preceding `load` functions. This function should be called upon destruction of the kotlin
 /// Config instance.
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
-pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_freePtrViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNIConfig_00024Companion_freePtrViaJNI(
     _env: JNIEnv,
     _: JClass,
     config_ptr: *const Config,
 ) {
-    Arc::from_raw(config_ptr);
+    let _ = Box::from_raw(config_ptr as *mut Config);
 }

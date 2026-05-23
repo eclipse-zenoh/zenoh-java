@@ -12,8 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::sync::Arc;
-
 use jni::{
     objects::{JByteArray, JClass, JString},
     sys::jint,
@@ -45,7 +43,7 @@ use crate::{
 /// - The publisher pointer remains valid after this function call.
 /// - May throw an exception in case of failure, which must be handled by the caller.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_putViaJNI(
     mut env: JNIEnv,
@@ -56,7 +54,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_putViaJNI(
     attachment: /*nullable*/ JByteArray,
     publisher_ptr: *const Publisher<'static>,
 ) {
-    let publisher = Arc::from_raw(publisher_ptr);
+    let publisher: &Publisher<'static> = &*publisher_ptr;
     let _ = || -> ZResult<()> {
         let payload = decode_byte_array(&env, payload)?;
         let mut publication = publisher.put(payload);
@@ -69,7 +67,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_putViaJNI(
         publication.wait().map_err(|err| zerror!(err))
     }()
     .map_err(|err| throw_exception!(env, err));
-    std::mem::forget(publisher);
 }
 
 /// Performs a DELETE operation on a Zenoh publisher via JNI.
@@ -86,7 +83,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_putViaJNI(
 /// - The publisher pointer remains valid after this function call.
 /// - May throw an exception in case of failure, which must be handled by the caller.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_deleteViaJNI(
     mut env: JNIEnv,
@@ -94,7 +91,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_deleteViaJNI(
     attachment: /*nullable*/ JByteArray,
     publisher_ptr: *const Publisher<'static>,
 ) {
-    let publisher = Arc::from_raw(publisher_ptr);
+    let publisher: &Publisher<'static> = &*publisher_ptr;
     let _ = || -> ZResult<()> {
         let mut delete = publisher.delete();
         if !attachment.is_null() {
@@ -104,7 +101,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_deleteViaJNI(
         delete.wait().map_err(|err| zerror!(err))
     }()
     .map_err(|err| throw_exception!(env, err));
-    std::mem::forget(publisher)
 }
 
 /// Frees the publisher.
@@ -119,12 +115,12 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_deleteViaJNI(
 /// - It assumes that the provided publisher pointer is valid and has not been modified or freed.
 /// - After calling this function, the publisher pointer becomes invalid and should not be used anymore.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
-pub(crate) unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_freePtrViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNIPublisher_freePtrViaJNI(
     _env: JNIEnv,
     _: JClass,
     publisher_ptr: *const Publisher,
 ) {
-    Arc::from_raw(publisher_ptr);
+    let _ = Box::from_raw(publisher_ptr as *mut Publisher);
 }

@@ -12,22 +12,28 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-mod config;
-mod errors;
-mod key_expr;
-mod liveliness;
-mod logger;
-mod publisher;
-mod querier;
-mod query;
-mod queryable;
-mod scouting;
-mod session;
-mod subscriber;
-mod utils;
+pub mod config;
+pub mod errors;
+pub mod key_expr;
+pub mod liveliness;
+pub mod logger;
+pub mod publisher;
+pub mod querier;
+pub mod query;
+pub mod queryable;
+pub mod scouting;
+pub mod session;
+pub mod subscriber;
+pub mod utils;
 #[cfg(feature = "zenoh-ext")]
-mod zbytes;
-mod zenoh_id;
+pub mod zbytes;
+pub mod zenoh_id;
+
+pub use errors::{ZError, ZResult};
+
+// Re-export upstream zenoh so dependents (outdated/ shim in zenoh-flat-jni)
+// don't need a separate `zenoh` Cargo dep to name handle types.
+pub use zenoh;
 
 // Test should be runned with `cargo test --no-default-features`
 #[test]

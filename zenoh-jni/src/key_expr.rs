@@ -12,9 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::ops::Deref;
-use std::sync::Arc;
-
 use jni::objects::JClass;
 use jni::sys::{jboolean, jint, jstring};
 use jni::{objects::JString, JNIEnv};
@@ -32,7 +29,7 @@ use crate::{throw_exception, zerror};
 /// `_class`: the Java class (unused).
 /// `key_expr`: Java string representation of the intended key expression.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub extern "C" fn Java_io_zenoh_jni_JNIKeyExpr_00024Companion_autocanonizeViaJNI(
     mut env: JNIEnv,
@@ -66,7 +63,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNIKeyExpr_00024Companion_autocanonizeViaJNI
 /// In that case, this function assumes the pointers are valid pointers to key expressions and those pointers
 /// remain valid after the call to this function.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNIKeyExpr_00024Companion_intersectsViaJNI(
     mut env: JNIEnv,
@@ -102,7 +99,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIKeyExpr_00024Companion_intersectsV
 /// In that case, this function assumes the pointers are valid pointers to key expressions and those pointers
 /// remain valid after the call to this function.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNIKeyExpr_00024Companion_includesViaJNI(
     mut env: JNIEnv,
@@ -139,7 +136,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIKeyExpr_00024Companion_includesVia
 /// In that case, this function assumes the pointers are valid pointers to key expressions and those pointers
 /// remain valid after the call to this function.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNIKeyExpr_00024Companion_relationToViaJNI(
     mut env: JNIEnv,
@@ -175,7 +172,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIKeyExpr_00024Companion_relationToV
 /// In that case, this function assumes the pointers are valid pointers to key expressions and those pointers
 /// remain valid after the call to this function.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNIKeyExpr_00024Companion_joinViaJNI(
     mut env: JNIEnv,
@@ -215,7 +212,7 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIKeyExpr_00024Companion_joinViaJNI(
 /// In that case, this function assumes the pointers are valid pointers to key expressions and those pointers
 /// remain valid after the call to this function.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNIKeyExpr_00024Companion_concatViaJNI(
     mut env: JNIEnv,
@@ -252,14 +249,14 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIKeyExpr_00024Companion_concatViaJN
 /// - The memory associated to the pointer is freed after returning from this call, turning the
 ///   pointer invalid after that.
 ///
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn Java_io_zenoh_jni_JNIKeyExpr_freePtrViaJNI(
     _env: JNIEnv,
     _: JClass,
     key_expr_ptr: *const KeyExpr<'static>,
 ) {
-    Arc::from_raw(key_expr_ptr);
+    let _ = Box::from_raw(key_expr_ptr as *mut KeyExpr<'static>);
 }
 
 fn autocanonize_key_expr(env: &mut JNIEnv, key_expr: &JString) -> ZResult<KeyExpr<'static>> {
@@ -294,9 +291,6 @@ pub(crate) unsafe fn process_kotlin_key_expr(
             .map_err(|err| zerror!("Unable to get key expression string value: '{}'.", err))?;
         Ok(KeyExpr::from_string_unchecked(key_expr))
     } else {
-        let key_expr = Arc::from_raw(key_expr_ptr);
-        let key_expr_clone = key_expr.deref().clone();
-        std::mem::forget(key_expr);
-        Ok(key_expr_clone)
+        Ok((*key_expr_ptr).clone())
     }
 }

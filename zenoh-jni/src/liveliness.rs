@@ -37,9 +37,9 @@ use crate::{
     zerror,
 };
 
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_getViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNILiveliness_getViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     session_ptr: *const Session,
@@ -49,7 +49,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_getViaJNI(
     timeout_ms: jlong,
     on_close: JObject,
 ) {
-    let session = unsafe { Arc::from_raw(session_ptr) };
+    let session: &Session = unsafe { &*session_ptr };
     let _ = || -> ZResult<()> {
         let key_expr = unsafe { process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr) }?;
         let java_vm = Arc::new(get_java_vm(&mut env)?);
@@ -98,20 +98,19 @@ pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_getViaJNI(
     .map_err(|err| {
         throw_exception!(env, err);
     });
-    std::mem::forget(session);
 }
 
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_declareTokenViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNILiveliness_declareTokenViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     session_ptr: *const Session,
     key_expr_ptr: /*nullable*/ *const KeyExpr<'static>,
     key_expr_str: JString,
 ) -> *const LivelinessToken {
-    let session = unsafe { Arc::from_raw(session_ptr) };
-    let ptr = || -> ZResult<*const LivelinessToken> {
+    let session: &Session = unsafe { &*session_ptr };
+    || -> ZResult<*const LivelinessToken> {
         let key_expr = unsafe { process_kotlin_key_expr(&mut env, &key_expr_str, key_expr_ptr) }?;
         tracing::trace!("Declaring liveliness token on '{key_expr}'.");
         let token = session
@@ -119,29 +118,27 @@ pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_declareTokenViaJNI(
             .declare_token(key_expr)
             .wait()
             .map_err(|err| zerror!(err))?;
-        Ok(Arc::into_raw(Arc::new(token)))
+        Ok(Box::into_raw(Box::new(token)) as *const _)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
         null()
-    });
-    std::mem::forget(session);
-    ptr
+    })
 }
 
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
 pub extern "C" fn Java_io_zenoh_jni_JNILivelinessToken_00024Companion_undeclareViaJNI(
     _env: JNIEnv,
     _: JClass,
     token_ptr: *const LivelinessToken,
 ) {
-    unsafe { Arc::from_raw(token_ptr) };
+    let _ = unsafe { Box::from_raw(token_ptr as *mut LivelinessToken) };
 }
 
-#[no_mangle]
+#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_declareSubscriberViaJNI(
+pub unsafe extern "C" fn Java_io_zenoh_jni_JNILiveliness_declareSubscriberViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     session_ptr: *const Session,
@@ -151,7 +148,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_declareSubscriberViaJNI(
     history: jboolean,
     on_close: JObject,
 ) -> *const Subscriber<()> {
-    let session = unsafe { Arc::from_raw(session_ptr) };
+    let session: &Session = unsafe { &*session_ptr };
     || -> ZResult<*const Subscriber<()>> {
         let java_vm = Arc::new(get_java_vm(&mut env)?);
         let callback_global_ref = get_callback_global_ref(&mut env, callback)?;
@@ -232,8 +229,7 @@ pub extern "C" fn Java_io_zenoh_jni_JNILiveliness_declareSubscriberViaJNI(
             result.map_err(|err| zerror!("Unable to declare liveliness subscriber: {}", err))?;
 
         tracing::debug!("Subscriber declared on '{}'.", key_expr);
-        std::mem::forget(session);
-        Ok(Arc::into_raw(Arc::new(subscriber)))
+        Ok(Box::into_raw(Box::new(subscriber)) as *const _)
     }()
     .unwrap_or_else(|err| {
         throw_exception!(env, err);
