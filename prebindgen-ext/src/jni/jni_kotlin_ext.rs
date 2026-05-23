@@ -82,10 +82,6 @@ impl JniExt {
         written.extend(self.write_enum_classes(registry, kotlin_root)?);
         written.extend(self.write_data_classes(registry, kotlin_root)?);
         written.push(self.write_native_handle(kotlin_root)?);
-        if self.native_lib_name.is_some() {
-            written.push(self.write_target_enum(kotlin_root)?);
-            written.push(self.write_native_lib_loader(kotlin_root)?);
-        }
 
         // Build the borrowed `TypedHandle<'_>` view from internal config.
         // The two layers (owned + slice-of-borrowed) keep the borrow
@@ -255,47 +251,6 @@ impl JniExt {
             &self.package,
             &class_name,
             &exc.kotlin_fqn,
-        );
-        Ok(file.write(output_dir)?)
-    }
-
-    /// Emit `Target.kt` under `output_dir` (same package as the rest of
-    /// the JNI codegen, e.g. `io.zenoh.jni`). Internal enum of the 6
-    /// supported host targets; `toString()` returns the matching Rust
-    /// target triple, used by the native-lib-loader template to
-    /// look up the `<target>/<target>.zip` JAR resource. Only emitted
-    /// when [`JniExt::native_lib_name`] is set.
-    pub(crate) fn write_target_enum(&self, output_dir: &Path) -> Result<PathBuf, WriteKotlinError> {
-        let class_name = self.mangle_harness("Target");
-        let file = templates::target::emit_target(&self.package, &class_name);
-        Ok(file.write(output_dir)?)
-    }
-
-    /// Emit `NativeLibLoader.kt` under `output_dir` (same package as the
-    /// rest of the JNI codegen). Internal singleton whose class-init
-    /// loads the native library — first by looking for
-    /// `lib<native_lib_name>.{dylib,so,dll}` as a classpath resource
-    /// (local-build path) and falling back to the per-target
-    /// `<target>/<target>.zip` layout (published-JAR path). The
-    /// generator-emitted `JNINative` references this object from its
-    /// `init { … }` block, so the dylib is `System.load`ed before any
-    /// extern is invoked. Only emitted when
-    /// [`JniExt::native_lib_name`] is set.
-    pub(crate) fn write_native_lib_loader(
-        &self,
-        output_dir: &Path,
-    ) -> Result<PathBuf, WriteKotlinError> {
-        let lib_name = self
-            .native_lib_name
-            .as_deref()
-            .expect("write_native_lib_loader called without native_lib_name");
-        let class_name = self.mangle_harness("NativeLibLoader");
-        let target_class_name = self.mangle_harness("Target");
-        let file = templates::native_lib_loader::emit_native_lib_loader(
-            &self.package,
-            &class_name,
-            &target_class_name,
-            lib_name,
         );
         Ok(file.write(output_dir)?)
     }
@@ -571,11 +526,13 @@ impl JniExt {
     /// `kotlin_fun_name_mangle`, parameter and return types rendered at
     /// the JNI **wire** level so the declarations match the Rust extern
     /// symbols generated under
-    /// `Java_<package>_<jni_native_class>_<name>`. When
-    /// [`JniExt::extern_holder_init`] is set, its expression is spliced
-    /// into an `init { … }` at the top of the object so the project's
-    /// native-library loader (e.g. `io.zenoh.ZenohLoad`) fires before
-    /// any extern is invoked.
+    /// `Java_<package>_<jni_native_class>_<name>`. Loading the native
+    /// library is the wrapper layer's responsibility — the auto-generated
+    /// holder stays free of any reference to higher-layer types so that
+    /// `io.zenoh.jni.*` doesn't depend on `io.zenoh.*`. Trigger
+    /// `System.load` / `System.loadLibrary` from wrapper entry points
+    /// (e.g. via a `companion object { init { ZenohLoad } }` block) so
+    /// the lib is in place before any extern call.
     pub(crate) fn write_jni_native(
         &self,
         registry: &Registry<KotlinMeta>,
@@ -1363,11 +1320,10 @@ fn render_jni_orphaned_source(
 ///   * `Any` (impl-Into Dispatch)     → JObject → `Any`
 ///   * everything else                → entry's high-level Kotlin name
 /// Opaque returns become `Long`; every other return uses
-/// [`classify_return`]'s `kt_return` (Unit is empty string). When
-/// [`JniExt::extern_holder_init`] is set, an `init { … }` block at the
-/// top of the object runs `NativeLibLoader`, so the first call into any
-/// extern triggers `System.load`. When `native_lib_name` is unset, no
-/// init block is emitted (the user takes responsibility for loading).
+/// [`classify_return`]'s `kt_return` (Unit is empty string). No `init`
+/// block is emitted — the holder stays free of any wrapper-layer
+/// reference; the wrapper-layer call sites are responsible for
+/// triggering `System.load` before invoking any extern.
 fn render_jni_native_source(
     ext: &JniExt,
     registry: &Registry<KotlinMeta>,
@@ -1406,12 +1362,6 @@ fn render_jni_native_source(
     }
     out.push('\n');
     out.push_str(&format!("internal object {} {{\n", class_name));
-    if ext.native_lib_name.is_some() {
-        out.push_str(&format!(
-            "    init {{ {} }}\n\n",
-            ext.mangle_harness("NativeLibLoader")
-        ));
-    }
     for line in body.lines() {
         if line.is_empty() {
             out.push('\n');

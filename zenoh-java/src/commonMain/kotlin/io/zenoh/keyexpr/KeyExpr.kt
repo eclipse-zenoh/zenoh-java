@@ -15,6 +15,7 @@
 package io.zenoh.keyexpr
 
 import io.zenoh.Session
+import io.zenoh.ZenohLoad
 import io.zenoh.session.SessionDeclaration
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.wrapJNIExceptionAsZError
@@ -65,6 +66,13 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
     SessionDeclaration {
 
     companion object {
+        init {
+            // tryFrom() calls the auto-generated keyexprValidate wrapper, which
+            // routes through io.zenoh.jni.JNINative (no init block of its own —
+            // io.zenoh.jni.* must not depend on io.zenoh.*). Touch ZenohLoad
+            // here so the native lib is in place before that extern fires.
+            ZenohLoad
+        }
 
         /**
          * Try from.

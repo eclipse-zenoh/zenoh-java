@@ -7,7 +7,6 @@ fn main() {
     let jni = JniExt::new()
         .source_module(pq!(zenoh_flat)) // how to prefix prebindgen-marked items (functions, types
         .kotlin_package_prefix("io.zenoh.jni") // the package of the generated JNI bindings
-        .native_lib_name("zenoh_flat_jni") // the name of the generated native library
         .kotlin_exception_class(pq!(Error)) // The prebindgen-marked type which can be thrown as java exception
         .output_wrapper(
             pq!(Result<_, Error>),

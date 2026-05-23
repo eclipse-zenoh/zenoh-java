@@ -3,7 +3,5 @@ package io.zenoh.jni
 
 
 internal object JNINative {
-    init { JNINativeLibLoader }
-
     external fun keyexprValidate(s: String): String
 }

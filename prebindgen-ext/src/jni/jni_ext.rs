@@ -356,14 +356,6 @@ pub struct JniExt {
     /// `_`-mangled for JNI extern idents, and dot-separated for Kotlin
     /// `package` declarations.
     pub package: String,
-    /// Native library name (the `<name>` in `lib<name>.{dylib,so,dll}`).
-    /// When set, the framework auto-emits `NativeLibLoader.kt` and
-    /// `Target.kt` next to `NativeHandle.kt`, and adds an
-    /// `init { NativeLibLoader }` block at the top of the centralized
-    /// Native object so the dylib is `System.load`ed before any extern
-    /// is invoked. `None` ⇒ no loader emitted, no init block; the user
-    /// is responsible for triggering `System.load` themselves.
-    pub(crate) native_lib_name: Option<String>,
     /// Sub-package leaf appended to [`Self::package`] for the auto-emitted
     /// callback fun-interface files. Combined as
     /// `<package>.<callback_subpackage>`; empty = same package as
@@ -499,7 +491,6 @@ impl JniExt {
             // user `.kotlin_exception_class(...)` calls append at 1+.
             exceptions: vec![framework_exc],
             package: String::new(),
-            native_lib_name: None,
             callback_subpackage: "callbacks".to_string(),
             java_class_prefix: String::new(),
             jni_class_path: "Java_JNINative".to_string(),
@@ -588,17 +579,6 @@ impl JniExt {
     {
         self.kotlin_harness_name_mangle = Some(Arc::new(f));
         self.recompute_derived();
-        self
-    }
-    /// Set the native library name (the `<name>` in
-    /// `lib<name>.{dylib,so,dll}`). When set, the framework emits
-    /// `NativeLibLoader.kt` and `Target.kt` next to `NativeHandle.kt`,
-    /// and inserts `init { NativeLibLoader }` at the top of the
-    /// centralized Native object so the dylib is `System.load`ed
-    /// before any extern is invoked. Without this, the first call into
-    /// a generated extern fails with `UnsatisfiedLinkError`.
-    pub fn native_lib_name(mut self, name: impl Into<String>) -> Self {
-        self.native_lib_name = Some(name.into());
         self
     }
     /// Set the leaf appended to [`Self::package`] for the auto-emitted
