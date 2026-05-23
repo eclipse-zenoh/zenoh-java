@@ -1,0 +1,14 @@
+[package]
+name = "zenoh-flat-jni"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+zenoh-flat = { version = "1.9.0", path = "../zenoh-flat" }
+prebindgen-ext = { version = "1.0.0", path = "../prebindgen-ext" }  
+
+[build-dependencies]
+zenoh-flat = { version = "1.9.0", path = "../zenoh-flat" }
+prebindgen = "0.4.1"
+prebindgen-ext = { version = "1.0.0", path = "../prebindgen-ext" }
+syn = "2"
