@@ -23,7 +23,7 @@ import kotlin.concurrent.write
  * Marked `open` so the hand-maintained `JNI*.kt` typed-handle classes
  * can subclass for type safety while inheriting the lock contract.
  */
-public open class NativeHandle(initial: Long) {
+public open class JNINativeHandle(initial: Long) {
     private val lock = ReentrantReadWriteLock()
 
     /** Volatile so [peek] is atomic on 32-bit JVMs and observes the

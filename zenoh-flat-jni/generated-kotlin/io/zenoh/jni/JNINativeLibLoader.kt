@@ -7,7 +7,7 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import java.util.zip.ZipInputStream
 
-internal object NativeLibLoader {
+internal object JNINativeLibLoader {
     private const val LIB_NAME = "zenoh-flat-jni"
 
     init {
@@ -17,29 +17,29 @@ internal object NativeLibLoader {
         }
     }
 
-    private fun determineTarget(): Result<Target> = runCatching {
+    private fun determineTarget(): Result<JNITarget> = runCatching {
         val osName = System.getProperty("os.name").lowercase()
         val osArch = System.getProperty("os.arch").lowercase()
         val target = when {
             osName.contains("win") -> when {
                 osArch.contains("x86_64") || osArch.contains("amd64") || osArch.contains("x64") ->
-                    Target.WINDOWS_X86_64_MSVC
+                    JNITarget.WINDOWS_X86_64_MSVC
                 osArch.contains("aarch64") || osArch.contains("arm64") ->
-                    Target.WINDOWS_AARCH64_MSVC
+                    JNITarget.WINDOWS_AARCH64_MSVC
                 else -> throw UnsupportedOperationException("Unsupported architecture on Windows: $osArch")
             }
             osName.contains("mac") || osName.contains("darwin") || osName.contains("os x") -> when {
                 osArch.contains("x86_64") || osArch.contains("amd64") || osArch.contains("x64") ->
-                    Target.APPLE_X86_64
+                    JNITarget.APPLE_X86_64
                 osArch.contains("aarch64") || osArch.contains("arm64") ->
-                    Target.APPLE_AARCH64
+                    JNITarget.APPLE_AARCH64
                 else -> throw UnsupportedOperationException("Unsupported architecture on macOS: $osArch")
             }
             osName.contains("nix") || osName.contains("nux") || osName.contains("aix") -> when {
                 osArch.contains("x86_64") || osArch.contains("amd64") || osArch.contains("x64") ->
-                    Target.LINUX_X86_64
+                    JNITarget.LINUX_X86_64
                 osArch.contains("aarch64") || osArch.contains("arm64") ->
-                    Target.LINUX_AARCH64
+                    JNITarget.LINUX_AARCH64
                 else -> throw UnsupportedOperationException("Unsupported architecture on Linux/Unix: $osArch")
             }
             else -> throw UnsupportedOperationException("Unsupported platform: $osName")
@@ -66,7 +66,7 @@ internal object NativeLibLoader {
         library
     }
 
-    private fun loadLibraryAsInputStream(target: Target): Result<InputStream> = runCatching {
+    private fun loadLibraryAsInputStream(target: JNITarget): Result<InputStream> = runCatching {
         val targetName = "$target/$target.zip"
         val libUrl = ClassLoader.getSystemClassLoader().getResourceAsStream(targetName)
             ?: javaClass.classLoader.getResourceAsStream(targetName)!!
@@ -82,7 +82,7 @@ internal object NativeLibLoader {
         System.load(tempLib.absolutePath)
     }
 
-    private fun tryLoadingLibraryFromJarPackage(target: Target): Result<Unit> = runCatching {
+    private fun tryLoadingLibraryFromJarPackage(target: JNITarget): Result<Unit> = runCatching {
         val lib: Result<InputStream> = loadLibraryAsInputStream(target)
         lib.onSuccess { loadNativeLib(it) }.onFailure { throw Exception("Unable to load native lib: $it") }
     }

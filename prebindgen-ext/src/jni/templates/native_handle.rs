@@ -1,14 +1,18 @@
 use crate::kotlin::kotlin_ext::KotlinFile;
 
-pub(crate) fn emit_native_handle(package: &str, exception_fqn: &str) -> KotlinFile {
+pub(crate) fn emit_native_handle(
+    package: &str,
+    class_name: &str,
+    exception_fqn: &str,
+) -> KotlinFile {
     KotlinFile {
         package: package.to_string(),
-        class_name: "NativeHandle".into(),
-        contents: render_native_handle_source(package, exception_fqn),
+        class_name: class_name.to_string(),
+        contents: render_native_handle_source(package, class_name, exception_fqn),
     }
 }
 
-fn render_native_handle_source(package: &str, exception_fqn: &str) -> String {
+fn render_native_handle_source(package: &str, class_name: &str, exception_fqn: &str) -> String {
     let exc_short = exception_fqn.rsplit('.').next().unwrap_or(exception_fqn);
     let exception_pkg = exception_fqn.rsplit_once('.').map(|(p, _)| p).unwrap_or("");
     let import_line = if exception_fqn.contains('.') && exception_pkg != package {
@@ -40,7 +44,7 @@ import kotlin.concurrent.write
  * Marked `open` so the hand-maintained `JNI*.kt` typed-handle classes
  * can subclass for type safety while inheriting the lock contract.
  */
-public open class NativeHandle(initial: Long) {
+public open class __CLASS_NAME__(initial: Long) {
     private val lock = ReentrantReadWriteLock()
 
     /** Volatile so [peek] is atomic on 32-bit JVMs and observes the
@@ -119,6 +123,7 @@ public open class NativeHandle(initial: Long) {
         import_line.trim_end_matches('\n').to_string()
     };
     let body = body
+        .replace("__CLASS_NAME__", class_name)
         .replace("__EXCEPTION_IMPORT__\n", &if import_replacement.is_empty() {
             String::new()
         } else {

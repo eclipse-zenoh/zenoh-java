@@ -242,7 +242,12 @@ impl JniExt {
     /// public zenoh-java API surface is framework-internal.
     pub(crate) fn write_native_handle(&self, output_dir: &Path) -> Result<PathBuf, WriteKotlinError> {
         let exc = self.framework_exception();
-        let file = templates::native_handle::emit_native_handle(&self.package, &exc.kotlin_fqn);
+        let class_name = self.mangle_harness("NativeHandle");
+        let file = templates::native_handle::emit_native_handle(
+            &self.package,
+            &class_name,
+            &exc.kotlin_fqn,
+        );
         Ok(file.write(output_dir)?)
     }
 
@@ -253,7 +258,8 @@ impl JniExt {
     /// look up the `<target>/<target>.zip` JAR resource. Only emitted
     /// when [`JniExt::native_lib_name`] is set.
     pub(crate) fn write_target_enum(&self, output_dir: &Path) -> Result<PathBuf, WriteKotlinError> {
-        let file = templates::target::emit_target(&self.package);
+        let class_name = self.mangle_harness("Target");
+        let file = templates::target::emit_target(&self.package, &class_name);
         Ok(file.write(output_dir)?)
     }
 
@@ -275,7 +281,14 @@ impl JniExt {
             .native_lib_name
             .as_deref()
             .expect("write_native_lib_loader called without native_lib_name");
-        let file = templates::native_lib_loader::emit_native_lib_loader(&self.package, lib_name);
+        let class_name = self.mangle_harness("NativeLibLoader");
+        let target_class_name = self.mangle_harness("Target");
+        let file = templates::native_lib_loader::emit_native_lib_loader(
+            &self.package,
+            &class_name,
+            &target_class_name,
+            lib_name,
+        );
         Ok(file.write(output_dir)?)
     }
 
@@ -1138,13 +1151,15 @@ fn render_typed_handle_source(
         }
         s.push('\n');
     }
+    let native_handle_class = ext.mangle_harness("NativeHandle");
     s.push_str(&format!(
-        "/** Typed [NativeHandle] for a native Zenoh `{}`. */\n",
+        "/** Typed [{native_handle_class}] for a native Zenoh `{}`. */\n",
         rust_doc_name
     ));
     s.push_str(&format!(
-        "public class {}(initialPtr: Long) : NativeHandle(initialPtr) {{\n",
-        class_name
+        "public class {}(initialPtr: Long) : {}(initialPtr) {{\n",
+        class_name,
+        native_handle_class,
     ));
     let free_extern = ext.mangle_fun("freePtr");
     s.push_str(&format!(
@@ -1322,7 +1337,10 @@ fn render_jni_native_source(
     out.push('\n');
     out.push_str(&format!("internal object {} {{\n", class_name));
     if ext.native_lib_name.is_some() {
-        out.push_str("    init { NativeLibLoader }\n\n");
+        out.push_str(&format!(
+            "    init {{ {} }}\n\n",
+            ext.mangle_harness("NativeLibLoader")
+        ));
     }
     for line in body.lines() {
         if line.is_empty() {
