@@ -204,6 +204,16 @@ pub(crate) struct TypeConfig {
     pub methods: Vec<String>,
 }
 
+/// Methods promoted to the synthetic package-level wrapper object.
+#[derive(Clone, Default)]
+pub(crate) struct PackageConfig {
+    /// Kotlin subpackage used for package-level wrappers.
+    pub subpackage: Option<String>,
+    /// `#[prebindgen]` fn idents promoted onto the generated package
+    /// object via [`JniExt::method`].
+    pub methods: Vec<String>,
+}
+
 /// Boxed closure that builds a converter when applied to the wildcard
 /// substitutions. Returns `None` to defer (an inner converter the
 /// builder depends on isn't yet resolved; the resolver retries on the
@@ -387,6 +397,9 @@ pub struct JniExt {
     /// Mangler for [`Self::kotlin_enum`]-declared C-like enum class
     /// names. Default = identity.
     pub(crate) kotlin_enum_name_mangle: Option<NameMangle>,
+    /// Mangler for the package-level wrapper object created by
+    /// [`Self::kotlin_package`]. Default = identity.
+    pub(crate) kotlin_package_name_mangle: Option<NameMangle>,
     /// Mangler for `impl Fn(...)` callback Kotlin class names. The
     /// closure receives the auto-derived callback name
     /// ([`crate::jni::jni_kotlin_ext::derive_callback_name`], always
@@ -431,6 +444,9 @@ pub struct JniExt {
     /// primitive → struct.
     pub(crate) types: HashMap<TypeKey, TypeConfig>,
 
+    /// Package-level promoted methods written into a separate wrapper object.
+    pub(crate) package_methods: PackageConfig,
+
     /// `impl Into<target> + Send + 'static` source arms per target type.
     pub(crate) into_sources_map: HashMap<TypeKey, Vec<IntoSource>>,
 
@@ -457,6 +473,9 @@ pub struct JniExt {
     /// `output_wrapper` (rank 0 only), `kotlin_enum`, `callback_input`,
     /// and `kotlin_data_class`; cleared by other unrelated builders.
     last_meta_key: Option<TypeKey>,
+
+    /// Tracks whether the last fluent builder was [`Self::kotlin_package`].
+    last_package_target: bool,
 }
 
 impl JniExt {
@@ -489,11 +508,13 @@ impl JniExt {
             kotlin_ptr_class_name_mangle: None,
             kotlin_data_class_name_mangle: None,
             kotlin_enum_name_mangle: None,
+            kotlin_package_name_mangle: None,
             kotlin_callback_name_mangle: None,
             kotlin_wrapper_name_mangle: None,
             kotlin_harness_name_mangle: None,
             kotlin_type_fqns: Vec::new(),
             types: HashMap::new(),
+            package_methods: PackageConfig::default(),
             into_sources_map: HashMap::new(),
             input_wrappers: [
                 HashMap::new(),
@@ -509,6 +530,7 @@ impl JniExt {
             ],
             last_opaque_key: None,
             last_meta_key: None,
+            last_package_target: false,
         }
     }
     pub fn source_module(mut self, p: syn::Path) -> Self {
@@ -549,7 +571,7 @@ impl JniExt {
     /// Set the JVM/Kotlin base package (dot-separated, e.g.
     /// `"io.zenoh.jni"`). All derived forms (`java_class_prefix`,
     /// `kotlin_callback_package`) are recomputed.
-    pub fn package(mut self, p: impl Into<String>) -> Self {
+    pub fn kotlin_package_prefix(mut self, p: impl Into<String>) -> Self {
         self.package = p.into().trim_matches('.').trim_matches('/').to_string();
         self.recompute_derived();
         self
@@ -629,6 +651,15 @@ impl JniExt {
         self.kotlin_enum_name_mangle = Some(Arc::new(f));
         self
     }
+    /// Set the closure that mangles the package-level wrapper object
+    /// name created by [`Self::kotlin_package`]. Default = identity.
+    pub fn kotlin_package_name_mangle<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&str) -> String + Send + Sync + 'static,
+    {
+        self.kotlin_package_name_mangle = Some(Arc::new(f));
+        self
+    }
     /// Set the closure that mangles `impl Fn(...)` callback class
     /// names. Receives the auto-derived callback name
     /// ([`crate::jni::jni_kotlin_ext::derive_callback_name`], always
@@ -655,6 +686,17 @@ impl JniExt {
         F: Fn(&str) -> String + Send + Sync + 'static,
     {
         self.kotlin_wrapper_name_mangle = Some(Arc::new(f));
+        self
+    }
+
+    /// Declare a package-level wrapper object under a subpackage.
+    /// Subsequent [`Self::method`] calls attach to this synthetic target
+    /// instead of the orphaned object.
+    pub fn kotlin_package(mut self, subpackage: impl Into<String>) -> Self {
+        self.last_opaque_key = None;
+        self.last_meta_key = None;
+        self.package_methods.subpackage = Some(subpackage.into().trim_matches('.').to_string());
+        self.last_package_target = true;
         self
     }
 
@@ -770,6 +812,21 @@ impl JniExt {
         self.mangle_harness("Orphaned")
     }
 
+    /// The mangled name of the package-level wrapper object used by
+    /// [`Self::kotlin_package`].
+    pub(crate) fn jni_package_class_name(&self) -> String {
+        let name = self
+            .package_methods
+            .subpackage
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .unwrap_or("Package");
+        match &self.kotlin_package_name_mangle {
+            Some(f) => f(name),
+            None => self.mangle_harness(name),
+        }
+    }
+
     /// Resolve a relative class name against [`Self::package`]. Panics
     /// if `name` contains a `.` (a check that catches accidental FQNs in
     /// the relative-name builders). The framework refuses dotted names
@@ -840,15 +897,20 @@ impl JniExt {
     /// methods land in the generated `companion object`. Chain multiple
     /// calls to add multiple methods.
     pub fn method(mut self, method: impl Into<String>) -> Self {
-        let key = self
+        if let Some(key) = self
             .last_meta_key
             .clone()
             .or_else(|| self.last_opaque_key.clone())
-            .expect(
-                "JniExt::method must be chained immediately after a `kotlin_ptr_class`, `kotlin_enum`, or `kotlin_data_class` call",
+        {
+            let entry = self.types.get_mut(&key).expect("type entry vanished");
+            entry.methods.push(method.into());
+        } else if self.last_package_target {
+            self.package_methods.methods.push(method.into());
+        } else {
+            panic!(
+                "JniExt::method must be chained immediately after a `kotlin_ptr_class`, `kotlin_enum`, `kotlin_data_class`, or `kotlin_package` call",
             );
-        let entry = self.types.get_mut(&key).expect("type entry vanished");
-        entry.methods.push(method.into());
+        }
         self
     }
 
@@ -924,6 +986,8 @@ impl JniExt {
         // for chained config.
         self.last_opaque_key = None;
         self.last_meta_key = Some(key);
+        self.last_package_target = false;
+        self.last_package_target = false;
         self
     }
 
@@ -1048,6 +1112,7 @@ impl JniExt {
             .push((key.as_str().to_string(), fqn));
         self.last_opaque_key = None;
         self.last_meta_key = None;
+        self.last_package_target = false;
         self
     }
 
@@ -1066,6 +1131,7 @@ impl JniExt {
             .push((key.as_str().to_string(), fqn));
         self.last_opaque_key = None;
         self.last_meta_key = Some(key);
+        self.last_package_target = false;
         self
     }
 
@@ -1082,6 +1148,7 @@ impl JniExt {
             .insert(key, sources.into_iter().collect());
         self.last_opaque_key = None;
         self.last_meta_key = None;
+        self.last_package_target = false;
         self
     }
 
@@ -1148,6 +1215,7 @@ impl JniExt {
     /// [`Self::override_kotlin_name`].
     fn note_wrapper_registration(&mut self, key: TypeKey, rank: usize) {
         self.last_opaque_key = None;
+        self.last_package_target = false;
         if rank == 0 {
             let entry = self.types.entry(key.clone()).or_default();
             // Skip callbacks (handled by callback_input) and any entry

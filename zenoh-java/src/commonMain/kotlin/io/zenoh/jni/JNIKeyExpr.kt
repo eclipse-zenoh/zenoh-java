@@ -27,11 +27,6 @@ internal class JNIKeyExpr(internal val ptr: Long) {
         }
 
         @Throws(ZError::class)
-        fun tryFrom(keyExpr: String): KeyExpr {
-            return KeyExpr(tryFromViaJNI(keyExpr))
-        }
-
-        @Throws(ZError::class)
         fun autocanonize(keyExpr: String): KeyExpr {
             return KeyExpr(autocanonizeViaJNI(keyExpr))
         }
@@ -72,9 +67,6 @@ internal class JNIKeyExpr(internal val ptr: Long) {
         fun concatViaJNI(keyExpr: KeyExpr, other: String): KeyExpr {
             return KeyExpr(concatViaJNI(keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, other))
         }
-
-        @Throws(ZError::class)
-        private external fun tryFromViaJNI(keyExpr: String): String
 
         @Throws(ZError::class)
         private external fun autocanonizeViaJNI(keyExpr: String): String

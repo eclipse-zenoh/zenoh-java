@@ -6,7 +6,7 @@ use syn::parse_quote as pq;
 fn main() {
     let jni = JniExt::new()
         .source_module(pq!(zenoh_flat)) // how to prefix prebindgen-marked items (functions, types
-        .package("io.zenoh.jni") // the package of the generated JNI bindings
+        .kotlin_package_prefix("io.zenoh.jni") // the package of the generated JNI bindings
         .native_lib_name("zenoh_flat_jni") // the name of the generated native library
         .kotlin_exception_class(pq!(Error)) // The prebindgen-marked type which can be thrown as java exception
         .output_wrapper(
@@ -21,6 +21,8 @@ fn main() {
                 ))
             },
         )
+        .kotlin_package("keyexpr")
+        .method("keyexpr_validate")
         ;
 
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);

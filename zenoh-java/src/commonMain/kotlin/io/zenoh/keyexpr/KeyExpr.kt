@@ -17,7 +17,9 @@ package io.zenoh.keyexpr
 import io.zenoh.Session
 import io.zenoh.session.SessionDeclaration
 import io.zenoh.exceptions.ZError
+import io.zenoh.exceptions.wrapJNIExceptionAsZError
 import io.zenoh.jni.JNIKeyExpr
+import io.zenoh.jni.keyexpr.keyexprValidate
 import io.zenoh.query.IntoSelector
 import io.zenoh.query.Selector
 
@@ -79,7 +81,9 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
         @JvmStatic
         @Throws(ZError::class)
         fun tryFrom(keyExpr: String): KeyExpr {
-            return JNIKeyExpr.tryFrom(keyExpr)
+            return wrapJNIExceptionAsZError {
+                KeyExpr(keyexprValidate(keyExpr))
+            }
         }
 
         /**

@@ -24,29 +24,6 @@ use crate::errors::ZResult;
 use crate::utils::decode_string;
 use crate::{throw_exception, zerror};
 
-/// Validates the provided `key_expr` to be a valid key expression, returning it back
-/// in case of success or throwing an exception in case of failure.
-///
-/// # Parameters:
-/// `env`: The JNI environment.
-/// `_class`: the Java class (unused).
-/// `key_expr`: Java string representation of the intended key expression.
-///
-#[no_mangle]
-#[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNIKeyExpr_00024Companion_tryFromViaJNI(
-    mut env: JNIEnv,
-    _class: JClass,
-    key_expr: JString,
-) -> jstring {
-    validate_key_expr(&mut env, &key_expr)
-        .map(|_| **key_expr)
-        .unwrap_or_else(|err| {
-            throw_exception!(env, err);
-            JString::default().as_raw()
-        })
-}
-
 /// Returns a java string representation of the autocanonized version of the provided `key_expr`.
 /// In case of failure and exception will be thrown.
 ///
@@ -283,14 +260,6 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIKeyExpr_freePtrViaJNI(
     key_expr_ptr: *const KeyExpr<'static>,
 ) {
     Arc::from_raw(key_expr_ptr);
-}
-
-fn validate_key_expr(env: &mut JNIEnv, key_expr: &JString) -> ZResult<KeyExpr<'static>> {
-    let key_expr_str = decode_string(env, key_expr)
-        .map_err(|err| zerror!("Unable to get key expression string value: '{}'.", err))?;
-
-    KeyExpr::try_from(key_expr_str)
-        .map_err(|err| zerror!("Unable to create key expression: '{}'.", err))
 }
 
 fn autocanonize_key_expr(env: &mut JNIEnv, key_expr: &JString) -> ZResult<KeyExpr<'static>> {

@@ -67,6 +67,7 @@ kotlin {
     @Suppress("Unused")
     sourceSets {
         val commonMain by getting {
+            kotlin.srcDir("../zenoh-flat-jni/generated-kotlin")
             dependencies {
                 implementation("commons-net:commons-net:3.9.0")
                 implementation("com.google.guava:guava:33.3.1-jre")
