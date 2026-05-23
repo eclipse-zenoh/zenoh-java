@@ -211,7 +211,7 @@ dependencies = [
 
 [[package]]
 name = "prebindgen-ext"
-version = "1.9.0"
+version = "1.0.0"
 dependencies = [
  "itertools 0.12.1",
  "jni",

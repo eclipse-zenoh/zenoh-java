@@ -10,6 +10,7 @@ pub mod byte_array_helpers;
 pub mod jni_binding_error;
 pub mod jni_ext;
 pub(crate) mod jni_kotlin_ext;
+pub(crate) mod templates;
 pub mod string_helpers;
 pub(crate) mod wire_access;
 
