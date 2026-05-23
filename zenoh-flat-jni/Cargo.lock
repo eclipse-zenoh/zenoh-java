@@ -2763,9 +2763,12 @@ dependencies = [
 name = "zenoh-flat-jni"
 version = "0.1.0"
 dependencies = [
+ "jni",
+ "konst 0.3.17",
  "prebindgen",
  "prebindgen-ext",
  "syn 2.0.117",
+ "tracing",
  "zenoh-flat",
 ]
 

@@ -8,7 +8,7 @@ import java.io.InputStream
 import java.util.zip.ZipInputStream
 
 internal object JNINativeLibLoader {
-    private const val LIB_NAME = "zenoh-flat-jni"
+    private const val LIB_NAME = "zenoh_flat_jni"
 
     init {
         if (tryLoadingLocalLibrary().isFailure) {

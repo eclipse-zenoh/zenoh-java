@@ -1,11 +1,18 @@
 [package]
 name = "zenoh-flat-jni"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
 zenoh-flat = { version = "1.9.0", path = "../zenoh-flat" }
 prebindgen-ext = { version = "1.0.0", path = "../prebindgen-ext" }  
+jni = "0.21.1"
+konst = "0.3.17"
+tracing = { version = "0.1", features = ["log"] }
+
+[lib]
+name = "zenoh_flat_jni"
+crate-type = ["staticlib", "dylib"]
 
 [build-dependencies]
 zenoh-flat = { version = "1.9.0", path = "../zenoh-flat" }
