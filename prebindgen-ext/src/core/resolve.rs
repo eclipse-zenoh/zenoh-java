@@ -601,10 +601,114 @@ fn set_required<M>(registry: &mut Registry<M>, dir: Direction, key: &TypeKey) {
     }
 }
 
+fn lookup_slot<'a, M>(
+    registry: &'a Registry<M>,
+    dir: Direction,
+    key: &TypeKey,
+) -> Option<&'a Option<TypeEntry<M>>> {
+    let buckets = match dir {
+        Direction::Input => &registry.input_types,
+        Direction::Output => &registry.output_types,
+    };
+    for bucket in buckets {
+        if let Some(slot) = bucket.get(key) {
+            return Some(slot);
+        }
+    }
+    None
+}
+
+fn collect_direct_dependencies<M>(
+    registry: &Registry<M>,
+    dir: Direction,
+    key: &TypeKey,
+) -> Vec<(Direction, TypeKey)> {
+    let ty = key.to_type();
+    let mut out: Vec<(Direction, TypeKey)> = Vec::new();
+
+    let (positions, child_dir) = if let Some(args) = crate::core::registry::extract_fn_trait_args(&ty) {
+        (args, dir.flip())
+    } else {
+        (crate::core::registry::immediate_subtype_positions(&ty), dir)
+    };
+    for sub in positions {
+        out.push((child_dir, TypeKey::from_type(&sub)));
+    }
+
+    if let Some(name) = type_path_tail_ident(&ty) {
+        if let Some((s, _)) = registry.structs.get(&name) {
+            if let syn::Fields::Named(named) = &s.fields {
+                for field in &named.named {
+                    out.push((dir, TypeKey::from_type(&field.ty)));
+                }
+            }
+        }
+        if let Some((e, _)) = registry.enums.get(&name) {
+            for variant in &e.variants {
+                for field in &variant.fields {
+                    out.push((dir, TypeKey::from_type(&field.ty)));
+                }
+            }
+        }
+    }
+
+    out
+}
+
+fn type_path_tail_ident(ty: &syn::Type) -> Option<syn::Ident> {
+    if let syn::Type::Path(tp) = ty {
+        return tp.path.segments.last().map(|s| s.ident.clone());
+    }
+    None
+}
+
+fn collect_unresolved_descendants<M>(
+    registry: &Registry<M>,
+    seeds: &[(Direction, TypeKey)],
+    seen: &mut std::collections::HashSet<String>,
+    out: &mut Vec<UnresolvedEntry>,
+) {
+    let mut queue: VecDeque<(Direction, TypeKey)> = VecDeque::new();
+    for (dir, key) in seeds {
+        for dep in collect_direct_dependencies(registry, *dir, key) {
+            if seen.insert(unresolved_key(dep.0, &dep.1)) {
+                queue.push_back(dep);
+            }
+        }
+    }
+
+    while let Some((dir, key)) = queue.pop_front() {
+        if let Some(slot) = lookup_slot(registry, dir, &key) {
+            if slot.is_none() {
+                out.push(UnresolvedEntry {
+                    key: key.clone(),
+                    direction: dir,
+                    location: registry.type_locations.get(&key).cloned(),
+                });
+            }
+        }
+        for dep in collect_direct_dependencies(registry, dir, &key) {
+            if seen.insert(unresolved_key(dep.0, &dep.1)) {
+                queue.push_back(dep);
+            }
+        }
+    }
+}
+
+fn unresolved_key(dir: Direction, key: &TypeKey) -> String {
+    let d = match dir {
+        Direction::Input => "in",
+        Direction::Output => "out",
+    };
+    format!("{}:{}", d, key.as_str())
+}
+
 fn final_invariant_check<M>(registry: &Registry<M>) -> Result<(), ResolveError> {
     let mut entries: Vec<UnresolvedEntry> = Vec::new();
     let scan_required_input = &registry.required_inputs_scan;
     let scan_required_output = &registry.required_outputs_scan;
+    let mut unresolved_required_roots: Vec<(Direction, TypeKey)> = Vec::new();
+    let mut seen_unresolved: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for (i, bucket) in registry.input_types.iter().enumerate() {
         let _ = i;
@@ -614,6 +718,8 @@ fn final_invariant_check<M>(registry: &Registry<M>) -> Result<(), ResolveError> 
                 None => scan_required_input.contains(key),
             };
             if needs && slot.is_none() {
+                unresolved_required_roots.push((Direction::Input, key.clone()));
+                seen_unresolved.insert(unresolved_key(Direction::Input, key));
                 entries.push(UnresolvedEntry {
                     key: key.clone(),
                     direction: Direction::Input,
@@ -630,6 +736,8 @@ fn final_invariant_check<M>(registry: &Registry<M>) -> Result<(), ResolveError> 
                 None => scan_required_output.contains(key),
             };
             if needs && slot.is_none() {
+                unresolved_required_roots.push((Direction::Output, key.clone()));
+                seen_unresolved.insert(unresolved_key(Direction::Output, key));
                 entries.push(UnresolvedEntry {
                     key: key.clone(),
                     direction: Direction::Output,
@@ -638,6 +746,14 @@ fn final_invariant_check<M>(registry: &Registry<M>) -> Result<(), ResolveError> 
             }
         }
     }
+
+    collect_unresolved_descendants(
+        registry,
+        &unresolved_required_roots,
+        &mut seen_unresolved,
+        &mut entries,
+    );
+
     if entries.is_empty() {
         Ok(())
     } else {
