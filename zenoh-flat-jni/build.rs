@@ -1,8 +1,12 @@
-use prebindgen_ext::core::prebindgen_ext::IntoSource;
 use prebindgen_ext::core::registry::Registry;
+use prebindgen_ext::core::registry::WriteRustError;
 use prebindgen_ext::jni::jni_ext::KotlinMeta;
 use prebindgen_ext::jni::JniExt;
 use syn::parse_quote as pq;
+
+fn report_write_rust_error(err: &WriteRustError) {
+    eprintln!("error: prebindgen-ext write_rust failed: {err}");
+}
 
 fn main() {
     let jni = JniExt::new()
@@ -21,8 +25,8 @@ fn main() {
                 ))
             },
         )
-        // .kotlin_data_class(pq!(KeyExpr)) 
-        // .method("keyexpr_try_from")
+        .kotlin_data_class(pq!(KeyExpr)) 
+        .method("keyexpr_try_from")
         // .method("keyexpr_autocanonize")
         // .method("keyexpr_intersects")
         // .into_sources(
@@ -35,10 +39,20 @@ fn main() {
         ;
 
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
-    let mut registry = Registry::from_items(source.items_all()).expect("scan failed");
-    let rust_path = registry
-        .write_rust(&jni, "zenoh_flat_jni.rs")
-        .expect("write rust failed");
+    let mut registry = match Registry::from_items(source.items_all()) {
+        Ok(registry) => registry,
+        Err(err) => {
+            eprintln!("error: prebindgen-ext scan failed: {err}");
+            std::process::exit(1);
+        }
+    };
+    let rust_path = match registry.write_rust(&jni, "zenoh_flat_jni.rs") {
+        Ok(path) => path,
+        Err(err) => {
+            report_write_rust_error(&err);
+            std::process::exit(1);
+        }
+    };
     println!(
         "cargo:warning=Generated bindings at: {}",
         rust_path.display()
@@ -49,10 +63,13 @@ fn main() {
     // module's Gradle source set picks it up via
     // `kotlin.srcDir("$rootDir/zenoh-jni/generated-kotlin")`.
     let kotlin_root = std::path::Path::new("generated-kotlin");
-    for path in jni
-        .write_kotlin(&registry, kotlin_root)
-        .expect("write kotlin failed")
-    {
+    for path in match jni.write_kotlin(&registry, kotlin_root) {
+        Ok(paths) => paths,
+        Err(err) => {
+            eprintln!("error: prebindgen-ext write_kotlin failed: {err}");
+            std::process::exit(1);
+        }
+    } {
         println!("cargo:warning=Wrote {}", path.display());
     }
 }

@@ -54,12 +54,24 @@ impl std::fmt::Display for ResolveError {
                         Direction::Input => "input",
                         Direction::Output => "output",
                     };
-                    let loc = e
-                        .location
-                        .as_ref()
-                        .map(|l| format!(" (first seen at {})", l))
-                        .unwrap_or_default();
-                    writeln!(f, "  - {} ({}){}", e.key, dir, loc)?;
+                    if let Some(loc) = e.location.as_ref() {
+                        writeln!(
+                            f,
+                            "{}:{}:{}: error: unresolved prebindgen-ext {} type `{}`",
+                            loc.file,
+                            loc.line,
+                            loc.column,
+                            dir,
+                            e.key
+                        )?;
+                    } else {
+                        writeln!(
+                            f,
+                            "error: unresolved prebindgen-ext {} type `{}`",
+                            dir,
+                            e.key
+                        )?;
+                    }
                 }
                 Ok(())
             }
