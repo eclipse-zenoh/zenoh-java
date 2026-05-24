@@ -1,11 +1,11 @@
 use prebindgen_ext::core::registry::Registry;
-use prebindgen_ext::core::registry::WriteRustError;
 use prebindgen_ext::jni::jni_ext::KotlinMeta;
 use prebindgen_ext::jni::JniExt;
 use syn::parse_quote as pq;
 
-fn report_write_rust_error(err: &WriteRustError) {
-    eprintln!("error: prebindgen-ext write_rust failed: {err}");
+fn fail(context: &str, err: impl std::fmt::Display) -> ! {
+    eprintln!("error: prebindgen-ext {context}: {err}");
+    std::process::exit(1);
 }
 
 fn main() {
@@ -41,17 +41,11 @@ fn main() {
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
     let mut registry = match Registry::from_items(source.items_all()) {
         Ok(registry) => registry,
-        Err(err) => {
-            eprintln!("error: prebindgen-ext scan failed: {err}");
-            std::process::exit(1);
-        }
+        Err(err) => fail("scan failed", err),
     };
     let rust_path = match registry.write_rust(&jni, "zenoh_flat_jni.rs") {
         Ok(path) => path,
-        Err(err) => {
-            report_write_rust_error(&err);
-            std::process::exit(1);
-        }
+        Err(err) => fail("write_rust failed", err),
     };
     println!(
         "cargo:warning=Generated bindings at: {}",
@@ -65,10 +59,7 @@ fn main() {
     let kotlin_root = std::path::Path::new("generated-kotlin");
     for path in match jni.write_kotlin(&registry, kotlin_root) {
         Ok(paths) => paths,
-        Err(err) => {
-            eprintln!("error: prebindgen-ext write_kotlin failed: {err}");
-            std::process::exit(1);
-        }
+        Err(err) => fail("write_kotlin failed", err),
     } {
         println!("cargo:warning=Wrote {}", path.display());
     }
