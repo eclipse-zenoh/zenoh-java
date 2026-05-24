@@ -1,3 +1,4 @@
+use prebindgen_ext::core::prebindgen_ext::IntoSource;
 use prebindgen_ext::core::registry::Registry;
 use prebindgen_ext::jni::jni_ext::KotlinMeta;
 use prebindgen_ext::jni::JniExt;
@@ -20,8 +21,17 @@ fn main() {
                 ))
             },
         )
-        .kotlin_package("keyexpr")
-        .method("keyexpr_validate")
+        // .kotlin_data_class(pq!(KeyExpr)) 
+        // .method("keyexpr_try_from")
+        // .method("keyexpr_autocanonize")
+        // .method("keyexpr_intersects")
+        // .into_sources(
+        //     pq!(KeyExpr),
+        //     [
+        //         IntoSource::borrow(pq!(KeyExpr)),
+        //         IntoSource::borrow(pq!(String)),
+        //     ],
+        // )
         ;
 
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);

@@ -2161,6 +2161,37 @@ impl PrebindgenExt for JniExt {
     /// typed-handle / `JNIWrappers` signature.
     type Metadata = KotlinMeta;
 
+    /// Union of every per-class `.method(...)` list and the package
+    /// object's method list. Each entry is a `#[prebindgen]` fn ident
+    /// the user explicitly hooked into the binding; functions not in
+    /// this set are skipped by the registry's signature scan and by
+    /// the per-item emitter.
+    fn declared_functions(&self) -> std::collections::HashSet<syn::Ident> {
+        let mut out = std::collections::HashSet::new();
+        for cfg in self.types.values() {
+            for name in &cfg.methods {
+                if let Ok(ident) = syn::parse_str::<syn::Ident>(name) {
+                    out.insert(ident);
+                }
+            }
+        }
+        for name in &self.package_methods.methods {
+            if let Ok(ident) = syn::parse_str::<syn::Ident>(name) {
+                out.insert(ident);
+            }
+        }
+        out
+    }
+
+    /// Every type registered via `.kotlin_ptr_class`,
+    /// `.kotlin_data_class`, or `.kotlin_enum` — anything in
+    /// [`Self::types`]. These are the only structs/enums the
+    /// per-item emitter walks; bodies of undeclared types are
+    /// skipped.
+    fn declared_types(&self) -> std::collections::HashSet<TypeKey> {
+        self.types.keys().cloned().collect()
+    }
+
     /// Emit the `OwnedObject<T>` borrow wrapper used by
     /// [`Self::opaque_handle_input`] into the destination file.
     /// The struct is referenced by an unqualified `OwnedObject` from

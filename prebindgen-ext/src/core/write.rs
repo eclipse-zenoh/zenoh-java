@@ -54,25 +54,38 @@ pub fn write_rust<P: AsRef<Path>, E: PrebindgenExt>(
         items.push(syn::Item::Fn(item_fn));
     }
 
-    // 2. Per-item Rust output from the ext.
+    // 2. Per-item Rust output from the ext — only for items the ext
+    //    explicitly declared. Undeclared items were already announced
+    //    via `cargo:warning=` in `Registry::scan_declared`.
+    let declared_fns = ext.declared_functions();
+    let declared_types = ext.declared_types();
     items.extend(parse_items_from_tokens(
         registry
             .functions
-            .values()
-            .map(|(item, _)| ext.on_function(item, registry)),
+            .iter()
+            .filter(|(ident, _)| declared_fns.contains(*ident))
+            .map(|(_, (item, _))| ext.on_function(item, registry)),
     )?);
     items.extend(parse_items_from_tokens(
         registry
             .structs
-            .values()
-            .map(|(item, _)| ext.on_struct(item, registry)),
+            .iter()
+            .filter(|(ident, _)| {
+                declared_types.contains(&TypeKey::parse(&ident.to_string()))
+            })
+            .map(|(_, (item, _))| ext.on_struct(item, registry)),
     )?);
     items.extend(parse_items_from_tokens(
         registry
             .enums
-            .values()
-            .map(|(item, _)| ext.on_enum(item, registry)),
+            .iter()
+            .filter(|(ident, _)| {
+                declared_types.contains(&TypeKey::parse(&ident.to_string()))
+            })
+            .map(|(_, (item, _))| ext.on_enum(item, registry)),
     )?);
+    // Consts: always emit verbatim — declaration mechanism for consts
+    // is future work (see plan).
     items.extend(parse_items_from_tokens(
         registry
             .consts

@@ -227,6 +227,7 @@ impl std::error::Error for ScanError {}
 /// Combined error surfaced by [`Registry::write_rust`].
 #[derive(Debug)]
 pub enum WriteRustError {
+    Scan(ScanError),
     Resolve(crate::core::resolve::ResolveError),
     Write(crate::core::write::WriteError),
 }
@@ -234,6 +235,7 @@ pub enum WriteRustError {
 impl fmt::Display for WriteRustError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            WriteRustError::Scan(e) => write!(f, "{}", e),
             WriteRustError::Resolve(e) => write!(f, "{}", e),
             WriteRustError::Write(e) => write!(f, "{}", e),
         }
@@ -241,6 +243,12 @@ impl fmt::Display for WriteRustError {
 }
 
 impl std::error::Error for WriteRustError {}
+
+impl From<ScanError> for WriteRustError {
+    fn from(e: ScanError) -> Self {
+        WriteRustError::Scan(e)
+    }
+}
 
 impl From<crate::core::resolve::ResolveError> for WriteRustError {
     fn from(e: crate::core::resolve::ResolveError) -> Self {
@@ -255,42 +263,129 @@ impl From<crate::core::write::WriteError> for WriteRustError {
 }
 
 impl<M> Registry<M> {
-    /// Construct a `Registry` by scanning a stream of source items.
+    /// Construct a `Registry` by indexing a stream of source items.
     ///
     /// Callers feed any `(syn::Item, SourceLocation)` iterator — typically
     /// `source.items_all()`, `source.items_except_groups(...)`, or a
     /// hand-rolled filter chain — so item-level selection happens upstream
     /// of the registry rather than inside it.
+    ///
+    /// This step only populates the item maps (`functions`, `structs`,
+    /// `enums`, `consts`, `passthrough`). Signature/body scanning that
+    /// drives type-resolution requirements happens later, in
+    /// [`Self::scan_declared`], and is gated on what the language ext
+    /// has explicitly declared. Items that are never declared remain in
+    /// the registry but never drive type resolution and never emit.
     pub fn from_items<I>(items: I) -> Result<Self, ScanError>
     where
         I: IntoIterator<Item = (syn::Item, SourceLocation)>,
     {
         let mut registry = Registry::default();
-
-        // Phase 1 — index all items.
         for (item, loc) in items {
             registry.index_item(item, loc)?;
         }
-
-        // Phase 2a — function signatures.
-        let fn_keys: Vec<_> = registry.functions.keys().cloned().collect();
-        for name in fn_keys {
-            let (item_fn, loc) = registry.functions.get(&name).cloned().unwrap();
-            registry.scan_fn_signature(&item_fn, &loc)?;
-        }
-        // Phase 2b — struct/enum bodies (their types need converters too).
-        let struct_keys: Vec<_> = registry.structs.keys().cloned().collect();
-        for name in struct_keys {
-            let (item_struct, loc) = registry.structs.get(&name).cloned().unwrap();
-            registry.scan_struct(&item_struct, &loc)?;
-        }
-        let enum_keys: Vec<_> = registry.enums.keys().cloned().collect();
-        for name in enum_keys {
-            let (item_enum, loc) = registry.enums.get(&name).cloned().unwrap();
-            registry.scan_enum(&item_enum, &loc)?;
-        }
-
         Ok(registry)
+    }
+
+    /// Scan the signature/body of every item declared by `ext`.
+    ///
+    /// * For each ident in `ext.declared_functions()` ∩ indexed functions,
+    ///   call [`Self::scan_fn_signature`] so parameter and return types
+    ///   are registered as required.
+    /// * For each `TypeKey` in `ext.declared_types()`, mark the key as
+    ///   required in both directions; if the key resolves to an indexed
+    ///   struct/enum, also scan its body so field types are registered
+    ///   (still `required: false` — propagation later promotes them
+    ///   through `subs`).
+    ///
+    /// Declared items that don't match any indexed body get a build
+    /// warning (likely a typo in the build script). Indexed items that
+    /// were never declared also get a `cargo:warning=` skip line so the
+    /// user sees the full skip list per build.
+    pub fn scan_declared<E>(&mut self, ext: &E) -> Result<(), ScanError>
+    where
+        E: crate::core::prebindgen_ext::PrebindgenExt<Metadata = M>,
+    {
+        let declared_fns = ext.declared_functions();
+        let declared_types = ext.declared_types();
+
+        // Scan declared functions.
+        for ident in &declared_fns {
+            if let Some((item_fn, loc)) = self.functions.get(ident).cloned() {
+                self.scan_fn_signature(&item_fn, &loc)?;
+            } else {
+                println!(
+                    "cargo:warning=prebindgen-ext: declared function `{}` not found among #[prebindgen] items",
+                    ident
+                );
+            }
+        }
+
+        // Scan declared types.
+        for key in &declared_types {
+            let ty = key.to_type();
+            let mut matched = false;
+            if let Some(ident) = type_path_tail_ident(&ty) {
+                if let Some((s, loc)) = self.structs.get(&ident).cloned() {
+                    self.scan_struct(&s, &loc)?;
+                    self.ensure_entry(Direction::Input, &ty, true, &loc);
+                    self.ensure_entry(Direction::Output, &ty, true, &loc);
+                    matched = true;
+                } else if let Some((e, loc)) = self.enums.get(&ident).cloned() {
+                    self.scan_enum(&e, &loc)?;
+                    self.ensure_entry(Direction::Input, &ty, true, &loc);
+                    self.ensure_entry(Direction::Output, &ty, true, &loc);
+                    matched = true;
+                }
+            }
+            if !matched {
+                // Declared type without an indexed body (e.g.
+                // `kotlin_ptr_class(ZKeyExpr<'static>)` on a re-exported
+                // foreign type). Still mark required so the resolver
+                // tries to produce a converter for it.
+                let loc = self.type_locations.get(key).cloned().unwrap_or_default();
+                self.ensure_entry(Direction::Input, &ty, true, &loc);
+                self.ensure_entry(Direction::Output, &ty, true, &loc);
+            }
+        }
+
+        // Warn about indexed items that the ext never claimed.
+        let mut skipped_fns: Vec<String> = self
+            .functions
+            .keys()
+            .filter(|k| !declared_fns.contains(*k))
+            .map(|k| k.to_string())
+            .collect();
+        skipped_fns.sort();
+        for name in &skipped_fns {
+            println!(
+                "cargo:warning=prebindgen-ext: skipping undeclared #[prebindgen] fn `{}`",
+                name
+            );
+        }
+
+        let mut skipped_types: Vec<String> = Vec::new();
+        for ident in self.structs.keys() {
+            let key = TypeKey::parse(&ident.to_string());
+            if !declared_types.contains(&key) {
+                skipped_types.push(ident.to_string());
+            }
+        }
+        for ident in self.enums.keys() {
+            let key = TypeKey::parse(&ident.to_string());
+            if !declared_types.contains(&key) {
+                skipped_types.push(ident.to_string());
+            }
+        }
+        skipped_types.sort();
+        for name in &skipped_types {
+            println!(
+                "cargo:warning=prebindgen-ext: skipping undeclared #[prebindgen] struct/enum `{}`",
+                name
+            );
+        }
+
+        Ok(())
     }
 
     /// True iff the key was scanned as a top-level fn-signature input type.
@@ -542,6 +637,7 @@ impl<M> Registry<M> {
         E: crate::core::prebindgen_ext::PrebindgenExt<Metadata = M>,
         M: Clone + Default,
     {
+        self.scan_declared(ext)?;
         crate::core::resolve::resolve(self, ext)?;
         Ok(crate::core::write::write_rust(self, ext, out_path)?)
     }
@@ -696,4 +792,184 @@ fn type_path_tail_ident(ty: &syn::Type) -> Option<syn::Ident> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::niches::Niches;
+    use crate::core::prebindgen_ext::{ConverterImpl, PrebindgenExt};
+    use proc_macro2::TokenStream;
+    use std::collections::HashSet;
+
+    /// Minimal `PrebindgenExt` for scan-pipeline tests. Carries the
+    /// declared sets the test wants and stubs every emission/converter
+    /// hook into something inert.
+    #[derive(Default)]
+    struct StubExt {
+        functions: HashSet<syn::Ident>,
+        types: HashSet<TypeKey>,
+    }
+
+    impl PrebindgenExt for StubExt {
+        type Metadata = ();
+
+        fn declared_functions(&self) -> HashSet<syn::Ident> {
+            self.functions.clone()
+        }
+        fn declared_types(&self) -> HashSet<TypeKey> {
+            self.types.clone()
+        }
+
+        fn on_function(&self, _f: &syn::ItemFn, _registry: &Registry<()>) -> TokenStream {
+            TokenStream::new()
+        }
+        fn on_struct(&self, _s: &syn::ItemStruct, _registry: &Registry<()>) -> TokenStream {
+            TokenStream::new()
+        }
+        fn on_enum(&self, _e: &syn::ItemEnum, _registry: &Registry<()>) -> TokenStream {
+            TokenStream::new()
+        }
+        fn on_input_type_rank_0(
+            &self,
+            _ty: &syn::Type,
+            _registry: &Registry<()>,
+        ) -> Option<ConverterImpl<()>> {
+            None
+        }
+        fn on_input_type_rank_1(
+            &self,
+            _pat: &syn::Type,
+            _t1: &syn::Type,
+            _registry: &Registry<()>,
+        ) -> Option<ConverterImpl<()>> {
+            None
+        }
+        fn on_input_type_rank_2(
+            &self,
+            _pat: &syn::Type,
+            _t1: &syn::Type,
+            _t2: &syn::Type,
+            _registry: &Registry<()>,
+        ) -> Option<ConverterImpl<()>> {
+            None
+        }
+        fn on_input_type_rank_3(
+            &self,
+            _pat: &syn::Type,
+            _t1: &syn::Type,
+            _t2: &syn::Type,
+            _t3: &syn::Type,
+            _registry: &Registry<()>,
+        ) -> Option<ConverterImpl<()>> {
+            None
+        }
+        fn on_output_type_rank_0(
+            &self,
+            _ty: &syn::Type,
+            _registry: &Registry<()>,
+        ) -> Option<ConverterImpl<()>> {
+            None
+        }
+        fn on_output_type_rank_1(
+            &self,
+            _pat: &syn::Type,
+            _t1: &syn::Type,
+            _registry: &Registry<()>,
+        ) -> Option<ConverterImpl<()>> {
+            None
+        }
+        fn on_output_type_rank_2(
+            &self,
+            _pat: &syn::Type,
+            _t1: &syn::Type,
+            _t2: &syn::Type,
+            _registry: &Registry<()>,
+        ) -> Option<ConverterImpl<()>> {
+            None
+        }
+        fn on_output_type_rank_3(
+            &self,
+            _pat: &syn::Type,
+            _t1: &syn::Type,
+            _t2: &syn::Type,
+            _t3: &syn::Type,
+            _registry: &Registry<()>,
+        ) -> Option<ConverterImpl<()>> {
+            None
+        }
+    }
+
+    // suppress unused warning on Niches — kept available for richer tests
+    #[allow(dead_code)]
+    fn _force_niches_use() -> Niches {
+        Niches::empty()
+    }
+
+    fn fn_item(src: &str) -> (syn::Item, SourceLocation) {
+        let item: syn::ItemFn = syn::parse_str(src).expect("test fn parse");
+        (syn::Item::Fn(item), SourceLocation::default())
+    }
+
+    #[test]
+    fn from_items_does_not_scan_signatures() {
+        // A `#[prebindgen]`-marked fn whose return is a bare `impl Foo`
+        // would have failed `from_items` under the old code path
+        // (ScanError::DisallowedImplTrait). Now `from_items` is index-
+        // only and accepts it without complaint.
+        let items = vec![fn_item(
+            "fn bogus(x: u64) -> impl std::fmt::Debug { 0u64 }",
+        )];
+        let reg: Registry<()> = Registry::from_items(items).expect("from_items must succeed");
+        assert!(reg.required_inputs_scan.is_empty());
+        assert!(reg.required_outputs_scan.is_empty());
+        // The fn is indexed but no types are pre-required.
+        assert!(reg.functions.contains_key(&syn::parse_str("bogus").unwrap()));
+    }
+
+    #[test]
+    fn scan_declared_empty_ext_marks_nothing_required() {
+        let items = vec![fn_item("fn good(x: u64) -> u64 { x }")];
+        let mut reg: Registry<()> = Registry::from_items(items).unwrap();
+        let ext = StubExt::default();
+        reg.scan_declared(&ext).expect("empty ext = no scan");
+        assert!(reg.required_inputs_scan.is_empty());
+        assert!(reg.required_outputs_scan.is_empty());
+    }
+
+    #[test]
+    fn scan_declared_marks_types_required_only_for_declared_fns() {
+        let items = vec![
+            fn_item("fn a(x: u64) -> u64 { x }"),
+            fn_item("fn b(x: u32) -> u32 { x }"),
+        ];
+        let mut reg: Registry<()> = Registry::from_items(items).unwrap();
+        let mut ext = StubExt::default();
+        ext.functions.insert(syn::parse_str("a").unwrap());
+        reg.scan_declared(&ext).unwrap();
+        assert!(reg.required_inputs_scan.contains(&TypeKey::parse("u64")));
+        assert!(reg.required_outputs_scan.contains(&TypeKey::parse("u64")));
+        assert!(!reg.required_inputs_scan.contains(&TypeKey::parse("u32")));
+        assert!(!reg.required_outputs_scan.contains(&TypeKey::parse("u32")));
+    }
+
+    #[test]
+    fn scan_declared_fails_disallowed_impl_trait_only_when_fn_declared() {
+        let items = vec![fn_item(
+            "fn bogus(x: u64) -> impl std::fmt::Debug { 0u64 }",
+        )];
+        let mut reg: Registry<()> = Registry::from_items(items).unwrap();
+
+        // Empty ext: the bogus fn is not scanned, so no error.
+        let empty = StubExt::default();
+        assert!(reg.scan_declared(&empty).is_ok());
+
+        // Declare the fn: scan now fires the disallowed-impl-Trait error.
+        let mut ext = StubExt::default();
+        ext.functions.insert(syn::parse_str("bogus").unwrap());
+        match reg.scan_declared(&ext) {
+            Err(ScanError::DisallowedImplTrait { .. }) => (),
+            other => panic!("expected DisallowedImplTrait, got {:?}", other),
+        }
+    }
 }

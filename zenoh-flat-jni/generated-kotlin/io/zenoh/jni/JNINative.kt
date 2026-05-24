@@ -3,5 +3,4 @@ package io.zenoh.jni
 
 
 internal object JNINative {
-    external fun keyexprValidate(s: String): String
 }

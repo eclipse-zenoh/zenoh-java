@@ -17,10 +17,12 @@
 //! 100% of the shape. Other code that wants to call this converter reads
 //! the name from `function.sig.ident`; the wire form from `destination`.
 
+use std::collections::HashSet;
+
 use proc_macro2::TokenStream;
 
 use crate::core::niches::Niches;
-use crate::core::registry::Registry;
+use crate::core::registry::{Registry, TypeKey};
 
 /// One link in a converter's [stage chain](`ConverterImpl::pre_stages`) —
 /// a value-inspecting throw stage that sits between the rust value the
@@ -191,6 +193,30 @@ pub trait PrebindgenExt {
     /// fn references.
     fn prerequisites(&self, _registry: &Registry<Self::Metadata>) -> Vec<syn::Item> {
         Vec::new()
+    }
+
+    // ── Declaration queries ────────────────────────────────────────
+
+    /// Idents of `#[prebindgen]` functions the ext claims for emission.
+    /// Anything not in this set is left in the registry's `functions`
+    /// map but never scanned for type requirements and never emitted —
+    /// the build prints a `cargo:warning=` line per skip.
+    ///
+    /// Default: empty (strict allowlist; an ext with no declarations
+    /// emits nothing for functions).
+    fn declared_functions(&self) -> HashSet<syn::Ident> {
+        HashSet::new()
+    }
+
+    /// Canonical keys of types (structs / enums) the ext claims for
+    /// emission. Matched against `Registry::structs` and `Registry::enums`
+    /// by bare-ident lookup. Anything not in this set is left in the
+    /// registry but never scanned for body type requirements and never
+    /// emitted — the build prints a `cargo:warning=` line per skip.
+    ///
+    /// Default: empty (strict allowlist).
+    fn declared_types(&self) -> HashSet<TypeKey> {
+        HashSet::new()
     }
 
     // ── Item methods ───────────────────────────────────────────────
