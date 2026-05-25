@@ -1690,11 +1690,15 @@ impl JniExt {
         exc: Option<&ExceptionConfig>,
     ) -> syn::ItemFn {
         let name = input_name(rust, wire);
-        let rust_with_lifetime = annotate_borrow_with_lifetime(rust, "env");
-        let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "v");
-        let err_type = exc.map(|e| e.rust_type.clone()).unwrap_or_else(default_err_type);
+        let rust = self.qualify_emitted_type(rust);
+        let wire = self.qualify_emitted_type(wire);
+        let rust_with_lifetime = annotate_borrow_with_lifetime(&rust, "env");
+        let wire_with_lifetime = annotate_jobject_with_lifetime(&wire, "v");
+        let err_type = self.qualify_emitted_type(
+            &exc.map(|e| e.rust_type.clone()).unwrap_or_else(default_err_type),
+        );
         let ret_body = body_for_exc(body, exc);
-        if matches!(wire, syn::Type::Ptr(_)) {
+        if matches!(&wire, syn::Type::Ptr(_)) {
             syn::parse_quote!(
                 #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
                 pub(crate) unsafe fn #name<'env>(env: &mut jni::JNIEnv<'env>, v: #wire) -> ::core::result::Result<#rust_with_lifetime, #err_type> {
@@ -1725,8 +1729,12 @@ impl JniExt {
         exc: Option<&ExceptionConfig>,
     ) -> syn::ItemFn {
         let name = output_name(rust, wire);
-        let wire_with_lifetime = annotate_jobject_with_lifetime(wire, "a");
-        let err_type = exc.map(|e| e.rust_type.clone()).unwrap_or_else(default_err_type);
+        let rust = self.qualify_emitted_type(rust);
+        let wire = self.qualify_emitted_type(wire);
+        let wire_with_lifetime = annotate_jobject_with_lifetime(&wire, "a");
+        let err_type = self.qualify_emitted_type(
+            &exc.map(|e| e.rust_type.clone()).unwrap_or_else(default_err_type),
+        );
         let ret_body = body_for_exc(body, exc);
         syn::parse_quote!(
             #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
@@ -1777,6 +1785,7 @@ impl JniExt {
     pub fn opaque_handle_input(&self, ty: &syn::Type) -> ConverterImpl<KotlinMeta> {
         let wire: syn::Type = syn::parse_quote!(jni::sys::jlong);
         let name = input_name(ty, &wire);
+        let ty = self.qualify_emitted_type(ty);
         let function: syn::ItemFn = syn::parse_quote!(
             #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
             pub(crate) unsafe fn #name<'env, 'v>(
@@ -1860,6 +1869,26 @@ impl JniExt {
     /// Symmetric to [`Self::input_converter_name`].
     pub fn output_converter_name(&self, rust: &syn::Type, wire: &syn::Type) -> syn::Ident {
         output_name(rust, wire)
+    }
+
+    fn emitted_source_type_names(&self) -> std::collections::HashSet<String> {
+        let mut names = std::collections::HashSet::new();
+        for key in self.types.keys() {
+            if let Some(short) = rust_short_name_opt(key) {
+                names.insert(short);
+            }
+        }
+        for exc in self.exceptions.iter().skip(1) {
+            if let Some(short) = type_last_ident(&exc.rust_type) {
+                names.insert(short.to_string());
+            }
+        }
+        names
+    }
+
+    fn qualify_emitted_type(&self, ty: &syn::Type) -> syn::Type {
+        let source_names = self.emitted_source_type_names();
+        qualify_type_against_source_module(ty, &self.source_module, &source_names)
     }
 
     /// Output side of [`Self::opaque_handle_input`] — see that method's
@@ -2112,6 +2141,7 @@ fn build_handle_destructor_items(
         if registry.input_entry(&ty).is_none() && registry.output_entry(&ty).is_none() {
             continue;
         }
+        let ty = ext.qualify_emitted_type(&ty);
         let class_short = cfg
             .kotlin_name
             .as_deref()
@@ -2373,7 +2403,7 @@ impl PrebindgenExt for JniExt {
         }
         if pat_match(pat, "Option < _ >") {
             let outer_ty: syn::Type = syn::parse_quote!(Option<#t1>);
-            let (wire, body, niches) = option_input(t1, registry)?;
+            let (wire, body, niches) = option_input(self, t1, registry)?;
             // Inherit the inner's name; user pins on `Option<T>` win.
             // The nullability marker (`?`) is added by the use site.
             let inherited = registry
@@ -2860,6 +2890,87 @@ fn rust_short_name_opt(key: &TypeKey) -> Option<String> {
     None
 }
 
+fn type_last_ident(ty: &syn::Type) -> Option<syn::Ident> {
+    if let syn::Type::Path(tp) = ty {
+        if let Some(last) = tp.path.segments.last() {
+            return Some(last.ident.clone());
+        }
+    }
+    None
+}
+
+fn qualify_type_against_source_module(
+    ty: &syn::Type,
+    source_module: &syn::Path,
+    source_names: &std::collections::HashSet<String>,
+) -> syn::Type {
+    fn qualify_path(
+        path: &mut syn::Path,
+        source_module: &syn::Path,
+        source_names: &std::collections::HashSet<String>,
+    ) {
+        for segment in &mut path.segments {
+            match &mut segment.arguments {
+                syn::PathArguments::AngleBracketed(args) => {
+                    for arg in &mut args.args {
+                        if let syn::GenericArgument::Type(inner) = arg {
+                            qualify_type_in_place(inner, source_module, source_names);
+                        }
+                    }
+                }
+                syn::PathArguments::Parenthesized(args) => {
+                    for input in &mut args.inputs {
+                        qualify_type_in_place(input, source_module, source_names);
+                    }
+                    if let syn::ReturnType::Type(_, output) = &mut args.output {
+                        qualify_type_in_place(output, source_module, source_names);
+                    }
+                }
+                syn::PathArguments::None => {}
+            }
+        }
+
+        if path.leading_colon.is_none() && path.segments.len() == 1 {
+            let ident = path.segments[0].ident.to_string();
+            if source_names.contains(&ident) {
+                let mut qualified = source_module.clone();
+                qualified.segments.push(path.segments[0].clone());
+                *path = qualified;
+            }
+        }
+    }
+
+    fn qualify_type_in_place(
+        ty: &mut syn::Type,
+        source_module: &syn::Path,
+        source_names: &std::collections::HashSet<String>,
+    ) {
+        match ty {
+            syn::Type::Array(arr) => qualify_type_in_place(&mut arr.elem, source_module, source_names),
+            syn::Type::Group(group) => qualify_type_in_place(&mut group.elem, source_module, source_names),
+            syn::Type::Paren(paren) => qualify_type_in_place(&mut paren.elem, source_module, source_names),
+            syn::Type::Path(tp) if tp.qself.is_none() => {
+                qualify_path(&mut tp.path, source_module, source_names);
+            }
+            syn::Type::Ptr(ptr) => qualify_type_in_place(&mut ptr.elem, source_module, source_names),
+            syn::Type::Reference(reference) => {
+                qualify_type_in_place(&mut reference.elem, source_module, source_names)
+            }
+            syn::Type::Slice(slice) => qualify_type_in_place(&mut slice.elem, source_module, source_names),
+            syn::Type::Tuple(tuple) => {
+                for elem in &mut tuple.elems {
+                    qualify_type_in_place(elem, source_module, source_names);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut ty = ty.clone();
+    qualify_type_in_place(&mut ty, source_module, source_names);
+    ty
+}
+
 fn mangle_jni_name(ext: &JniExt, ident: &syn::Ident) -> syn::Ident {
     let camel = snake_to_camel(&ident.to_string());
     let mangled = ext.mangle_fun(&camel);
@@ -3016,6 +3127,7 @@ fn primitive_output(ty: &syn::Type) -> Option<(syn::Type, syn::Expr)> {
 /// If neither path applies (non-primitive wire, no niche), the wrap
 /// fails and the resolver falls through to other rank-1 attempts.
 fn option_input(
+    ext: &JniExt,
     t1: &syn::Type,
     registry: &Registry<KotlinMeta>,
 ) -> Option<(syn::Type, syn::Expr, Niches)> {
@@ -3026,9 +3138,21 @@ fn option_input(
     // 1. Niche path.
     if let Some((slot, rest)) = inner_entry.niches.clone().carve() {
         let pred = &slot.matches;
-        let body: syn::Expr = syn::parse_quote!({
-            if #pred { None } else { Some(#inner_conv(env, v)?) }
-        });
+        let returns_owned_object = converter_returns_owned_object(&inner_entry.function.sig.output);
+        let body: syn::Expr = if returns_owned_object {
+            let owned_ty = ext.qualify_emitted_type(t1);
+            syn::parse_quote!({
+                if #pred {
+                    None
+                } else {
+                    Some(unsafe { *std::boxed::Box::from_raw(*v as *mut #owned_ty) })
+                }
+            })
+        } else {
+            syn::parse_quote!({
+                if #pred { None } else { Some(#inner_conv(env, v)?) }
+            })
+        };
         return Some((inner_wire, body, rest));
     }
 

@@ -25,4 +25,4 @@ pub use z_keyexpr::*;
 pub use error::*;
 
 // reexports of zenoh types with Z prefix to distiguish them from zenoh-flat types
-type ZKeyExpr = zenoh::key_expr::KeyExpr<'static>;
+pub type ZKeyExpr = zenoh::key_expr::KeyExpr<'static>;
