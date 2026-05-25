@@ -40,6 +40,46 @@ use crate::util::snake_to_camel;
 // Language metadata (PrebindgenExt::Metadata for JniExt)
 // ──────────────────────────────────────────────────────────────────────
 
+/// Folded nullability / collection layers wrapping a closeable native
+/// handle, outermost first. Mirrors how the type folds: the opaque-handle
+/// leaf is [`CloseStrategy::Direct`]; an `Option<_>` wrapper adds
+/// [`CloseStrategy::Nullable`]; a collection wrapper would add
+/// [`CloseStrategy::Iterable`]. Drives both the typed Kotlin rendering of
+/// a handle-bearing field/return and the generated `close()` expression,
+/// uniformly across whatever wrappers compose.
+#[derive(Clone, Debug)]
+pub enum CloseStrategy {
+    /// The receiver *is* the handle.
+    Direct,
+    /// `T?` — receiver may be null.
+    Nullable(Box<CloseStrategy>),
+    /// `List<T>` — receiver is a collection. EXTENSION POINT: no
+    /// `Vec<Handle>` shape exists today, so the emitters guard this arm
+    /// loudly rather than silently mis-generating.
+    Iterable(Box<CloseStrategy>),
+}
+
+/// Folded description of a closeable native handle reached through zero or
+/// more wrapper layers. Set at the opaque-handle leaf, transformed by each
+/// wrapper as the type folds (see [`CloseStrategy`]), and read by every
+/// typed-surface emitter (data-class fields, struct encode/decode,
+/// `classify_return`, param classification) so "is this an owned closeable
+/// handle, what is its Kotlin class, how do I close it" has one source of
+/// truth instead of a parallel ad-hoc decision tree.
+#[derive(Clone, Debug)]
+pub struct HandleInfo {
+    /// Canonical [`TypeKey`] string of the leaf opaque handle (e.g.
+    /// `"ZKeyExpr"`); look up [`JniExt::kotlin_type_fqns`] for the typed
+    /// Kotlin FQN.
+    pub leaf_key: String,
+    /// `false` for `&T` borrows — still an opaque handle (param
+    /// classification needs this), but not the holder's to close, so
+    /// `close()` emission skips it.
+    pub owned: bool,
+    /// Nullability / collection layers.
+    pub strategy: CloseStrategy,
+}
+
 /// Per-converter language-specific extras carried by every
 /// [`ConverterImpl`] this back-end produces. Filled by the same handler
 /// that builds the wire/body, propagated by the resolver into
@@ -82,6 +122,12 @@ pub struct KotlinMeta {
     /// `Option<_>` / `Vec<_>` / `&_` rank-1 handlers from their inner
     /// type's metadata. `None` for plain values and arity-0 converters.
     pub value_rust_key: Option<String>,
+    /// Present iff this (possibly wrapped) value is an opaque native
+    /// handle. Set at the opaque-handle leaf and folded outward by the
+    /// rank-1 `&_` / `Option<_>` handlers and the `lookup_*` composed
+    /// branches. The single source of truth for typed-handle rendering
+    /// and `close()` generation — see [`HandleInfo`].
+    pub handle: Option<HandleInfo>,
 }
 
 impl KotlinMeta {
@@ -91,6 +137,7 @@ impl KotlinMeta {
             throws: None,
             throws_action: None,
             value_rust_key: None,
+            handle: None,
         }
     }
 }
@@ -1264,6 +1311,7 @@ impl JniExt {
             throws: Some(exc.kotlin_fqn.clone()),
             throws_action: Some(exception_throw_path(exc)),
             value_rust_key: None,
+            handle: None,
         }
     }
 
@@ -1337,6 +1385,9 @@ impl JniExt {
                         throws: Some(throw_exc.kotlin_fqn.clone()),
                         throws_action: Some(exception_throw_path(throw_exc)),
                         value_rust_key: None,
+                        // Terminal: body produces the wire directly, no inner
+                        // converter composed, so no handle to carry.
+                        handle: None,
                     },
                 })
             }
@@ -1379,6 +1430,10 @@ impl JniExt {
                         throws: inner.metadata.throws.clone(),
                         throws_action: inner.metadata.throws_action.clone(),
                         value_rust_key,
+                        // Identity propagation: a composed wrapper (e.g.
+                        // `Result<Handle,Error>`) projects to its inner value,
+                        // so a handle inner stays a handle (same strategy).
+                        handle: inner.metadata.handle.clone(),
                     },
                 })
             }
@@ -1455,6 +1510,9 @@ impl JniExt {
                         throws: Some(throw_exc.kotlin_fqn.clone()),
                         throws_action: Some(exception_throw_path(throw_exc)),
                         value_rust_key,
+                        // Terminal: body produces the wire directly, no inner
+                        // converter composed, so no handle to carry.
+                        handle: None,
                     },
                 })
             }
@@ -1492,6 +1550,10 @@ impl JniExt {
                         throws: inner.metadata.throws.clone(),
                         throws_action: inner.metadata.throws_action.clone(),
                         value_rust_key,
+                        // Identity propagation: a composed wrapper (e.g.
+                        // `Result<Handle,Error>`) projects to its inner value,
+                        // so a handle inner stays a handle (same strategy).
+                        handle: inner.metadata.handle.clone(),
                     },
                 })
             }
@@ -1783,18 +1845,28 @@ impl JniExt {
                 syn::parse_quote!(0i64),
                 syn::parse_quote!(*v == 0),
             ),
-            // Opaque handles' value-context Kotlin name — `"Long"`.
-            // The typed-handle FQN lives in [`OpaqueConfig::fqn`] and is
-            // consulted by FQN-specific paths (typed-handle class
-            // emission, `instanceof` dispatch, return-value constructor
-            // wrap) rather than via metadata. The wrapper's `?` path
-            // surfaces an `OwnedObject::from_raw` failure as the
-            // framework `JniBindingError`, so the metadata's throws
-            // fields point at the framework exception — matches the
-            // `framework_throw` fallback the function wrapper would
-            // use anyway and lets the Kotlin @Throws emitter union
-            // `JniBindingError` onto chained throw-stage exceptions.
-            metadata: self.framework_meta(Some("Long".to_string())),
+            // Opaque handles' value-context Kotlin name stays `"Long"`
+            // (the jlong wire mention); the *typed* Kotlin rendering is
+            // derived from `handle` below. The wrapper's `?` path surfaces
+            // an `OwnedObject::from_raw` failure as the framework
+            // `JniBindingError`, so the throws fields point at the
+            // framework exception.
+            metadata: self.opaque_leaf_meta(ty),
+        }
+    }
+
+    /// Leaf metadata for an opaque handle: value-context name `"Long"`
+    /// plus the [`HandleInfo`] that folds outward through wrappers (owned,
+    /// [`CloseStrategy::Direct`]). The single seam where a Rust type is
+    /// first marked a closeable native handle.
+    fn opaque_leaf_meta(&self, ty: &syn::Type) -> KotlinMeta {
+        KotlinMeta {
+            handle: Some(HandleInfo {
+                leaf_key: TypeKey::from_type(ty).as_str().to_string(),
+                owned: true,
+                strategy: CloseStrategy::Direct,
+            }),
+            ..self.framework_meta(Some("Long".to_string()))
         }
     }
 
@@ -1899,12 +1971,12 @@ impl JniExt {
                 syn::parse_quote!(0i64),
                 syn::parse_quote!(*v == 0),
             ),
-            // Opaque handles' value-context Kotlin name — see
-            // [`Self::opaque_handle_input`]. Framework throws for the
-            // same reason: a `Box::into_raw` is infallible but the
-            // wrapper's emitted match-arm still has a
-            // `JniBindingError` branch reachable via the chain.
-            metadata: self.framework_meta(Some("Long".to_string())),
+            // Opaque handles' value-context name `"Long"` + folded
+            // `HandleInfo` — see [`Self::opaque_handle_input`] /
+            // [`Self::opaque_leaf_meta`]. Framework throws because the
+            // wrapper's emitted match-arm still has a `JniBindingError`
+            // branch reachable via the chain.
+            metadata: self.opaque_leaf_meta(ty),
         }
     }
 
@@ -2384,6 +2456,13 @@ impl PrebindgenExt for JniExt {
             // `&T` shares T's converter function verbatim, so it inherits
             // T's throws behaviour (whatever exception T's converter is
             // bound to). Copy the inner's throws metadata.
+            // A borrowed handle is still opaque (param classification
+            // needs to see it), but the holder doesn't own it — mark
+            // `owned: false` so `close()` emission skips it.
+            let handle = inner.metadata.handle.clone().map(|h| HandleInfo {
+                owned: false,
+                ..h
+            });
             return Some(ConverterImpl {
                 destination: inner.destination.clone(),
                 function: inner.function.clone(),
@@ -2394,6 +2473,7 @@ impl PrebindgenExt for JniExt {
                     throws: inner.metadata.throws.clone(),
                     throws_action: inner.metadata.throws_action.clone(),
                     value_rust_key: None,
+                    handle,
                 },
             });
         }
@@ -2406,12 +2486,24 @@ impl PrebindgenExt for JniExt {
                 .input_entry(t1)
                 .and_then(|e| e.metadata.kotlin_name.clone());
             let kotlin_name = self.override_kotlin_name(&outer_ty, inherited);
+            // Fold a Nullable layer over the inner handle (if any), so an
+            // `Option<Handle>` field/param carries the full close strategy.
+            let handle = registry
+                .input_entry(t1)
+                .and_then(|e| e.metadata.handle.clone())
+                .map(|h| HandleInfo {
+                    strategy: CloseStrategy::Nullable(Box::new(h.strategy)),
+                    ..h
+                });
             return Some(ConverterImpl {
                 pre_stages: vec![],
                 function: self.build_input_fn(&outer_ty, &wire, &body, None),
                 destination: wire,
                 niches,
-                metadata: self.framework_meta(kotlin_name),
+                metadata: KotlinMeta {
+                    handle,
+                    ..self.framework_meta(kotlin_name)
+                },
             });
         }
         None
@@ -2581,12 +2673,24 @@ impl PrebindgenExt for JniExt {
                 .output_entry(t1)
                 .and_then(|e| e.metadata.kotlin_name.clone());
             let kotlin_name = self.override_kotlin_name(&outer_ty, inherited);
+            // Fold a Nullable layer over the inner handle (if any), so an
+            // `Option<Handle>` output carries the full close strategy.
+            let handle = registry
+                .output_entry(t1)
+                .and_then(|e| e.metadata.handle.clone())
+                .map(|h| HandleInfo {
+                    strategy: CloseStrategy::Nullable(Box::new(h.strategy)),
+                    ..h
+                });
             return Some(ConverterImpl {
                 pre_stages: vec![],
                 function: self.build_output_fn(&outer_ty, &wire, &body, None),
                 destination: wire,
                 niches,
-                metadata: self.framework_meta(kotlin_name),
+                metadata: KotlinMeta {
+                    handle,
+                    ..self.framework_meta(kotlin_name)
+                },
             });
         }
         None
@@ -3418,6 +3522,38 @@ fn default_niches_for_wire(wire: &syn::Type) -> Niches {
 // Struct rank-0 bodies
 // ──────────────────────────────────────────────────────────────────────
 
+/// Resolve the typed-handle Kotlin FQN for a handle-bearing struct field
+/// and assert its folded strategy is one the struct encode/decode bridge
+/// supports. Today only scalar handle slots (`Direct`, optionally wrapped
+/// in `Nullable`) are encodable as a single `L<FQN>;` ctor arg; a
+/// collection layer (`Iterable`, i.e. `Vec<Handle>`) would need array
+/// codegen and is a loud build-time error until implemented.
+fn handle_field_fqn(ext: &JniExt, h: &HandleInfo) -> String {
+    fn assert_scalar(s: &CloseStrategy) {
+        match s {
+            CloseStrategy::Direct => {}
+            CloseStrategy::Nullable(inner) => assert_scalar(inner),
+            CloseStrategy::Iterable(_) => panic!(
+                "struct handle field: collection (Vec<Handle>) layers are not yet \
+                 supported by the struct encode/decode bridge — add array codegen \
+                 to struct_output_body/struct_input_body to lift this guard"
+            ),
+        }
+    }
+    assert_scalar(&h.strategy);
+    ext.kotlin_type_fqns
+        .iter()
+        .find(|(k, _)| k == &h.leaf_key)
+        .map(|(_, v)| v.clone())
+        .unwrap_or_else(|| {
+            panic!(
+                "struct handle field: leaf `{}` has no Kotlin FQN registered \
+                 (kotlin_ptr_class)",
+                h.leaf_key
+            )
+        })
+}
+
 fn struct_input_body(
     ext: &JniExt,
     s: &syn::ItemStruct,
@@ -3447,13 +3583,15 @@ fn struct_input_body(
         let field_wire = field_entry.destination.clone();
         let field_conv = field_entry.function.sig.ident.clone();
 
-        // Mirror of the struct_output_body bridge: when the data-class
-        // field is the typed handle (`ZKeyExpr?`), read the JNINativeHandle
-        // object from the JVM slot, `peek()` the raw jlong, then run the
-        // per-field input converter (still jlong-keyed). Null handle ⇒
-        // jlong = 0 ⇒ Option<...>::None via the niche-path.
-        if let Some(fqn) = crate::jni::jni_kotlin_ext::typed_handle_option_fqn(ext, &field.ty) {
-            let java_path = fqn.replace('.', "/");
+        // Mirror of the struct_output_body bridge: when the field is a
+        // closeable native handle (folded `HandleInfo` on its converter
+        // metadata), read the JNINativeHandle object from the JVM slot,
+        // `peek()` the raw jlong, then run the per-field input converter
+        // (still jlong-keyed). Null handle ⇒ jlong = 0 ⇒ `None` via the
+        // niche-path. Detection now flows from the type-unfolding metadata,
+        // not a syntactic `Option<T>` peel.
+        if let Some(h) = &field_entry.metadata.handle {
+            let java_path = handle_field_fqn(ext, h).replace('.', "/");
             let sig = format!("L{};", java_path);
             let tmp_ident = format_ident!("__{}_jobj", fname_ident);
             field_preludes.push(quote! {
@@ -3560,13 +3698,14 @@ fn struct_output_body(
             let #encoded_ident = #field_conv(env, #field_value_ident)?;
         });
 
-        // `Option<OpaqueHandle>` fields are bridged: per-field output
-        // converter still produces `jlong` (sentinel 0L for None); we
-        // wrap that into the typed-handle Kotlin class so the data-class
-        // field type matches (see `typed_handle_option_fqn` in jni_kotlin_ext).
+        // Closeable native-handle fields are bridged: the per-field output
+        // converter still produces `jlong` (sentinel 0L for None); we wrap
+        // that into the typed-handle Kotlin class so the data-class field
+        // type matches. Detection flows from the folded `HandleInfo` the
+        // type-unfolding mechanism propagated onto this field's metadata.
         // JVM ctor slot is `L<typed-FQN>;`, not `J`.
-        if let Some(fqn) = crate::jni::jni_kotlin_ext::typed_handle_option_fqn(ext, &field.ty) {
-            let java_path = fqn.replace('.', "/");
+        if let Some(h) = &field_entry.metadata.handle {
+            let java_path = handle_field_fqn(ext, h).replace('.', "/");
             let ctor_slot = format!("L{};", java_path);
             ctor_sig.push_str(&ctor_slot);
             let java_path_lit = syn::LitStr::new(&java_path, Span::call_site());

@@ -709,40 +709,42 @@ fn is_option_type(ty: &syn::Type) -> bool {
     false
 }
 
-/// If `ty` is `Option<T>`, return `T`. Otherwise `None`.
-fn option_inner_type(ty: &syn::Type) -> Option<&syn::Type> {
-    if let syn::Type::Path(tp) = ty {
-        if let Some(last) = tp.path.segments.last() {
-            if last.ident == "Option" {
-                if let syn::PathArguments::AngleBracketed(args) = &last.arguments {
-                    for arg in &args.args {
-                        if let syn::GenericArgument::Type(t) = arg {
-                            return Some(t);
-                        }
-                    }
+/// Render the Kotlin type for a closeable handle reached through the
+/// folded [`CloseStrategy`] layers, given the leaf typed-handle short
+/// name (e.g. `"ZKeyExpr"`): `Direct → "ZKeyExpr"`,
+/// `Nullable(inner) → "<inner>?"`, `Iterable(inner) → "List<<inner>>"`.
+fn render_handle_type(strategy: &crate::jni::jni_ext::CloseStrategy, leaf: &str) -> String {
+    use crate::jni::jni_ext::CloseStrategy::*;
+    match strategy {
+        Direct => leaf.to_string(),
+        Nullable(inner) => format!("{}?", render_handle_type(inner, leaf)),
+        Iterable(inner) => format!("List<{}>", render_handle_type(inner, leaf)),
+    }
+}
+
+/// Render the Kotlin `close()` expression for a handle `receiver` through
+/// the folded [`CloseStrategy`] layers. Fresh lambda variable per nesting
+/// level avoids `it` shadowing; the common single-layer cases are
+/// special-cased for readable output (`x?.close()`, `x.forEach { it.close() }`).
+fn render_handle_close(strategy: &crate::jni::jni_ext::CloseStrategy, receiver: &str) -> String {
+    use crate::jni::jni_ext::CloseStrategy::*;
+    fn go(strategy: &crate::jni::jni_ext::CloseStrategy, receiver: &str, depth: usize) -> String {
+        match strategy {
+            Direct => format!("{receiver}.close()"),
+            Nullable(inner) => match &**inner {
+                Direct => format!("{receiver}?.close()"),
+                _ => {
+                    let v = format!("e{depth}");
+                    format!("{receiver}?.let {{ {v} -> {} }}", go(inner, &v, depth + 1))
                 }
+            },
+            Iterable(inner) => {
+                let v = format!("e{depth}");
+                format!("{receiver}.forEach {{ {v} -> {} }}", go(inner, &v, depth + 1))
             }
         }
     }
-    None
-}
-
-/// Returns the typed-handle Kotlin FQN if `field_ty` is `Option<T>` where
-/// `T` is registered as an opaque handle (typed FQN present in
-/// `ext.kotlin_type_fqns`). Used by the data-class emitter to reshape
-/// `Option<OpaqueHandle>` fields from raw `Long` (sentinel-0) to the
-/// typed handle reference so the resource can carry its own
-/// `AutoCloseable` lifecycle.
-pub(crate) fn typed_handle_option_fqn(
-    ext: &crate::jni::jni_ext::JniExt,
-    field_ty: &syn::Type,
-) -> Option<String> {
-    let inner = option_inner_type(field_ty)?;
-    let inner_key = TypeKey::from_type(inner).as_str().to_string();
-    ext.kotlin_type_fqns
-        .iter()
-        .find(|(k, _)| k == &inner_key)
-        .map(|(_, v)| v.clone())
+    go(strategy, receiver, 0)
 }
 
 fn register_fqn(fqn: &str, used: &mut BTreeSet<String>) -> String {
@@ -892,10 +894,9 @@ fn render_data_class_source(
 
     let mut imports: BTreeSet<String> = BTreeSet::new();
     let mut field_lines: Vec<String> = Vec::new();
-    // Track per-field destructible Kotlin names so the bottom emitter can
-    // produce a matching `close()` body that calls `<field>?.close()` on
-    // each.
-    let mut destructible_fields: Vec<String> = Vec::new();
+    // Track per-field destructible (name, folded close strategy) so the
+    // bottom emitter can produce a matching `close()` body for each.
+    let mut destructible_fields: Vec<(String, crate::jni::jni_ext::CloseStrategy)> = Vec::new();
     for field in fields_named {
         let field_ident = field.ident.as_ref().unwrap_or_else(|| {
             panic!(
@@ -905,17 +906,40 @@ fn render_data_class_source(
         });
         let kotlin_field_name = snake_to_camel(&field_ident.to_string());
 
-        // `Option<OpaqueHandle>` fields are reshaped: instead of the bare
-        // `Long` wire (sentinel 0L), the data-class field is the typed
-        // handle (`ZKeyExpr?`). The struct encoder/decoder in jni_ext.rs
-        // bridges the JVM-side handle object back to the per-field
-        // jlong-wired converter. Doing this here lets every consumer of
-        // the field rely on `JNINativeHandle.close()` / Cleaner without
-        // wrapping a raw Long themselves.
-        if let Some(fqn) = typed_handle_option_fqn(ext, &field.ty) {
+        // Closeable native-handle field: both the typed Kotlin type
+        // (`ZKeyExpr?`, `List<ZKeyExpr>`, …) and the `close()` expression
+        // are derived from the folded `HandleInfo` the type-unfolding
+        // mechanism propagated onto this field's converter metadata —
+        // instead of a syntactic `Option<T>` peel. The struct
+        // encoder/decoder in jni_ext.rs bridges the JVM handle object to
+        // the per-field jlong-wired converter.
+        let field_handle = registry
+            .output_entry(&field.ty)
+            .and_then(|e| e.metadata.handle.clone())
+            .or_else(|| {
+                registry
+                    .input_entry(&field.ty)
+                    .and_then(|e| e.metadata.handle.clone())
+            });
+        if let Some(h) = field_handle.filter(|h| h.owned) {
+            let fqn = ext
+                .kotlin_type_fqns
+                .iter()
+                .find(|(k, _)| k == &h.leaf_key)
+                .map(|(_, v)| v.clone())
+                .unwrap_or_else(|| {
+                    panic!(
+                        "render_data_class_source: handle field `{}.{}` leaf `{}` has no \
+                         Kotlin FQN registered (kotlin_ptr_class)",
+                        item_struct.ident, field_ident, h.leaf_key
+                    )
+                });
             let short = register_fqn(&fqn, &mut imports);
-            field_lines.push(format!("    val {kotlin_field_name}: {short}?,"));
-            destructible_fields.push(kotlin_field_name);
+            field_lines.push(format!(
+                "    val {kotlin_field_name}: {},",
+                render_handle_type(&h.strategy, &short)
+            ));
+            destructible_fields.push((kotlin_field_name, h.strategy));
             continue;
         }
 
@@ -1013,15 +1037,16 @@ fn render_data_class_source(
         s.push_str(") {\n");
     } else {
         s.push_str(") : AutoCloseable {\n");
-        // `close()` walks every destructible field. `JNINativeHandle.close()`
-        // is idempotent (Cleaner.Cleanable.clean() invokes exactly once),
-        // so calling this multiple times — or alongside the cleaner's
-        // own firing on GC — is safe. NOTE: `data class` copy() shares the
-        // handle reference between copies; if you intend to close
-        // independently, don't copy this class.
+        // `close()` walks every destructible field via its folded close
+        // strategy. `JNINativeHandle.close()` is idempotent
+        // (Cleaner.Cleanable.clean() invokes exactly once), so calling
+        // this multiple times — or alongside the cleaner's own firing on
+        // GC — is safe. NOTE: `data class` copy() shares the handle
+        // reference between copies; if you intend to close independently,
+        // don't copy this class.
         s.push_str("    override fun close() {\n");
-        for fname in &destructible_fields {
-            s.push_str(&format!("        {fname}?.close()\n"));
+        for (fname, strategy) in &destructible_fields {
+            s.push_str(&format!("        {}\n", render_handle_close(strategy, fname)));
         }
         s.push_str("    }\n\n");
     }
@@ -1388,7 +1413,7 @@ fn render_jni_native_source(
             continue;
         }
         let (item_fn, _loc) = &registry.functions[ident];
-        if let Some(line) = render_extern_decl(ext, item_fn, registry, &merged_types, &mut imports) {
+        if let Some(line) = render_extern_decl(ext, item_fn, registry, &mut imports) {
             body.push_str(&line);
             body.push('\n');
         }
@@ -1430,7 +1455,6 @@ pub(crate) fn render_extern_decl(
     ext: &JniExt,
     f: &syn::ItemFn,
     registry: &Registry<KotlinMeta>,
-    kotlin_types: &KotlinTypeMap,
     imports: &mut BTreeSet<String>,
 ) -> Option<String> {
     use std::fmt::Write;
@@ -1467,7 +1491,7 @@ pub(crate) fn render_extern_decl(
     }
 
     let (kt_return, opaque_ctor) =
-        classify_return(ext, &f.sig.output, registry, kotlin_types, imports)?;
+        classify_return(ext, &f.sig.output, registry, imports)?;
     let wire_return = if opaque_ctor.is_some() {
         "Long".to_string()
     } else {
@@ -1592,7 +1616,12 @@ fn render_wrapper_fn(
         // Strip leading reference for the type-map lookup; the registry's
         // input entry is keyed by the param as-written.
         let entry = registry.input_entry(arg_ty)?;
-        let is_opaque = converter_returns_owned_object(&entry.function.sig.output);
+        // Opaque-handle params surface as the base `JNINativeHandle` (the
+        // withPtr/consume lock contract lives there). Detection flows from
+        // the folded `HandleInfo` — present for both `&T` and by-value `T`
+        // (the `owned` flag is orthogonal to presence) — so it's the same
+        // source of truth the typed-surface emitters use.
+        let is_opaque = entry.metadata.handle.is_some();
 
         let (kt_type_raw, optional) = if is_opaque {
             (ext.mangle_harness("NativeHandle"), false)
@@ -1681,7 +1710,7 @@ fn render_wrapper_fn(
     // Return type: peel ZResult<...>; detect opaque-handle return.
     // `opaque_ctor` is the constructor name to wrap the JNI return
     // in (typed FQN short name when registered, else `NativeHandle`).
-    let (kt_return, opaque_ctor) = classify_return(ext, &f.sig.output, registry, kotlin_types, imports)?;
+    let (kt_return, opaque_ctor) = classify_return(ext, &f.sig.output, registry, imports)?;
 
     // Indices of Dispatch-mode params.
     let dispatch_indices: Vec<usize> = params
@@ -1992,17 +2021,6 @@ fn build_dispatch_arms(
     arms
 }
 
-/// True iff the wire type is `jni::sys::jlong` (or the bare `jlong`
-/// alias). Used to detect opaque-handle outputs that should be wrapped
-/// in `NativeHandle(...)`.
-fn wire_is_jlong(wire: &syn::Type) -> bool {
-    if let syn::Type::Path(tp) = wire {
-        if let Some(last) = tp.path.segments.last() {
-            return last.ident == "jlong";
-        }
-    }
-    false
-}
 
 /// Fall-back Kotlin type derived directly from the JNI wire type.
 /// Returns the **non-nullable** Kotlin base name — the use site adds
@@ -2050,20 +2068,15 @@ fn classify_return(
     ext: &JniExt,
     output: &syn::ReturnType,
     registry: &Registry<KotlinMeta>,
-    kotlin_types: &KotlinTypeMap,
     imports: &mut BTreeSet<String>,
 ) -> Option<(String, Option<String>)> {
     let ty = match output {
         syn::ReturnType::Default => return Some((String::new(), None)),
         syn::ReturnType::Type(_, t) => &**t,
     };
-    // Detect opaque return: T (or a wrapper W<T>) whose input converter
-    // returns `OwnedObject<T>` (i.e. opaque-handle type). The wrapped-
-    // value identity is carried generically via
-    // `KotlinMeta::value_rust_key` — populated by the composed branch of
-    // `lookup_output` for arity-1 wrappers — so the framework doesn't
-    // need to peel any specific Result/Option shape here.
     let outer_meta = registry.output_entry(ty).map(|e| e.metadata.clone());
+    // Unit returns (incl. `ZResult<()>`, whose inner identity rides
+    // `value_rust_key`) declare no Kotlin return type.
     let inner_canon = outer_meta
         .as_ref()
         .and_then(|m| m.value_rust_key.clone())
@@ -2072,40 +2085,30 @@ fn classify_return(
     if crate::util::is_unit(&inner) {
         return Some((String::new(), None));
     }
-    // An output is "opaque-handle" iff its registered output converter
-    // produces `jlong` (the `Box::into_raw(...) as i64` shape from
-    // `opaque_handle_output`). Pull the wire type from the inner type's
-    // output entry; the input-side `OwnedObject<T>` check below
-    // catches anything we register only on input (rare).
-    let output_is_opaque_jlong = registry
-        .output_entry(&inner)
-        .map(|e| wire_is_jlong(&e.destination))
-        .unwrap_or(false);
-    let input_is_opaque = registry
-        .input_types
-        .iter()
-        .flat_map(|b| b.iter())
-        .any(|(k, slot)| {
-            slot.as_ref()
-                .map(|e| {
-                    k.as_str() == inner_canon
-                        && converter_returns_owned_object(&e.function.sig.output)
-                })
-                .unwrap_or(false)
+    // Opaque-handle return: read the folded `HandleInfo` the type-unfolding
+    // mechanism propagated onto this return type's converter metadata —
+    // one source of truth, no shape-specific peeling. The declared return
+    // type is the concrete typed handle (`AutoCloseable`, so the caller can
+    // `close()` / `use {}`); `opaque_ctor` is the typed short name the
+    // wrapper body uses to wrap the jlong so the runtime class survives
+    // downstream `instanceof` checks.
+    if let Some(h) = outer_meta.as_ref().and_then(|m| m.handle.clone()) {
+        let fqn = ext
+            .kotlin_type_fqns
+            .iter()
+            .find(|(k, _)| k == &h.leaf_key)
+            .map(|(_, v)| v.clone());
+        return Some(match fqn {
+            Some(fqn) => {
+                let short = register_fqn(&fqn, imports);
+                (render_handle_type(&h.strategy, &short), Some(short))
+            }
+            // No typed FQN registered — fall back to the base harness class.
+            None => {
+                let base = ext.mangle_harness("NativeHandle");
+                (base.clone(), Some(base))
+            }
         });
-    if output_is_opaque_jlong || input_is_opaque {
-        // Return the concrete typed handle when one is registered (e.g.
-        // `ZKeyExpr`), else fall back to the base harness class. The
-        // declared return type matches the constructor: the concrete type
-        // is `AutoCloseable` (the base is not), so a factory that returns
-        // the concrete handle hands the caller something they can
-        // `close()` / `use {}`. Returning the base here would strip that.
-        let native_handle = ext.mangle_harness("NativeHandle");
-        let ctor = match kotlin_types.lookup(&inner_canon) {
-            Some(fqn) if fqn.contains('.') => register_fqn(fqn, imports),
-            _ => native_handle.clone(),
-        };
-        return Some((ctor.clone(), Some(ctor)));
     }
     // Non-opaque: read the Kotlin name straight off the resolved
     // output entry's metadata — the rank-N handler propagates
