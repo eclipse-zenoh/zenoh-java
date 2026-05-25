@@ -4,6 +4,5 @@ package io.zenoh.jni
 import io.zenoh.jni.KeyExpr
 
 internal object JNINative {
-    external fun keyexprAutocanonize(s: String): KeyExpr
     external fun keyexprTryFrom(s: String): KeyExpr
 }

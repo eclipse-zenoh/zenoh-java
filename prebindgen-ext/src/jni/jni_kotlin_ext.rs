@@ -65,6 +65,16 @@ fn rust_key_for_fqn<'a>(ext: &'a JniExt, fqn: &str) -> Option<&'a str> {
 }
 
 impl JniExt {
+    fn declared_function_names(&self) -> HashSet<String> {
+        let mut declared: HashSet<String> = self
+            .types
+            .values()
+            .flat_map(|cfg| cfg.methods.iter().cloned())
+            .collect();
+        declared.extend(self.package_methods.methods.iter().cloned());
+        declared
+    }
+
     /// Unified Kotlin emission — single public entry point that fans out
     /// to per-callback fun-interface files, `NativeHandle.kt`, typed-handle
     /// classes (one per `kotlin_ptr_class` registration), and
@@ -458,20 +468,14 @@ impl JniExt {
         kotlin_types: &KotlinTypeMap,
         output_dir: &Path,
     ) -> Result<PathBuf, WriteKotlinError> {
-        let promoted: HashSet<String> = self
-            .types
-            .values()
-            .flat_map(|cfg| cfg.methods.iter().cloned())
-            .collect();
-        let promoted = promoted
-            .into_iter()
-            .chain(self.package_methods.methods.iter().cloned())
-            .collect::<HashSet<_>>();
+        let declared = self.declared_function_names();
+        let promoted = declared.clone();
         let class_name = self.jni_orphaned_class_name();
         let contents = render_jni_orphaned_source(
             self,
             registry,
             kotlin_types,
+            &declared,
             &promoted,
             &class_name,
             &self.package,
@@ -493,6 +497,7 @@ impl JniExt {
         kotlin_types: &KotlinTypeMap,
         output_dir: &Path,
     ) -> Result<PathBuf, WriteKotlinError> {
+        let declared = self.declared_function_names();
         let promoted: HashSet<String> = self.package_methods.methods.iter().cloned().collect();
         let class_name = self.jni_package_class_name();
         let package = self
@@ -506,6 +511,7 @@ impl JniExt {
             self,
             registry,
             kotlin_types,
+            &declared,
             &promoted,
             &class_name,
             &package,
@@ -540,7 +546,8 @@ impl JniExt {
         output_dir: &Path,
     ) -> Result<PathBuf, WriteKotlinError> {
         let class_name = self.jni_native_class_name();
-        let contents = render_jni_native_source(self, registry, kotlin_types, &class_name);
+        let declared = self.declared_function_names();
+        let contents = render_jni_native_source(self, registry, kotlin_types, &declared, &class_name);
         let file = KotlinFile {
             package: self.package.clone(),
             class_name,
@@ -1222,6 +1229,7 @@ fn render_jni_orphaned_source(
     ext: &JniExt,
     registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
+    declared: &HashSet<String>,
     promoted: &HashSet<String>,
     class_name: &str,
     package: &str,
@@ -1249,6 +1257,9 @@ fn render_jni_orphaned_source(
     idents.sort();
 
     for ident in idents {
+        if !declared.contains(&ident.to_string()) {
+            continue;
+        }
         // Skip functions promoted to a typed-handle class — their safe
         // wrapper lives on the handle instead.
         let is_promoted = promoted.contains(&ident.to_string());
@@ -1328,6 +1339,7 @@ fn render_jni_native_source(
     ext: &JniExt,
     registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
+    declared: &HashSet<String>,
     class_name: &str,
 ) -> String {
     let callback_fqns = ext.collect_kotlin_callback_fqns(registry);
@@ -1345,6 +1357,9 @@ fn render_jni_native_source(
     let mut idents: Vec<&syn::Ident> = registry.functions.keys().collect();
     idents.sort();
     for ident in idents {
+        if !declared.contains(&ident.to_string()) {
+            continue;
+        }
         let (item_fn, _loc) = &registry.functions[ident];
         if let Some(line) = render_extern_decl(ext, item_fn, registry, &merged_types, &mut imports) {
             body.push_str(&line);
