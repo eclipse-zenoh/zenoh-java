@@ -25,6 +25,7 @@ fn main() {
                 ))
             },
         )
+        .kotlin_ptr_class(pq!(ZKeyExpr))
         .kotlin_data_class(pq!(KeyExpr)) 
         .method("keyexpr_try_from")
         // .method("keyexpr_autocanonize")
