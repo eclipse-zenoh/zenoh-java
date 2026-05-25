@@ -9,6 +9,8 @@ zenoh-ext = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.g
 tracing = { version = "0.1" , features = ["log"] }
 prebindgen = "0.4.1"
 prebindgen-proc-macro = "0.4.1"
+json5 = "0.4.1"
+serde_yaml = "0.9.19"
 
 [build-dependencies]
 prebindgen = "0.4.1"

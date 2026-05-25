@@ -51,7 +51,11 @@ internal class JNIScout(private val ptr: Long) {
                 callback.run(Hello(WhatAmI.fromInt(whatAmI2), ZenohId(id), locators))
             }
             val binaryWhatAmI: Int = whatAmI.map { it.value }.reduce { acc, it -> acc or it }
-            val ptr = scoutViaJNI(binaryWhatAmI, scoutCallback, onClose,config?.jniConfig?.ptr ?: 0)
+            val ptr = if (config != null) {
+                config.zConfig.withPtr { scoutViaJNI(binaryWhatAmI, scoutCallback, onClose, it) }
+            } else {
+                scoutViaJNI(binaryWhatAmI, scoutCallback, onClose, 0)
+            }
             return HandlerScout(JNIScout(ptr), receiver)
         }
 
@@ -65,7 +69,11 @@ internal class JNIScout(private val ptr: Long) {
                 callback.run(Hello(WhatAmI.fromInt(whatAmI2), ZenohId(id), locators))
             }
             val binaryWhatAmI: Int = whatAmI.map { it.value }.reduce { acc, it -> acc or it }
-            val ptr = scoutViaJNI(binaryWhatAmI, scoutCallback, fun() {},config?.jniConfig?.ptr ?: 0)
+            val ptr = if (config != null) {
+                config.zConfig.withPtr { scoutViaJNI(binaryWhatAmI, scoutCallback, fun() {}, it) }
+            } else {
+                scoutViaJNI(binaryWhatAmI, scoutCallback, fun() {}, 0)
+            }
             return CallbackScout(JNIScout(ptr))
         }
 

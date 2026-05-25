@@ -17,12 +17,15 @@ pub const FEATURES: &str = prebindgen_proc_macro::features!();
 
 pub(crate) mod keyexpr;
 pub(crate) mod z_keyexpr;
+pub(crate) mod z_config;
 pub(crate) mod error;
 
 // reexports to make all zenoh-flat API really flat
 pub use keyexpr::*;
 pub use z_keyexpr::*;
+pub use z_config::*;
 pub use error::*;
 
 // reexports of zenoh types with Z prefix to distiguish them from zenoh-flat types
 pub type ZKeyExpr = zenoh::key_expr::KeyExpr<'static>;
+pub type ZConfig = zenoh::Config;

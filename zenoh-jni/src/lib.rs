@@ -12,7 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-pub mod config;
 pub mod errors;
 pub mod key_expr;
 pub mod liveliness;

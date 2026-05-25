@@ -2520,22 +2520,26 @@ impl PrebindgenExt for JniExt {
         // This handler exists to make the wildcard-substitution machinery
         // fire: it returns subs=[t1] (via the resolver), so propagation
         // marks T as required transitively from `&T`.
-        if pat_match(pat, "& _") {
+        if pat_match(pat, "& _") || pat_match(pat, "& mut _") {
             let inner = registry.input_entry(t1)?;
-            let outer_ty: syn::Type = syn::parse_quote!(&#t1);
-            // `&T` is a Kotlin-side no-op — inherit the inner type's
-            // name, unless the user pinned an explicit override on
-            // `&T` itself (rare but legal).
+            let outer_ty: syn::Type = if pat_match(pat, "& mut _") {
+                syn::parse_quote!(&mut #t1)
+            } else {
+                syn::parse_quote!(&#t1)
+            };
+            // `&T` / `&mut T` are Kotlin-side no-ops — inherit the inner
+            // type's name, unless the user pinned an explicit override
+            // on the outer form itself (rare but legal).
             let kotlin_name = self.override_kotlin_name(
                 &outer_ty,
                 inner.metadata.kotlin_name.clone(),
             );
-            // `&T` shares T's converter function verbatim, so it inherits
-            // T's throws behaviour (whatever exception T's converter is
-            // bound to). Copy the inner's throws metadata.
-            // A borrowed handle is still opaque (param classification
-            // needs to see it), but the holder doesn't own it — mark
-            // `owned: false` so `close()` emission skips it.
+            // The outer form shares T's converter function verbatim, so it
+            // inherits T's throws behaviour (whatever exception T's
+            // converter is bound to). Copy the inner's throws metadata.
+            // A borrowed handle (mut or not) is still opaque (param
+            // classification needs to see it), but the holder doesn't own
+            // it — mark `owned: false` so `close()` emission skips it.
             let handle = inner.metadata.handle.clone().map(|h| HandleInfo {
                 owned: false,
                 ..h
@@ -2916,13 +2920,22 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
         } else {
             quote!(#conv(&mut env, &#wire_ident))
         };
+        // Binding for the final `arg_ident` needs `mut` when the source
+        // fn takes `&mut T` — the call site below emits `&mut arg_ident`,
+        // which requires a mutable binding. Intermediate stage bindings
+        // (`__{ident}_sN`) don't need it (they're moved on).
+        let arg_mut: TokenStream = if matches!(arg_ty, syn::Type::Reference(r) if r.mutability.is_some()) {
+            quote!(mut)
+        } else {
+            quote!()
+        };
         // Stage 0: wire-facing function. Pre_stages then run in REVERSE
         // (rust-side last). Even with no pre_stages this collapses to a
         // single `let #arg_ident = match decode_call { ... }`, byte-
         // identical to the pre-chain emission.
         if entry.pre_stages.is_empty() {
             prelude.push(quote!(
-                let #arg_ident = match #decode_call {
+                let #arg_mut #arg_ident = match #decode_call {
                     ::core::result::Result::Ok(__v) => __v,
                     ::core::result::Result::Err(__e) => {
                         #input_throw(&mut env, &__e);
@@ -2956,8 +2969,10 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
                 } else {
                     format_ident!("__{}_s{}", arg_ident, n - idx)
                 };
+                // Final binding gets `mut` if the source fn takes `&mut`.
+                let bind_mut: TokenStream = if is_last { arg_mut.clone() } else { quote!() };
                 prelude.push(quote!(
-                    let #out_ident = match #stage_fn(&mut env, #prev) {
+                    let #bind_mut #out_ident = match #stage_fn(&mut env, #prev) {
                         ::core::result::Result::Ok(__v) => __v,
                         ::core::result::Result::Err(__e) => {
                             #stage_throw(&mut env, &__e);
@@ -2968,10 +2983,16 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
                 prev = out_ident;
             }
         }
-        if matches!(arg_ty, syn::Type::Reference(_)) {
-            call_args.push(quote!(&#arg_ident));
-        } else {
-            call_args.push(quote!(#arg_ident));
+        match arg_ty {
+            syn::Type::Reference(r) if r.mutability.is_some() => {
+                call_args.push(quote!(&mut #arg_ident));
+            }
+            syn::Type::Reference(_) => {
+                call_args.push(quote!(&#arg_ident));
+            }
+            _ => {
+                call_args.push(quote!(#arg_ident));
+            }
         }
     }
 
@@ -4354,6 +4375,21 @@ pub(crate) fn owned_object_prerequisite_items() -> Vec<syn::Item> {
                 type Target = T;
                 fn deref(&self) -> &Self::Target {
                     unsafe { &*self.ptr }
+                }
+            }
+        ),
+        syn::parse_quote!(
+            // `&mut OwnedObject<T>` coerces to `&mut T` via this impl,
+            // letting source fns that take `&mut T` opaque-handle params
+            // be called from generated wrappers. The pointer originated
+            // from `Box::into_raw` (which produces `*mut T`); the
+            // `*const T → *mut T` cast just restores the original
+            // mutability. Sequencing against concurrent borrow / consume
+            // is upheld by `NativeHandle.withPtr` on the JVM side, same
+            // as `Deref`.
+            impl<T: ?Sized> std::ops::DerefMut for OwnedObject<T> {
+                fn deref_mut(&mut self) -> &mut Self::Target {
+                    unsafe { &mut *(self.ptr as *mut T) }
                 }
             }
         ),

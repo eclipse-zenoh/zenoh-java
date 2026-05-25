@@ -40,6 +40,14 @@ fn main() {
                 IntoSource::borrow(pq!(String)),
             ],
         )
+        .kotlin_ptr_class(pq!(ZConfig))
+        .method("z_config_default")
+        .method("z_config_from_file")
+        .method("z_config_from_json")
+        .method("z_config_from_json5")
+        .method("z_config_from_yaml")
+        .method("z_config_get_json")
+        .method("z_config_insert_json5")
         ;
 
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);

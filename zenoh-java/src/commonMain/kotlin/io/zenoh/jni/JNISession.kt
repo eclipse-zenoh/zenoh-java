@@ -49,7 +49,7 @@ internal class JNISession(val sessionPtr: Long) {
 
         @Throws(ZError::class)
         fun open(config: Config): JNISession {
-            val sessionPtr = openSessionViaJNI(config.jniConfig.ptr)
+            val sessionPtr = config.zConfig.withPtr { openSessionViaJNI(it) }
             return JNISession(sessionPtr)
         }
 
