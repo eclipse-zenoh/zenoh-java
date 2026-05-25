@@ -26,8 +26,12 @@ fn main() {
             },
         )
         .kotlin_ptr_class(pq!(ZKeyExpr))
+        .method("z_keyexpr_try_from")
+        .method("z_keyexpr_autocanonize")
+        .method("z_keyexpr_intersects")
         .kotlin_data_class(pq!(KeyExpr)) 
         .method("keyexpr_try_from")
+        .method("keyexpr_autocanonize")
         // .method("keyexpr_autocanonize")
         // .method("keyexpr_intersects")
         // .into_sources(

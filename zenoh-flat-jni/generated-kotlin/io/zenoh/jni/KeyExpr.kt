@@ -10,5 +10,10 @@ public data class KeyExpr(
         public fun keyexprTryFrom(s: String): KeyExpr =
             JNINative.keyexprTryFrom(s)
 
+
+        @Throws(Error::class, JniBindingError::class)
+        public fun keyexprAutocanonize(s: String): KeyExpr =
+            JNINative.keyexprAutocanonize(s)
+
     }
 }

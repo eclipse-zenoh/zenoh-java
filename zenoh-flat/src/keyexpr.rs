@@ -1,6 +1,7 @@
 use crate::Error;
 use crate::ZKeyExpr;
 use crate::z_keyexpr_autocanonize;
+use crate::z_keyexpr_intersects;
 use prebindgen_proc_macro::prebindgen;
 
 #[prebindgen]
@@ -39,7 +40,7 @@ pub fn keyexpr_autocanonize(s: String) -> Result<KeyExpr, Error> {
 }
 
 /// Returns true if keyexpr a and b intersect, false otherwise
-// #[prebindgen]
+#[prebindgen]
 pub fn keyexpr_intersects(
     a: impl Into<KeyExpr> + Send + 'static,
     b: impl Into<KeyExpr> + Send + 'static,
@@ -54,5 +55,5 @@ pub fn keyexpr_intersects(
         Some(ke) => ke,
         None => ZKeyExpr::try_from(b.key_expr_string)?,
     };
-    Ok(a_ke.intersects(&b_ke))
+    Ok(z_keyexpr_intersects(&a_ke, &b_ke))
 }

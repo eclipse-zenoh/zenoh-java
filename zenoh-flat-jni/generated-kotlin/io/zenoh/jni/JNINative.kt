@@ -2,7 +2,12 @@
 package io.zenoh.jni
 
 import io.zenoh.jni.KeyExpr
+import io.zenoh.jni.ZKeyExpr
 
 internal object JNINative {
+    external fun keyexprAutocanonize(s: String): KeyExpr
     external fun keyexprTryFrom(s: String): KeyExpr
+    external fun zKeyexprAutocanonize(s: String): Long
+    external fun zKeyexprIntersects(a: Long, b: Long): Boolean
+    external fun zKeyexprTryFrom(s: String): Long
 }
