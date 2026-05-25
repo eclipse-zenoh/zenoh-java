@@ -3,7 +3,7 @@ package io.zenoh.jni
 
 public data class KeyExpr(
     val keyExprString: String,
-    val keyExprNative: Long?,
+    val keyExprNative: Long,
 ) {
     public companion object {
         @Throws(Error::class, JniBindingError::class)
@@ -30,6 +30,58 @@ public data class KeyExpr(
         } else {
             JNINative.keyexprIntersects(a, b)
         }
+        }
+
+
+        @Throws(Error::class, JniBindingError::class)
+        public fun keyexprIncludes(a: Any, b: Any): Boolean =
+            if (a is ZKeyExpr) a.withPtr { _ ->
+            if (b is ZKeyExpr) b.withPtr { _ ->
+            JNINative.keyexprIncludes(a, b)
+        } else {
+            JNINative.keyexprIncludes(a, b)
+        }
+        } else {
+            if (b is ZKeyExpr) b.withPtr { _ ->
+            JNINative.keyexprIncludes(a, b)
+        } else {
+            JNINative.keyexprIncludes(a, b)
+        }
+        }
+
+
+        @Throws(Error::class, JniBindingError::class)
+        public fun keyexprRelationTo(a: Any, b: Any): Int =
+            if (a is ZKeyExpr) a.withPtr { _ ->
+            if (b is ZKeyExpr) b.withPtr { _ ->
+            JNINative.keyexprRelationTo(a, b)
+        } else {
+            JNINative.keyexprRelationTo(a, b)
+        }
+        } else {
+            if (b is ZKeyExpr) b.withPtr { _ ->
+            JNINative.keyexprRelationTo(a, b)
+        } else {
+            JNINative.keyexprRelationTo(a, b)
+        }
+        }
+
+
+        @Throws(Error::class, JniBindingError::class)
+        public fun keyexprJoin(a: Any, b: String): KeyExpr =
+            if (a is ZKeyExpr) a.withPtr { _ ->
+            JNINative.keyexprJoin(a, b)
+        } else {
+            JNINative.keyexprJoin(a, b)
+        }
+
+
+        @Throws(Error::class, JniBindingError::class)
+        public fun keyexprConcat(a: Any, b: String): KeyExpr =
+            if (a is ZKeyExpr) a.withPtr { _ ->
+            JNINative.keyexprConcat(a, b)
+        } else {
+            JNINative.keyexprConcat(a, b)
         }
 
     }

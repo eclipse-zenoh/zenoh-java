@@ -2986,6 +2986,10 @@ fn primitive_input(ty: &syn::Type) -> Option<(syn::Type, syn::Expr)> {
             syn::parse_quote!(jni::sys::jboolean),
             syn::parse_quote!(*v != 0),
         ),
+        "i32" => (
+            syn::parse_quote!(jni::sys::jint),
+            syn::parse_quote!(*v),
+        ),
         "i64" => (
             syn::parse_quote!(jni::sys::jlong),
             syn::parse_quote!(*v),
@@ -3026,6 +3030,10 @@ fn primitive_output(ty: &syn::Type) -> Option<(syn::Type, syn::Expr)> {
         "bool" => (
             syn::parse_quote!(jni::sys::jboolean),
             syn::parse_quote!(v as jni::sys::jboolean),
+        ),
+        "i32" => (
+            syn::parse_quote!(jni::sys::jint),
+            syn::parse_quote!(v as jni::sys::jint),
         ),
         "i64" => (
             syn::parse_quote!(jni::sys::jlong),
@@ -3090,11 +3098,18 @@ fn option_input(
         let pred = &slot.matches;
         let returns_owned_object = converter_returns_owned_object(&inner_entry.function.sig.output);
         let body: syn::Expr = if returns_owned_object {
+            // Borrow semantics: the Java side still owns the boxed value
+            // (its `close()` will free the original Box later via the typed
+            // handle's `freePtr`). Cloning the inner T keeps the pointer
+            // live across this call — using `Box::from_raw` here would
+            // consume the box, leaving the Java slot dangling and causing
+            // a double-free the next time the same data-class instance is
+            // decoded. Requires `T: Clone`.
             syn::parse_quote!({
                 if #pred {
                     None
                 } else {
-                    Some(unsafe { *std::boxed::Box::from_raw(*v as *mut #t1) })
+                    Some(unsafe { OwnedObject::from_raw(*v as *const #t1).clone() })
                 }
             })
         } else {
@@ -3639,7 +3654,7 @@ fn assert_only_unit_variants(e: &syn::ItemEnum) {
 // JNI primitive (un)boxing helpers
 // ──────────────────────────────────────────────────────────────────────
 
-fn is_jni_primitive(ty: &syn::Type) -> bool {
+pub(crate) fn is_jni_primitive(ty: &syn::Type) -> bool {
     if let syn::Type::Path(tp) = ty {
         if let Some(last) = tp.path.segments.last() {
             let name = last.ident.to_string();

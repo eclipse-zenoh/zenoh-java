@@ -8,7 +8,7 @@ public class ZKeyExpr(initialPtr: Long) : JNINativeHandle(initialPtr) {
     private external fun freePtr(ptr: Long)
 
     @Throws(JniBindingError::class)
-    public fun zKeyexprIntersects(b: NativeHandle): Boolean =
+    public fun zKeyexprIntersects(b: JNINativeHandle): Boolean =
         withPtr { a_ptr ->
         b.withPtr { b_ptr ->
         JNINative.zKeyexprIntersects(a_ptr, b_ptr)
@@ -17,11 +17,11 @@ public class ZKeyExpr(initialPtr: Long) : JNINativeHandle(initialPtr) {
 
     public companion object {
         @Throws(Error::class, JniBindingError::class)
-        public fun zKeyexprTryFrom(s: String): NativeHandle =
+        public fun zKeyexprTryFrom(s: String): JNINativeHandle =
             ZKeyExpr(JNINative.zKeyexprTryFrom(s))
 
         @Throws(Error::class, JniBindingError::class)
-        public fun zKeyexprAutocanonize(s: String): NativeHandle =
+        public fun zKeyexprAutocanonize(s: String): JNINativeHandle =
             ZKeyExpr(JNINative.zKeyexprAutocanonize(s))
     }
 }

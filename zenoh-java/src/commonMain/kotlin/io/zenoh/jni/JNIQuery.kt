@@ -35,8 +35,8 @@ internal class JNIQuery(private val ptr: Long) {
         val timestampEnabled = sample.timestamp != null
         replySuccessViaJNI(
             ptr,
-            sample.keyExpr.jniKeyExpr?.ptr ?: 0,
-            sample.keyExpr.keyExpr,
+            sample.keyExpr.flat.keyExprNative,
+            sample.keyExpr.flat.keyExprString,
             sample.payload.bytes,
             sample.encoding.id,
             sample.encoding.schema,
@@ -55,8 +55,8 @@ internal class JNIQuery(private val ptr: Long) {
             val timestampEnabled = timestamp != null
             replyDeleteViaJNI(
                 ptr,
-                keyExpr.jniKeyExpr?.ptr ?: 0,
-                keyExpr.keyExpr,
+                keyExpr.flat.keyExprNative,
+                keyExpr.flat.keyExprString,
                 timestampEnabled,
                 if (timestampEnabled) timestamp!!.ntpValue() else 0,
                 attachment?.into()?.bytes,

@@ -64,8 +64,8 @@ internal class JNISession(val sessionPtr: Long) {
     @Throws(ZError::class)
     fun declarePublisher(keyExpr: KeyExpr, publisherOptions: PublisherOptions): Publisher {
         val publisherRawPtr = declarePublisherViaJNI(
-            keyExpr.jniKeyExpr?.ptr ?: 0,
-            keyExpr.keyExpr,
+            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprString,
             sessionPtr,
             publisherOptions.congestionControl.value,
             publisherOptions.priority.value,
@@ -89,7 +89,7 @@ internal class JNISession(val sessionPtr: Long) {
             JNISubscriberCallback { keyExpr1, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
                 val sample = Sample(
-                    KeyExpr(keyExpr1, null),
+                    KeyExpr(keyExpr1),
                     payload.into(),
                     Encoding(encodingId, schema = encodingSchema),
                     SampleKind.fromInt(kind),
@@ -100,7 +100,7 @@ internal class JNISession(val sessionPtr: Long) {
                 handler.handle(sample)
             }
         val subscriberRawPtr = declareSubscriberViaJNI(
-            keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr, sessionPtr, subCallback, handler::onClose
+            keyExpr.flat.keyExprNative, keyExpr.flat.keyExprString, sessionPtr, subCallback, handler::onClose
         )
         return HandlerSubscriber(keyExpr, JNISubscriber(subscriberRawPtr), handler.receiver())
     }
@@ -113,7 +113,7 @@ internal class JNISession(val sessionPtr: Long) {
             JNISubscriberCallback { keyExpr1, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
                 val sample = Sample(
-                    KeyExpr(keyExpr1, null),
+                    KeyExpr(keyExpr1),
                     payload.into(),
                     Encoding(encodingId, schema = encodingSchema),
                     SampleKind.fromInt(kind),
@@ -124,8 +124,8 @@ internal class JNISession(val sessionPtr: Long) {
                 callback.run(sample)
             }
         val subscriberRawPtr = declareSubscriberViaJNI(
-            keyExpr.jniKeyExpr?.ptr ?: 0,
-            keyExpr.keyExpr,
+            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprString,
             sessionPtr,
             subCallback,
             fun() {}
@@ -140,7 +140,7 @@ internal class JNISession(val sessionPtr: Long) {
         val queryCallback =
             JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long, acceptReplies: Int ->
                 val jniQuery = JNIQuery(queryPtr)
-                val keyExpr2 = KeyExpr(keyExpr1, null)
+                val keyExpr2 = KeyExpr(keyExpr1)
                 val selector = if (selectorParams.isEmpty()) {
                     Selector(keyExpr2)
                 } else {
@@ -159,8 +159,8 @@ internal class JNISession(val sessionPtr: Long) {
                 callback.run(query)
             }
         val queryableRawPtr = declareQueryableViaJNI(
-            keyExpr.jniKeyExpr?.ptr ?: 0,
-            keyExpr.keyExpr,
+            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprString,
             sessionPtr,
             queryCallback,
             fun() {},
@@ -176,7 +176,7 @@ internal class JNISession(val sessionPtr: Long) {
         val queryCallback =
             JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long, acceptReplies: Int ->
                 val jniQuery = JNIQuery(queryPtr)
-                val keyExpr2 = KeyExpr(keyExpr1, null)
+                val keyExpr2 = KeyExpr(keyExpr1)
                 val selector = if (selectorParams.isEmpty()) {
                     Selector(keyExpr2)
                 } else {
@@ -195,8 +195,8 @@ internal class JNISession(val sessionPtr: Long) {
                 handler.handle(query)
             }
         val queryableRawPtr = declareQueryableViaJNI(
-            keyExpr.jniKeyExpr?.ptr ?: 0,
-            keyExpr.keyExpr,
+            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprString,
             sessionPtr,
             queryCallback,
             handler::onClose,
@@ -211,8 +211,8 @@ internal class JNISession(val sessionPtr: Long) {
         options: QuerierOptions
     ): Querier {
         val querierRawPtr = declareQuerierViaJNI(
-            keyExpr.jniKeyExpr?.ptr ?: 0,
-            keyExpr.keyExpr,
+            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprString,
             sessionPtr,
             options.target.ordinal,
             options.consolidationMode.ordinal,
@@ -259,7 +259,7 @@ internal class JNISession(val sessionPtr: Long) {
             if (success) {
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
                 val sample = Sample(
-                    KeyExpr(keyExpr!!, null),
+                    KeyExpr(keyExpr!!),
                     payload1.into(),
                     Encoding(encodingId, schema = encodingSchema),
                     SampleKind.fromInt(kind),
@@ -280,8 +280,8 @@ internal class JNISession(val sessionPtr: Long) {
 
         val selector = intoSelector.into()
         getViaJNI(
-            selector.keyExpr.jniKeyExpr?.ptr ?: 0,
-            selector.keyExpr.keyExpr,
+            selector.keyExpr.flat.keyExprNative,
+            selector.keyExpr.flat.keyExprString,
             selector.parameters?.toString(),
             sessionPtr,
             getCallback,
@@ -326,7 +326,7 @@ internal class JNISession(val sessionPtr: Long) {
             if (success) {
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
                 val sample = Sample(
-                    KeyExpr(keyExpr!!, null),
+                    KeyExpr(keyExpr!!),
                     payload1.into(),
                     Encoding(encodingId, schema = encodingSchema),
                     SampleKind.fromInt(kind),
@@ -347,8 +347,8 @@ internal class JNISession(val sessionPtr: Long) {
 
         val selector = intoSelector.into()
         getViaJNI(
-            selector.keyExpr.jniKeyExpr?.ptr ?: 0,
-            selector.keyExpr.keyExpr,
+            selector.keyExpr.flat.keyExprNative,
+            selector.keyExpr.flat.keyExprString,
             selector.parameters?.toString(),
             sessionPtr,
             getCallback,
@@ -371,15 +371,15 @@ internal class JNISession(val sessionPtr: Long) {
     @Throws(ZError::class)
     fun declareKeyExpr(keyExpr: String): KeyExpr {
         val ptr = declareKeyExprViaJNI(sessionPtr, keyExpr)
-        return KeyExpr(keyExpr, JNIKeyExpr(ptr))
+        return KeyExpr(keyExpr, ptr)
     }
 
     @Throws(ZError::class)
     fun undeclareKeyExpr(keyExpr: KeyExpr) {
-        keyExpr.jniKeyExpr?.run {
-            undeclareKeyExprViaJNI(sessionPtr, this.ptr)
-            keyExpr.jniKeyExpr = null
-        } ?: throw ZError("Attempting to undeclare a non declared key expression.")
+        val ptr = keyExpr.flat.keyExprNative
+        if (ptr == 0L) throw ZError("Attempting to undeclare a non declared key expression.")
+        undeclareKeyExprViaJNI(sessionPtr, ptr)
+        keyExpr.flat = keyExpr.flat.copy(keyExprNative = 0L)
     }
 
     @Throws(ZError::class)
@@ -390,8 +390,8 @@ internal class JNISession(val sessionPtr: Long) {
     ) {
         val encoding = options.encoding ?: Encoding.defaultEncoding()
         putViaJNI(
-            keyExpr.jniKeyExpr?.ptr ?: 0,
-            keyExpr.keyExpr,
+            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprString,
             sessionPtr,
             payload.into().bytes,
             encoding.id,
@@ -410,8 +410,8 @@ internal class JNISession(val sessionPtr: Long) {
         options: DeleteOptions,
     ) {
         deleteViaJNI(
-            keyExpr.jniKeyExpr?.ptr ?: 0,
-            keyExpr.keyExpr,
+            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprString,
             sessionPtr,
             options.congestionControl.value,
             options.priority.value,

@@ -876,7 +876,21 @@ fn render_data_class_source(
                 )
             });
         let short = register_fqn(&kotlin_ty, &mut imports);
-        let optional_suffix = if is_option_type(&field.ty) { "?" } else { "" };
+        // `Option<T>` whose wire is a JNI primitive (jlong/jint/jboolean/…)
+        // is encoded by the struct emitter as the bare primitive with a
+        // sentinel for `None` (0 / 0.0 / false). The Kotlin field must
+        // match that JVM slot: declare it non-nullable so the constructor
+        // signature stays primitive (`J` vs `Ljava/lang/Long;`).
+        // Nullable boxing for primitives would require generator-side
+        // changes in `struct_output_body` to `Long.valueOf(...)`.
+        let wire = registry
+            .output_entry(&field.ty)
+            .map(|e| e.destination.clone());
+        let primitive_wire = wire
+            .as_ref()
+            .map(|w| crate::jni::jni_ext::is_jni_primitive(w))
+            .unwrap_or(false);
+        let optional_suffix = if is_option_type(&field.ty) && !primitive_wire { "?" } else { "" };
         field_lines.push(format!("    val {kotlin_field_name}: {short}{optional_suffix},"));
     }
 
@@ -1363,7 +1377,7 @@ pub(crate) fn render_extern_decl(
     }
 
     let (kt_return, opaque_ctor) =
-        classify_return(&f.sig.output, registry, kotlin_types, imports)?;
+        classify_return(ext, &f.sig.output, registry, kotlin_types, imports)?;
     let wire_return = if opaque_ctor.is_some() {
         "Long".to_string()
     } else {
@@ -1491,7 +1505,7 @@ fn render_wrapper_fn(
         let is_opaque = converter_returns_owned_object(&entry.function.sig.output);
 
         let (kt_type_raw, optional) = if is_opaque {
-            ("NativeHandle".to_string(), false)
+            (ext.mangle_harness("NativeHandle"), false)
         } else {
             // Read the Kotlin name straight off the resolved entry's
             // metadata — the rank-N handler that built this converter
@@ -1577,7 +1591,7 @@ fn render_wrapper_fn(
     // Return type: peel ZResult<...>; detect opaque-handle return.
     // `opaque_ctor` is the constructor name to wrap the JNI return
     // in (typed FQN short name when registered, else `NativeHandle`).
-    let (kt_return, opaque_ctor) = classify_return(&f.sig.output, registry, kotlin_types, imports)?;
+    let (kt_return, opaque_ctor) = classify_return(ext, &f.sig.output, registry, kotlin_types, imports)?;
 
     // Indices of Dispatch-mode params.
     let dispatch_indices: Vec<usize> = params
@@ -1943,6 +1957,7 @@ pub(crate) fn kotlin_for_wire(wire: &syn::Type) -> Option<String> {
 ///   exists — minimises caller-side churn (typed instance, upcast
 ///   declared type).
 fn classify_return(
+    ext: &JniExt,
     output: &syn::ReturnType,
     registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
@@ -1989,14 +2004,15 @@ fn classify_return(
                 .unwrap_or(false)
         });
     if output_is_opaque_jlong || input_is_opaque {
-        // Typed-FQN constructor when registered; else NativeHandle.
-        // Both compile against the same declared `NativeHandle`
-        // return type (subtype relation).
+        // Typed-FQN constructor when registered; else the mangled
+        // NativeHandle harness class. Both compile against the same
+        // declared return type (subtype relation).
+        let native_handle = ext.mangle_harness("NativeHandle");
         let ctor = match kotlin_types.lookup(&inner_canon) {
             Some(fqn) if fqn.contains('.') => register_fqn(fqn, imports),
-            _ => "NativeHandle".to_string(),
+            _ => native_handle.clone(),
         };
-        return Some(("NativeHandle".to_string(), Some(ctor)));
+        return Some((native_handle, Some(ctor)));
     }
     // Non-opaque: read the Kotlin name straight off the resolved
     // output entry's metadata — the rank-N handler propagates

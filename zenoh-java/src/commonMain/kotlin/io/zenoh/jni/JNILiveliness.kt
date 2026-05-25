@@ -67,7 +67,7 @@ internal object JNILiveliness {
             if (success) {
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
                 val sample = Sample(
-                    KeyExpr(keyExpr2!!, null),
+                    KeyExpr(keyExpr2!!),
                     payload.into(),
                     Encoding(encodingId, schema = encodingSchema),
                     SampleKind.fromInt(kind),
@@ -87,8 +87,8 @@ internal object JNILiveliness {
         }
         getViaJNI(
             jniSession.sessionPtr,
-            keyExpr.jniKeyExpr?.ptr ?: 0,
-            keyExpr.keyExpr,
+            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprString,
             getCallback,
             timeout.toMillis(),
             onClose::run
@@ -97,7 +97,7 @@ internal object JNILiveliness {
     }
 
     fun declareToken(jniSession: JNISession, keyExpr: KeyExpr): LivelinessToken {
-        val ptr = declareTokenViaJNI(jniSession.sessionPtr, keyExpr.jniKeyExpr?.ptr ?: 0, keyExpr.keyExpr)
+        val ptr = declareTokenViaJNI(jniSession.sessionPtr, keyExpr.flat.keyExprNative, keyExpr.flat.keyExprString)
         return LivelinessToken(JNILivelinessToken(ptr))
     }
 
@@ -112,7 +112,7 @@ internal object JNILiveliness {
             JNISubscriberCallback { keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
                 val sample = Sample(
-                    KeyExpr(keyExpr2, null),
+                    KeyExpr(keyExpr2),
                     payload.into(),
                     Encoding(encodingId, schema = encodingSchema),
                     SampleKind.fromInt(kind),
@@ -124,8 +124,8 @@ internal object JNILiveliness {
             }
         val ptr = declareSubscriberViaJNI(
             jniSession.sessionPtr,
-            keyExpr.jniKeyExpr?.ptr ?: 0,
-            keyExpr.keyExpr,
+            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprString,
             subCallback,
             history,
             onClose
@@ -145,7 +145,7 @@ internal object JNILiveliness {
             JNISubscriberCallback { keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
                 val sample = Sample(
-                    KeyExpr(keyExpr2, null),
+                    KeyExpr(keyExpr2),
                     payload.into(),
                     Encoding(encodingId, schema = encodingSchema),
                     SampleKind.fromInt(kind),
@@ -157,8 +157,8 @@ internal object JNILiveliness {
             }
         val ptr = declareSubscriberViaJNI(
             jniSession.sessionPtr,
-            keyExpr.jniKeyExpr?.ptr ?: 0,
-            keyExpr.keyExpr,
+            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprString,
             subCallback,
             history,
             onClose

@@ -81,7 +81,7 @@ internal class JNIQuerier(val ptr: Long) {
             if (success) {
                 val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
                 val sample = Sample(
-                    KeyExpr(keyExpr2!!, null),
+                    KeyExpr(keyExpr2!!),
                     payload2.into(),
                     Encoding(encodingId, schema = encodingSchema),
                     SampleKind.fromInt(kind),
@@ -101,8 +101,8 @@ internal class JNIQuerier(val ptr: Long) {
         }
 
         getViaJNI(this.ptr,
-            keyExpr.jniKeyExpr?.ptr ?: 0,
-            keyExpr.keyExpr,
+            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprString,
             parameters?.toString(),
             getCallback,
             onClose,

@@ -2,7 +2,6 @@
 // through wrappers that forward to zenoh_jni::<module>::Java_…
 
 pub mod config;
-pub mod key_expr;
 pub mod liveliness;
 pub mod logger;
 pub mod publisher;

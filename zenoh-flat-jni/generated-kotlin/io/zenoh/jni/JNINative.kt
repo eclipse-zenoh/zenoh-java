@@ -6,7 +6,11 @@ import io.zenoh.jni.ZKeyExpr
 
 internal object JNINative {
     external fun keyexprAutocanonize(s: String): KeyExpr
+    external fun keyexprConcat(a: Any, b: String): KeyExpr
+    external fun keyexprIncludes(a: Any, b: Any): Boolean
     external fun keyexprIntersects(a: Any, b: Any): Boolean
+    external fun keyexprJoin(a: Any, b: String): KeyExpr
+    external fun keyexprRelationTo(a: Any, b: Any): Int
     external fun keyexprTryFrom(s: String): KeyExpr
     external fun zKeyexprAutocanonize(s: String): Long
     external fun zKeyexprIntersects(a: Long, b: Long): Boolean
