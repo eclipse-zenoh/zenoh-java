@@ -5,14 +5,20 @@
 //!   * `NativeHandle.kt` (package `io.zenoh.jni`).
 //!   * One typed-handle class per `kotlin_ptr_class` entry without
 //!     `.suppress_kotlin_code()`.
-//!   * One package-level wrapper object for `kotlin_package()`.
-//!   * `JNIWrappers.kt` — top-level safe wrappers for non-promoted fns.
+//!   * One package-level wrapper file for `kotlin_package()` (top-level
+//!     safe wrappers for `package_methods` fns).
+//!   * `JNINative.kt` — centralized `external fun` holder.
 //!   * One Kotlin fun-interface file per `impl Fn(args) + Send + Sync
 //!     + 'static` type, named via [`JniExt::kotlin_callback_name_mangle`]
 //!     (default = identity over the `"On"`-prefixed auto-derived name;
 //!     in zenoh-jni: `JNIOn<Args>`). Callback types overridden via
 //!     [`JniExt::callback_input`] are skipped — the override points at
 //!     a hand-written interface.
+//!
+//! Every `#[prebindgen]` function must be assigned a Kotlin home via
+//! `.method(...)` on either a typed-handle / data-class / enum config
+//! or on `kotlin_package(...)`. Undeclared functions are skipped (see
+//! `Registry::scan_declared` warnings). There is no "orphan" bucket.
 //!
 //! All emitters route through [`KotlinFile::write`], which translates
 //! `package` into a sub-path under `kotlin_root`.
@@ -22,7 +28,7 @@ use std::path::{Path, PathBuf};
 
 use quote::ToTokens;
 
-use crate::core::prebindgen_ext::{IntoSource, IntoSourceMode};
+use crate::core::prebindgen_ext::{IntoSource, IntoSourceMode, PrebindgenExt};
 use crate::core::registry::{extract_fn_trait_args, Registry, TypeKey};
 use crate::jni::jni_ext::{converter_returns_owned_object, JniExt, KotlinMeta};
 use crate::jni::templates;
@@ -65,16 +71,6 @@ fn rust_key_for_fqn<'a>(ext: &'a JniExt, fqn: &str) -> Option<&'a str> {
 }
 
 impl JniExt {
-    fn declared_function_names(&self) -> HashSet<String> {
-        let mut declared: HashSet<String> = self
-            .types
-            .values()
-            .flat_map(|cfg| cfg.methods.iter().cloned())
-            .collect();
-        declared.extend(self.package_methods.methods.iter().cloned());
-        declared
-    }
-
     /// Unified Kotlin emission — single public entry point that fans out
     /// to per-callback fun-interface files, `NativeHandle.kt`, typed-handle
     /// classes (one per `kotlin_ptr_class` registration), and
@@ -124,11 +120,6 @@ impl JniExt {
                 kotlin_root,
             )?);
         }
-        written.push(self.write_jni_orphaned(
-            registry,
-            &kotlin_types,
-            kotlin_root,
-        )?);
         written.push(self.write_jni_native(
             registry,
             &kotlin_types,
@@ -450,54 +441,21 @@ impl JniExt {
         Ok(written)
     }
 
-    /// Emit the orphan-class Kotlin file under `output_dir` (class name
-    /// from [`JniExt::jni_orphaned_class_name`], package
-    /// [`JniExt::package`]). Holds one top-level safe wrapper per
-    /// `#[prebindgen]` function — **except** those promoted to a typed
-    /// handle via `.method(name)` (their wrappers live on the handle
-    /// class instead). Wrappers delegate to the centralized Native
-    /// object (see [`Self::write_jni_native`]). Opaque-handle parameters
-    /// become `NativeHandle`; the wrapper body nests `withPtr` /
-    /// `consume` per the type-conversion rule (`&T` → `withPtr`,
-    /// `T` → `consume`). Non-opaque parameters pass through with the
-    /// Kotlin type from `kotlin_types`. Opaque-handle return values are
-    /// wrapped in `NativeHandle(...)` before return.
-    pub(crate) fn write_jni_orphaned(
-        &self,
-        registry: &Registry<KotlinMeta>,
-        kotlin_types: &KotlinTypeMap,
-        output_dir: &Path,
-    ) -> Result<PathBuf, WriteKotlinError> {
-        let declared = self.declared_function_names();
-        let promoted = declared.clone();
-        let class_name = self.jni_orphaned_class_name();
-        let contents = render_jni_orphaned_source(
-            self,
-            registry,
-            kotlin_types,
-            &declared,
-            &promoted,
-            &class_name,
-            &self.package,
-            false,
-            false,
-        );
-        let file = KotlinFile {
-            package: self.package.clone(),
-            class_name,
-            contents,
-        };
-        Ok(file.write(output_dir)?)
-    }
-
-    /// Emit the package-level wrapper file under `output_dir`.
+    /// Emit the package-level wrapper file under `output_dir`. One
+    /// top-level safe wrapper per `#[prebindgen]` fn in
+    /// `package_methods.methods`. Wrappers delegate to the centralized
+    /// Native object (see [`Self::write_jni_native`]). Opaque-handle
+    /// parameters become `NativeHandle`; the wrapper body nests
+    /// `withPtr` / `consume` per the type-conversion rule. Non-opaque
+    /// parameters pass through with the Kotlin type from `kotlin_types`.
+    /// Opaque-handle return values are wrapped in `NativeHandle(...)`
+    /// before return.
     pub(crate) fn write_jni_package(
         &self,
         registry: &Registry<KotlinMeta>,
         kotlin_types: &KotlinTypeMap,
         output_dir: &Path,
     ) -> Result<PathBuf, WriteKotlinError> {
-        let declared = self.declared_function_names();
         let promoted: HashSet<String> = self.package_methods.methods.iter().cloned().collect();
         let class_name = self.jni_package_class_name();
         let package = self
@@ -507,16 +465,12 @@ impl JniExt {
             .filter(|s| !s.is_empty())
             .map(|sub| format!("{}.{}", self.package, sub))
             .unwrap_or_else(|| self.package.clone());
-        let contents = render_jni_orphaned_source(
+        let contents = render_jni_package_source(
             self,
             registry,
             kotlin_types,
-            &declared,
             &promoted,
-            &class_name,
             &package,
-            true,
-            false,
         );
         let file = KotlinFile {
             package,
@@ -546,7 +500,7 @@ impl JniExt {
         output_dir: &Path,
     ) -> Result<PathBuf, WriteKotlinError> {
         let class_name = self.jni_native_class_name();
-        let declared = self.declared_function_names();
+        let declared = self.declared_functions();
         let contents = render_jni_native_source(self, registry, kotlin_types, &declared, &class_name);
         let file = KotlinFile {
             package: self.package.clone(),
@@ -1217,24 +1171,20 @@ fn render_typed_handle_source(
     s
 }
 
-/// Emit the orphan-class object: one safe top-level wrapper per
-/// `#[prebindgen]` fn in `registry.functions` whose name is NOT in
-/// `promoted`. Each wrapper delegates to the centralized Native
-/// object's matching `external fun`. Opaque-handle parameters (detected
-/// via the input converter returning `OwnedObject<T>`) become
+/// Emit the package-level wrapper file: one safe top-level wrapper per
+/// `#[prebindgen]` fn whose name is in `promoted` (i.e. listed in
+/// `package_methods.methods`). Each wrapper delegates to the centralized
+/// Native object's matching `external fun`. Opaque-handle parameters
+/// (detected via the input converter returning `OwnedObject<T>`) become
 /// `NativeHandle`; the wrapper body nests `withPtr` / `consume` per the
 /// syntactic shape. Non-opaque parameters pass through with the Kotlin
 /// type from `kotlin_types`.
-fn render_jni_orphaned_source(
+fn render_jni_package_source(
     ext: &JniExt,
     registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
-    declared: &HashSet<String>,
     promoted: &HashSet<String>,
-    class_name: &str,
     package: &str,
-    include_only_promoted: bool,
-    wrap_in_object: bool,
 ) -> String {
     // Start with the auto-derived callback FQNs and let user-provided
     // entries WIN — the user (build.rs) may need to override e.g.
@@ -1257,17 +1207,7 @@ fn render_jni_orphaned_source(
     idents.sort();
 
     for ident in idents {
-        if !declared.contains(&ident.to_string()) {
-            continue;
-        }
-        // Skip functions promoted to a typed-handle class — their safe
-        // wrapper lives on the handle instead.
-        let is_promoted = promoted.contains(&ident.to_string());
-        if include_only_promoted {
-            if !is_promoted {
-                continue;
-            }
-        } else if is_promoted {
+        if !promoted.contains(&ident.to_string()) {
             continue;
         }
         let (item_fn, _loc) = &registry.functions[ident];
@@ -1297,28 +1237,11 @@ fn render_jni_orphaned_source(
     for imp in &imports {
         out.push_str(&format!("import {}\n", imp));
     }
-    if !wrap_in_object && !ext.package.is_empty() {
+    if !ext.package.is_empty() {
         out.push_str(&format!("import {}.{}\n", ext.package, ext.jni_native_class_name()));
     }
     out.push('\n');
-    if wrap_in_object {
-        // Wrap the wrappers in an `object` so the names don't collide with
-        // same-named methods on the hand-maintained JNI*.kt classes
-        // (`put`, `delete`, `close`, etc.). Callers use `<class>.put(...)`.
-        out.push_str(&format!("public object {} {{\n", class_name));
-        for line in body.lines() {
-            if line.is_empty() {
-                out.push('\n');
-            } else {
-                out.push_str("    ");
-                out.push_str(line);
-                out.push('\n');
-            }
-        }
-        out.push_str("}\n");
-    } else {
-        out.push_str(&body);
-    }
+    out.push_str(&body);
     out
 }
 
@@ -1339,7 +1262,7 @@ fn render_jni_native_source(
     ext: &JniExt,
     registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
-    declared: &HashSet<String>,
+    declared: &HashSet<syn::Ident>,
     class_name: &str,
 ) -> String {
     let callback_fqns = ext.collect_kotlin_callback_fqns(registry);
@@ -1357,7 +1280,7 @@ fn render_jni_native_source(
     let mut idents: Vec<&syn::Ident> = registry.functions.keys().collect();
     idents.sort();
     for ident in idents {
-        if !declared.contains(&ident.to_string()) {
+        if !declared.contains(ident) {
             continue;
         }
         let (item_fn, _loc) = &registry.functions[ident];

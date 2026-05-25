@@ -408,12 +408,10 @@ pub struct JniExt {
     /// mangler — they inherit from the inner type's metadata via the
     /// existing rank-N handlers. Default = identity.
     pub(crate) kotlin_wrapper_name_mangle: Option<NameMangle>,
-    /// Mangler for the two framework "harness" class names —
-    /// `"Native"` (the centralized JNI extern holder) and
-    /// `"Orphaned"` (the catch-all object for fns not promoted onto
-    /// any typed-handle). Default when unset = prepend `"JNI"`, so
-    /// you get `JNINative` and `JNIOrphaned`. Override to plug in a
-    /// different convention.
+    /// Mangler for the framework "harness" class name —
+    /// `"Native"` (the centralized JNI extern holder). Default when
+    /// unset = prepend `"JNI"`, so you get `JNINative`. Override to
+    /// plug in a different convention.
     pub(crate) kotlin_harness_name_mangle: Option<NameMangle>,
     /// Derived `<rust-type-canonical-string> → <kotlin FQN>` view —
     /// populated alongside [`Self::types`] by the structured builders
@@ -567,12 +565,11 @@ impl JniExt {
         self.recompute_derived();
         self
     }
-    /// Set the closure that mangles the framework "harness" class names
-    /// `"Native"` (the centralized extern holder) and `"Orphaned"` (the
-    /// catch-all object). Default = prepend `"JNI"` (yielding
-    /// `JNINative` / `JNIOrphaned`). Affects the generated Kotlin class
-    /// names and, via [`Self::jni_class_path`], the JNI extern symbol
-    /// path on the Rust side.
+    /// Set the closure that mangles the framework "harness" class name
+    /// `"Native"` (the centralized extern holder). Default = prepend
+    /// `"JNI"` (yielding `JNINative`). Affects the generated Kotlin
+    /// class name and, via [`Self::jni_class_path`], the JNI extern
+    /// symbol path on the Rust side.
     pub fn kotlin_harness_name_mangle<F>(mut self, f: F) -> Self
     where
         F: Fn(&str) -> String + Send + Sync + 'static,
@@ -771,8 +768,7 @@ impl JniExt {
     }
     /// Apply [`Self::kotlin_harness_name_mangle`] to `name`. The
     /// closure defaults to `|n| format!("JNI{n}")` when unset, so calling
-    /// `mangle_harness("Native")` yields `"JNINative"` and
-    /// `mangle_harness("Orphaned")` yields `"JNIOrphaned"`.
+    /// `mangle_harness("Native")` yields `"JNINative"`.
     pub(crate) fn mangle_harness(&self, name: &str) -> String {
         match &self.kotlin_harness_name_mangle {
             Some(f) => f(name),
@@ -785,13 +781,6 @@ impl JniExt {
     pub(crate) fn jni_native_class_name(&self) -> String {
         self.mangle_harness("Native")
     }
-    /// The mangled name of the orphan catch-all object that hosts
-    /// safe wrappers for `#[prebindgen]` functions NOT promoted to any
-    /// typed-handle.
-    pub(crate) fn jni_orphaned_class_name(&self) -> String {
-        self.mangle_harness("Orphaned")
-    }
-
     /// The mangled name of the package-level wrapper object used by
     /// [`Self::kotlin_package`].
     pub(crate) fn jni_package_class_name(&self) -> String {
