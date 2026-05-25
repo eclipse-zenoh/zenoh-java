@@ -13,6 +13,10 @@ internal object JNINative {
     external fun keyexprRelationTo(a: Any, b: Any): Int
     external fun keyexprTryFrom(s: String): KeyExpr
     external fun zKeyexprAutocanonize(s: String): Long
+    external fun zKeyexprConcat(a: Long, b: String): Long
+    external fun zKeyexprIncludes(a: Long, b: Long): Boolean
     external fun zKeyexprIntersects(a: Long, b: Long): Boolean
+    external fun zKeyexprJoin(a: Long, b: String): Long
+    external fun zKeyexprRelationTo(a: Long, b: Long): Int
     external fun zKeyexprTryFrom(s: String): Long
 }

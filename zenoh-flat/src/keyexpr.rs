@@ -1,7 +1,11 @@
 use crate::Error;
 use crate::ZKeyExpr;
 use crate::z_keyexpr_autocanonize;
+use crate::z_keyexpr_concat;
+use crate::z_keyexpr_includes;
 use crate::z_keyexpr_intersects;
+use crate::z_keyexpr_join;
+use crate::z_keyexpr_relation_to;
 use prebindgen_proc_macro::prebindgen;
 
 #[prebindgen]
@@ -70,7 +74,7 @@ pub fn keyexpr_includes(
 ) -> Result<bool, Error> {
     let a_ke = into_native(a.into())?;
     let b_ke = into_native(b.into())?;
-    Ok(a_ke.includes(&b_ke))
+    Ok(z_keyexpr_includes(&a_ke, &b_ke))
 }
 
 /// Returns the integer discriminant of `zenoh::key_expr::SetIntersectionLevel`
@@ -82,7 +86,7 @@ pub fn keyexpr_relation_to(
 ) -> Result<i32, Error> {
     let a_ke = into_native(a.into())?;
     let b_ke = into_native(b.into())?;
-    Ok(a_ke.relation_to(&b_ke) as i32)
+    Ok(z_keyexpr_relation_to(&a_ke, &b_ke))
 }
 
 /// Joins `a` and `b` with a `/` separator and returns the resulting KeyExpr.
@@ -92,8 +96,7 @@ pub fn keyexpr_join(
     b: String,
 ) -> Result<KeyExpr, Error> {
     let a_ke = into_native(a.into())?;
-    let joined = a_ke.join(&b)?;
-    Ok(KeyExpr::from(joined))
+    Ok(KeyExpr::from(z_keyexpr_join(&a_ke, b)?))
 }
 
 /// Concatenates `b` onto `a` and returns the resulting KeyExpr if valid.
@@ -103,8 +106,7 @@ pub fn keyexpr_concat(
     b: String,
 ) -> Result<KeyExpr, Error> {
     let a_ke = into_native(a.into())?;
-    let concatenated = a_ke.concat(&b)?;
-    Ok(KeyExpr::from(concatenated))
+    Ok(KeyExpr::from(z_keyexpr_concat(&a_ke, b)?))
 }
 
 fn into_native(k: KeyExpr) -> Result<ZKeyExpr, Error> {

@@ -15,6 +15,34 @@ public class ZKeyExpr(initialPtr: Long) : JNINativeHandle(initialPtr) {
     }
     }
 
+    @Throws(JniBindingError::class)
+    public fun zKeyexprIncludes(b: JNINativeHandle): Boolean =
+        withPtr { a_ptr ->
+        b.withPtr { b_ptr ->
+        JNINative.zKeyexprIncludes(a_ptr, b_ptr)
+    }
+    }
+
+    @Throws(JniBindingError::class)
+    public fun zKeyexprRelationTo(b: JNINativeHandle): Int =
+        withPtr { a_ptr ->
+        b.withPtr { b_ptr ->
+        JNINative.zKeyexprRelationTo(a_ptr, b_ptr)
+    }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun zKeyexprJoin(b: String): JNINativeHandle =
+        withPtr { a_ptr ->
+        ZKeyExpr(JNINative.zKeyexprJoin(a_ptr, b))
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun zKeyexprConcat(b: String): JNINativeHandle =
+        withPtr { a_ptr ->
+        ZKeyExpr(JNINative.zKeyexprConcat(a_ptr, b))
+    }
+
     public companion object {
         @Throws(Error::class, JniBindingError::class)
         public fun zKeyexprTryFrom(s: String): JNINativeHandle =
