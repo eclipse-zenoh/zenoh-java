@@ -219,6 +219,17 @@ pub trait PrebindgenExt {
         HashSet::new()
     }
 
+    /// Final post-processing pass applied to every emitted item right
+    /// before write. Default: no-op.
+    ///
+    /// Use this for cross-cutting transforms that would otherwise have
+    /// to be remembered at every individual emit site — e.g. qualifying
+    /// bare type references against a source module so the emitted
+    /// converter bodies compile in the binding crate's scope. Walks the
+    /// entire AST, not just signatures, so type ascriptions and casts
+    /// inside function bodies are covered.
+    fn post_process_item(&self, _item: &mut syn::Item) {}
+
     // ── Item methods ───────────────────────────────────────────────
 
     /// Wrap a `#[prebindgen]` fn into the destination-language wrapper

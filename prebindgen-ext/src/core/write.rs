@@ -98,6 +98,12 @@ pub fn write_rust<P: AsRef<Path>, E: PrebindgenExt>(
         items.push(item.clone());
     }
 
+    // 4. Cross-cutting post-process pass. Plugins use this to qualify
+    //    bare type references etc. — see PrebindgenExt::post_process_item.
+    for item in &mut items {
+        ext.post_process_item(item);
+    }
+
     let dest: Destination = items.into_iter().collect();
     Ok(dest.write(out_path))
 }

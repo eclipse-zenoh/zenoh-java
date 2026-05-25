@@ -891,7 +891,7 @@ mod tests {
     /// — only referenced as a field of an unresolved `Outer` — went silent.
     #[test]
     fn final_invariant_reports_unresolved_field_of_unresolved_struct() {
-        use crate::core::registry::{Direction, Registry, TypeKey};
+        use crate::core::registry::{Registry, TypeKey};
 
         let mut reg: Registry<()> = Registry::default();
 
@@ -968,13 +968,14 @@ mod tests {
         reg.input_types[0].insert(
             inner_key.clone(),
             Some(TypeEntry {
-                ty: inner_key.to_type(),
-                rank: 0,
-                rust: proc_macro2::TokenStream::new(),
+                destination: syn::parse_quote!(jni::sys::jlong),
+                function: syn::parse_quote!(fn __dummy() {}),
+                pre_stages: vec![],
                 subs: vec![],
                 required: false,
+                niches: crate::core::niches::Niches::empty(),
+                into_sources: None,
                 metadata: (),
-                location: None,
             }),
         );
 
