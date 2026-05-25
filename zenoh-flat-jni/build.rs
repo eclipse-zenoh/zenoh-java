@@ -1,6 +1,5 @@
 use prebindgen_ext::core::prebindgen_ext::IntoSource;
 use prebindgen_ext::core::registry::Registry;
-use prebindgen_ext::jni::jni_ext::KotlinMeta;
 use prebindgen_ext::jni::JniExt;
 use syn::parse_quote as pq;
 
@@ -13,19 +12,10 @@ fn main() {
     let jni = JniExt::new()
         .source_module(pq!(zenoh_flat)) // how to prefix prebindgen-marked items (functions, types
         .kotlin_package_prefix("io.zenoh.jni") // the package of the generated JNI bindings
-        .kotlin_exception_class(pq!(Error)) // The prebindgen-marked type which can be thrown as java exception
-        .output_wrapper(
-            pq!(Result<_, Error>),
-            |t: &syn::Type, _: &Registry<KotlinMeta>| {
-                Some((
-                    t.clone(), // the type R to be returned in case of success 
-                    Some(pq!(Error)), // If Some(T) - assume the the next expr procuces Result<R,T>, 
-                                      // and throws T in case of Err. If None - assume that the next expr 
-                                      // produces R directly
-                    pq!(v) // just pass the original Result<_, Error> as is, no transofmation
-                ))
-            },
-        )
+        .kotlin_data_class(pq!(Error)) // structured Kotlin data class for Error
+        .throwable()                    // …also throwable; JniExt's built-in
+                                        // rank-2 Result<_, _> wrapper routes
+                                        // Err(Error) through it on the JVM side.
         .kotlin_ptr_class(pq!(ZKeyExpr))
         .method("z_keyexpr_try_from")
         .method("z_keyexpr_autocanonize")

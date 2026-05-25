@@ -4,7 +4,7 @@
 //! given: UTF-8 decode of a JString, `instanceof` check failure, null
 //! JObject where a value was required, struct field read failure, etc.
 //! Distinct from any application exception class declared via
-//! [`crate::jni::JniExt::kotlin_exception_class`] — application errors
+//! [`crate::jni::JniExt::throwable`] — application errors
 //! still flow through their own throw fns; binding errors land here.
 //!
 //! `JniExt::new()` pre-registers this type as `exceptions[0]` so it is

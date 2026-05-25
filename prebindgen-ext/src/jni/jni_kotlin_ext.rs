@@ -257,7 +257,7 @@ impl JniExt {
     }
 
     /// Emit one Kotlin file per registered
-    /// [`Self::kotlin_exception_class`] — each becomes a
+    /// throwable class (via [`crate::jni::JniExt::throwable`]) — each becomes a
     /// `public class <Name>(message: String? = null) : Exception()`
     /// landing under `<package>/<Name>.kt`. Iterates `self.exceptions`
     /// in declaration order; returns every path written.
@@ -267,6 +267,22 @@ impl JniExt {
     ) -> Result<Vec<PathBuf>, WriteKotlinError> {
         let mut written = Vec::new();
         for exc in &self.exceptions {
+            // Skip exceptions whose Rust type already has a data-class (or
+            // ptr/enum) Kotlin emission — those classes carry the `: Exception`
+            // extension themselves (via `cfg.throwable` in
+            // `render_data_class_source`). The stub-template path only runs
+            // for un-registered exception types — in practice that's the
+            // framework's `JniBindingError`, declared inside `JniExt::new`
+            // without going through `.throwable()`.
+            let key = TypeKey::from_type(&exc.rust_type);
+            if self
+                .types
+                .get(&key)
+                .map(|cfg| cfg.kotlin_name.is_some())
+                .unwrap_or(false)
+            {
+                continue;
+            }
             let (package, class_name) = match exc.kotlin_fqn.rsplit_once('.') {
                 Some((p, c)) => (p.to_string(), c.to_string()),
                 None => (String::new(), exc.kotlin_fqn.clone()),
@@ -409,6 +425,7 @@ impl JniExt {
                     registry,
                     &kotlin_types,
                     &cfg.methods,
+                    cfg.throwable,
                 ),
                 package: package.clone(),
                 class_name,
@@ -881,6 +898,7 @@ fn render_data_class_source(
     registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
     promoted_functions: &[String],
+    throwable: bool,
 ) -> String {
     let fields_named = match &item_struct.fields {
         syn::Fields::Named(n) => &n.named,
@@ -905,6 +923,13 @@ fn render_data_class_source(
             )
         });
         let kotlin_field_name = snake_to_camel(&field_ident.to_string());
+        // When the class extends Exception (throwable), the `message`
+        // field shadows `Exception.message` — Kotlin requires `override`.
+        let override_prefix = if throwable && kotlin_field_name == "message" {
+            "override "
+        } else {
+            ""
+        };
 
         // Closeable native-handle field: both the typed Kotlin type
         // (`ZKeyExpr?`, `List<ZKeyExpr>`, …) and the `close()` expression
@@ -936,7 +961,7 @@ fn render_data_class_source(
                 });
             let short = register_fqn(&fqn, &mut imports);
             field_lines.push(format!(
-                "    val {kotlin_field_name}: {},",
+                "    {override_prefix}val {kotlin_field_name}: {},",
                 render_handle_type(&h.strategy, &short)
             ));
             destructible_fields.push((kotlin_field_name, h.strategy));
@@ -971,7 +996,7 @@ fn render_data_class_source(
             .map(|w| crate::jni::jni_ext::is_jni_primitive(w))
             .unwrap_or(false);
         let optional_suffix = if is_option_type(&field.ty) && !primitive_wire { "?" } else { "" };
-        field_lines.push(format!("    val {kotlin_field_name}: {short}{optional_suffix},"));
+        field_lines.push(format!("    {override_prefix}val {kotlin_field_name}: {short}{optional_suffix},"));
     }
 
     let mut companion_methods = String::new();
@@ -1033,10 +1058,39 @@ fn render_data_class_source(
         s.push_str(line);
         s.push('\n');
     }
-    if destructible_fields.is_empty() {
+    // Supertype clause. `Exception(...)` (a class) and `AutoCloseable`
+    // (an interface) stack — Kotlin allows at most one class super + any
+    // interfaces. `: Exception(message)` picks the field literally named
+    // `message` to forward to Exception's message slot; falls back to
+    // `: Exception()` when no such field exists (data-class auto-toString
+    // still surfaces the structured fields).
+    let exception_clause: Option<String> = if throwable {
+        let has_message = fields_named.iter().any(|f| {
+            f.ident
+                .as_ref()
+                .map(|i| i.to_string() == "message")
+                .unwrap_or(false)
+        });
+        Some(if has_message {
+            "Exception(message)".to_string()
+        } else {
+            "Exception()".to_string()
+        })
+    } else {
+        None
+    };
+    let supertypes: Vec<String> = match (&exception_clause, !destructible_fields.is_empty()) {
+        (Some(e), true) => vec![e.clone(), "AutoCloseable".to_string()],
+        (Some(e), false) => vec![e.clone()],
+        (None, true) => vec!["AutoCloseable".to_string()],
+        (None, false) => vec![],
+    };
+    if supertypes.is_empty() {
         s.push_str(") {\n");
     } else {
-        s.push_str(") : AutoCloseable {\n");
+        s.push_str(&format!(") : {} {{\n", supertypes.join(", ")));
+    }
+    if !destructible_fields.is_empty() {
         // `close()` walks every destructible field via its folded close
         // strategy. `JNINativeHandle.close()` is idempotent
         // (Cleaner.Cleanable.clean() invokes exactly once), so calling
