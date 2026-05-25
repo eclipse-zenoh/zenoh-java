@@ -618,89 +618,60 @@ fn lookup_slot<'a, M>(
     None
 }
 
-fn collect_direct_dependencies<M>(
-    registry: &Registry<M>,
-    dir: Direction,
-    key: &TypeKey,
-) -> Vec<(Direction, TypeKey)> {
-    let ty = key.to_type();
-    let mut out: Vec<(Direction, TypeKey)> = Vec::new();
-
-    let (positions, child_dir) = if let Some(args) = crate::core::registry::extract_fn_trait_args(&ty) {
-        (args, dir.flip())
-    } else {
-        (crate::core::registry::immediate_subtype_positions(&ty), dir)
-    };
-    for sub in positions {
-        out.push((child_dir, TypeKey::from_type(&sub)));
-    }
-
-    if let Some(name) = type_path_tail_ident(&ty) {
-        if let Some((s, _)) = registry.structs.get(&name) {
-            if let syn::Fields::Named(named) = &s.fields {
-                for field in &named.named {
-                    out.push((dir, TypeKey::from_type(&field.ty)));
-                }
-            }
-        }
-        if let Some((e, _)) = registry.enums.get(&name) {
-            for variant in &e.variants {
-                for field in &variant.fields {
-                    out.push((dir, TypeKey::from_type(&field.ty)));
-                }
-            }
-        }
-    }
-
-    out
-}
-
-fn type_path_tail_ident(ty: &syn::Type) -> Option<syn::Ident> {
-    if let syn::Type::Path(tp) = ty {
-        return tp.path.segments.last().map(|s| s.ident.clone());
-    }
-    None
-}
-
+/// BFS from unresolved required-roots through the type graph, surfacing
+/// further unresolved entries reachable through struct fields, enum variants,
+/// generic args, and `impl Fn(...)` args. Stops at resolved nodes — their
+/// `subs` were already walked by `propagate_required`, so traversing through
+/// them risks reporting dependents the resolved converter doesn't actually
+/// need.
 fn collect_unresolved_descendants<M>(
     registry: &Registry<M>,
     seeds: &[(Direction, TypeKey)],
-    seen: &mut std::collections::HashSet<String>,
+    seen: &mut std::collections::HashSet<(Direction, TypeKey)>,
     out: &mut Vec<UnresolvedEntry>,
 ) {
     let mut queue: VecDeque<(Direction, TypeKey)> = VecDeque::new();
-    for (dir, key) in seeds {
-        for dep in collect_direct_dependencies(registry, *dir, key) {
-            if seen.insert(unresolved_key(dep.0, &dep.1)) {
+    let enqueue_edges_from = |dir: Direction,
+                                  key: &TypeKey,
+                                  queue: &mut VecDeque<(Direction, TypeKey)>,
+                                  seen: &mut std::collections::HashSet<(Direction, TypeKey)>| {
+        let ty = key.to_type();
+        for (child_dir, sub) in registry.immediate_edges(dir, &ty) {
+            let dep = (child_dir, TypeKey::from_type(&sub));
+            if seen.insert(dep.clone()) {
                 queue.push_back(dep);
             }
         }
+    };
+
+    for (dir, key) in seeds {
+        enqueue_edges_from(*dir, key, &mut queue, seen);
     }
 
     while let Some((dir, key)) = queue.pop_front() {
-        if let Some(slot) = lookup_slot(registry, dir, &key) {
-            if slot.is_none() {
+        match lookup_slot(registry, dir, &key) {
+            Some(None) => {
+                // Registered but unresolved — report it and keep walking.
                 out.push(UnresolvedEntry {
                     key: key.clone(),
                     direction: dir,
                     location: registry.type_locations.get(&key).cloned(),
                 });
+                enqueue_edges_from(dir, &key, &mut queue, seen);
             }
-        }
-        for dep in collect_direct_dependencies(registry, dir, &key) {
-            if seen.insert(unresolved_key(dep.0, &dep.1)) {
-                queue.push_back(dep);
+            None => {
+                // Not in the registry at all — can't report (no key/location
+                // worth surfacing), but its structural children may still
+                // include registered-but-unresolved types worth flagging.
+                enqueue_edges_from(dir, &key, &mut queue, seen);
+            }
+            Some(Some(_)) => {
+                // Resolved — `propagate_required` already walked its `subs`.
+                // Stop here to avoid spurious reports for descendants the
+                // resolved converter doesn't need.
             }
         }
     }
-}
-
-fn unresolved_key(dir: Direction, key: &TypeKey) -> String {
-    let d = match dir {
-        Direction::Input => "in",
-        Direction::Output => "out",
-    };
-    format!("{}:{}", d, key.as_str())
 }
 
 fn final_invariant_check<M>(registry: &Registry<M>) -> Result<(), ResolveError> {
@@ -708,10 +679,10 @@ fn final_invariant_check<M>(registry: &Registry<M>) -> Result<(), ResolveError> 
     let scan_required_input = &registry.required_inputs_scan;
     let scan_required_output = &registry.required_outputs_scan;
     let mut unresolved_required_roots: Vec<(Direction, TypeKey)> = Vec::new();
-    let mut seen_unresolved: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut seen_unresolved: std::collections::HashSet<(Direction, TypeKey)> =
+        std::collections::HashSet::new();
 
-    for (i, bucket) in registry.input_types.iter().enumerate() {
-        let _ = i;
+    for bucket in &registry.input_types {
         for (key, slot) in bucket {
             let needs = match slot {
                 Some(e) => e.required,
@@ -719,7 +690,7 @@ fn final_invariant_check<M>(registry: &Registry<M>) -> Result<(), ResolveError> 
             };
             if needs && slot.is_none() {
                 unresolved_required_roots.push((Direction::Input, key.clone()));
-                seen_unresolved.insert(unresolved_key(Direction::Input, key));
+                seen_unresolved.insert((Direction::Input, key.clone()));
                 entries.push(UnresolvedEntry {
                     key: key.clone(),
                     direction: Direction::Input,
@@ -728,8 +699,7 @@ fn final_invariant_check<M>(registry: &Registry<M>) -> Result<(), ResolveError> 
             }
         }
     }
-    for (i, bucket) in registry.output_types.iter().enumerate() {
-        let _ = i;
+    for bucket in &registry.output_types {
         for (key, slot) in bucket {
             let needs = match slot {
                 Some(e) => e.required,
@@ -737,7 +707,7 @@ fn final_invariant_check<M>(registry: &Registry<M>) -> Result<(), ResolveError> 
             };
             if needs && slot.is_none() {
                 unresolved_required_roots.push((Direction::Output, key.clone()));
-                seen_unresolved.insert(unresolved_key(Direction::Output, key));
+                seen_unresolved.insert((Direction::Output, key.clone()));
                 entries.push(UnresolvedEntry {
                     key: key.clone(),
                     direction: Direction::Output,
@@ -912,5 +882,117 @@ mod tests {
         assert!(extract_into_trait_arg(&ty("impl Into<u64> + Send + Sync + 'static")).is_none());
         // Rejected: not impl-Trait at all.
         assert!(extract_into_trait_arg(&ty("KeyExpr<'static>")).is_none());
+    }
+
+    /// Regression: when a required type is itself unresolved AND has fields
+    /// that are also unresolved, the diagnostic must list both. Previously
+    /// `propagate_required` could not cross an unresolved parent (no `subs`
+    /// edges exist past it), so a missing build.rs declaration for `ZKeyExpr`
+    /// — only referenced as a field of an unresolved `Outer` — went silent.
+    #[test]
+    fn final_invariant_reports_unresolved_field_of_unresolved_struct() {
+        use crate::core::registry::{Direction, Registry, TypeKey};
+
+        let mut reg: Registry<()> = Registry::default();
+
+        // Index a struct `Outer { inner: ZKeyExpr }` so the BFS can walk
+        // into its field. `ZKeyExpr` itself stays *unindexed* (the user's
+        // build.rs forgot to declare it), but it does appear in the type
+        // tables because scan-recursion would have registered it as a field
+        // of `Outer`. Simulate the post-scan registry state directly.
+        let outer_struct: syn::ItemStruct = syn::parse_str(
+            "struct Outer { inner: ZKeyExpr }",
+        )
+        .unwrap();
+        reg.structs.insert(
+            outer_struct.ident.clone(),
+            (outer_struct, SourceLocation::default()),
+        );
+
+        // `Outer` is a required INPUT, unresolved (slot stays `None`).
+        let outer_key = TypeKey::parse("Outer");
+        reg.input_types[0].insert(outer_key.clone(), None);
+        reg.required_inputs_scan.insert(outer_key.clone());
+
+        // `ZKeyExpr` is also in the type table (scan recursed into the
+        // field) but unresolved and NOT marked required at scan time —
+        // exactly the case the BFS is here to catch.
+        let zke_key = TypeKey::parse("ZKeyExpr");
+        reg.input_types[0].insert(zke_key.clone(), None);
+
+        let err = final_invariant_check(&reg).expect_err("must surface unresolved");
+        let ResolveError::Unresolved { entries } = err;
+        let reported: std::collections::HashSet<String> =
+            entries.iter().map(|e| e.key.to_string()).collect();
+        assert!(
+            reported.contains("Outer"),
+            "expected `Outer` in report, got {:?}",
+            reported
+        );
+        assert!(
+            reported.contains("ZKeyExpr"),
+            "expected `ZKeyExpr` (transitively unresolved via Outer.inner) in report, got {:?}",
+            reported
+        );
+    }
+
+    /// Counterpart to the regression above: the BFS must NOT walk through
+    /// resolved nodes. `propagate_required` already covers their `subs`
+    /// edges, so re-walking them risks reporting deeper unresolved entries
+    /// that the resolved converter doesn't actually depend on.
+    #[test]
+    fn final_invariant_stops_at_resolved_nodes() {
+        use crate::core::registry::{Direction, Registry, TypeEntry, TypeKey};
+        use prebindgen::SourceLocation as Loc;
+
+        let mut reg: Registry<()> = Registry::default();
+
+        let outer_struct: syn::ItemStruct =
+            syn::parse_str("struct Outer { inner: Inner }").unwrap();
+        let inner_struct: syn::ItemStruct =
+            syn::parse_str("struct Inner { unused: Unrelated }").unwrap();
+        reg.structs
+            .insert(outer_struct.ident.clone(), (outer_struct, Loc::default()));
+        reg.structs
+            .insert(inner_struct.ident.clone(), (inner_struct, Loc::default()));
+
+        // `Outer` required & unresolved; `Inner` RESOLVED (with a dummy
+        // entry); `Unrelated` unresolved but only reachable through Inner.
+        let outer_key = TypeKey::parse("Outer");
+        let inner_key = TypeKey::parse("Inner");
+        let unrelated_key = TypeKey::parse("Unrelated");
+
+        reg.input_types[0].insert(outer_key.clone(), None);
+        reg.required_inputs_scan.insert(outer_key.clone());
+
+        reg.input_types[0].insert(
+            inner_key.clone(),
+            Some(TypeEntry {
+                ty: inner_key.to_type(),
+                rank: 0,
+                rust: proc_macro2::TokenStream::new(),
+                subs: vec![],
+                required: false,
+                metadata: (),
+                location: None,
+            }),
+        );
+
+        reg.input_types[0].insert(unrelated_key.clone(), None);
+
+        let err = final_invariant_check(&reg).expect_err("must surface Outer");
+        let ResolveError::Unresolved { entries } = err;
+        let reported: std::collections::HashSet<String> =
+            entries.iter().map(|e| e.key.to_string()).collect();
+        assert!(reported.contains("Outer"));
+        // Inner is resolved -> not reported.
+        assert!(!reported.contains("Inner"));
+        // Unrelated sits behind a resolved Inner -> must NOT be reported.
+        assert!(
+            !reported.contains("Unrelated"),
+            "BFS must stop at resolved nodes, got report: {:?}",
+            reported
+        );
+        let _ = Direction::Input; // keep import used
     }
 }

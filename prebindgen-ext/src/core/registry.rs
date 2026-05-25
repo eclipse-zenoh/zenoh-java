@@ -109,7 +109,7 @@ pub struct TypeEntry<M = ()> {
 }
 
 /// Direction of a converter pair.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Direction {
     /// Wire → Rust.
     Input,
@@ -566,36 +566,8 @@ impl<M> Registry<M> {
 
         self.ensure_entry(dir, ty, is_top, loc);
 
-        // Recurse into nested positions. For `impl Fn(args)`, args travel
-        // INVERSE to the parent direction (callback args flow inverse to
-        // the callback itself).
-        let (positions, child_dir) = if let Some(args) = extract_fn_trait_args(ty) {
-            (args, dir.flip())
-        } else {
-            (immediate_subtype_positions(ty), dir)
-        };
-
-        for sub in positions {
+        for (child_dir, sub) in self.immediate_edges(dir, ty) {
             self.register_type_inner(child_dir, &sub, false, loc, visited)?;
-        }
-
-        // If this type is the bare ident of a struct/enum we already
-        // indexed, recurse into its fields/variants in the SAME direction.
-        if let Some(name) = type_path_tail_ident(ty) {
-            if let Some((s, _)) = self.structs.get(&name).cloned() {
-                if let syn::Fields::Named(named) = &s.fields {
-                    for field in &named.named {
-                        self.register_type_inner(dir, &field.ty, false, loc, visited)?;
-                    }
-                }
-            }
-            if let Some((e, _)) = self.enums.get(&name).cloned() {
-                for variant in &e.variants {
-                    for field in &variant.fields {
-                        self.register_type_inner(dir, &field.ty, false, loc, visited)?;
-                    }
-                }
-            }
         }
         Ok(())
     }
@@ -621,6 +593,47 @@ impl<M> Registry<M> {
             };
         }
         self.type_locations.entry(key).or_insert_with(|| loc.clone());
+    }
+
+    /// Enumerate the immediate type-graph edges out of `(dir, ty)`:
+    /// generic args / Fn args / tuple elements / ref/array/slice/ptr targets,
+    /// plus — if `ty` is the bare ident of an indexed struct or enum — the
+    /// field types of that struct/enum.
+    ///
+    /// `impl Fn(args)` arg types flow with `dir.flip()`; everything else
+    /// inherits `dir`. Used by both `register_type_inner` (during scan) and
+    /// the unresolved-descendants BFS in `resolve` (for diagnostics).
+    pub(crate) fn immediate_edges(
+        &self,
+        dir: Direction,
+        ty: &syn::Type,
+    ) -> Vec<(Direction, syn::Type)> {
+        let mut out: Vec<(Direction, syn::Type)> = Vec::new();
+        let (positions, child_dir) = if let Some(args) = extract_fn_trait_args(ty) {
+            (args, dir.flip())
+        } else {
+            (immediate_subtype_positions(ty), dir)
+        };
+        for sub in positions {
+            out.push((child_dir, sub));
+        }
+        if let Some(name) = type_path_tail_ident(ty) {
+            if let Some((s, _)) = self.structs.get(&name) {
+                if let syn::Fields::Named(named) = &s.fields {
+                    for field in &named.named {
+                        out.push((dir, field.ty.clone()));
+                    }
+                }
+            }
+            if let Some((e, _)) = self.enums.get(&name) {
+                for variant in &e.variants {
+                    for field in &variant.fields {
+                        out.push((dir, field.ty.clone()));
+                    }
+                }
+            }
+        }
+        out
     }
 
     /// One-shot: resolve every required type using `ext`, then write the
@@ -783,7 +796,7 @@ pub fn extract_fn_trait_args(ty: &syn::Type) -> Option<Vec<syn::Type>> {
 
 /// Return the bare last-path-segment ident of `ty` if `ty` is a path type
 /// like `Sample` (not generic). None for `Option<Sample>`, `&T`, `(A, B)`.
-fn type_path_tail_ident(ty: &syn::Type) -> Option<syn::Ident> {
+pub(crate) fn type_path_tail_ident(ty: &syn::Type) -> Option<syn::Ident> {
     if let syn::Type::Path(tp) = ty {
         if let Some(last) = tp.path.segments.last() {
             if matches!(last.arguments, syn::PathArguments::None) {
