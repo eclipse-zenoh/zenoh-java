@@ -101,7 +101,7 @@ internal class JNIQuerier(val ptr: Long) {
         }
 
         getViaJNI(this.ptr,
-            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprNative?.peek() ?: 0L,
             keyExpr.flat.keyExprString,
             parameters?.toString(),
             getCallback,

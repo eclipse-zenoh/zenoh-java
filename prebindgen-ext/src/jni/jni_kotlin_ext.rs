@@ -709,6 +709,42 @@ fn is_option_type(ty: &syn::Type) -> bool {
     false
 }
 
+/// If `ty` is `Option<T>`, return `T`. Otherwise `None`.
+fn option_inner_type(ty: &syn::Type) -> Option<&syn::Type> {
+    if let syn::Type::Path(tp) = ty {
+        if let Some(last) = tp.path.segments.last() {
+            if last.ident == "Option" {
+                if let syn::PathArguments::AngleBracketed(args) = &last.arguments {
+                    for arg in &args.args {
+                        if let syn::GenericArgument::Type(t) = arg {
+                            return Some(t);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Returns the typed-handle Kotlin FQN if `field_ty` is `Option<T>` where
+/// `T` is registered as an opaque handle (typed FQN present in
+/// `ext.kotlin_type_fqns`). Used by the data-class emitter to reshape
+/// `Option<OpaqueHandle>` fields from raw `Long` (sentinel-0) to the
+/// typed handle reference so the resource can carry its own
+/// `AutoCloseable` lifecycle.
+pub(crate) fn typed_handle_option_fqn(
+    ext: &crate::jni::jni_ext::JniExt,
+    field_ty: &syn::Type,
+) -> Option<String> {
+    let inner = option_inner_type(field_ty)?;
+    let inner_key = TypeKey::from_type(inner).as_str().to_string();
+    ext.kotlin_type_fqns
+        .iter()
+        .find(|(k, _)| k == &inner_key)
+        .map(|(_, v)| v.clone())
+}
+
 fn register_fqn(fqn: &str, used: &mut BTreeSet<String>) -> String {
     if fqn.contains('.') {
         used.insert(fqn.to_string());
@@ -856,6 +892,10 @@ fn render_data_class_source(
 
     let mut imports: BTreeSet<String> = BTreeSet::new();
     let mut field_lines: Vec<String> = Vec::new();
+    // Track per-field destructible Kotlin names so the bottom emitter can
+    // produce a matching `close()` body that calls `<field>?.close()` on
+    // each.
+    let mut destructible_fields: Vec<String> = Vec::new();
     for field in fields_named {
         let field_ident = field.ident.as_ref().unwrap_or_else(|| {
             panic!(
@@ -864,6 +904,21 @@ fn render_data_class_source(
             )
         });
         let kotlin_field_name = snake_to_camel(&field_ident.to_string());
+
+        // `Option<OpaqueHandle>` fields are reshaped: instead of the bare
+        // `Long` wire (sentinel 0L), the data-class field is the typed
+        // handle (`ZKeyExpr?`). The struct encoder/decoder in jni_ext.rs
+        // bridges the JVM-side handle object back to the per-field
+        // jlong-wired converter. Doing this here lets every consumer of
+        // the field rely on `JNINativeHandle.close()` / Cleaner without
+        // wrapping a raw Long themselves.
+        if let Some(fqn) = typed_handle_option_fqn(ext, &field.ty) {
+            let short = register_fqn(&fqn, &mut imports);
+            field_lines.push(format!("    val {kotlin_field_name}: {short}?,"));
+            destructible_fields.push(kotlin_field_name);
+            continue;
+        }
+
         let kotlin_ty = registry
             .output_entry(&field.ty)
             .and_then(|e| e.metadata.kotlin_name.clone())
@@ -877,12 +932,13 @@ fn render_data_class_source(
             });
         let short = register_fqn(&kotlin_ty, &mut imports);
         // `Option<T>` whose wire is a JNI primitive (jlong/jint/jboolean/…)
-        // is encoded by the struct emitter as the bare primitive with a
-        // sentinel for `None` (0 / 0.0 / false). The Kotlin field must
-        // match that JVM slot: declare it non-nullable so the constructor
-        // signature stays primitive (`J` vs `Ljava/lang/Long;`).
-        // Nullable boxing for primitives would require generator-side
-        // changes in `struct_output_body` to `Long.valueOf(...)`.
+        // and that *isn't* an opaque handle (handled above) is encoded by
+        // the struct emitter as the bare primitive with a sentinel for
+        // `None` (0 / 0.0 / false). The Kotlin field must match that JVM
+        // slot: declare it non-nullable so the constructor signature
+        // stays primitive (`J` vs `Ljava/lang/Long;`). Nullable boxing
+        // for non-handle primitives would require generator-side changes
+        // in `struct_output_body` to `Long.valueOf(...)`.
         let wire = registry
             .output_entry(&field.ty)
             .map(|e| e.destination.clone());
@@ -953,7 +1009,22 @@ fn render_data_class_source(
         s.push_str(line);
         s.push('\n');
     }
-    s.push_str(") {\n");
+    if destructible_fields.is_empty() {
+        s.push_str(") {\n");
+    } else {
+        s.push_str(") : AutoCloseable {\n");
+        // `close()` walks every destructible field. `JNINativeHandle.close()`
+        // is idempotent (Cleaner.Cleanable.clean() invokes exactly once),
+        // so calling this multiple times — or alongside the cleaner's
+        // own firing on GC — is safe. NOTE: `data class` copy() shares the
+        // handle reference between copies; if you intend to close
+        // independently, don't copy this class.
+        s.push_str("    override fun close() {\n");
+        for fname in &destructible_fields {
+            s.push_str(&format!("        {fname}?.close()\n"));
+        }
+        s.push_str("    }\n\n");
+    }
     s.push_str("    public companion object {\n");
     if !companion_methods.is_empty() {
         for line in companion_methods.lines() {
@@ -1139,21 +1210,33 @@ fn render_typed_handle_source(
         s.push('\n');
     }
     let native_handle_class = ext.mangle_harness("NativeHandle");
+    let free_extern = ext.mangle_fun("freePtr");
     s.push_str(&format!(
         "/** Typed [{native_handle_class}] for a native Zenoh `{}`. */\n",
         rust_doc_name
     ));
+    // The concrete subclass owns its own lifecycle: it is `AutoCloseable`,
+    // registers a `Cleaner` action, and that action calls its own
+    // `@JvmStatic external freePtr` directly. The base class stays minimal
+    // (pointer + lock only) and knows nothing about freeing. The cleanup
+    // `Cleanup` references only the detached `state` holder + the static
+    // `freePtr`, never `this`, so it can't pin the handle (which would
+    // stop the cleaner from ever firing).
     s.push_str(&format!(
-        "public class {}(initialPtr: Long) : {}(initialPtr) {{\n",
-        class_name,
-        native_handle_class,
+        "public class {class_name}(initialPtr: Long) : \
+         {native_handle_class}(initialPtr), AutoCloseable {{\n",
     ));
-    let free_extern = ext.mangle_fun("freePtr");
     s.push_str(&format!(
-        "    public fun free() = free {{ {free_extern}(it) }}\n"
+        "    private val cleanable: java.lang.ref.Cleaner.Cleanable =\n        \
+         CLEANER.register(this, Cleanup(state))\n\n"
     ));
+    // `Cleaner.Cleanable.clean()` runs the action exactly once — whether
+    // invoked here or by the cleaner thread on GC — then deregisters, so
+    // explicit close() and GC cleanup can't double-free.
+    s.push_str("    override fun close() = cleanable.clean()\n\n");
     s.push_str(&format!(
-        "    private external fun {free_extern}(ptr: Long)\n"
+        "    private class Cleanup(private val state: State) : Runnable {{\n        \
+         override fun run() = state.freeOnce {{ {class_name}.{free_extern}(it) }}\n    }}\n"
     ));
     if !instance_body.is_empty() {
         s.push('\n');
@@ -1167,9 +1250,16 @@ fn render_typed_handle_source(
             }
         }
     }
+    // Companion object always exists — at minimum it carries the
+    // `@JvmStatic external fun freePtr(ptr: Long)` called by `Cleanup`
+    // above. Promoted-method bodies (e.g. typed factory functions) follow.
+    s.push('\n');
+    s.push_str("    public companion object {\n");
+    s.push_str(&format!(
+        "        @JvmStatic\n        external fun {free_extern}(ptr: Long)\n",
+    ));
     if !companion_body.is_empty() {
         s.push('\n');
-        s.push_str("    public companion object {\n");
         for line in companion_body.lines() {
             if line.is_empty() {
                 s.push('\n');
@@ -1179,8 +1269,8 @@ fn render_typed_handle_source(
                 s.push('\n');
             }
         }
-        s.push_str("    }\n");
     }
+    s.push_str("    }\n");
     s.push_str("}\n");
     s
 }
@@ -2004,15 +2094,18 @@ fn classify_return(
                 .unwrap_or(false)
         });
     if output_is_opaque_jlong || input_is_opaque {
-        // Typed-FQN constructor when registered; else the mangled
-        // NativeHandle harness class. Both compile against the same
-        // declared return type (subtype relation).
+        // Return the concrete typed handle when one is registered (e.g.
+        // `ZKeyExpr`), else fall back to the base harness class. The
+        // declared return type matches the constructor: the concrete type
+        // is `AutoCloseable` (the base is not), so a factory that returns
+        // the concrete handle hands the caller something they can
+        // `close()` / `use {}`. Returning the base here would strip that.
         let native_handle = ext.mangle_harness("NativeHandle");
         let ctor = match kotlin_types.lookup(&inner_canon) {
             Some(fqn) if fqn.contains('.') => register_fqn(fqn, imports),
             _ => native_handle.clone(),
         };
-        return Some((native_handle, Some(ctor)));
+        return Some((ctor.clone(), Some(ctor)));
     }
     // Non-opaque: read the Kotlin name straight off the resolved
     // output entry's metadata — the rank-N handler propagates

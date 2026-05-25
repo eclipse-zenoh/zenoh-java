@@ -3,8 +3,12 @@ package io.zenoh.jni
 
 public data class KeyExpr(
     val keyExprString: String,
-    val keyExprNative: Long,
-) {
+    val keyExprNative: ZKeyExpr?,
+) : AutoCloseable {
+    override fun close() {
+        keyExprNative?.close()
+    }
+
     public companion object {
         @Throws(Error::class, JniBindingError::class)
         public fun keyexprTryFrom(s: String): KeyExpr =

@@ -62,10 +62,11 @@ import io.zenoh.jni.KeyExpr as JniKeyExpr
  * ensures that [close] is automatically called, safely managing the lifecycle of the [KeyExpr] instance.
  *
  */
-class KeyExpr internal constructor(internal var flat: JniKeyExpr) : AutoCloseable, IntoSelector,
+class KeyExpr internal constructor(internal val flat: JniKeyExpr) : AutoCloseable, IntoSelector,
     SessionDeclaration {
 
-    internal constructor(keyExpr: String, ptr: Long = 0L) : this(JniKeyExpr(keyExpr, ptr))
+    internal constructor(keyExpr: String, ptr: Long = 0L) :
+        this(JniKeyExpr(keyExpr, ptr.takeIf { it != 0L }?.let { ZKeyExpr(it) }))
 
     companion object {
         init {
@@ -172,10 +173,7 @@ class KeyExpr internal constructor(internal var flat: JniKeyExpr) : AutoCloseabl
      * operations on it, but without the inner optimizations.
      */
     override fun undeclare() {
-        if (flat.keyExprNative != 0L) {
-            ZKeyExpr(flat.keyExprNative).free()
-            flat = flat.copy(keyExprNative = 0L)
-        }
+        flat.close()
     }
 
     override fun into(): Selector = Selector(this)

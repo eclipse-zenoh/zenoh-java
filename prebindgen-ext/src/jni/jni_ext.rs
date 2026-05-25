@@ -3447,6 +3447,32 @@ fn struct_input_body(
         let field_wire = field_entry.destination.clone();
         let field_conv = field_entry.function.sig.ident.clone();
 
+        // Mirror of the struct_output_body bridge: when the data-class
+        // field is the typed handle (`ZKeyExpr?`), read the JNINativeHandle
+        // object from the JVM slot, `peek()` the raw jlong, then run the
+        // per-field input converter (still jlong-keyed). Null handle ⇒
+        // jlong = 0 ⇒ Option<...>::None via the niche-path.
+        if let Some(fqn) = crate::jni::jni_kotlin_ext::typed_handle_option_fqn(ext, &field.ty) {
+            let java_path = fqn.replace('.', "/");
+            let sig = format!("L{};", java_path);
+            let tmp_ident = format_ident!("__{}_jobj", fname_ident);
+            field_preludes.push(quote! {
+                let #tmp_ident: jni::objects::JObject = env.get_field(v, #camel, #sig)
+                    .and_then(|val| val.l())
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!(#err_prefix, e)))?;
+                let #raw_ident: jni::sys::jlong = if #tmp_ident.is_null() {
+                    0
+                } else {
+                    env.call_method(&#tmp_ident, "peek", "()J", &[])
+                        .and_then(|val| val.j())
+                        .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!(#err_prefix, e)))?
+                };
+                let #fname_ident = #field_conv(env, &#raw_ident)?;
+            });
+            field_init.push(quote!(#fname_ident));
+            continue;
+        }
+
         match jni_field_access(&field_wire) {
             Some((sig, accessor, false)) => {
                 field_preludes.push(quote! {
@@ -3533,6 +3559,29 @@ fn struct_output_body(
             let #field_value_ident = v.#fname_ident.clone();
             let #encoded_ident = #field_conv(env, #field_value_ident)?;
         });
+
+        // `Option<OpaqueHandle>` fields are bridged: per-field output
+        // converter still produces `jlong` (sentinel 0L for None); we
+        // wrap that into the typed-handle Kotlin class so the data-class
+        // field type matches (see `typed_handle_option_fqn` in jni_kotlin_ext).
+        // JVM ctor slot is `L<typed-FQN>;`, not `J`.
+        if let Some(fqn) = crate::jni::jni_kotlin_ext::typed_handle_option_fqn(ext, &field.ty) {
+            let java_path = fqn.replace('.', "/");
+            let ctor_slot = format!("L{};", java_path);
+            ctor_sig.push_str(&ctor_slot);
+            let java_path_lit = syn::LitStr::new(&java_path, Span::call_site());
+            field_preludes.push(quote! {
+                let #encoded_obj_ident: jni::objects::JObject<'a> = if #encoded_ident == 0 {
+                    jni::objects::JObject::null()
+                } else {
+                    env
+                        .new_object(#java_path_lit, "(J)V", &[jni::objects::JValue::from(#encoded_ident)])
+                        .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("wrap typed handle {}: {}", #java_path_lit, e)))?
+                };
+            });
+            ctor_args.push(quote!(jni::objects::JValue::Object(&#encoded_obj_ident)));
+            continue;
+        }
 
         match jni_field_access(&field_wire) {
             Some((sig, _, false)) => {

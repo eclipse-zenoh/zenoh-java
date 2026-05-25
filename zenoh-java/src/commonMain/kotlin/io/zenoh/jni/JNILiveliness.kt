@@ -87,7 +87,7 @@ internal object JNILiveliness {
         }
         getViaJNI(
             jniSession.sessionPtr,
-            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprNative?.peek() ?: 0L,
             keyExpr.flat.keyExprString,
             getCallback,
             timeout.toMillis(),
@@ -97,7 +97,7 @@ internal object JNILiveliness {
     }
 
     fun declareToken(jniSession: JNISession, keyExpr: KeyExpr): LivelinessToken {
-        val ptr = declareTokenViaJNI(jniSession.sessionPtr, keyExpr.flat.keyExprNative, keyExpr.flat.keyExprString)
+        val ptr = declareTokenViaJNI(jniSession.sessionPtr, keyExpr.flat.keyExprNative?.peek() ?: 0L, keyExpr.flat.keyExprString)
         return LivelinessToken(JNILivelinessToken(ptr))
     }
 
@@ -124,7 +124,7 @@ internal object JNILiveliness {
             }
         val ptr = declareSubscriberViaJNI(
             jniSession.sessionPtr,
-            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprNative?.peek() ?: 0L,
             keyExpr.flat.keyExprString,
             subCallback,
             history,
@@ -157,7 +157,7 @@ internal object JNILiveliness {
             }
         val ptr = declareSubscriberViaJNI(
             jniSession.sessionPtr,
-            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprNative?.peek() ?: 0L,
             keyExpr.flat.keyExprString,
             subCallback,
             history,

@@ -64,7 +64,7 @@ internal class JNISession(val sessionPtr: Long) {
     @Throws(ZError::class)
     fun declarePublisher(keyExpr: KeyExpr, publisherOptions: PublisherOptions): Publisher {
         val publisherRawPtr = declarePublisherViaJNI(
-            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprNative?.peek() ?: 0L,
             keyExpr.flat.keyExprString,
             sessionPtr,
             publisherOptions.congestionControl.value,
@@ -100,7 +100,7 @@ internal class JNISession(val sessionPtr: Long) {
                 handler.handle(sample)
             }
         val subscriberRawPtr = declareSubscriberViaJNI(
-            keyExpr.flat.keyExprNative, keyExpr.flat.keyExprString, sessionPtr, subCallback, handler::onClose
+            keyExpr.flat.keyExprNative?.peek() ?: 0L, keyExpr.flat.keyExprString, sessionPtr, subCallback, handler::onClose
         )
         return HandlerSubscriber(keyExpr, JNISubscriber(subscriberRawPtr), handler.receiver())
     }
@@ -124,7 +124,7 @@ internal class JNISession(val sessionPtr: Long) {
                 callback.run(sample)
             }
         val subscriberRawPtr = declareSubscriberViaJNI(
-            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprNative?.peek() ?: 0L,
             keyExpr.flat.keyExprString,
             sessionPtr,
             subCallback,
@@ -159,7 +159,7 @@ internal class JNISession(val sessionPtr: Long) {
                 callback.run(query)
             }
         val queryableRawPtr = declareQueryableViaJNI(
-            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprNative?.peek() ?: 0L,
             keyExpr.flat.keyExprString,
             sessionPtr,
             queryCallback,
@@ -195,7 +195,7 @@ internal class JNISession(val sessionPtr: Long) {
                 handler.handle(query)
             }
         val queryableRawPtr = declareQueryableViaJNI(
-            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprNative?.peek() ?: 0L,
             keyExpr.flat.keyExprString,
             sessionPtr,
             queryCallback,
@@ -211,7 +211,7 @@ internal class JNISession(val sessionPtr: Long) {
         options: QuerierOptions
     ): Querier {
         val querierRawPtr = declareQuerierViaJNI(
-            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprNative?.peek() ?: 0L,
             keyExpr.flat.keyExprString,
             sessionPtr,
             options.target.ordinal,
@@ -280,7 +280,7 @@ internal class JNISession(val sessionPtr: Long) {
 
         val selector = intoSelector.into()
         getViaJNI(
-            selector.keyExpr.flat.keyExprNative,
+            selector.keyExpr.flat.keyExprNative?.peek() ?: 0L,
             selector.keyExpr.flat.keyExprString,
             selector.parameters?.toString(),
             sessionPtr,
@@ -347,7 +347,7 @@ internal class JNISession(val sessionPtr: Long) {
 
         val selector = intoSelector.into()
         getViaJNI(
-            selector.keyExpr.flat.keyExprNative,
+            selector.keyExpr.flat.keyExprNative?.peek() ?: 0L,
             selector.keyExpr.flat.keyExprString,
             selector.parameters?.toString(),
             sessionPtr,
@@ -376,10 +376,14 @@ internal class JNISession(val sessionPtr: Long) {
 
     @Throws(ZError::class)
     fun undeclareKeyExpr(keyExpr: KeyExpr) {
-        val ptr = keyExpr.flat.keyExprNative
-        if (ptr == 0L) throw ZError("Attempting to undeclare a non declared key expression.")
-        undeclareKeyExprViaJNI(sessionPtr, ptr)
-        keyExpr.flat = keyExpr.flat.copy(keyExprNative = 0L)
+        val handle = keyExpr.flat.keyExprNative
+        if (handle == null || handle.isClosed()) {
+            throw ZError("Attempting to undeclare a non declared key expression.")
+        }
+        // `undeclareKeyExprViaJNI` consumes the box on the Rust side, so
+        // take the pointer under the write lock and null the slot — the
+        // handle's cleaner will then no-op on GC.
+        handle.consume { ptr -> undeclareKeyExprViaJNI(sessionPtr, ptr) }
     }
 
     @Throws(ZError::class)
@@ -390,7 +394,7 @@ internal class JNISession(val sessionPtr: Long) {
     ) {
         val encoding = options.encoding ?: Encoding.defaultEncoding()
         putViaJNI(
-            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprNative?.peek() ?: 0L,
             keyExpr.flat.keyExprString,
             sessionPtr,
             payload.into().bytes,
@@ -410,7 +414,7 @@ internal class JNISession(val sessionPtr: Long) {
         options: DeleteOptions,
     ) {
         deleteViaJNI(
-            keyExpr.flat.keyExprNative,
+            keyExpr.flat.keyExprNative?.peek() ?: 0L,
             keyExpr.flat.keyExprString,
             sessionPtr,
             options.congestionControl.value,

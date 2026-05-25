@@ -3,9 +3,15 @@ package io.zenoh.jni
 
 
 /** Typed [JNINativeHandle] for a native Zenoh `ZKeyExpr`. */
-public class ZKeyExpr(initialPtr: Long) : JNINativeHandle(initialPtr) {
-    public fun free() = free { freePtr(it) }
-    private external fun freePtr(ptr: Long)
+public class ZKeyExpr(initialPtr: Long) : JNINativeHandle(initialPtr), AutoCloseable {
+    private val cleanable: java.lang.ref.Cleaner.Cleanable =
+        CLEANER.register(this, Cleanup(state))
+
+    override fun close() = cleanable.clean()
+
+    private class Cleanup(private val state: State) : Runnable {
+        override fun run() = state.freeOnce { ZKeyExpr.freePtr(it) }
+    }
 
     @Throws(JniBindingError::class)
     public fun zKeyexprIntersects(b: JNINativeHandle): Boolean =
@@ -32,24 +38,27 @@ public class ZKeyExpr(initialPtr: Long) : JNINativeHandle(initialPtr) {
     }
 
     @Throws(Error::class, JniBindingError::class)
-    public fun zKeyexprJoin(b: String): JNINativeHandle =
+    public fun zKeyexprJoin(b: String): ZKeyExpr =
         withPtr { a_ptr ->
         ZKeyExpr(JNINative.zKeyexprJoin(a_ptr, b))
     }
 
     @Throws(Error::class, JniBindingError::class)
-    public fun zKeyexprConcat(b: String): JNINativeHandle =
+    public fun zKeyexprConcat(b: String): ZKeyExpr =
         withPtr { a_ptr ->
         ZKeyExpr(JNINative.zKeyexprConcat(a_ptr, b))
     }
 
     public companion object {
+        @JvmStatic
+        external fun freePtr(ptr: Long)
+
         @Throws(Error::class, JniBindingError::class)
-        public fun zKeyexprTryFrom(s: String): JNINativeHandle =
+        public fun zKeyexprTryFrom(s: String): ZKeyExpr =
             ZKeyExpr(JNINative.zKeyexprTryFrom(s))
 
         @Throws(Error::class, JniBindingError::class)
-        public fun zKeyexprAutocanonize(s: String): JNINativeHandle =
+        public fun zKeyexprAutocanonize(s: String): ZKeyExpr =
             ZKeyExpr(JNINative.zKeyexprAutocanonize(s))
     }
 }

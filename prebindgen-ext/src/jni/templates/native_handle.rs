@@ -22,60 +22,64 @@ fn render_native_handle_source(package: &str, class_name: &str, exception_fqn: &
     };
     let body = r#"
 __EXCEPTION_IMPORT__
+import java.lang.ref.Cleaner
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
 
 /**
- * Race-free wrapper around a raw `Box<T>` pointer obtained from native
- * code via `Box::into_raw(Box::new(v))`. Pairs the pointer with a
- * `ReentrantReadWriteLock` so that borrow-style JNI calls run in
- * parallel under the read lock and consume/free serialise against
- * them under the write lock.
+ * Minimal race-free wrapper around a raw `Box<T>` pointer obtained from
+ * native code via `Box::into_raw(Box::new(v))`. Pairs the pointer with a
+ * `ReentrantReadWriteLock` so borrow-style JNI calls run in parallel
+ * under the read lock and consume/free serialise under the write lock.
  *
- * This is the Java-side half of the type-conversion rule for opaque
- * handles: `&T` parameters route through [withPtr] (borrow); by-value
- * `T` parameters route through [consume] (write lock, slot stays
- * valid during the action, then null-ed in `finally`); destructor
- * entry points without a matching `#[prebindgen]` fn use [free]. The
- * auto-generated wrappers in `JNIWrappers.kt` are the only callers
- * that need to know which mode applies.
+ * The base deliberately knows **nothing** about how to free the pointer:
+ * `freePtr` and the `AutoCloseable` / `Cleaner` lifecycle live on the
+ * concrete generator-emitted subclasses (e.g. `ZKeyExpr`), each of which
+ * statically knows its own destructor. The base is just the pointer +
+ * lock + the borrow/consume contract used polymorphically by generated
+ * wrappers (params typed as this base class).
  *
- * Marked `open` so the hand-maintained `JNI*.kt` typed-handle classes
- * can subclass for type safety while inheriting the lock contract.
+ * The mutable pointer lives in a detached [State] holder so a subclass's
+ * `Cleaner` action can reference the state **without** referencing the
+ * handle instance — a back-reference would pin the handle and the cleaner
+ * would never fire.
+ *
+ * Marked `open` so the generator-emitted typed-handle classes can
+ * subclass for type safety while inheriting the lock contract.
  */
 public open class __CLASS_NAME__(initial: Long) {
-    private val lock = ReentrantReadWriteLock()
+    /**
+     * Detached pointer + lock holder. Kept separate from the enclosing
+     * handle so a subclass cleaner can capture only this (plus its own
+     * static `freePtr`), never the handle instance.
+     */
+    internal class State(@Volatile var ptr: Long) {
+        val lock = ReentrantReadWriteLock()
 
-    /** Volatile so [peek] is atomic on 32-bit JVMs and observes the
-     *  write done by [free] / [consume] without holding the lock. */
-    @Volatile private var ptr: Long = initial
+        /** Run [freePtr] exactly once under the write lock if still live. */
+        fun freeOnce(freePtr: (Long) -> Unit) = lock.write {
+            val p = ptr
+            if (p != 0L) {
+                ptr = 0L
+                freePtr(p)
+            }
+        }
+    }
+
+    internal val state = State(initial)
 
     /**
      * Run [block] with the live pointer under the read lock. Throws
-    * [ZError] if [free] has already released the handle. Multiple
-    * concurrent invocations run in parallel; only [free]/[consume]
-     * are serialised against them.
+     * [ZError] if the handle has already been released. Multiple
+     * concurrent invocations run in parallel; only consume/close are
+     * serialised against them.
      */
     @Throws(ZError::class)
-    public fun <T> withPtr(block: (Long) -> T): T = lock.read {
-        val p = ptr
+    public fun <T> withPtr(block: (Long) -> T): T = state.lock.read {
+        val p = state.ptr
         if (p == 0L) throw ZError("Operation on a closed native handle.")
         block(p)
-    }
-
-    /**
-     * Take the pointer under the write lock and pass it to [freeFn]
-     * exactly once. Subsequent [free] calls are no-ops. Blocks until
-     * all in-flight [withPtr] calls finish.
-     */
-    public fun free(freeFn: (Long) -> Unit) {
-        lock.write {
-            val p = ptr
-            if (p == 0L) return@write
-            ptr = 0L
-            freeFn(p)
-        }
     }
 
     /**
@@ -89,32 +93,39 @@ public open class __CLASS_NAME__(initial: Long) {
      * typed handle to JNI and have JNI extract the pointer via [peek]
      * - symmetric with [withPtr] for the Borrow path. Unique-ownership
      * is still guaranteed: the write lock excludes every other
-    * [withPtr] / [consume] / [free], and the `finally` clause
-     * unconditionally nulls the slot before the lock is released, so
-    * the next [withPtr] / [consume] / [free] sees `ptr == 0` and
-     * cannot reach the freed allocation.
+     * [withPtr] / [consume], and the `finally` clause unconditionally
+     * nulls the slot before the lock is released.
+     *
+     * After consuming, the subclass cleaner (if any) sees `ptr == 0` and
+     * no-ops on GC - no double-free.
      *
      * Throws if the handle has already been closed/consumed.
      */
     @Throws(ZError::class)
-    public fun <R> consume(action: (Long) -> R): R = lock.write {
-        val p = ptr
+    public fun <R> consume(action: (Long) -> R): R = state.lock.write {
+        val p = state.ptr
         if (p == 0L) throw ZError("Operation on a closed native handle.")
         try {
             action(p)
         } finally {
-            ptr = 0L
+            state.ptr = 0L
         }
     }
 
-    /** True iff [free] has run. */
-    public fun isClosed(): Boolean = lock.read { ptr == 0L }
+    /** True iff the handle has been released (closed/consumed/cleaned). */
+    public fun isClosed(): Boolean = state.ptr == 0L
 
     /**
      * Read the current pointer value without holding the lock.
      * Returns `0L` if the handle has been closed/consumed.
      */
-    public fun peek(): Long = ptr
+    public fun peek(): Long = state.ptr
+
+    public companion object {
+        /** One shared cleaner thread for every typed-handle subclass. */
+        @JvmStatic
+        internal val CLEANER: Cleaner = Cleaner.create()
+    }
 }
 "#;
     let import_replacement = if import_line.is_empty() {
