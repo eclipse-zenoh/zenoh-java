@@ -19,6 +19,24 @@ impl From<String> for KeyExpr {
     }
 }
 
+impl From<&str> for KeyExpr {
+    fn from(s: &str) -> Self {
+        KeyExpr {
+            key_expr_string: s.to_string(),
+            key_expr_native: None,
+        }
+    }
+}
+
+impl From<ZKeyExpr> for KeyExpr {
+    fn from(ke: ZKeyExpr) -> Self {
+        KeyExpr {
+            key_expr_string: ke.to_string(),
+            key_expr_native: Some(ke),
+        }
+    }
+}
+
 /// Validate that string `s` is a syntactically valid Zenoh key expression
 #[prebindgen]
 pub fn keyexpr_try_from(s: String) -> Result<KeyExpr, Error> {

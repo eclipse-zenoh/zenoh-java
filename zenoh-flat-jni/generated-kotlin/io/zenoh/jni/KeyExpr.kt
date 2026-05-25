@@ -15,5 +15,22 @@ public data class KeyExpr(
         public fun keyexprAutocanonize(s: String): KeyExpr =
             JNINative.keyexprAutocanonize(s)
 
+
+        @Throws(Error::class, JniBindingError::class)
+        public fun keyexprIntersects(a: Any, b: Any): Boolean =
+            if (a is ZKeyExpr) a.withPtr { _ ->
+            if (b is ZKeyExpr) b.withPtr { _ ->
+            JNINative.keyexprIntersects(a, b)
+        } else {
+            JNINative.keyexprIntersects(a, b)
+        }
+        } else {
+            if (b is ZKeyExpr) b.withPtr { _ ->
+            JNINative.keyexprIntersects(a, b)
+        } else {
+            JNINative.keyexprIntersects(a, b)
+        }
+        }
+
     }
 }
