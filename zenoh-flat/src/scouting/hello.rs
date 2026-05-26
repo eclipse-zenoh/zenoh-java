@@ -1,4 +1,5 @@
-use crate::{WhatAmI, ZHello, ZenohId, z_hello_locators, z_hello_whatami, z_hello_zid};
+use crate::{WhatAmI, ZHello, ZenohId};
+use super::z_hello::{z_hello_locators, z_hello_whatami, z_hello_zid};
 use prebindgen_proc_macro::prebindgen;
 
 /// Data-class twin of [`ZHello`]. Carries decomposed fields so bindings

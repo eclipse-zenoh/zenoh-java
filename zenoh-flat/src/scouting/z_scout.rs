@@ -1,4 +1,5 @@
-use crate::{Error, Hello, ZConfig, ZHello, ZScout};
+use crate::{Error, ZConfig, ZHello, ZScout};
+use super::hello::Hello;
 use prebindgen_proc_macro::prebindgen;
 use zenoh::Wait;
 use zenoh::config::WhatAmIMatcher;

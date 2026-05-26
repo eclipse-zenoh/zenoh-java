@@ -1,11 +1,11 @@
 use crate::Error;
 use crate::ZKeyExpr;
-use crate::z_keyexpr_autocanonize;
-use crate::z_keyexpr_concat;
-use crate::z_keyexpr_includes;
-use crate::z_keyexpr_intersects;
-use crate::z_keyexpr_join;
-use crate::z_keyexpr_relation_to;
+use super::z_keyexpr::z_keyexpr_autocanonize;
+use super::z_keyexpr::z_keyexpr_concat;
+use super::z_keyexpr::z_keyexpr_includes;
+use super::z_keyexpr::z_keyexpr_intersects;
+use super::z_keyexpr::z_keyexpr_join;
+use super::z_keyexpr::z_keyexpr_relation_to;
 use prebindgen_proc_macro::prebindgen;
 
 /// Mirrors `zenoh::key_expr::SetIntersectionLevel` with a stable FFI surface.

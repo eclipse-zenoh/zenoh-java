@@ -1,5 +1,5 @@
 use crate::ZZenohId;
-use crate::z_zenoh_id_to_bytes;
+use super::z_zenoh_id::z_zenoh_id_to_bytes;
 use prebindgen_proc_macro::prebindgen;
 
 /// Data-class twin of [`ZZenohId`]. Carries the raw bytes so bindings with

@@ -1,7 +1,7 @@
 use prebindgen_proc_macro::prebindgen;
 use crate::ZKeyExpr;
 use crate::Error;
-use crate::SetIntersectionLevel;
+use super::keyexpr::SetIntersectionLevel;
 
 #[prebindgen]
 pub fn z_keyexpr_try_from(s: String) -> Result<ZKeyExpr, Error> {

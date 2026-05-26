@@ -16,27 +16,15 @@ pub const PREBINDGEN_OUT_DIR: &str = prebindgen_proc_macro::prebindgen_out_dir!(
 pub const FEATURES: &str = prebindgen_proc_macro::features!();
 
 pub(crate) mod keyexpr;
-pub(crate) mod z_keyexpr;
-pub(crate) mod z_config;
-pub(crate) mod whatami;
-pub(crate) mod z_zenoh_id;
-pub(crate) mod zenoh_id;
-pub(crate) mod z_hello;
-pub(crate) mod hello;
-pub(crate) mod z_scout;
+pub(crate) mod config;
+pub(crate) mod scouting;
 pub(crate) mod error;
 pub(crate) mod logger;
 
 // reexports to make all zenoh-flat API really flat
 pub use keyexpr::*;
-pub use z_keyexpr::*;
-pub use z_config::*;
-pub use whatami::*;
-pub use z_zenoh_id::*;
-pub use zenoh_id::*;
-pub use z_hello::*;
-pub use hello::*;
-pub use z_scout::*;
+pub use config::*;
+pub use scouting::*;
 pub use error::*;
 pub use logger::*;
 
