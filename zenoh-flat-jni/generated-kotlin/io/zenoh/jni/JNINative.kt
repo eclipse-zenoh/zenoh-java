@@ -2,8 +2,14 @@
 package io.zenoh.jni
 
 import io.zenoh.jni.KeyExpr
+import io.zenoh.jni.WhatAmI
 import io.zenoh.jni.ZConfig
 import io.zenoh.jni.ZKeyExpr
+import io.zenoh.jni.ZScout
+import io.zenoh.jni.ZZenohId
+import io.zenoh.jni.callbacks.Callback
+import io.zenoh.jni.callbacks.HelloCallback
+import io.zenoh.jni.callbacks.ZHelloCallback
 
 internal object JNINative {
     external fun keyexprAutocanonize(s: String): KeyExpr
@@ -13,6 +19,7 @@ internal object JNINative {
     external fun keyexprJoin(a: Any, b: String): KeyExpr
     external fun keyexprRelationTo(a: Any, b: Any): Int
     external fun keyexprTryFrom(s: String): KeyExpr
+    external fun scout(whatami: Int, config: Long, callback: HelloCallback, onClose: Callback): Long
     external fun zConfigDefault(): Long
     external fun zConfigFromFile(path: String): Long
     external fun zConfigFromJson(s: String): Long
@@ -20,6 +27,9 @@ internal object JNINative {
     external fun zConfigFromYaml(s: String): Long
     external fun zConfigGetJson(c: Long, key: String): String
     external fun zConfigInsertJson5(c: Long, key: String, value: String)
+    external fun zHelloLocators(h: Long): List<String>
+    external fun zHelloWhatami(h: Long): WhatAmI
+    external fun zHelloZid(h: Long): Long
     external fun zKeyexprAutocanonize(s: String): Long
     external fun zKeyexprConcat(a: Long, b: String): Long
     external fun zKeyexprIncludes(a: Long, b: Long): Boolean
@@ -27,4 +37,7 @@ internal object JNINative {
     external fun zKeyexprJoin(a: Long, b: String): Long
     external fun zKeyexprRelationTo(a: Long, b: Long): Int
     external fun zKeyexprTryFrom(s: String): Long
+    external fun zScout(whatami: Int, config: Long, callback: ZHelloCallback, onClose: Callback): Long
+    external fun zZenohIdToBytes(z: Long): ByteArray
+    external fun zZenohIdToString(z: Long): String
 }

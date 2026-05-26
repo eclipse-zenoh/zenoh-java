@@ -14,6 +14,7 @@
 
 package io.zenoh
 
+import io.zenoh.ZenohLoad
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.wrapJNIExceptionAsZError
 import io.zenoh.jni.ZConfig
@@ -39,6 +40,10 @@ import java.nio.file.Path
 class Config internal constructor(internal val zConfig: ZConfig) {
 
     companion object {
+
+        init {
+            ZenohLoad
+        }
 
         private const val CONFIG_ENV = "ZENOH_CONFIG"
 

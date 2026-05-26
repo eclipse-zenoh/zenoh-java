@@ -48,6 +48,19 @@ fn main() {
         .method("z_config_from_yaml")
         .method("z_config_get_json")
         .method("z_config_insert_json5")
+        .kotlin_enum(pq!(WhatAmI))
+        .kotlin_ptr_class(pq!(ZZenohId))
+        .method("z_zenoh_id_to_bytes")
+        .method("z_zenoh_id_to_string")
+        .kotlin_data_class(pq!(ZenohId))
+        .kotlin_ptr_class(pq!(ZHello))
+        .method("z_hello_whatami")
+        .method("z_hello_zid")
+        .method("z_hello_locators")
+        .kotlin_data_class(pq!(Hello))
+        .kotlin_ptr_class(pq!(ZScout))
+        .method("z_scout")
+        .method("scout")
         ;
 
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);

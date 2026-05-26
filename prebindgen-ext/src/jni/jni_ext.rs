@@ -2558,6 +2558,118 @@ impl PrebindgenExt for JniExt {
                 },
             });
         }
+        // `Option<&T>` / `Option<&mut T>` for opaque T: the general
+        // `Option<_>` handler below treats the inner type opaquely and
+        // would generate `Option<&T>` with no lifetime + a buggy
+        // `*const &T` cast. Route opaque borrows through their own path
+        // that returns `Option<OwnedObject<T>>`; the call site
+        // `.as_deref()` / `.as_deref_mut()` coerces back to `Option<&T>`
+        // / `Option<&mut T>` per OwnedObject's Deref / DerefMut impls.
+        //
+        // Falls through for non-opaque inners — the general handler
+        // produces sensible code (returns `Option<T>` and the call site
+        // adds `.as_ref()` if needed; out of scope here).
+        if pat_match(pat, "Option < & _ >") || pat_match(pat, "Option < & mut _ >") {
+            let inner = registry.input_entry(t1)?;
+            if converter_returns_owned_object(&inner.function.sig.output) {
+                let is_mut = pat_match(pat, "Option < & mut _ >");
+                let inner_wire = inner.destination.clone();
+                let inner_conv = inner.function.sig.ident.clone();
+                let outer_ty: syn::Type = if is_mut {
+                    syn::parse_quote!(Option<&mut #t1>)
+                } else {
+                    syn::parse_quote!(Option<&#t1>)
+                };
+                let name = input_name(&outer_ty, &inner_wire);
+                let function: syn::ItemFn = syn::parse_quote!(
+                    #[allow(non_snake_case, unused_mut, unused_variables, unused_braces, dead_code)]
+                    pub(crate) unsafe fn #name<'env, 'v>(
+                        env: &mut jni::JNIEnv<'env>,
+                        v: &#inner_wire,
+                    ) -> ::core::result::Result<Option<OwnedObject<#t1>>, __JniErr> {
+                        Ok({
+                            if *v == 0 { None } else { Some(#inner_conv(env, v)?) }
+                        })
+                    }
+                );
+                let kotlin_name = self.override_kotlin_name(
+                    &outer_ty,
+                    inner.metadata.kotlin_name.clone(),
+                );
+                let handle = inner.metadata.handle.clone().map(|h| HandleInfo {
+                    owned: false,
+                    strategy: CloseStrategy::Nullable(Box::new(h.strategy)),
+                    ..h
+                });
+                return Some(ConverterImpl {
+                    pre_stages: vec![],
+                    function,
+                    destination: inner_wire,
+                    niches: Niches::empty(),
+                    metadata: KotlinMeta {
+                        kotlin_name,
+                        throws: inner.metadata.throws.clone(),
+                        throws_action: inner.metadata.throws_action.clone(),
+                        value_rust_key: None,
+                        handle,
+                    },
+                });
+            }
+            // Non-opaque: let the general `Option<_>` handler below take it.
+        }
+        // `Vec<T>` (input side): wire is `JObject` carrying a Java
+        // `List<InnerWire>`; we iterate, decode each element via the
+        // inner converter, collect into a `Vec`. `Vec<u8>` is already
+        // handled at rank-0 (special-cased in `primitive_input` to a
+        // `JByteArray` wire) so rank-1 never gets it. Non-opaque inners
+        // whose wire is a non-jobject primitive (e.g. `Vec<i32>`) aren't
+        // covered by this handler — extend if needed.
+        if pat_match(pat, "Vec < _ >") {
+            let inner = registry.input_entry(t1)?;
+            let inner_wire = inner.destination.clone();
+            if !is_jobject_shaped_wire(&inner_wire) {
+                return None;
+            }
+            let inner_conv = inner.function.sig.ident.clone();
+            let outer_ty: syn::Type = syn::parse_quote!(Vec<#t1>);
+            let wire: syn::Type = syn::parse_quote!(jni::objects::JObject);
+            let body: syn::Expr = syn::parse_quote!({
+                let __list = jni::objects::JList::from_env(env, v)
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Vec<_>: list-from-env: {}", e)))?;
+                let mut __it = __list.iter(env)
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Vec<_>: list-iter: {}", e)))?;
+                let mut __out: Vec<#t1> = Vec::new();
+                while let Some(__obj) = __it.next(env)
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Vec<_>: list-next: {}", e)))?
+                {
+                    let __elem_wire: #inner_wire = __obj.into();
+                    let __elem: #t1 = #inner_conv(env, &__elem_wire)?;
+                    __out.push(__elem);
+                }
+                __out
+            });
+            let inner_kotlin = inner.metadata.kotlin_name.clone()?;
+            let kotlin_name = self.override_kotlin_name(
+                &outer_ty,
+                // `List` is auto-imported in Kotlin (default imports), so we
+                // skip the FQN to avoid `register_fqn` treating the generic
+                // as part of the import path.
+                Some(format!("List<{}>", inner_kotlin)),
+            );
+            return Some(ConverterImpl {
+                pre_stages: vec![],
+                function: self.build_input_fn(&outer_ty, &wire, &body, None),
+                destination: wire,
+                niches: Niches::empty(),
+                metadata: KotlinMeta {
+                    kotlin_name,
+                    throws: inner.metadata.throws.clone(),
+                    throws_action: inner.metadata.throws_action.clone(),
+                    value_rust_key: None,
+                    handle: None,
+                },
+            });
+        }
         if pat_match(pat, "Option < _ >") {
             let outer_ty: syn::Type = syn::parse_quote!(Option<#t1>);
             let (wire, body, niches) = option_input(t1, registry)?;
@@ -2774,6 +2886,54 @@ impl PrebindgenExt for JniExt {
                 },
             });
         }
+        // `Vec<T>` (output side): encode as a `java.util.ArrayList<InnerWire>`.
+        // Symmetric to the input handler. `Vec<u8>` is special-cased at
+        // rank-0 (primitive_output → JByteArray) so rank-1 never sees it.
+        if pat_match(pat, "Vec < _ >") {
+            let inner = registry.output_entry(t1)?;
+            let inner_wire = inner.destination.clone();
+            if !is_jobject_shaped_wire(&inner_wire) {
+                return None;
+            }
+            let inner_conv = inner.function.sig.ident.clone();
+            let outer_ty: syn::Type = syn::parse_quote!(Vec<#t1>);
+            let wire: syn::Type = syn::parse_quote!(jni::objects::JObject);
+            let body: syn::Expr = syn::parse_quote!({
+                let __list_obj = env
+                    .new_object("java/util/ArrayList", "()V", &[])
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Vec<_>: new ArrayList: {}", e)))?;
+                let __list = jni::objects::JList::from_env(env, &__list_obj)
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Vec<_>: list-from-env: {}", e)))?;
+                for __elem in v.into_iter() {
+                    let __elem_wire = #inner_conv(env, __elem)?;
+                    let __elem_obj: jni::objects::JObject = __elem_wire.into();
+                    __list.add(env, &__elem_obj)
+                        .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Vec<_>: list-add: {}", e)))?;
+                }
+                __list_obj
+            });
+            let inner_kotlin = inner.metadata.kotlin_name.clone()?;
+            let kotlin_name = self.override_kotlin_name(
+                &outer_ty,
+                // `List` is auto-imported in Kotlin (default imports), so we
+                // skip the FQN to avoid `register_fqn` treating the generic
+                // as part of the import path.
+                Some(format!("List<{}>", inner_kotlin)),
+            );
+            return Some(ConverterImpl {
+                pre_stages: vec![],
+                function: self.build_output_fn(&outer_ty, &wire, &body, None),
+                destination: wire,
+                niches: Niches::empty(),
+                metadata: KotlinMeta {
+                    kotlin_name,
+                    throws: inner.metadata.throws.clone(),
+                    throws_action: inner.metadata.throws_action.clone(),
+                    value_rust_key: None,
+                    handle: None,
+                },
+            });
+        }
         None
     }
 
@@ -2922,9 +3082,12 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
         };
         // Binding for the final `arg_ident` needs `mut` when the source
         // fn takes `&mut T` — the call site below emits `&mut arg_ident`,
-        // which requires a mutable binding. Intermediate stage bindings
-        // (`__{ident}_sN`) don't need it (they're moved on).
-        let arg_mut: TokenStream = if matches!(arg_ty, syn::Type::Reference(r) if r.mutability.is_some()) {
+        // which requires a mutable binding. Also for `Option<&mut T>`
+        // where the call site needs `.as_deref_mut()`. Intermediate stage
+        // bindings (`__{ident}_sN`) don't need it.
+        let arg_mut: TokenStream = if matches!(arg_ty, syn::Type::Reference(r) if r.mutability.is_some())
+            || matches!(option_inner_ref_mutability(arg_ty), Some(true))
+        {
             quote!(mut)
         } else {
             quote!()
@@ -2989,6 +3152,17 @@ fn emit_jni_function_wrapper(ext: &JniExt, f: &syn::ItemFn, registry: &Registry<
             }
             syn::Type::Reference(_) => {
                 call_args.push(quote!(&#arg_ident));
+            }
+            // `Option<&T>` / `Option<&mut T>` for opaque inner: the input
+            // converter produced `Option<OwnedObject<T>>` (see rank-1
+            // handler above). `.as_deref()` / `.as_deref_mut()` coerces
+            // back to `Option<&T>` / `Option<&mut T>` via OwnedObject's
+            // Deref / DerefMut impls.
+            _ if matches!(option_inner_ref_mutability(arg_ty), Some(false)) => {
+                call_args.push(quote!(#arg_ident.as_deref()));
+            }
+            _ if matches!(option_inner_ref_mutability(arg_ty), Some(true)) => {
+                call_args.push(quote!(#arg_ident.as_deref_mut()));
             }
             _ => {
                 call_args.push(quote!(#arg_ident));
@@ -3819,6 +3993,42 @@ fn struct_output_body(
             ctor_args.push(quote!(jni::objects::JValue::Object(&#encoded_obj_ident)));
             continue;
         }
+        // `kotlin_enum`-declared enum fields: the per-field output
+        // converter produced a `jint` discriminant, but the Kotlin
+        // data class declares this field as the typed enum class. Wrap
+        // the int via the enum's `fromInt(Int)` companion method so the
+        // ctor slot matches the data-class field type.
+        if ext.is_kotlin_enum(&field.ty) {
+            if let Some(name) = bare_path_ident(&field.ty) {
+                let enum_fqn = ext
+                    .kotlin_type_fqns
+                    .iter()
+                    .find(|(k, _)| k == &name.to_string())
+                    .map(|(_, v)| v.clone());
+                if let Some(fqn) = enum_fqn {
+                    let java_path = fqn.replace('.', "/");
+                    let ctor_slot = format!("L{};", java_path);
+                    ctor_sig.push_str(&ctor_slot);
+                    let java_path_lit = syn::LitStr::new(&java_path, Span::call_site());
+                    let from_int_sig = format!("(I)L{};", java_path);
+                    let from_int_sig_lit = syn::LitStr::new(&from_int_sig, Span::call_site());
+                    field_preludes.push(quote! {
+                        let #encoded_obj_ident: jni::objects::JObject<'a> = {
+                            let __cls = env
+                                .find_class(#java_path_lit)
+                                .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("find enum class {}: {}", #java_path_lit, e)))?;
+                            let __result = env
+                                .call_static_method(&__cls, "fromInt", #from_int_sig_lit, &[jni::objects::JValue::from(#encoded_ident)])
+                                .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("call {}.fromInt: {}", #java_path_lit, e)))?;
+                            __result.l()
+                                .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("{}.fromInt result not an object: {}", #java_path_lit, e)))?
+                        };
+                    });
+                    ctor_args.push(quote!(jni::objects::JValue::Object(&#encoded_obj_ident)));
+                    continue;
+                }
+            }
+        }
 
         match jni_field_access(&field_wire) {
             Some((sig, _, false)) => {
@@ -3833,7 +4043,42 @@ fn struct_output_body(
                 ctor_args.push(quote!(jni::objects::JValue::Object(&#encoded_obj_ident)));
             }
             None => {
-                ctor_sig.push_str("Ljava/lang/Object;");
+                // Object-shaped wire (jobject/jstring/jbyteArray/etc.) with no
+                // primitive descriptor. The JVM ctor slot must be the field's
+                // ACTUAL declared type — `Ljava/lang/Object;` won't match
+                // because Kotlin emits the typed class in the constructor
+                // signature. Detection order:
+                //   1. Bare data-class (registered via `kotlin_data_class`):
+                //      look up the typed FQN from `kotlin_type_fqns`.
+                //   2. `Vec<T>` → `java/util/List` (the Vec rank-1 handler
+                //      encodes to ArrayList, which implements List).
+                //   3. Anything else (e.g. `String` → `java/lang/String`):
+                //      derive from the inner wire's J* type name.
+                //   4. Fallback → `Ljava/lang/Object;`.
+                let typed_slot = bare_path_ident(&field.ty)
+                    .and_then(|name| {
+                        ext.kotlin_type_fqns
+                            .iter()
+                            .find(|(k, _)| k == &name.to_string())
+                            .map(|(_, v)| format!("L{};", v.replace('.', "/")))
+                    })
+                    .or_else(|| {
+                        if pat_match_top(&field.ty, "Vec") {
+                            Some("Ljava/util/List;".to_string())
+                        } else if let syn::Type::Path(tp) = &field_wire {
+                            tp.path.segments.last().and_then(|seg| {
+                                match seg.ident.to_string().as_str() {
+                                    "JString" => Some("Ljava/lang/String;".to_string()),
+                                    "JByteArray" => Some("[B".to_string()),
+                                    _ => None,
+                                }
+                            })
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_else(|| "Ljava/lang/Object;".to_string());
+                ctor_sig.push_str(&typed_slot);
                 field_preludes.push(quote! {
                     let #encoded_obj_ident: jni::objects::JObject = #encoded_ident;
                 });
@@ -4237,6 +4482,33 @@ fn jobject_to_wire_adapter(
 
 fn pat_match(ty: &syn::Type, pat: &str) -> bool {
     ty.to_token_stream().to_string() == pat
+}
+
+/// `true` if `ty` is a path whose final segment is `name` (e.g. `Vec<_>` for
+/// `name = "Vec"`, `Option<&T>` for `name = "Option"`). Ignores generic args.
+fn pat_match_top(ty: &syn::Type, name: &str) -> bool {
+    if let syn::Type::Path(tp) = ty {
+        if let Some(last) = tp.path.segments.last() {
+            return last.ident == name;
+        }
+    }
+    false
+}
+
+/// If `ty` is `Option<&T>` or `Option<&mut T>`, return `Some(is_mut)`.
+/// Returns `None` for any other shape. Used by `emit_jni_function_wrapper`
+/// to decide whether the call site needs `.as_deref()` / `.as_deref_mut()`
+/// when the input converter produced `Option<OwnedObject<T>>`.
+fn option_inner_ref_mutability(ty: &syn::Type) -> Option<bool> {
+    let syn::Type::Path(tp) = ty else { return None };
+    let seg = tp.path.segments.last()?;
+    if seg.ident != "Option" {
+        return None;
+    }
+    let syn::PathArguments::AngleBracketed(ab) = &seg.arguments else { return None };
+    let syn::GenericArgument::Type(inner) = ab.args.first()? else { return None };
+    let syn::Type::Reference(r) = inner else { return None };
+    Some(r.mutability.is_some())
 }
 
 fn bare_path_ident(ty: &syn::Type) -> Option<syn::Ident> {

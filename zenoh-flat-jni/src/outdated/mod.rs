@@ -7,7 +7,6 @@ pub mod publisher;
 pub mod querier;
 pub mod query;
 pub mod queryable;
-pub mod scouting;
 pub mod session;
 pub mod subscriber;
 pub mod zenoh_id;

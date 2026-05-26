@@ -106,3 +106,15 @@ public open class JNINativeHandle(initial: Long) {
         internal val CLEANER: Cleaner = Cleaner.create()
     }
 }
+
+/**
+ * Nullable borrow: when the receiver is non-null, run [block] under its
+ * read lock with the live pointer; when null, run [block] with `0L`.
+ * Used by generated wrappers for `Option<&T>` opaque-handle parameters,
+ * where the FFI convention is `0` = `None`, nonzero = borrow of the
+ * native value. The lock contract is identical to [JNINativeHandle.withPtr]
+ * for the non-null case; the null case takes no lock.
+ */
+@Throws(JniBindingError::class)
+public fun <T> JNINativeHandle?.withPtrOrZero(block: (Long) -> T): T =
+    if (this == null) block(0L) else withPtr(block)

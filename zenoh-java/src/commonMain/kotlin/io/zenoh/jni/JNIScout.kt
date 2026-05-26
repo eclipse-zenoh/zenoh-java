@@ -17,21 +17,20 @@ package io.zenoh.jni
 import io.zenoh.Config
 import io.zenoh.ZenohLoad
 import io.zenoh.exceptions.ZError
+import io.zenoh.exceptions.wrapJNIExceptionAsZError
 import io.zenoh.handlers.Callback
-import io.zenoh.jni.callbacks.JNIScoutCallback
 import io.zenoh.config.ZenohId
-import io.zenoh.scouting.Hello
-import io.zenoh.config.WhatAmI
-import io.zenoh.jni.callbacks.JNIOnCloseCallback
 import io.zenoh.scouting.CallbackScout
 import io.zenoh.scouting.HandlerScout
+import io.zenoh.scouting.Hello
+import io.zenoh.config.WhatAmI
+import io.zenoh.jni.callbacks.HelloCallback
 
 /**
- * Adapter class to handle the interactions with Zenoh through JNI for a [io.zenoh.scouting.Scout]
- *
- * @property ptr: raw pointer to the underlying native scout.
+ * Adapter holding a generated [ZScout] handle, with companion helpers that
+ * bridge the public scouting surface to the auto-generated zenoh-flat API.
  */
-internal class JNIScout(private val ptr: Long) {
+internal class JNIScout(internal val zScout: ZScout) {
 
     companion object {
 
@@ -45,18 +44,9 @@ internal class JNIScout(private val ptr: Long) {
             callback: Callback<Hello>,
             onClose: () -> Unit,
             config: Config?,
-            receiver: R
-        ): HandlerScout<R> {
-            val scoutCallback = JNIScoutCallback { whatAmI2: Int, id: ByteArray, locators: List<String> ->
-                callback.run(Hello(WhatAmI.fromInt(whatAmI2), ZenohId(id), locators))
-            }
-            val binaryWhatAmI: Int = whatAmI.map { it.value }.reduce { acc, it -> acc or it }
-            val ptr = if (config != null) {
-                config.zConfig.withPtr { scoutViaJNI(binaryWhatAmI, scoutCallback, onClose, it) }
-            } else {
-                scoutViaJNI(binaryWhatAmI, scoutCallback, onClose, 0)
-            }
-            return HandlerScout(JNIScout(ptr), receiver)
+            receiver: R,
+        ): HandlerScout<R> = wrapJNIExceptionAsZError {
+            HandlerScout(JNIScout(runScout(whatAmI, config, callback, onClose)), receiver)
         }
 
         @Throws(ZError::class)
@@ -64,32 +54,32 @@ internal class JNIScout(private val ptr: Long) {
             whatAmI: Set<WhatAmI>,
             callback: Callback<Hello>,
             config: Config?,
-        ): CallbackScout {
-            val scoutCallback = JNIScoutCallback { whatAmI2: Int, id: ByteArray, locators: List<String> ->
-                callback.run(Hello(WhatAmI.fromInt(whatAmI2), ZenohId(id), locators))
-            }
-            val binaryWhatAmI: Int = whatAmI.map { it.value }.reduce { acc, it -> acc or it }
-            val ptr = if (config != null) {
-                config.zConfig.withPtr { scoutViaJNI(binaryWhatAmI, scoutCallback, fun() {}, it) }
-            } else {
-                scoutViaJNI(binaryWhatAmI, scoutCallback, fun() {}, 0)
-            }
-            return CallbackScout(JNIScout(ptr))
+        ): CallbackScout = wrapJNIExceptionAsZError {
+            CallbackScout(JNIScout(runScout(whatAmI, config, callback) {}))
         }
 
-        @Throws(ZError::class)
-        private external fun scoutViaJNI(
-            whatAmI: Int,
-            callback: JNIScoutCallback,
-            onClose: JNIOnCloseCallback,
-            configPtr: Long,
-        ): Long
-
-        @Throws(ZError::class)
-        external fun freePtrViaJNI(ptr: Long)
+        private fun runScout(
+            whatAmI: Set<WhatAmI>,
+            config: Config?,
+            callback: Callback<Hello>,
+            onClose: () -> Unit,
+        ): ZScout {
+            val bitfield = whatAmI.map { it.value }.reduce { acc, v -> acc or v }
+            val helloCallback = HelloCallback { jniHello ->
+                callback.run(
+                    Hello(
+                        whatAmI = WhatAmI.fromInt(jniHello.whatami.value),
+                        zid = ZenohId(jniHello.zid.bytes),
+                        locators = jniHello.locators,
+                    )
+                )
+            }
+            val onCloseCallback = io.zenoh.jni.callbacks.Callback { onClose() }
+            return ZScout.scout(bitfield, config?.zConfig, helloCallback, onCloseCallback)
+        }
     }
 
     fun close() {
-        freePtrViaJNI(ptr)
+        zScout.close()
     }
 }

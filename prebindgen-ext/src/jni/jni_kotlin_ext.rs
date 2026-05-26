@@ -726,6 +726,20 @@ fn is_option_type(ty: &syn::Type) -> bool {
     false
 }
 
+/// `true` if `ty` is `Option<&T>` or `Option<&mut T>` (any inner T).
+/// Mirrors `option_inner_ref_mutability` in `jni_ext.rs` — kept here too
+/// to avoid a cross-module helper just for one call site.
+fn is_option_ref(ty: &syn::Type) -> bool {
+    let syn::Type::Path(tp) = ty else { return false };
+    let Some(seg) = tp.path.segments.last() else { return false };
+    if seg.ident != "Option" {
+        return false;
+    }
+    let syn::PathArguments::AngleBracketed(ab) = &seg.arguments else { return false };
+    let Some(syn::GenericArgument::Type(inner)) = ab.args.first() else { return false };
+    matches!(inner, syn::Type::Reference(_))
+}
+
 /// Render the Kotlin type for a closeable handle reached through the
 /// folded [`CloseStrategy`] layers, given the leaf typed-handle short
 /// name (e.g. `"ZKeyExpr"`): `Direct → "ZKeyExpr"`,
@@ -867,8 +881,12 @@ fn render_enum_source(
     }
     s.push('\n');
     s.push_str("    public companion object {\n");
+    // `@JvmStatic` exposes `fromInt` as a real static method on the enum
+    // class itself (rather than only on the `Companion` nested class). The
+    // generated struct-encoder calls it via `env.call_static_method`, which
+    // wouldn't find a companion-only method.
     s.push_str(&format!(
-        "        public fun fromInt(value: Int): {} = entries.first {{ it.value == value }}\n",
+        "        @JvmStatic\n        public fun fromInt(value: Int): {} = entries.first {{ it.value == value }}\n",
         class_name
     ));
     if !companion_methods.is_empty() {
@@ -1525,14 +1543,24 @@ pub(crate) fn render_extern_decl(
         let arg_ty = &*pt.ty;
 
         let entry = registry.input_entry(arg_ty)?;
-        let optional = is_option_type(arg_ty);
 
         let is_opaque = converter_returns_owned_object(&entry.function.sig.output);
         let arg_no_ref: syn::Type = match arg_ty {
             syn::Type::Reference(r) => (*r.elem).clone(),
             _ => arg_ty.clone(),
         };
-        let kt_type_raw = if is_opaque {
+        // `Option<&Opaque>` crosses the JNI wire as a primitive `jlong`
+        // with `0` encoding `None`; nullability lives in the safe wrapper
+        // (`withPtrOrZero`) not the JNI extern. Strip the `?` here so the
+        // extern signature matches what the JVM will look up. Detection
+        // uses `metadata.handle.is_some()` because the `Option<OwnedObject<T>>`
+        // converter doesn't return `OwnedObject` directly so the local
+        // `is_opaque` flag (which checks the return shape) misses it.
+        let is_opt_ref_opaque =
+            entry.metadata.handle.is_some() && is_option_ref(arg_ty);
+        let optional = is_option_type(arg_ty) && !is_opt_ref_opaque;
+
+        let kt_type_raw = if is_opaque || is_opt_ref_opaque {
             "Long".to_string()
         } else if ext.is_kotlin_enum(&arg_no_ref) {
             "Int".to_string()
@@ -1640,6 +1668,12 @@ fn render_wrapper_fn(
     enum ParamMode {
         Borrow,      // &T opaque-handle → withPtr
         Consume,     // T  opaque-handle → consume
+        /// `Option<&T>` / `Option<&mut T>` opaque-handle → `withPtrOrZero`.
+        /// Nullable typed-handle param; the wrapper runs the body under
+        /// the read lock when the handle is non-null and with `0L` when
+        /// null. The Rust converter materializes `Option<OwnedObject<T>>`
+        /// and the call site uses `.as_deref()` / `.as_deref_mut()`.
+        BorrowNullable,
         /// `impl Into<T>` (Kotlin `Any`). At runtime the parameter
         /// fans out into one arm per declared
         /// [`IntoSource`] in `arms`. See
@@ -1677,7 +1711,24 @@ fn render_wrapper_fn(
         // source of truth the typed-surface emitters use.
         let is_opaque = entry.metadata.handle.is_some();
 
-        let (kt_type_raw, optional) = if is_opaque {
+        // `Option<&T>` / `Option<&mut T>` for opaque T uses the typed
+        // handle subclass (not the bare `NativeHandle` base) with a `?`
+        // suffix, so the call site can call `withPtrOrZero` on the
+        // nullable receiver. The typed FQN comes from
+        // `ext.kotlin_type_fqns` (set by `kotlin_ptr_class`), keyed by
+        // the handle's `leaf_key`. The `KotlinMeta.kotlin_name` is
+        // intentionally the value-context name (`"Long"`) for opaque, so
+        // it can't be used here.
+        let is_opt_ref_opaque = is_opaque && is_option_ref(arg_ty);
+        let (kt_type_raw, optional) = if is_opt_ref_opaque {
+            let h = entry.metadata.handle.as_ref()?;
+            let fqn = ext
+                .kotlin_type_fqns
+                .iter()
+                .find(|(k, _)| k == &h.leaf_key)
+                .map(|(_, v)| v.clone())?;
+            (fqn, true)
+        } else if is_opaque {
             (ext.mangle_harness("NativeHandle"), false)
         } else {
             // Read the Kotlin name straight off the resolved entry's
@@ -1714,7 +1765,12 @@ fn render_wrapper_fn(
         // param is the matched-and-not-yet-consumed handle slot.
         let mode = if is_opaque {
             let borrow = matches!(arg_ty, syn::Type::Reference(_));
-            if matches_promoted {
+            if is_opt_ref_opaque {
+                // Nullable borrow — promoted form not supported here (no
+                // typed-handle subclass to promote against when the param
+                // type is `T?`).
+                ParamMode::BorrowNullable
+            } else if matches_promoted {
                 promoted_taken = true;
                 if borrow { ParamMode::PromotedBorrow } else { ParamMode::PromotedConsume }
             } else if borrow {
@@ -1784,6 +1840,7 @@ fn render_wrapper_fn(
             let arg = match &p.mode {
                 ParamMode::Borrow
                 | ParamMode::Consume
+                | ParamMode::BorrowNullable
                 | ParamMode::PromotedBorrow
                 | ParamMode::PromotedConsume => format!("{}_ptr", p.kt_name),
                 ParamMode::Dispatch { arms } => {
@@ -1891,6 +1948,16 @@ fn render_wrapper_fn(
             ParamMode::Consume => {
                 body_expr = format!(
                     "{name}.consume {{ {name}_ptr ->\n    {expr}\n}}",
+                    name = p.kt_name,
+                    expr = body_expr,
+                );
+            }
+            ParamMode::BorrowNullable => {
+                // Nullable typed-handle receiver — `withPtrOrZero` runs
+                // the block under the read lock when non-null and with
+                // `0L` when null.
+                body_expr = format!(
+                    "{name}.withPtrOrZero {{ {name}_ptr ->\n    {expr}\n}}",
                     name = p.kt_name,
                     expr = body_expr,
                 );
