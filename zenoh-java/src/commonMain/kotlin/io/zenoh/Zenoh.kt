@@ -19,8 +19,11 @@ import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
-import io.zenoh.jni.JNIScout
-import io.zenoh.scouting.*
+import io.zenoh.scouting.CallbackScout
+import io.zenoh.scouting.HandlerScout
+import io.zenoh.scouting.Hello
+import io.zenoh.scouting.Scout
+import io.zenoh.scouting.ScoutOptions
 import java.util.*
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.LinkedBlockingDeque
@@ -53,7 +56,7 @@ object Zenoh {
     @Throws(ZError::class)
     fun scout(scoutOptions: ScoutOptions = ScoutOptions()): HandlerScout<BlockingQueue<Optional<Hello>>> {
         val handler = BlockingQueueHandler(LinkedBlockingDeque<Optional<Hello>>())
-        return JNIScout.scoutWithHandler(
+        return Scout.scoutWithHandler(
             scoutOptions.whatAmI, handler::handle, fun() { handler.onClose() },
             receiver = handler.receiver(), config = scoutOptions.config
         )
@@ -74,7 +77,7 @@ object Zenoh {
     @JvmStatic
     @Throws(ZError::class)
     fun <R> scout(handler: Handler<Hello, R>, scoutOptions: ScoutOptions = ScoutOptions()): HandlerScout<R> {
-        return JNIScout.scoutWithHandler(
+        return Scout.scoutWithHandler(
             scoutOptions.whatAmI, handler::handle, fun() { handler.onClose() },
             receiver = handler.receiver(), config = scoutOptions.config
         )
@@ -94,7 +97,7 @@ object Zenoh {
     @JvmStatic
     @Throws(ZError::class)
     fun scout(callback: Callback<Hello>, scoutOptions: ScoutOptions = ScoutOptions()): CallbackScout {
-        return JNIScout.scoutWithCallback(
+        return Scout.scoutWithCallback(
             scoutOptions.whatAmI, callback, config = scoutOptions.config
         )
     }
