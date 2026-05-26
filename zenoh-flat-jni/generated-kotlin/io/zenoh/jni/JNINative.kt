@@ -8,6 +8,7 @@ import io.zenoh.jni.config.WhatAmI
 import io.zenoh.jni.config.ZConfig
 import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.keyexpr.KeyExpr
+import io.zenoh.jni.keyexpr.SetIntersectionLevel
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.scouting.ZScout
 
@@ -19,7 +20,7 @@ internal object JNINative {
     external fun keyexprIncludes(a: Any, b: Any): Boolean
     external fun keyexprIntersects(a: Any, b: Any): Boolean
     external fun keyexprJoin(a: Any, b: String): KeyExpr
-    external fun keyexprRelationTo(a: Any, b: Any): Int
+    external fun keyexprRelationTo(a: Any, b: Any): SetIntersectionLevel
     external fun keyexprTryFrom(s: String): KeyExpr
     external fun scout(whatami: Int, config: Long, callback: HelloCallback, onClose: Callback): Long
     external fun tryInitZenohLogsFromEnv()
@@ -38,7 +39,7 @@ internal object JNINative {
     external fun zKeyexprIncludes(a: Long, b: Long): Boolean
     external fun zKeyexprIntersects(a: Long, b: Long): Boolean
     external fun zKeyexprJoin(a: Long, b: String): Long
-    external fun zKeyexprRelationTo(a: Long, b: Long): Int
+    external fun zKeyexprRelationTo(a: Long, b: Long): SetIntersectionLevel
     external fun zKeyexprTryFrom(s: String): Long
     external fun zScout(whatami: Int, config: Long, callback: ZHelloCallback, onClose: Callback): Long
     external fun zZenohIdToBytes(z: Long): ByteArray

@@ -59,7 +59,7 @@ public data class KeyExpr(
 
 
         @Throws(Error::class, JniBindingError::class)
-        public fun keyexprRelationTo(a: Any, b: Any): Int =
+        public fun keyexprRelationTo(a: Any, b: Any): SetIntersectionLevel =
             if (a is ZKeyExpr) a.withPtr { _ ->
             if (b is ZKeyExpr) b.withPtr { _ ->
             JNINative.keyexprRelationTo(a, b)

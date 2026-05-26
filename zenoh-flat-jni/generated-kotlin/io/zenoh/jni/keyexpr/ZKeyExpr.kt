@@ -34,7 +34,7 @@ public class ZKeyExpr(initialPtr: Long) : JNINativeHandle(initialPtr), AutoClose
     }
 
     @Throws(JniBindingError::class)
-    public fun zKeyexprRelationTo(b: JNINativeHandle): Int =
+    public fun zKeyexprRelationTo(b: JNINativeHandle): SetIntersectionLevel =
         withPtr { a_ptr ->
         b.withPtr { b_ptr ->
         JNINative.zKeyexprRelationTo(a_ptr, b_ptr)

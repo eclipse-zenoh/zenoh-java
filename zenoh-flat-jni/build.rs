@@ -25,6 +25,7 @@ fn main() {
         .class_fun(pq!(z_keyexpr_relation_to))
         .class_fun(pq!(z_keyexpr_join))
         .class_fun(pq!(z_keyexpr_concat))
+        .enum_class(pq!(SetIntersectionLevel))
         .data_class(pq!(KeyExpr))
         .class_object_fun(pq!(keyexpr_try_from))
         .class_object_fun(pq!(keyexpr_autocanonize))

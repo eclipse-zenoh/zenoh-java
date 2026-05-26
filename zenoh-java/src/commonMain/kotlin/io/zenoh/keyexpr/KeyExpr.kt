@@ -135,7 +135,7 @@ class KeyExpr internal constructor(internal val flat: JniKeyExpr) : AutoCloseabl
      */
     @Throws(ZError::class)
     fun relationTo(other: KeyExpr): SetIntersectionLevel = wrapJNIExceptionAsZError {
-        SetIntersectionLevel.fromInt(JniKeyExpr.keyexprRelationTo(this.flat, other.flat))
+        SetIntersectionLevel.fromJni(JniKeyExpr.keyexprRelationTo(this.flat, other.flat))
     }
 
     /**

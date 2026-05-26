@@ -8,6 +8,26 @@ use crate::z_keyexpr_join;
 use crate::z_keyexpr_relation_to;
 use prebindgen_proc_macro::prebindgen;
 
+/// Mirrors `zenoh::key_expr::SetIntersectionLevel` with a stable FFI surface.
+#[prebindgen]
+pub enum SetIntersectionLevel {
+    Disjoint = 0,
+    Intersects = 1,
+    Includes = 2,
+    Equals = 3,
+}
+
+impl From<zenoh::key_expr::SetIntersectionLevel> for SetIntersectionLevel {
+    fn from(value: zenoh::key_expr::SetIntersectionLevel) -> Self {
+        match value {
+            zenoh::key_expr::SetIntersectionLevel::Disjoint => SetIntersectionLevel::Disjoint,
+            zenoh::key_expr::SetIntersectionLevel::Intersects => SetIntersectionLevel::Intersects,
+            zenoh::key_expr::SetIntersectionLevel::Includes => SetIntersectionLevel::Includes,
+            zenoh::key_expr::SetIntersectionLevel::Equals => SetIntersectionLevel::Equals,
+        }
+    }
+}
+
 #[prebindgen]
 pub struct KeyExpr {
     pub key_expr_string: String,
@@ -77,13 +97,12 @@ pub fn keyexpr_includes(
     Ok(z_keyexpr_includes(&a_ke, &b_ke))
 }
 
-/// Returns the integer discriminant of `zenoh::key_expr::SetIntersectionLevel`
-/// describing the relation of `a` to `b`.
+/// Returns `SetIntersectionLevel` describing the relation of `a` to `b`.
 #[prebindgen]
 pub fn keyexpr_relation_to(
     a: impl Into<KeyExpr> + Send + 'static,
     b: impl Into<KeyExpr> + Send + 'static,
-) -> Result<i32, Error> {
+) -> Result<SetIntersectionLevel, Error> {
     let a_ke = into_native(a.into())?;
     let b_ke = into_native(b.into())?;
     Ok(z_keyexpr_relation_to(&a_ke, &b_ke))

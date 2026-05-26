@@ -1,6 +1,7 @@
 use prebindgen_proc_macro::prebindgen;
 use crate::ZKeyExpr;
 use crate::Error;
+use crate::SetIntersectionLevel;
 
 #[prebindgen]
 pub fn z_keyexpr_try_from(s: String) -> Result<ZKeyExpr, Error> {
@@ -25,8 +26,8 @@ pub fn z_keyexpr_includes(a: &ZKeyExpr, b: &ZKeyExpr) -> bool {
 }
 
 #[prebindgen]
-pub fn z_keyexpr_relation_to(a: &ZKeyExpr, b: &ZKeyExpr) -> i32 {
-    a.relation_to(b) as i32
+pub fn z_keyexpr_relation_to(a: &ZKeyExpr, b: &ZKeyExpr) -> SetIntersectionLevel {
+    a.relation_to(b).into()
 }
 
 #[prebindgen]
