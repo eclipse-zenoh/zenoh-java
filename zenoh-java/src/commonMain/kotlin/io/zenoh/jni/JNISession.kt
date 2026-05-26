@@ -289,8 +289,8 @@ internal class JNISession(val sessionPtr: Long) {
             options.timeout.toMillis(),
             options.target.ordinal,
             options.consolidation.ordinal,
-            options.attachment?.into()?.bytes,
-            options.payload?.into()?.bytes,
+            options.attachment?.into()?.inner?.bytes,
+            options.payload?.into()?.inner?.bytes,
             options.encoding?.id ?: Encoding.defaultEncoding().id,
             options.encoding?.schema,
             options.qos.congestionControl.value,
@@ -356,8 +356,8 @@ internal class JNISession(val sessionPtr: Long) {
             options.timeout.toMillis(),
             options.target.ordinal,
             options.consolidation.ordinal,
-            options.attachment?.into()?.bytes,
-            options.payload?.into()?.bytes,
+            options.attachment?.into()?.inner?.bytes,
+            options.payload?.into()?.inner?.bytes,
             options.encoding?.id ?: Encoding.defaultEncoding().id,
             options.encoding?.schema,
             options.qos.congestionControl.value,
@@ -397,13 +397,13 @@ internal class JNISession(val sessionPtr: Long) {
             keyExpr.flat.keyExprNative?.peek() ?: 0L,
             keyExpr.flat.keyExprString,
             sessionPtr,
-            payload.into().bytes,
+            payload.into().inner.bytes,
             encoding.id,
             encoding.schema,
             options.congestionControl.value,
             options.priority.value,
             options.express,
-            options.attachment?.into()?.bytes,
+            options.attachment?.into()?.inner?.bytes,
             options.reliability.ordinal
         )
     }
@@ -420,7 +420,7 @@ internal class JNISession(val sessionPtr: Long) {
             options.congestionControl.value,
             options.priority.value,
             options.express,
-            options.attachment?.into()?.bytes,
+            options.attachment?.into()?.inner?.bytes,
                 options.reliability.jni.value
         )
     }

@@ -106,8 +106,8 @@ internal class JNIQuerier(val ptr: Long) {
             parameters?.toString(),
             getCallback,
             onClose,
-            attachment?.into()?.bytes,
-            payload?.into()?.bytes,
+            attachment?.into()?.inner?.bytes,
+            payload?.into()?.inner?.bytes,
             encoding?.id ?: Encoding.defaultEncoding().id,
             encoding?.schema
         )

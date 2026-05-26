@@ -15,7 +15,6 @@
 package io.zenoh.jni
 
 import io.zenoh.ZenohLoad
-import io.zenoh.bytes.ZBytes
 import java.lang.reflect.Type
 
 @PublishedApi
@@ -26,8 +25,8 @@ internal object JNIZBytes {
     }
 
     @JvmStatic
-    external fun serializeViaJNI(any: Any, type: Type): ZBytes
+    external fun serializeViaJNI(any: Any, type: Type): ByteArray
 
     @JvmStatic
-    external fun deserializeViaJNI(zBytes: ZBytes, type: Type): Any
+    external fun deserializeViaJNI(bytes: ByteArray, type: Type): Any
 }

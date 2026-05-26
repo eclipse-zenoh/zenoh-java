@@ -5,7 +5,7 @@
 #![allow(non_snake_case)]
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use jni::{objects::{JClass, JObject}, sys::jobject, JNIEnv};
+use jni::{objects::{JByteArray, JClass, JObject}, sys::jobject, JNIEnv};
 
 #[no_mangle]
 pub extern "C" fn Java_io_zenoh_jni_JNIZBytes_serializeViaJNI(
@@ -21,8 +21,8 @@ pub extern "C" fn Java_io_zenoh_jni_JNIZBytes_serializeViaJNI(
 pub extern "C" fn Java_io_zenoh_jni_JNIZBytes_deserializeViaJNI(
     env: JNIEnv,
     _class: JClass,
-    zbytes: JObject,
+    bytes: JByteArray,
     jtype: JObject,
 ) -> jobject {
-    zenoh_jni::zbytes::Java_io_zenoh_jni_JNIZBytes_deserializeViaJNI(env, _class, zbytes, jtype)
+    zenoh_jni::zbytes::Java_io_zenoh_jni_JNIZBytes_deserializeViaJNI(env, _class, bytes, jtype)
 }

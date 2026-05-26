@@ -37,18 +37,18 @@ internal class JNIQuery(private val ptr: Long) {
             ptr,
             sample.keyExpr.flat.keyExprNative?.peek() ?: 0L,
             sample.keyExpr.flat.keyExprString,
-            sample.payload.bytes,
+            sample.payload.inner.bytes,
             sample.encoding.id,
             sample.encoding.schema,
             timestampEnabled,
             if (timestampEnabled) sample.timestamp!!.ntpValue() else 0,
-            sample.attachment?.bytes,
+            sample.attachment?.inner?.bytes,
             sample.qos.express
         )
     }
 
     fun replyError(error: IntoZBytes, encoding: Encoding) {
-        replyErrorViaJNI(ptr, error.into().bytes, encoding.id, encoding.schema)
+        replyErrorViaJNI(ptr, error.into().inner.bytes, encoding.id, encoding.schema)
     }
 
     fun replyDelete(keyExpr: KeyExpr, timestamp: TimeStamp?, attachment: IntoZBytes?, qos: QoS) {
@@ -59,7 +59,7 @@ internal class JNIQuery(private val ptr: Long) {
                 keyExpr.flat.keyExprString,
                 timestampEnabled,
                 if (timestampEnabled) timestamp!!.ntpValue() else 0,
-                attachment?.into()?.bytes,
+                attachment?.into()?.inner?.bytes,
                 qos.express
             )
         }
