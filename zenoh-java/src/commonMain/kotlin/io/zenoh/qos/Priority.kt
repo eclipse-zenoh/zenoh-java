@@ -31,7 +31,12 @@ enum class Priority(val value: Int) {
     DATA_LOW(6),
     BACKGROUND(7);
 
+    internal val jni: io.zenoh.jni.qos.Priority
+        get() = io.zenoh.jni.qos.Priority.fromInt(value)
+
     companion object {
         fun fromInt(value: Int) = entries.first { it.value == value }
+
+        internal fun fromJni(jni: io.zenoh.jni.qos.Priority): Priority = fromInt(jni.value)
     }
 }

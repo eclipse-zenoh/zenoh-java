@@ -18,6 +18,7 @@ pub const FEATURES: &str = prebindgen_proc_macro::features!();
 pub(crate) mod keyexpr;
 pub(crate) mod config;
 pub(crate) mod scouting;
+pub(crate) mod qos;
 pub(crate) mod error;
 pub(crate) mod logger;
 
@@ -25,6 +26,7 @@ pub(crate) mod logger;
 pub use keyexpr::*;
 pub use config::*;
 pub use scouting::*;
+pub use qos::*;
 pub use error::*;
 pub use logger::*;
 

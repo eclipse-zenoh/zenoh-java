@@ -70,7 +70,7 @@ internal class JNISession(val sessionPtr: Long) {
             publisherOptions.congestionControl.value,
             publisherOptions.priority.value,
             publisherOptions.express,
-            publisherOptions.reliability.ordinal
+                publisherOptions.reliability.jni.value
         )
         return Publisher(
             keyExpr,
@@ -421,7 +421,7 @@ internal class JNISession(val sessionPtr: Long) {
             options.priority.value,
             options.express,
             options.attachment?.into()?.bytes,
-            options.reliability.ordinal
+                options.reliability.jni.value
         )
     }
 

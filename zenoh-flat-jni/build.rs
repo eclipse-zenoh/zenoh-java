@@ -69,6 +69,10 @@ fn main() {
         .package_fun(pq!(init_android_logs))
         .package_fun(pq!(try_init_zenoh_logs_from_env))
         .package_fun(pq!(init_zenoh_logs_from_env_or))
+        .package("qos")
+        .enum_class(pq!(Reliability))
+        .enum_class(pq!(Priority))
+        .enum_class(pq!(CongestionControl))
         ;
 
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
