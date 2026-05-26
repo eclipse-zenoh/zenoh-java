@@ -73,6 +73,11 @@ fn main() {
         .enum_class(pq!(Reliability))
         .enum_class(pq!(Priority))
         .enum_class(pq!(CongestionControl))
+        .package("bytes")
+        .ptr_class(pq!(ZZBytes))
+        .class_fun(pq!(z_zbytes_to_bytes))
+        .class_object_fun(pq!(z_zbytes_from_bytes))
+        .value_class(pq!(ZBytes))
         ;
 
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
