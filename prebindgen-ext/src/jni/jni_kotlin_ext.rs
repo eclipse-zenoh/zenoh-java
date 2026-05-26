@@ -1464,6 +1464,21 @@ fn render_typed_handle_source(
         }
     }
 
+    let native_handle_class = ext.mangle_harness("NativeHandle");
+    let native_handle_fqn = if ext.package.is_empty() {
+        native_handle_class.clone()
+    } else {
+        format!("{}.{}", ext.package, native_handle_class)
+    };
+    // Typed-handle classes emitted into subpackages still extend and call
+    // helpers on the base-package NativeHandle and JNINative objects.
+    if package != ext.package {
+        imports.insert(native_handle_fqn);
+        if !instance_methods.is_empty() || !companion_methods.is_empty() {
+            imports.insert(format!("{}.{}", ext.package, ext.jni_native_class_name()));
+        }
+    }
+
     // Imports filtered the same way as render_kotlin_interface — drop
     // entries whose package matches our own (no need to import locals).
     let mut import_list: Vec<String> = imports
@@ -1482,15 +1497,15 @@ fn render_typed_handle_source(
     if !package.is_empty() {
         s.push_str(&format!("package {}\n\n", package));
     }
-    if !(instance_methods.is_empty() && companion_methods.is_empty()) {
-        // Exception import (if any) is included in `import_list` via the
-        // per-method `@Throws` emission — nothing hardcoded here.
+    if !import_list.is_empty() {
+        // Exception and cross-package helper imports are included in
+        // `import_list`; emit them even when this class has no promoted
+        // methods (e.g. a pure typed handle shell in a subpackage).
         for imp in &import_list {
             s.push_str(&format!("import {}\n", imp));
         }
         s.push('\n');
     }
-    let native_handle_class = ext.mangle_harness("NativeHandle");
     let free_extern = ext.mangle_fun("freePtr");
     s.push_str(&format!(
         "/** Typed [{native_handle_class}] for a native Zenoh `{}`. */\n",
@@ -1509,14 +1524,14 @@ fn render_typed_handle_source(
     ));
     s.push_str(&format!(
         "    private val cleanable: java.lang.ref.Cleaner.Cleanable =\n        \
-         CLEANER.register(this, Cleanup(state))\n\n"
+            {native_handle_class}.CLEANER.register(this, Cleanup(state))\n\n"
     ));
     // `Cleaner.Cleanable.clean()` runs the action exactly once — whether
     // invoked here or by the cleaner thread on GC — then deregisters, so
     // explicit close() and GC cleanup can't double-free.
     s.push_str("    override fun close() = cleanable.clean()\n\n");
     s.push_str(&format!(
-        "    private class Cleanup(private val state: State) : Runnable {{\n        \
+        "    private class Cleanup(private val state: {native_handle_class}.State) : Runnable {{\n        \
          override fun run() = state.freeOnce {{ {class_name}.{free_extern}(it) }}\n    }}\n"
     ));
     if !instance_body.is_empty() {
@@ -1967,6 +1982,9 @@ fn render_wrapper_fn(
         let mode = if is_opaque {
             let borrow = matches!(arg_ty, syn::Type::Reference(_));
             if is_opt_ref_opaque {
+                if !ext.package.is_empty() {
+                    imports.insert(format!("{}.withPtrOrZero", ext.package));
+                }
                 // Nullable borrow — promoted form not supported here (no
                 // typed-handle subclass to promote against when the param
                 // type is `T?`).

@@ -5,11 +5,11 @@ import io.zenoh.jni.KeyExpr
 import io.zenoh.jni.WhatAmI
 import io.zenoh.jni.ZConfig
 import io.zenoh.jni.ZKeyExpr
-import io.zenoh.jni.ZScout
 import io.zenoh.jni.ZZenohId
 import io.zenoh.jni.callbacks.Callback
 import io.zenoh.jni.callbacks.HelloCallback
 import io.zenoh.jni.callbacks.ZHelloCallback
+import io.zenoh.jni.scouting.ZScout
 
 internal object JNINative {
     external fun initAndroidLogs(filter: String)
