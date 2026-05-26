@@ -61,18 +61,23 @@ pub(crate) fn extract_int_literal(expr: &syn::Expr) -> Option<i64> {
 /// the single source of truth for both the Kotlin `value(N)` constants
 /// and the generated Rust `jint → variant` decode — keeping the two
 /// from drifting and removing the need for a hand-written
-/// `TryFrom<i32>` on the flat enum. Non-literal discriminants fall back
-/// to the running counter (good enough for the C-like enums
-/// `enum_class` accepts).
+/// `TryFrom<i32>` on the flat enum. Non-literal discriminants are
+/// rejected because prebindgen-ext cannot reliably evaluate arbitrary
+/// expressions at codegen time.
 pub(crate) fn enum_discriminant_values(e: &syn::ItemEnum) -> Vec<(syn::Ident, i64)> {
     let mut out = Vec::with_capacity(e.variants.len());
     let mut next: i64 = 0;
     for variant in &e.variants {
-        let value = variant
-            .discriminant
-            .as_ref()
-            .and_then(|(_, expr)| extract_int_literal(expr))
-            .unwrap_or(next);
+        let value = match variant.discriminant.as_ref() {
+            Some((_, expr)) => extract_int_literal(expr).unwrap_or_else(|| {
+                panic!(
+                    "enum `{}` variant `{}` has a non-literal discriminant; use a literal integer value (e.g. `= 1`) or an implicit discriminant",
+                    e.ident,
+                    variant.ident
+                )
+            }),
+            None => next,
+        };
         out.push((variant.ident.clone(), value));
         next = value + 1;
     }
@@ -135,5 +140,14 @@ mod tests {
                 ("D".into(), 2),
             ]
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "non-literal discriminant")]
+    fn discriminants_non_literal_rejected() {
+        let e: syn::ItemEnum = syn::parse_quote! {
+            enum E { A = OTHER, B }
+        };
+        let _ = discriminants(e);
     }
 }
