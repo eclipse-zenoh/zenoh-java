@@ -63,7 +63,7 @@ pub(crate) fn extract_int_literal(expr: &syn::Expr) -> Option<i64> {
 /// from drifting and removing the need for a hand-written
 /// `TryFrom<i32>` on the flat enum. Non-literal discriminants fall back
 /// to the running counter (good enough for the C-like enums
-/// `kotlin_enum` accepts).
+/// `enum_class` accepts).
 pub(crate) fn enum_discriminant_values(e: &syn::ItemEnum) -> Vec<(syn::Ident, i64)> {
     let mut out = Vec::with_capacity(e.variants.len());
     let mut next: i64 = 0;

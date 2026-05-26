@@ -3,9 +3,9 @@
 //! [`JniExt::write_kotlin`] is the single entry point for every Kotlin
 //! file the JNI back-end emits. Given one `kotlin_root` it writes:
 //!   * `NativeHandle.kt` (package `io.zenoh.jni`).
-//!   * One typed-handle class per `kotlin_ptr_class` entry without
+//!   * One typed-handle class per `ptr_class` entry without
 //!     `.suppress_kotlin_code()`.
-//!   * One package-level wrapper file for `kotlin_package()` (top-level
+//!   * One package-level wrapper file for `package()` (top-level
 //!     safe wrappers for `package_methods` fns).
 //!   * `JNINative.kt` — centralized `external fun` holder.
 //!   * One Kotlin fun-interface file per `impl Fn(args) + Send + Sync
@@ -17,7 +17,7 @@
 //!
 //! Every `#[prebindgen]` function must be assigned a Kotlin home via
 //! `.method(...)` on either a typed-handle / data-class / enum config
-//! or on `kotlin_package(...)`. Undeclared functions are skipped (see
+//! or on `package(...)`. Undeclared functions are skipped (see
 //! `Registry::scan_declared` warnings). There is no "orphan" bucket.
 //!
 //! All emitters route through [`KotlinFile::write`], which translates
@@ -77,7 +77,7 @@ fn rust_key_for_fqn<'a>(ext: &'a JniExt, fqn: &str) -> Option<&'a str> {
 impl JniExt {
     /// Unified Kotlin emission — single public entry point that fans out
     /// to per-callback fun-interface files, `NativeHandle.kt`, typed-handle
-    /// classes (one per `kotlin_ptr_class` registration), and
+    /// classes (one per `ptr_class` registration), and
     /// `JNIWrappers.kt`. Reads all configuration (typed-handle methods,
     /// callback FQN overrides, Kotlin type names) from internal state set
     /// during the builder phase. Returns every path written.
@@ -298,7 +298,7 @@ impl JniExt {
         Ok(written)
     }
 
-    /// Emit one Kotlin `enum class` file per `kotlin_enum`-declared type
+    /// Emit one Kotlin `enum class` file per `enum_class`-declared type
     /// (skipping any flagged with `.suppress_kotlin_code()`). Variants
     /// render in declaration order using SCREAMING_SNAKE_CASE names; the
     /// constructor stores the Rust discriminant value (or the ordinal as
@@ -370,7 +370,7 @@ impl JniExt {
         Ok(written)
     }
 
-    /// Emit one Kotlin `data class` file per `kotlin_data_class`-declared
+    /// Emit one Kotlin `data class` file per `data_class`-declared
     /// struct. Uses resolved converter metadata to derive Kotlin field
     /// types, so wrappers and data-class declarations stay in sync.
     pub(crate) fn write_data_classes(
@@ -815,7 +815,7 @@ fn render_enum_source(
     assert!(
         instance_methods.is_empty(),
         "render_enum_source: `{class_name}` has `.method(...)` entries but instance \
-         methods on `kotlin_enum`-declared types are not supported yet — declare them \
+         methods on `enum_class`-declared types are not supported yet — declare them \
          as `.companion_method(...)` for now",
     );
     // Same discriminant source of truth the Rust `jint → variant` decode
@@ -924,8 +924,8 @@ fn render_enum_source(
 }
 
 /// One generated Kotlin `data class` (or `@JvmInline value class` when
-/// `value_class` is set) source for a `kotlin_data_class` /
-/// `kotlin_value_class`-declared Rust struct.
+/// `value_class` is set) source for a `data_class` /
+/// `value_class`-declared Rust struct.
 fn render_data_class_source(
     ext: &JniExt,
     package: &str,
@@ -941,7 +941,7 @@ fn render_data_class_source(
 ) -> String {
     assert!(
         !(value_class && !instance_methods.is_empty()),
-        "render_data_class_source: `{class_name}` is a `kotlin_value_class` and has \
+        "render_data_class_source: `{class_name}` is a `value_class` and has \
          `.method(...)` entries; instance methods on value classes aren't supported yet \
          — declare them as `.companion_method(...)` for now",
     );
@@ -958,16 +958,16 @@ fn render_data_class_source(
         assert!(
             !throwable,
             "render_data_class_source: `{}` is registered as both \
-             `kotlin_value_class` and `throwable` — @JvmInline value \
+             `value_class` and `throwable` — @JvmInline value \
              classes cannot extend `Exception`. Drop `.throwable()` or \
-             switch to `kotlin_data_class`.",
+             switch to `data_class`.",
             item_struct.ident
         );
         assert!(
             fields_named.len() == 1,
-            "render_data_class_source: `kotlin_value_class` requires \
+            "render_data_class_source: `value_class` requires \
              struct `{}` to have exactly one field; found {}. Use \
-             `kotlin_data_class` for multi-field structs.",
+             `data_class` for multi-field structs.",
             item_struct.ident,
             fields_named.len()
         );
@@ -1018,7 +1018,7 @@ fn render_data_class_source(
                 .unwrap_or_else(|| {
                     panic!(
                         "render_data_class_source: handle field `{}.{}` leaf `{}` has no \
-                         Kotlin FQN registered (kotlin_ptr_class)",
+                         Kotlin FQN registered (ptr_class)",
                         item_struct.ident, field_ident, h.leaf_key
                     )
                 });
@@ -1037,7 +1037,7 @@ fn render_data_class_source(
             .or_else(|| registry.input_entry(&field.ty).and_then(|e| e.metadata.kotlin_name.clone()))
             .unwrap_or_else(|| {
                 panic!(
-                    "render_data_class_source: field `{}.{}` has no Kotlin type mapping; register converters before declaring kotlin_data_class",
+                    "render_data_class_source: field `{}.{}` has no Kotlin type mapping; register converters before declaring data_class",
                     item_struct.ident,
                     field_ident
                 )
@@ -1163,11 +1163,11 @@ fn render_data_class_source(
     if value_class {
         assert!(
             destructible_fields.is_empty(),
-            "render_data_class_source: `kotlin_value_class` struct `{}` \
+            "render_data_class_source: `value_class` struct `{}` \
              has a destructible native-handle field — value classes can \
              only express one inline-erased payload, not the \
              `AutoCloseable` + `close()` contract a handle field needs. \
-             Use `kotlin_data_class` for handle-bearing wrappers.",
+             Use `data_class` for handle-bearing wrappers.",
             item_struct.ident
         );
         // Single line is enforced by the upstream `fields_named.len() == 1`
@@ -1636,7 +1636,7 @@ fn render_jni_package_source(
 /// level. Parameter and return types match what the Rust extern
 /// receives:
 ///   * opaque-handle (Borrow/Consume) → jlong → `Long`
-///   * `kotlin_enum`                  → jint  → `Int` (call passes `.value`)
+///   * `enum_class`                  → jint  → `Int` (call passes `.value`)
 ///   * `Any` (impl-Into Dispatch)     → JObject → `Any`
 ///   * everything else                → entry's high-level Kotlin name
 /// Opaque returns become `Long`; every other return uses
@@ -1702,7 +1702,7 @@ fn render_jni_native_source(
 /// Render one `external fun <mangle_fun(name)>(…): <wire-return>` line
 /// at the JNI **wire** level (matches what the Rust extern receives):
 ///   * opaque-handle (Borrow/Consume) → jlong → `Long`
-///   * `kotlin_enum`                  → jint  → `Int` (call passes `.value`)
+///   * `enum_class`                  → jint  → `Int` (call passes `.value`)
 ///   * `Any` (impl-Into Dispatch)     → JObject → `Any`
 ///   * everything else                → entry's high-level Kotlin name
 /// Opaque returns become `Long`; every other return uses
@@ -1853,7 +1853,7 @@ fn render_wrapper_fn(
         kt_name: String,
         kt_type: String,
         mode: ParamMode,
-        /// `true` when the param's Rust type is a `kotlin_enum`-declared
+        /// `true` when the param's Rust type is a `enum_class`-declared
         /// enum: the high-level Kotlin signature uses the typed enum
         /// (`Priority`), but the underlying JNI `external fun` declares
         /// the param as `Int` (jint wire). The wrapper bridges the two
@@ -1882,7 +1882,7 @@ fn render_wrapper_fn(
         /// Kotlin signature. Set when `promoted_handle` matches.
         PromotedBorrow,
         PromotedConsume,
-        /// Promoted non-opaque param (e.g. `&Hello` on a `kotlin_data_class`
+        /// Promoted non-opaque param (e.g. `&Hello` on a `data_class`
         /// instance method). The Kotlin call site substitutes `this` for
         /// the param name — no lock wrapping needed, and the param is
         /// dropped from the wrapper signature. Set when `promoted_handle`
@@ -1916,7 +1916,7 @@ fn render_wrapper_fn(
         // handle subclass (not the bare `NativeHandle` base) with a `?`
         // suffix, so the call site can call `withPtrOrZero` on the
         // nullable receiver. The typed FQN comes from
-        // `ext.kotlin_type_fqns` (set by `kotlin_ptr_class`), keyed by
+        // `ext.kotlin_type_fqns` (set by `ptr_class`), keyed by
         // the handle's `leaf_key`. The `KotlinMeta.kotlin_name` is
         // intentionally the value-context name (`"Long"`) for opaque, so
         // it can't be used here.

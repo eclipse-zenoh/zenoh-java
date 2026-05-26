@@ -340,7 +340,7 @@ impl<M> Registry<M> {
             }
             if !matched {
                 // Declared type without an indexed body (e.g.
-                // `kotlin_ptr_class(ZKeyExpr<'static>)` on a re-exported
+                // `ptr_class(ZKeyExpr<'static>)` on a re-exported
                 // foreign type). Still mark required so the resolver
                 // tries to produce a converter for it.
                 let loc = self.type_locations.get(key).cloned().unwrap_or_default();
