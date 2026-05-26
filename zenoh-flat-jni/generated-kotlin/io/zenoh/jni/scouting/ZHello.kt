@@ -4,8 +4,8 @@ package io.zenoh.jni.scouting
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JNINativeHandle
 import io.zenoh.jni.JniBindingError
-import io.zenoh.jni.WhatAmI
-import io.zenoh.jni.ZZenohId
+import io.zenoh.jni.config.WhatAmI
+import io.zenoh.jni.config.ZZenohId
 
 /** Typed [JNINativeHandle] for a native Zenoh `ZHello`. */
 public class ZHello(initialPtr: Long) : JNINativeHandle(initialPtr), AutoCloseable {

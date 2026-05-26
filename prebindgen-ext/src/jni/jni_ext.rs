@@ -2474,7 +2474,6 @@ fn build_handle_destructor_items(
     ext: &JniExt,
     registry: &Registry<KotlinMeta>,
 ) -> Vec<syn::Item> {
-    let pkg = ext.package.replace('.', "_");
     let free_ptr = ext.mangle_fun("freePtr");
     let mut named: Vec<(String, syn::Item)> = Vec::new();
     for (key, cfg) in &ext.types {
@@ -2499,10 +2498,16 @@ fn build_handle_destructor_items(
                     key.as_str()
                 )
             });
-        let symbol = if pkg.is_empty() {
+        let class_pkg = cfg
+            .kotlin_name
+            .as_deref()
+            .and_then(|fqn| fqn.rsplit_once('.').map(|(pkg, _)| pkg))
+            .unwrap_or("")
+            .replace('.', "_");
+        let symbol = if class_pkg.is_empty() {
             format!("Java_{class_short}_{free_ptr}")
         } else {
-            format!("Java_{pkg}_{class_short}_{free_ptr}")
+            format!("Java_{class_pkg}_{class_short}_{free_ptr}")
         };
         let ident = syn::Ident::new(&symbol, Span::call_site());
         let item: syn::Item = syn::parse_quote!(

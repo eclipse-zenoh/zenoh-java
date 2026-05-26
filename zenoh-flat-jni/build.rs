@@ -16,6 +16,7 @@ fn main() {
         .throwable()                    // …also throwable; JniExt's built-in
                                         // rank-2 Result<_, _> wrapper routes
                                         // Err(Error) through it on the JVM side.
+        .package("keyexpr")
         .ptr_class(pq!(ZKeyExpr))
         .class_object_fun(pq!(z_keyexpr_try_from))
         .class_object_fun(pq!(z_keyexpr_autocanonize))
@@ -40,6 +41,7 @@ fn main() {
                 IntoSource::borrow(pq!(String)),
             ],
         )
+        .package("config")
         .ptr_class(pq!(ZConfig))
         .class_object_fun(pq!(z_config_default))
         .class_object_fun(pq!(z_config_from_file))
@@ -87,6 +89,13 @@ fn main() {
     // module's Gradle source set picks it up via
     // `kotlin.srcDir("$rootDir/zenoh-jni/generated-kotlin")`.
     let kotlin_root = std::path::Path::new("generated-kotlin");
+    // Remove stale generated files so package moves don't leave old classes
+    // behind (e.g. io/zenoh/jni/* and io/zenoh/jni/<subpackage>/* side-by-side).
+    if let Err(err) = std::fs::remove_dir_all(kotlin_root) {
+        if err.kind() != std::io::ErrorKind::NotFound {
+            fail("cleanup generated-kotlin failed", err);
+        }
+    }
     for path in match jni.write_kotlin(&registry, kotlin_root) {
         Ok(paths) => paths,
         Err(err) => fail("write_kotlin failed", err),

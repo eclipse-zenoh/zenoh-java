@@ -19,10 +19,10 @@ import io.zenoh.ZenohLoad
 import io.zenoh.session.SessionDeclaration
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.wrapJNIExceptionAsZError
-import io.zenoh.jni.ZKeyExpr
+import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.query.IntoSelector
 import io.zenoh.query.Selector
-import io.zenoh.jni.KeyExpr as JniKeyExpr
+import io.zenoh.jni.keyexpr.KeyExpr as JniKeyExpr
 
 /**
  * # Address space

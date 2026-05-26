@@ -267,10 +267,10 @@ internal class JNISession(val sessionPtr: Long) {
                     QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
                     attachmentBytes?.into()
                 )
-                reply = Reply.Success(replierZid?.let { EntityGlobalId(ZenohId(io.zenoh.jni.ZenohId(it)), replierEid.toUInt()) }, sample)
+                reply = Reply.Success(replierZid?.let { EntityGlobalId(ZenohId(io.zenoh.jni.config.ZenohId(it)), replierEid.toUInt()) }, sample)
             } else {
                 reply = Reply.Error(
-                    replierZid?.let { EntityGlobalId(ZenohId(io.zenoh.jni.ZenohId(it)), replierEid.toUInt()) },
+                    replierZid?.let { EntityGlobalId(ZenohId(io.zenoh.jni.config.ZenohId(it)), replierEid.toUInt()) },
                     payload1.into(),
                     Encoding(encodingId, schema = encodingSchema)
                 )
@@ -334,10 +334,10 @@ internal class JNISession(val sessionPtr: Long) {
                     QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
                     attachmentBytes?.into()
                 )
-                reply = Reply.Success(replierZid?.let { EntityGlobalId(ZenohId(io.zenoh.jni.ZenohId(it)), replierEid.toUInt()) }, sample)
+                reply = Reply.Success(replierZid?.let { EntityGlobalId(ZenohId(io.zenoh.jni.config.ZenohId(it)), replierEid.toUInt()) }, sample)
             } else {
                 reply = Reply.Error(
-                    replierZid?.let { EntityGlobalId(ZenohId(io.zenoh.jni.ZenohId(it)), replierEid.toUInt()) },
+                    replierZid?.let { EntityGlobalId(ZenohId(io.zenoh.jni.config.ZenohId(it)), replierEid.toUInt()) },
                     payload1.into(),
                     Encoding(encodingId, schema = encodingSchema)
                 )
@@ -427,17 +427,17 @@ internal class JNISession(val sessionPtr: Long) {
 
     @Throws(ZError::class)
     fun zid(): ZenohId {
-        return ZenohId(io.zenoh.jni.ZenohId(getZidViaJNI(sessionPtr)))
+        return ZenohId(io.zenoh.jni.config.ZenohId(getZidViaJNI(sessionPtr)))
     }
 
     @Throws(ZError::class)
     fun peersZid(): List<ZenohId> {
-        return getPeersZidViaJNI(sessionPtr).map { ZenohId(io.zenoh.jni.ZenohId(it)) }
+        return getPeersZidViaJNI(sessionPtr).map { ZenohId(io.zenoh.jni.config.ZenohId(it)) }
     }
 
     @Throws(ZError::class)
     fun routersZid(): List<ZenohId> {
-        return getRoutersZidViaJNI(sessionPtr).map { ZenohId(io.zenoh.jni.ZenohId(it)) }
+        return getRoutersZidViaJNI(sessionPtr).map { ZenohId(io.zenoh.jni.config.ZenohId(it)) }
     }
 
     @Throws(ZError::class)

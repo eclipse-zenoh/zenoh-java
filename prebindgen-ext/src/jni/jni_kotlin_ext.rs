@@ -1138,6 +1138,12 @@ fn render_data_class_source(
         companion_methods.push('\n');
     }
 
+    // Wrapper methods emitted into subpackages still call the centralized
+    // Native object anchored at the base package.
+    if package != ext.package && (!instance_body.is_empty() || !companion_methods.is_empty()) {
+        imports.insert(format!("{}.{}", ext.package, ext.jni_native_class_name()));
+    }
+
     let mut import_list: Vec<String> = imports
         .iter()
         .filter(|fqn| {

@@ -3,10 +3,10 @@ package io.zenoh.jni.scouting
 
 import io.zenoh.jni.Error
 import io.zenoh.jni.JniBindingError
-import io.zenoh.jni.ZConfig
 import io.zenoh.jni.callbacks.Callback
 import io.zenoh.jni.callbacks.HelloCallback
 import io.zenoh.jni.callbacks.ZHelloCallback
+import io.zenoh.jni.config.ZConfig
 import io.zenoh.jni.scouting.ZScout
 import io.zenoh.jni.withPtrOrZero
 import io.zenoh.jni.JNINative
