@@ -19,12 +19,12 @@ package io.zenoh.config
  *
  * The role of the node sending the `hello` message.
  */
-enum class WhatAmI(internal val value: Int) {
-    Router(1),
-    Peer(2),
-    Client(4);
+enum class WhatAmI(internal val jni: io.zenoh.jni.WhatAmI) {
+    Router(io.zenoh.jni.WhatAmI.ROUTER),
+    Peer(io.zenoh.jni.WhatAmI.PEER),
+    Client(io.zenoh.jni.WhatAmI.CLIENT);
 
     companion object {
-        internal fun fromInt(value: Int) = entries.first { value == it.value }
+        internal fun fromJni(jni: io.zenoh.jni.WhatAmI): WhatAmI = entries.first { it.jni == jni }
     }
 }
