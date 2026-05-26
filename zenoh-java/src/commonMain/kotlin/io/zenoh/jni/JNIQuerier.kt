@@ -89,10 +89,10 @@ internal class JNIQuerier(val ptr: Long) {
                     QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
                     attachmentBytes?.into()
                 )
-                reply = Reply.Success(replierZid?.let { EntityGlobalId(ZenohId(it), replierEid.toUInt()) }, sample)
+                reply = Reply.Success(replierZid?.let { EntityGlobalId(ZenohId(io.zenoh.jni.ZenohId(it)), replierEid.toUInt()) }, sample)
             } else {
                 reply = Reply.Error(
-                    replierZid?.let { EntityGlobalId(ZenohId(it), replierEid.toUInt()) },
+                    replierZid?.let { EntityGlobalId(ZenohId(io.zenoh.jni.ZenohId(it)), replierEid.toUInt()) },
                     payload2.into(),
                     Encoding(encodingId, schema = encodingSchema)
                 )

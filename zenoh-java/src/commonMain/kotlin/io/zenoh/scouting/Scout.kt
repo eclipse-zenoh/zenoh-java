@@ -110,7 +110,7 @@ sealed class Scout (
                 callback.run(
                     Hello(
                         whatAmI = WhatAmI.fromJni(jniHello.whatami),
-                        zid = ZenohId(jniHello.zid.bytes),
+                        zid = ZenohId(jniHello.zid),
                         locators = jniHello.locators,
                     )
                 )
