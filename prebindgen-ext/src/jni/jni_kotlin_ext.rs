@@ -426,6 +426,7 @@ impl JniExt {
                     &kotlin_types,
                     &cfg.methods,
                     cfg.throwable,
+                    cfg.value_class,
                 ),
                 package: package.clone(),
                 class_name,
@@ -906,8 +907,9 @@ fn render_enum_source(
     s
 }
 
-/// One generated Kotlin `data class` source for a `kotlin_data_class`-
-/// declared Rust struct.
+/// One generated Kotlin `data class` (or `@JvmInline value class` when
+/// `value_class` is set) source for a `kotlin_data_class` /
+/// `kotlin_value_class`-declared Rust struct.
 fn render_data_class_source(
     ext: &JniExt,
     package: &str,
@@ -917,6 +919,7 @@ fn render_data_class_source(
     kotlin_types: &KotlinTypeMap,
     promoted_functions: &[String],
     throwable: bool,
+    value_class: bool,
 ) -> String {
     let fields_named = match &item_struct.fields {
         syn::Fields::Named(n) => &n.named,
@@ -927,6 +930,24 @@ fn render_data_class_source(
             )
         }
     };
+    if value_class {
+        assert!(
+            !throwable,
+            "render_data_class_source: `{}` is registered as both \
+             `kotlin_value_class` and `throwable` — @JvmInline value \
+             classes cannot extend `Exception`. Drop `.throwable()` or \
+             switch to `kotlin_data_class`.",
+            item_struct.ident
+        );
+        assert!(
+            fields_named.len() == 1,
+            "render_data_class_source: `kotlin_value_class` requires \
+             struct `{}` to have exactly one field; found {}. Use \
+             `kotlin_data_class` for multi-field structs.",
+            item_struct.ident,
+            fields_named.len()
+        );
+    }
 
     let mut imports: BTreeSet<String> = BTreeSet::new();
     let mut field_lines: Vec<String> = Vec::new();
@@ -1071,71 +1092,109 @@ fn render_data_class_source(
     if !import_list.is_empty() {
         s.push('\n');
     }
-    s.push_str(&format!("public data class {}(\n", class_name));
-    for line in &field_lines {
-        s.push_str(line);
-        s.push('\n');
-    }
-    // Supertype clause. `Exception(...)` (a class) and `AutoCloseable`
-    // (an interface) stack — Kotlin allows at most one class super + any
-    // interfaces. `: Exception(message)` picks the field literally named
-    // `message` to forward to Exception's message slot; falls back to
-    // `: Exception()` when no such field exists (data-class auto-toString
-    // still surfaces the structured fields).
-    let exception_clause: Option<String> = if throwable {
-        let has_message = fields_named.iter().any(|f| {
-            f.ident
-                .as_ref()
-                .map(|i| i.to_string() == "message")
-                .unwrap_or(false)
-        });
-        Some(if has_message {
-            "Exception(message)".to_string()
+    if value_class {
+        assert!(
+            destructible_fields.is_empty(),
+            "render_data_class_source: `kotlin_value_class` struct `{}` \
+             has a destructible native-handle field — value classes can \
+             only express one inline-erased payload, not the \
+             `AutoCloseable` + `close()` contract a handle field needs. \
+             Use `kotlin_data_class` for handle-bearing wrappers.",
+            item_struct.ident
+        );
+        // Single line is enforced by the upstream `fields_named.len() == 1`
+        // assertion; strip the data-class formatting (leading indent and
+        // trailing comma) so the primary constructor reads cleanly.
+        let only = field_lines[0]
+            .trim_start()
+            .trim_end_matches(',')
+            .to_string();
+        s.push_str("@JvmInline\n");
+        s.push_str(&format!("public value class {}({})", class_name, only));
+        if companion_methods.is_empty() {
+            s.push('\n');
         } else {
-            "Exception()".to_string()
-        })
-    } else {
-        None
-    };
-    let supertypes: Vec<String> = match (&exception_clause, !destructible_fields.is_empty()) {
-        (Some(e), true) => vec![e.clone(), "AutoCloseable".to_string()],
-        (Some(e), false) => vec![e.clone()],
-        (None, true) => vec!["AutoCloseable".to_string()],
-        (None, false) => vec![],
-    };
-    if supertypes.is_empty() {
-        s.push_str(") {\n");
-    } else {
-        s.push_str(&format!(") : {} {{\n", supertypes.join(", ")));
-    }
-    if !destructible_fields.is_empty() {
-        // `close()` walks every destructible field via its folded close
-        // strategy. `JNINativeHandle.close()` is idempotent
-        // (Cleaner.Cleanable.clean() invokes exactly once), so calling
-        // this multiple times — or alongside the cleaner's own firing on
-        // GC — is safe. NOTE: `data class` copy() shares the handle
-        // reference between copies; if you intend to close independently,
-        // don't copy this class.
-        s.push_str("    override fun close() {\n");
-        for (fname, strategy) in &destructible_fields {
-            s.push_str(&format!("        {}\n", render_handle_close(strategy, fname)));
+            s.push_str(" {\n");
+            s.push_str("    public companion object {\n");
+            for line in companion_methods.lines() {
+                if line.is_empty() {
+                    s.push('\n');
+                } else {
+                    s.push_str("        ");
+                    s.push_str(line);
+                    s.push('\n');
+                }
+            }
+            s.push_str("    }\n");
+            s.push_str("}\n");
         }
-        s.push_str("    }\n\n");
-    }
-    s.push_str("    public companion object {\n");
-    if !companion_methods.is_empty() {
-        for line in companion_methods.lines() {
-            if line.is_empty() {
-                s.push('\n');
+    } else {
+        s.push_str(&format!("public data class {}(\n", class_name));
+        for line in &field_lines {
+            s.push_str(line);
+            s.push('\n');
+        }
+        // Supertype clause. `Exception(...)` (a class) and `AutoCloseable`
+        // (an interface) stack — Kotlin allows at most one class super + any
+        // interfaces. `: Exception(message)` picks the field literally named
+        // `message` to forward to Exception's message slot; falls back to
+        // `: Exception()` when no such field exists (data-class auto-toString
+        // still surfaces the structured fields).
+        let exception_clause: Option<String> = if throwable {
+            let has_message = fields_named.iter().any(|f| {
+                f.ident
+                    .as_ref()
+                    .map(|i| i.to_string() == "message")
+                    .unwrap_or(false)
+            });
+            Some(if has_message {
+                "Exception(message)".to_string()
             } else {
-                s.push_str("        ");
-                s.push_str(line);
-                s.push('\n');
+                "Exception()".to_string()
+            })
+        } else {
+            None
+        };
+        let supertypes: Vec<String> = match (&exception_clause, !destructible_fields.is_empty()) {
+            (Some(e), true) => vec![e.clone(), "AutoCloseable".to_string()],
+            (Some(e), false) => vec![e.clone()],
+            (None, true) => vec!["AutoCloseable".to_string()],
+            (None, false) => vec![],
+        };
+        if supertypes.is_empty() {
+            s.push_str(") {\n");
+        } else {
+            s.push_str(&format!(") : {} {{\n", supertypes.join(", ")));
+        }
+        if !destructible_fields.is_empty() {
+            // `close()` walks every destructible field via its folded close
+            // strategy. `JNINativeHandle.close()` is idempotent
+            // (Cleaner.Cleanable.clean() invokes exactly once), so calling
+            // this multiple times — or alongside the cleaner's own firing on
+            // GC — is safe. NOTE: `data class` copy() shares the handle
+            // reference between copies; if you intend to close independently,
+            // don't copy this class.
+            s.push_str("    override fun close() {\n");
+            for (fname, strategy) in &destructible_fields {
+                s.push_str(&format!("        {}\n", render_handle_close(strategy, fname)));
+            }
+            s.push_str("    }\n\n");
+        }
+        s.push_str("    public companion object {\n");
+        if !companion_methods.is_empty() {
+            for line in companion_methods.lines() {
+                if line.is_empty() {
+                    s.push('\n');
+                } else {
+                    s.push_str("        ");
+                    s.push_str(line);
+                    s.push('\n');
+                }
             }
         }
+        s.push_str("    }\n");
+        s.push_str("}\n");
     }
-    s.push_str("    }\n");
-    s.push_str("}\n");
     s
 }
 

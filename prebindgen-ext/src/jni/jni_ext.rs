@@ -254,6 +254,12 @@ pub(crate) struct TypeConfig {
     /// constructs the JVM object via this type's own output converter.
     /// `Result<_, ThisType>` Err arms route through that throw fn.
     pub throwable: bool,
+    /// Set by [`JniExt::kotlin_value_class`]: emit the Kotlin class as
+    /// `@JvmInline public value class` instead of `public data class`.
+    /// Requires exactly one field on the underlying struct (validated
+    /// at render time) and is mutually exclusive with
+    /// [`Self::throwable`] (value classes cannot extend `Exception`).
+    pub value_class: bool,
 }
 
 /// Methods promoted to the synthetic package-level wrapper object.
@@ -615,8 +621,15 @@ impl JniExt {
         );
         let rust_type = key.to_type();
         let cfg = build_exception_config(rust_type, &self.package, &self.exceptions);
-        self.exceptions.push(cfg);
         let entry = self.types.get_mut(&key).expect("type entry vanished");
+        assert!(
+            !entry.value_class,
+            "JniExt::throwable: `{}` was declared via `kotlin_value_class` — \
+             @JvmInline value classes cannot extend `Exception`. Use \
+             `kotlin_data_class` for throwable types.",
+            key.as_str()
+        );
+        self.exceptions.push(cfg);
         entry.throwable = true;
         self
     }
@@ -1160,6 +1173,40 @@ impl JniExt {
         let fqn = self.resolve_class_fqn(&self.mangle_data_class(&short));
         let entry = self.types.entry(key.clone()).or_default();
         entry.kotlin_name = Some(fqn.clone());
+        self.kotlin_type_fqns
+            .push((key.as_str().to_string(), fqn));
+        self.last_opaque_key = None;
+        self.last_meta_key = Some(key);
+        self.last_package_target = false;
+        self
+    }
+
+    /// Declare a Rust struct that should appear in Kotlin as an
+    /// `@JvmInline public value class` rather than a `public data class`.
+    /// The wrapped struct must have **exactly one named field** and
+    /// must not be marked [`Self::throwable`] — both constraints are
+    /// enforced at render time with a hard error.
+    ///
+    /// Why a dedicated builder rather than auto-promoting one-field
+    /// data classes: value-class semantics are observable (method-name
+    /// mangling, boxing on interface dispatch / generics / nullable
+    /// receivers), so the decision must be explicit per-type. Naming
+    /// passes through [`Self::kotlin_data_class_name_mangle`] — the
+    /// same Kotlin-side namespace as `kotlin_data_class`.
+    ///
+    /// Note: `kotlin_ptr_class` deliberately does **not** support
+    /// value-class emission. Typed-handle classes extend
+    /// `JNINativeHandle`, hold a `Cleaner.Cleanable` field, and
+    /// implement `AutoCloseable` — none of which a value class can
+    /// express without abandoning the Cleaner-based finalization
+    /// safety net.
+    pub fn kotlin_value_class(mut self, rust_type: syn::Type) -> Self {
+        let key = TypeKey::from_type(&rust_type);
+        let short = rust_short_name(&key);
+        let fqn = self.resolve_class_fqn(&self.mangle_data_class(&short));
+        let entry = self.types.entry(key.clone()).or_default();
+        entry.kotlin_name = Some(fqn.clone());
+        entry.value_class = true;
         self.kotlin_type_fqns
             .push((key.as_str().to_string(), fqn));
         self.last_opaque_key = None;
@@ -3960,13 +4007,72 @@ fn struct_output_body(
         let encoded_ident = format_ident!("__{}_encoded", fname_ident);
         let encoded_obj_ident = format_ident!("__{}_encoded_obj", fname_ident);
 
+        // Value-class fields are JVM-erased to their wrapped inner
+        // type: `val zid: ZenohId` where ZenohId is `@JvmInline value
+        // class ZenohId(val bytes: ByteArray)` compiles to a `byte[]
+        // zid` slot in the enclosing class — both the JVM ctor
+        // signature and the runtime argument must use the inner type,
+        // not a boxed ZenohId. Detect it up front and route through
+        // the inner field's converter; the rest of the per-field
+        // dispatch is type-driven and naturally falls into the
+        // inner-type branch.
+        let (effective_ty, field_access): (syn::Type, TokenStream) = {
+            let key = TypeKey::from_type(&field.ty);
+            let is_value_class = ext
+                .types
+                .get(&key)
+                .map(|c| c.value_class)
+                .unwrap_or(false);
+            if is_value_class {
+                let ident = bare_path_ident(&field.ty).unwrap_or_else(|| {
+                    panic!(
+                        "struct_output_body: value-class field `{}.{}` type \
+                         is not a bare path — value classes must be \
+                         registered against a concrete struct type",
+                        s.ident, fname_ident
+                    )
+                });
+                let (item_struct, _) = registry.structs.get(&ident).unwrap_or_else(|| {
+                    panic!(
+                        "struct_output_body: value-class struct `{}` is not in \
+                         the registry — make sure it was scanned by \
+                         `#[prebindgen]`",
+                        ident
+                    )
+                });
+                let syn::Fields::Named(n) = &item_struct.fields else {
+                    panic!(
+                        "struct_output_body: value-class struct `{}` must use \
+                         named fields",
+                        ident
+                    )
+                };
+                assert_eq!(
+                    n.named.len(),
+                    1,
+                    "struct_output_body: value-class struct `{}` must have \
+                     exactly one field; found {}",
+                    ident,
+                    n.named.len()
+                );
+                let inner = n.named.first().unwrap();
+                let inner_ident = inner.ident.as_ref().unwrap().clone();
+                (
+                    inner.ty.clone(),
+                    quote! { v.#fname_ident.#inner_ident.clone() },
+                )
+            } else {
+                (field.ty.clone(), quote! { v.#fname_ident.clone() })
+            }
+        };
+
         // Defer if any field's output converter isn't resolved yet.
-        let field_entry = registry.output_entry(&field.ty)?;
+        let field_entry = registry.output_entry(&effective_ty)?;
         let field_wire = field_entry.destination.clone();
         let field_conv = field_entry.function.sig.ident.clone();
 
         field_preludes.push(quote! {
-            let #field_value_ident = v.#fname_ident.clone();
+            let #field_value_ident = #field_access;
             let #encoded_ident = #field_conv(env, #field_value_ident)?;
         });
 
@@ -3997,9 +4103,11 @@ fn struct_output_body(
         // converter produced a `jint` discriminant, but the Kotlin
         // data class declares this field as the typed enum class. Wrap
         // the int via the enum's `fromInt(Int)` companion method so the
-        // ctor slot matches the data-class field type.
-        if ext.is_kotlin_enum(&field.ty) {
-            if let Some(name) = bare_path_ident(&field.ty) {
+        // ctor slot matches the data-class field type. Uses
+        // `effective_ty` so a hypothetical value class wrapping an enum
+        // still routes through here against its inner type.
+        if ext.is_kotlin_enum(&effective_ty) {
+            if let Some(name) = bare_path_ident(&effective_ty) {
                 let enum_fqn = ext
                     .kotlin_type_fqns
                     .iter()
@@ -4055,7 +4163,7 @@ fn struct_output_body(
                 //   3. Anything else (e.g. `String` → `java/lang/String`):
                 //      derive from the inner wire's J* type name.
                 //   4. Fallback → `Ljava/lang/Object;`.
-                let typed_slot = bare_path_ident(&field.ty)
+                let typed_slot = bare_path_ident(&effective_ty)
                     .and_then(|name| {
                         ext.kotlin_type_fqns
                             .iter()
@@ -4063,7 +4171,7 @@ fn struct_output_body(
                             .map(|(_, v)| format!("L{};", v.replace('.', "/")))
                     })
                     .or_else(|| {
-                        if pat_match_top(&field.ty, "Vec") {
+                        if pat_match_top(&effective_ty, "Vec") {
                             Some("Ljava/util/List;".to_string())
                         } else if let syn::Type::Path(tp) = &field_wire {
                             tp.path.segments.last().and_then(|seg| {

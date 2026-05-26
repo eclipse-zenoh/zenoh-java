@@ -52,7 +52,7 @@ fn main() {
         .kotlin_ptr_class(pq!(ZZenohId))
         .method("z_zenoh_id_to_bytes")
         .method("z_zenoh_id_to_string")
-        .kotlin_data_class(pq!(ZenohId))
+        .kotlin_value_class(pq!(ZenohId))
         .kotlin_ptr_class(pq!(ZHello))
         .method("z_hello_whatami")
         .method("z_hello_zid")
