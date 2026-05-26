@@ -22,17 +22,17 @@ package io.zenoh.qos
  * - Highest priority: 1 ([REALTIME])
  * - Lowest priority: 7 ([BACKGROUND])
  */
-enum class Priority(val value: Int) {
-    REALTIME(1),
-    INTERACTIVE_HIGH(2),
-    INTERACTIVE_LOW(3),
-    DATA_HIGH(4),
-    DATA(5),
-    DATA_LOW(6),
-    BACKGROUND(7);
+enum class Priority(internal val jni: io.zenoh.jni.qos.Priority) {
+    REALTIME(io.zenoh.jni.qos.Priority.REAL_TIME),
+    INTERACTIVE_HIGH(io.zenoh.jni.qos.Priority.INTERACTIVE_HIGH),
+    INTERACTIVE_LOW(io.zenoh.jni.qos.Priority.INTERACTIVE_LOW),
+    DATA_HIGH(io.zenoh.jni.qos.Priority.DATA_HIGH),
+    DATA(io.zenoh.jni.qos.Priority.DATA),
+    DATA_LOW(io.zenoh.jni.qos.Priority.DATA_LOW),
+    BACKGROUND(io.zenoh.jni.qos.Priority.BACKGROUND);
 
-    internal val jni: io.zenoh.jni.qos.Priority
-        get() = io.zenoh.jni.qos.Priority.fromInt(value)
+    val value: Int
+        get() = jni.value
 
     companion object {
         fun fromInt(value: Int) = entries.first { it.value == value }
