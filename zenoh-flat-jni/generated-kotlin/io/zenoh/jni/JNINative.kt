@@ -12,6 +12,8 @@ import io.zenoh.jni.callbacks.HelloCallback
 import io.zenoh.jni.callbacks.ZHelloCallback
 
 internal object JNINative {
+    external fun initAndroidLogs(filter: String)
+    external fun initZenohLogsFromEnvOr(fallbackFilter: String)
     external fun keyexprAutocanonize(s: String): KeyExpr
     external fun keyexprConcat(a: Any, b: String): KeyExpr
     external fun keyexprIncludes(a: Any, b: Any): Boolean
@@ -20,6 +22,7 @@ internal object JNINative {
     external fun keyexprRelationTo(a: Any, b: Any): Int
     external fun keyexprTryFrom(s: String): KeyExpr
     external fun scout(whatami: Int, config: Long, callback: HelloCallback, onClose: Callback): Long
+    external fun tryInitZenohLogsFromEnv()
     external fun zConfigDefault(): Long
     external fun zConfigFromFile(path: String): Long
     external fun zConfigFromJson(s: String): Long

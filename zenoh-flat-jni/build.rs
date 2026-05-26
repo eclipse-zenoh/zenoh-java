@@ -61,6 +61,10 @@ fn main() {
         .kotlin_ptr_class(pq!(ZScout))
         .method("z_scout")
         .method("scout")
+        .kotlin_package("logger")
+        .method("init_android_logs")
+        .method("try_init_zenoh_logs_from_env")
+        .method("init_zenoh_logs_from_env_or")
         ;
 
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);

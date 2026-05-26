@@ -25,6 +25,7 @@ pub(crate) mod z_hello;
 pub(crate) mod hello;
 pub(crate) mod z_scout;
 pub(crate) mod error;
+pub(crate) mod logger;
 
 // reexports to make all zenoh-flat API really flat
 pub use keyexpr::*;
@@ -37,6 +38,7 @@ pub use z_hello::*;
 pub use hello::*;
 pub use z_scout::*;
 pub use error::*;
+pub use logger::*;
 
 // reexports of zenoh types with Z prefix to distiguish them from zenoh-flat types
 pub type ZKeyExpr = zenoh::key_expr::KeyExpr<'static>;

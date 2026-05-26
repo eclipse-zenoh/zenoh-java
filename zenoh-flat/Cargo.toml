@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 zenoh = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["unstable", "internal"], default-features = false }
 zenoh-ext = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["internal"], default-features = false, optional = true }
+android-logd-logger = "0.4.0"
 tracing = { version = "0.1" , features = ["log"] }
 prebindgen = "0.4.1"
 prebindgen-proc-macro = "0.4.1"

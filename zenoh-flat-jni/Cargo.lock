@@ -4046,6 +4046,7 @@ dependencies = [
 name = "zenoh-flat"
 version = "1.9.0"
 dependencies = [
+ "android-logd-logger",
  "json5",
  "prebindgen",
  "prebindgen-proc-macro",
