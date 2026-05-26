@@ -2513,6 +2513,29 @@ impl PrebindgenExt for JniExt {
         if let Some(conv) = self.lookup_input(ty, &[], registry) {
             return Some(conv);
         }
+        // `str` is unsized, so converters can't return it directly.
+        // Still register a rank-0 entry to satisfy resolution for
+        // borrowed `&str` parameters: decode `JString` to owned `String`
+        // and let call sites borrow as needed.
+        if TypeKey::from_type(ty).as_str() == "str" {
+            let wire: syn::Type = syn::parse_quote!(jni::objects::JString);
+            let body: syn::Expr = syn::parse_quote!({
+                let s = env
+                    .get_string(v)
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("decode_string: {}", e)))?;
+                s.into()
+            });
+            let rust_ty: syn::Type = syn::parse_quote!(String);
+            let kotlin_name = self.override_kotlin_name(ty, Some("String".to_string()));
+            let niches = default_niches_for_wire(&wire);
+            return Some(ConverterImpl {
+                pre_stages: vec![],
+                function: self.build_input_fn(&rust_ty, &wire, &body, None),
+                destination: wire,
+                niches,
+                metadata: self.framework_meta(kotlin_name),
+            });
+        }
         if let Some((wire, body)) = primitive_input(ty) {
             let niches = default_niches_for_wire(&wire);
             let kotlin_name = crate::jni::jni_kotlin_ext::kotlin_for_wire(&wire);
