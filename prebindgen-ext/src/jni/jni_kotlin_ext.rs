@@ -30,7 +30,7 @@ use quote::ToTokens;
 
 use crate::core::prebindgen_ext::{IntoSource, IntoSourceMode, PrebindgenExt};
 use crate::core::registry::{extract_fn_trait_args, Registry, TypeKey};
-use crate::jni::jni_ext::{converter_returns_owned_object, JniExt, KotlinMeta};
+use crate::jni::jni_ext::{converter_returns_owned_object, JniExt, KotlinMeta, MethodEntry};
 use crate::jni::templates;
 use crate::kotlin::kotlin_ext::{KotlinFile, WriteKotlinError};
 use crate::kotlin::type_map::KotlinTypeMap;
@@ -52,12 +52,16 @@ pub(crate) struct TypedHandle<'a> {
     /// this FQN via [`JniExt::kotlin_type_fqn`] identifies which
     /// parameter of each promoted function becomes `this`.
     pub kotlin_fqn: &'a str,
-    /// `#[prebindgen]` fn idents promoted to instance methods on this
-    /// class. The matching opaque first parameter is dropped from the
-    /// signature; the method uses inherited `withPtr` / `consume`. An
-    /// empty slice emits a pure shell (just `free()` + the matching
-    /// `<mangle_fun("freePtr")>` extern).
-    pub functions: &'a [&'a str],
+    /// `#[prebindgen]` fns declared as **instance methods** via
+    /// [`JniExt::method`]. The matched first parameter is dropped from
+    /// the Kotlin signature and substituted by inherited `withPtr` /
+    /// `consume` scope. Mismatch (no param matches the class type) is a
+    /// build-time error.
+    pub instance_methods: &'a [MethodEntry],
+    /// `#[prebindgen]` fns declared as **companion-object methods** via
+    /// [`JniExt::companion_method`]. Rendered inside `companion object`
+    /// using the same shape as a package-level wrapper.
+    pub companion_methods: &'a [MethodEntry],
 }
 
 /// Reverse-lookup the Rust type-key registered for a given Kotlin FQN
@@ -90,20 +94,14 @@ impl JniExt {
         written.push(self.write_native_handle(kotlin_root)?);
 
         // Build the borrowed `TypedHandle<'_>` view from internal config.
-        // The two layers (owned + slice-of-borrowed) keep the borrow
-        // checker happy with the existing internal API.
         let owned = self.collect_typed_handles();
-        let method_refs: Vec<Vec<&str>> = owned
-            .iter()
-            .map(|h| h.methods.iter().map(String::as_str).collect())
-            .collect();
         let typed_handles: Vec<TypedHandle<'_>> = owned
             .iter()
-            .zip(method_refs.iter())
-            .map(|(h, m)| TypedHandle {
+            .map(|h| TypedHandle {
                 rust_doc: &h.rust_doc,
                 kotlin_fqn: &h.kotlin_fqn,
-                functions: m.as_slice(),
+                instance_methods: h.instance_methods.as_slice(),
+                companion_methods: h.companion_methods.as_slice(),
             })
             .collect();
         let kotlin_types = self.build_kotlin_type_map();
@@ -113,11 +111,16 @@ impl JniExt {
             &kotlin_types,
             kotlin_root,
         )?);
-        if !self.package_methods.methods.is_empty() {
+        for (subpackage, pkg_cfg) in &self.packages {
+            if pkg_cfg.functions.is_empty() {
+                continue;
+            }
             written.push(self.write_jni_package(
                 registry,
                 &kotlin_types,
                 kotlin_root,
+                subpackage,
+                pkg_cfg,
             )?);
         }
         written.push(self.write_jni_native(
@@ -199,7 +202,8 @@ impl JniExt {
             handles.push(OwnedTypedHandle {
                 rust_doc,
                 kotlin_fqn: kotlin_fqn.clone(),
-                methods: cfg.methods.clone(),
+                instance_methods: cfg.instance_methods.clone(),
+                companion_methods: cfg.companion_methods.clone(),
             });
         }
         handles
@@ -227,7 +231,8 @@ impl JniExt {
 pub(crate) struct OwnedTypedHandle {
     pub rust_doc: String,
     pub kotlin_fqn: String,
-    pub methods: Vec<String>,
+    pub instance_methods: Vec<MethodEntry>,
+    pub companion_methods: Vec<MethodEntry>,
 }
 
 impl JniExt {
@@ -352,7 +357,8 @@ impl JniExt {
                     &package,
                     &class_name,
                     item_enum,
-                    &cfg.methods,
+                    &cfg.instance_methods,
+                    &cfg.companion_methods,
                     registry,
                     &kotlin_types,
                 ),
@@ -424,9 +430,11 @@ impl JniExt {
                     item_struct,
                     registry,
                     &kotlin_types,
-                    &cfg.methods,
+                    &cfg.instance_methods,
+                    &cfg.companion_methods,
                     cfg.throwable,
                     cfg.value_class,
+                    key.as_str(),
                 ),
                 package: package.clone(),
                 class_name,
@@ -460,34 +468,35 @@ impl JniExt {
     }
 
     /// Emit the package-level wrapper file under `output_dir`. One
-    /// top-level safe wrapper per `#[prebindgen]` fn in
-    /// `package_methods.methods`. Wrappers delegate to the centralized
-    /// Native object (see [`Self::write_jni_native`]). Opaque-handle
-    /// parameters become `NativeHandle`; the wrapper body nests
-    /// `withPtr` / `consume` per the type-conversion rule. Non-opaque
-    /// parameters pass through with the Kotlin type from `kotlin_types`.
-    /// Opaque-handle return values are wrapped in `NativeHandle(...)`
-    /// before return.
+    /// Emit one package-level wrapper file for the given subpackage.
+    /// One top-level safe wrapper per `MethodEntry` in `pkg_cfg.functions`.
+    /// Wrappers delegate to the centralized Native object (see
+    /// [`Self::write_jni_native`]). Opaque-handle parameters become
+    /// `NativeHandle`; the wrapper body nests `withPtr` / `consume` per
+    /// the type-conversion rule. Non-opaque parameters pass through with
+    /// the Kotlin type from `kotlin_types`. Opaque-handle return values
+    /// are wrapped in `NativeHandle(...)` before return.
     pub(crate) fn write_jni_package(
         &self,
         registry: &Registry<KotlinMeta>,
         kotlin_types: &KotlinTypeMap,
         output_dir: &Path,
+        subpackage: &str,
+        pkg_cfg: &crate::jni::jni_ext::PackageConfig,
     ) -> Result<PathBuf, WriteKotlinError> {
-        let promoted: HashSet<String> = self.package_methods.methods.iter().cloned().collect();
-        let class_name = self.jni_package_class_name();
-        let package = self
-            .package_methods
-            .subpackage
-            .as_deref()
-            .filter(|s| !s.is_empty())
-            .map(|sub| format!("{}.{}", self.package, sub))
-            .unwrap_or_else(|| self.package.clone());
+        let class_name = self.jni_package_class_name(subpackage);
+        let package = if self.package.is_empty() {
+            subpackage.to_string()
+        } else if subpackage.is_empty() {
+            self.package.clone()
+        } else {
+            format!("{}.{}", self.package, subpackage)
+        };
         let contents = render_jni_package_source(
             self,
             registry,
             kotlin_types,
-            &promoted,
+            &pkg_cfg.functions,
             &package,
         );
         let file = KotlinFile {
@@ -574,31 +583,29 @@ impl JniExt {
                 Some((p, c)) => (p.to_string(), c.to_string()),
                 None => (String::new(), handle.kotlin_fqn.to_string()),
             };
-            // Find the Rust type-key whose registered FQN matches this
-            // handle. Only required when `functions` is non-empty —
-            // otherwise we're emitting a pure shell with no promoted
-            // methods and the key is unused.
-            let rust_key = if handle.functions.is_empty() {
-                None
-            } else {
-                let key = rust_key_for_fqn(self, handle.kotlin_fqn).unwrap_or_else(|| {
+            // The typed-handle's Rust type-key is always required — it
+            // identifies which param of each `.method(...)` entry becomes
+            // `this`. Even with no methods declared we resolve it (cheap)
+            // so the wrapper API stays uniform.
+            let rust_key = rust_key_for_fqn(self, handle.kotlin_fqn)
+                .unwrap_or_else(|| {
                     panic!(
                         "write_typed_handles: kotlin_fqn `{}` is not registered via \
                          JniExt::kotlin_type_fqn — required to identify the typed \
                          handle's Rust type-key for promoted-method param matching.",
                         handle.kotlin_fqn
                     )
-                });
-                Some(key.to_string())
-            };
+                })
+                .to_string();
             let file = KotlinFile {
                 contents: render_typed_handle_source(
                     self,
                     &package,
                     &class_name,
                     handle.rust_doc,
-                    handle.functions,
-                    rust_key.as_deref(),
+                    handle.instance_methods,
+                    handle.companion_methods,
+                    &rust_key,
                     registry,
                     &merged_types,
                 ),
@@ -800,10 +807,17 @@ fn render_enum_source(
     package: &str,
     class_name: &str,
     item_enum: &syn::ItemEnum,
-    promoted_functions: &[String],
+    instance_methods: &[MethodEntry],
+    companion_methods_in: &[MethodEntry],
     registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
 ) -> String {
+    assert!(
+        instance_methods.is_empty(),
+        "render_enum_source: `{class_name}` has `.method(...)` entries but instance \
+         methods on `kotlin_enum`-declared types are not supported yet — declare them \
+         as `.companion_method(...)` for now",
+    );
     // Same discriminant source of truth the Rust `jint → variant` decode
     // uses, so Kotlin `value(N)` and the generated decode agree.
     let variants: Vec<(String, i64)> = crate::util::enum_discriminant_values(item_enum)
@@ -815,13 +829,13 @@ fn render_enum_source(
 
     let mut imports: BTreeSet<String> = BTreeSet::new();
     let mut companion_methods = String::new();
-    for fn_name in promoted_functions {
-        let ident = syn::Ident::new(fn_name, proc_macro2::Span::call_site());
-        let (item_fn, _loc) = registry.functions.get(&ident).unwrap_or_else(|| {
+    for entry in companion_methods_in {
+        let (item_fn, _loc) = registry.functions.get(&entry.rust_ident).unwrap_or_else(|| {
             panic!(
-                "render_enum_source: `{class_name}` promotes function `{fn_name}` \
+                "render_enum_source: `{class_name}` promotes function `{}` \
                  which is not present in `registry.functions` — check the spelling against \
-                 the matching `#[prebindgen]` Rust fn name."
+                 the matching `#[prebindgen]` Rust fn name.",
+                entry.rust_ident,
             )
         });
         let (block, _kind) = render_wrapper_fn(
@@ -831,12 +845,14 @@ fn render_enum_source(
             kotlin_types,
             &mut imports,
             None,
+            entry.kotlin_name_override.as_deref(),
         )
         .unwrap_or_else(|| {
             panic!(
-                "render_enum_source: `{class_name}` promotes function `{fn_name}` \
+                "render_enum_source: `{class_name}` promotes function `{}` \
                  but its parameter types couldn't be Kotlin-resolved — verify that all \
-                 non-opaque parameter types are registered in `kotlin_types`."
+                 non-opaque parameter types are registered in `kotlin_types`.",
+                entry.rust_ident,
             )
         });
         if !companion_methods.is_empty() {
@@ -917,10 +933,18 @@ fn render_data_class_source(
     item_struct: &syn::ItemStruct,
     registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
-    promoted_functions: &[String],
+    instance_methods: &[MethodEntry],
+    companion_methods_in: &[MethodEntry],
     throwable: bool,
     value_class: bool,
+    rust_key: &str,
 ) -> String {
+    assert!(
+        !(value_class && !instance_methods.is_empty()),
+        "render_data_class_source: `{class_name}` is a `kotlin_value_class` and has \
+         `.method(...)` entries; instance methods on value classes aren't supported yet \
+         — declare them as `.companion_method(...)` for now",
+    );
     let fields_named = match &item_struct.fields {
         syn::Fields::Named(n) => &n.named,
         _ => {
@@ -1038,14 +1062,56 @@ fn render_data_class_source(
         field_lines.push(format!("    {override_prefix}val {kotlin_field_name}: {short}{optional_suffix},"));
     }
 
-    let mut companion_methods = String::new();
-    for fn_name in promoted_functions {
-        let ident = syn::Ident::new(fn_name, proc_macro2::Span::call_site());
-        let (item_fn, _loc) = registry.functions.get(&ident).unwrap_or_else(|| {
+    let mut instance_body = String::new();
+    for entry in instance_methods {
+        let (item_fn, _loc) = registry.functions.get(&entry.rust_ident).unwrap_or_else(|| {
             panic!(
-                "render_data_class_source: `{class_name}` promotes function `{fn_name}` \
+                "render_data_class_source: `{class_name}` promotes function `{}` \
                  which is not present in `registry.functions` — check the spelling against \
-                 the matching `#[prebindgen]` Rust fn name."
+                 the matching `#[prebindgen]` Rust fn name.",
+                entry.rust_ident,
+            )
+        });
+        let (block, kind) = render_wrapper_fn(
+            ext,
+            item_fn,
+            registry,
+            kotlin_types,
+            &mut imports,
+            Some(rust_key),
+            entry.kotlin_name_override.as_deref(),
+        )
+        .unwrap_or_else(|| {
+            panic!(
+                "render_data_class_source: `{class_name}` promotes function `{}` \
+                 but its parameter types couldn't be Kotlin-resolved — verify that all \
+                 non-opaque parameter types are registered in `kotlin_types`.",
+                entry.rust_ident,
+            )
+        });
+        if kind != MethodKind::Instance {
+            panic!(
+                ".method({}) on `{class_name}`: the function's first parameter doesn't match \
+                 the class's Rust type ({rust_key}) — declare it as `.companion_method(...)` \
+                 if it isn't an instance method.",
+                entry.rust_ident,
+            );
+        }
+        if !instance_body.is_empty() {
+            instance_body.push('\n');
+        }
+        instance_body.push_str(&block);
+        instance_body.push('\n');
+    }
+
+    let mut companion_methods = String::new();
+    for entry in companion_methods_in {
+        let (item_fn, _loc) = registry.functions.get(&entry.rust_ident).unwrap_or_else(|| {
+            panic!(
+                "render_data_class_source: `{class_name}` promotes function `{}` \
+                 which is not present in `registry.functions` — check the spelling against \
+                 the matching `#[prebindgen]` Rust fn name.",
+                entry.rust_ident,
             )
         });
         let (block, _kind) = render_wrapper_fn(
@@ -1055,12 +1121,14 @@ fn render_data_class_source(
             kotlin_types,
             &mut imports,
             None,
+            entry.kotlin_name_override.as_deref(),
         )
         .unwrap_or_else(|| {
             panic!(
-                "render_data_class_source: `{class_name}` promotes function `{fn_name}` \
+                "render_data_class_source: `{class_name}` promotes function `{}` \
                  but its parameter types couldn't be Kotlin-resolved — verify that all \
-                 non-opaque parameter types are registered in `kotlin_types`."
+                 non-opaque parameter types are registered in `kotlin_types`.",
+                entry.rust_ident,
             )
         });
         if !companion_methods.is_empty() {
@@ -1180,6 +1248,18 @@ fn render_data_class_source(
             }
             s.push_str("    }\n\n");
         }
+        if !instance_body.is_empty() {
+            for line in instance_body.lines() {
+                if line.is_empty() {
+                    s.push('\n');
+                } else {
+                    s.push_str("    ");
+                    s.push_str(line);
+                    s.push('\n');
+                }
+            }
+            s.push('\n');
+        }
         s.push_str("    public companion object {\n");
         if !companion_methods.is_empty() {
             for line in companion_methods.lines() {
@@ -1285,8 +1365,9 @@ fn render_typed_handle_source(
     package: &str,
     class_name: &str,
     rust_doc_name: &str,
-    promoted_functions: &[&str],
-    promoted_rust_key: Option<&str>,
+    instance_methods: &[MethodEntry],
+    companion_methods: &[MethodEntry],
+    promoted_rust_key: &str,
     registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
 ) -> String {
@@ -1298,13 +1379,13 @@ fn render_typed_handle_source(
     let mut imports: BTreeSet<String> = BTreeSet::new();
     let mut instance_body = String::new();
     let mut companion_body = String::new();
-    for fn_name in promoted_functions {
-        let ident = syn::Ident::new(fn_name, proc_macro2::Span::call_site());
-        let (item_fn, _loc) = registry.functions.get(&ident).unwrap_or_else(|| {
+    for entry in instance_methods {
+        let (item_fn, _loc) = registry.functions.get(&entry.rust_ident).unwrap_or_else(|| {
             panic!(
-                "render_typed_handle_source: `{class_name}` promotes function `{fn_name}` \
+                "render_typed_handle_source: `{class_name}` promotes function `{}` \
                  which is not present in `registry.functions` — check the spelling against \
-                 the matching `#[prebindgen]` Rust fn name."
+                 the matching `#[prebindgen]` Rust fn name.",
+                entry.rust_ident,
             )
         });
         let (block, kind) = render_wrapper_fn(
@@ -1313,28 +1394,72 @@ fn render_typed_handle_source(
             registry,
             kotlin_types,
             &mut imports,
-            promoted_rust_key,
+            Some(promoted_rust_key),
+            entry.kotlin_name_override.as_deref(),
         )
         .unwrap_or_else(|| {
             panic!(
-                "render_typed_handle_source: `{class_name}` promotes function `{fn_name}` \
+                "render_typed_handle_source: `{class_name}` promotes function `{}` \
                  but its parameter types couldn't be Kotlin-resolved — verify that all \
-                 non-opaque parameter types are registered in `kotlin_types`."
+                 non-opaque parameter types are registered in `kotlin_types`.",
+                entry.rust_ident,
             )
         });
-        let bucket = match kind {
-            MethodKind::Instance => &mut instance_body,
-            MethodKind::Companion => &mut companion_body,
-        };
-        if !bucket.is_empty() {
-            bucket.push('\n');
+        if kind != MethodKind::Instance {
+            panic!(
+                ".method({}) on `{class_name}`: the function's first parameter doesn't match \
+                 the class's Rust type ({promoted_rust_key}) — declare it as `.companion_method(...)` \
+                 if it isn't an instance method.",
+                entry.rust_ident,
+            );
+        }
+        if !instance_body.is_empty() {
+            instance_body.push('\n');
         }
         for line in block.lines() {
             if line.is_empty() {
-                bucket.push('\n');
+                instance_body.push('\n');
             } else {
-                bucket.push_str(line);
-                bucket.push('\n');
+                instance_body.push_str(line);
+                instance_body.push('\n');
+            }
+        }
+    }
+    for entry in companion_methods {
+        let (item_fn, _loc) = registry.functions.get(&entry.rust_ident).unwrap_or_else(|| {
+            panic!(
+                "render_typed_handle_source: `{class_name}` promotes function `{}` \
+                 which is not present in `registry.functions` — check the spelling against \
+                 the matching `#[prebindgen]` Rust fn name.",
+                entry.rust_ident,
+            )
+        });
+        let (block, _kind) = render_wrapper_fn(
+            ext,
+            item_fn,
+            registry,
+            kotlin_types,
+            &mut imports,
+            None,
+            entry.kotlin_name_override.as_deref(),
+        )
+        .unwrap_or_else(|| {
+            panic!(
+                "render_typed_handle_source: `{class_name}` promotes function `{}` \
+                 but its parameter types couldn't be Kotlin-resolved — verify that all \
+                 non-opaque parameter types are registered in `kotlin_types`.",
+                entry.rust_ident,
+            )
+        });
+        if !companion_body.is_empty() {
+            companion_body.push('\n');
+        }
+        for line in block.lines() {
+            if line.is_empty() {
+                companion_body.push('\n');
+            } else {
+                companion_body.push_str(line);
+                companion_body.push('\n');
             }
         }
     }
@@ -1357,7 +1482,7 @@ fn render_typed_handle_source(
     if !package.is_empty() {
         s.push_str(&format!("package {}\n\n", package));
     }
-    if !promoted_functions.is_empty() {
+    if !(instance_methods.is_empty() && companion_methods.is_empty()) {
         // Exception import (if any) is included in `import_list` via the
         // per-method `@Throws` emission — nothing hardcoded here.
         for imp in &import_list {
@@ -1443,7 +1568,7 @@ fn render_jni_package_source(
     ext: &JniExt,
     registry: &Registry<KotlinMeta>,
     kotlin_types: &KotlinTypeMap,
-    promoted: &HashSet<String>,
+    functions: &[MethodEntry],
     package: &str,
 ) -> String {
     // Start with the auto-derived callback FQNs and let user-provided
@@ -1462,15 +1587,15 @@ fn render_jni_package_source(
     let mut imports: BTreeSet<String> = BTreeSet::new();
     let mut body = String::new();
 
-    // Deterministic order so the emitted file is stable across builds.
-    let mut idents: Vec<&syn::Ident> = registry.functions.keys().collect();
-    idents.sort();
-
-    for ident in idents {
-        if !promoted.contains(&ident.to_string()) {
-            continue;
-        }
-        let (item_fn, _loc) = &registry.functions[ident];
+    for entry in functions {
+        let (item_fn, _loc) = registry.functions.get(&entry.rust_ident).unwrap_or_else(|| {
+            panic!(
+                "render_jni_package_source: function `{}` registered via .function(...) is \
+                 not in the prebindgen registry — check the spelling against the matching \
+                 `#[prebindgen]` Rust fn name.",
+                entry.rust_ident,
+            )
+        });
         // Top-level wrappers never carry a `promoted_handle`, so the
         // returned [`MethodKind`] is always `Instance` and can be
         // discarded — there is no companion-object emission here.
@@ -1481,6 +1606,7 @@ fn render_jni_package_source(
             &merged_types,
             &mut imports,
             None,
+            entry.kotlin_name_override.as_deref(),
         ) {
             body.push_str(&block);
             body.push('\n');
@@ -1700,12 +1826,22 @@ fn render_wrapper_fn(
     kotlin_types: &KotlinTypeMap,
     imports: &mut BTreeSet<String>,
     promoted_handle: Option<&str>,
+    kotlin_name_override: Option<&str>,
 ) -> Option<(String, MethodKind)> {
     use std::fmt::Write;
 
     let rust_name = f.sig.ident.to_string();
-    let kt_name = snake_to_camel(&rust_name);
-    let jni_call = ext.mangle_fun(&kt_name);
+    // The Kotlin extern in `JNINative` is keyed on the Rust ident
+    // (`snake_to_camel(rust_name)` → `ext.mangle_fun`). The per-entry
+    // `.name("...")` override only changes the *user-facing* Kotlin
+    // wrapper name; the JNI call still has to hit the one extern that
+    // the Rust extern actually emits.
+    let default_kt_name = snake_to_camel(&rust_name);
+    let kt_name = match kotlin_name_override {
+        Some(n) => n.to_string(),
+        None => default_kt_name.clone(),
+    };
+    let jni_call = ext.mangle_fun(&default_kt_name);
 
     // Pre-parse the promoted Rust type-key (if any) so per-param matching
     // is whitespace-normalised against the canonical form.
@@ -1746,6 +1882,12 @@ fn render_wrapper_fn(
         /// Kotlin signature. Set when `promoted_handle` matches.
         PromotedBorrow,
         PromotedConsume,
+        /// Promoted non-opaque param (e.g. `&Hello` on a `kotlin_data_class`
+        /// instance method). The Kotlin call site substitutes `this` for
+        /// the param name — no lock wrapping needed, and the param is
+        /// dropped from the wrapper signature. Set when `promoted_handle`
+        /// matches a non-opaque type.
+        PromotedPassThrough,
     }
 
     // Tracks whether we've already consumed the promoted-handle slot —
@@ -1837,6 +1979,14 @@ fn render_wrapper_fn(
             } else {
                 ParamMode::Consume
             }
+        } else if matches_promoted {
+            // Non-opaque (data/value/enum class) instance-method param:
+            // drop from the Kotlin signature, substitute `this` at the
+            // JNI call site. No lock semantics — the JNI side decodes the
+            // Kotlin instance directly (struct decoder via jobject field
+            // reflection, value-class projection, enum `.value` etc.).
+            promoted_taken = true;
+            ParamMode::PromotedPassThrough
         } else if kt_type_raw == "Any" {
             let sources = entry.into_sources.as_deref().unwrap_or(&[]);
             ParamMode::Dispatch {
@@ -1902,6 +2052,13 @@ fn render_wrapper_fn(
                 | ParamMode::BorrowNullable
                 | ParamMode::PromotedBorrow
                 | ParamMode::PromotedConsume => format!("{}_ptr", p.kt_name),
+                ParamMode::PromotedPassThrough => {
+                    if p.as_enum_value {
+                        "this.value".to_string()
+                    } else {
+                        "this".to_string()
+                    }
+                }
                 ParamMode::Dispatch { arms } => {
                     let pos = dispatch_indices.iter().position(|&di| di == i).unwrap();
                     let arm = &arms[arm_choice[pos]];
@@ -2035,7 +2192,7 @@ fn render_wrapper_fn(
                     expr = body_expr,
                 );
             }
-            ParamMode::Dispatch { .. } | ParamMode::PassThrough => {}
+            ParamMode::Dispatch { .. } | ParamMode::PassThrough | ParamMode::PromotedPassThrough => {}
         }
     }
 
@@ -2091,7 +2248,7 @@ fn render_wrapper_fn(
     }
     let param_list: Vec<String> = params
         .iter()
-        .filter(|p| !matches!(p.mode, ParamMode::PromotedBorrow | ParamMode::PromotedConsume))
+        .filter(|p| !matches!(p.mode, ParamMode::PromotedBorrow | ParamMode::PromotedConsume | ParamMode::PromotedPassThrough))
         .map(|p| format!("{}: {}", p.kt_name, p.kt_type))
         .collect();
     let _ = write!(out, "public fun {kt_name}({})", param_list.join(", "));

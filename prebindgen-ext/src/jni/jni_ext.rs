@@ -24,7 +24,7 @@
 //! NOT in this module — keeps `prebindgen-ext` reusable for any JNI/Kotlin
 //! project.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use proc_macro2::{Span, TokenStream};
@@ -221,6 +221,42 @@ pub(crate) struct EnumConfig {
     pub suppress_kotlin_code: bool,
 }
 
+/// One registered `.method(...)` / `.companion_method(...)` /
+/// `.function(...)` entry. The Rust identifier is captured at build-script
+/// time via `syn::parse_quote` (i.e. `pq!(rust_fn_name)`); the optional
+/// override sets the Kotlin-side name when the default
+/// `snake_to_camel(rust_ident)` derivation isn't what the user wants.
+#[derive(Clone, Debug)]
+pub struct MethodEntry {
+    /// Rust function ident — must match a `#[prebindgen]`-marked free
+    /// function in the registered source module. Looked up by
+    /// `registry.functions[ident]`.
+    pub rust_ident: syn::Ident,
+    /// Kotlin-side name override, set by chaining `.name("...")` after
+    /// the entry's registration. `None` = derive from `rust_ident` via
+    /// `snake_to_camel`.
+    pub kotlin_name_override: Option<String>,
+}
+
+impl MethodEntry {
+    pub fn new(rust_ident: syn::Ident) -> Self {
+        Self { rust_ident, kotlin_name_override: None }
+    }
+}
+
+/// Back-pointer to the last entry added via `.method` / `.companion_method`
+/// / `.function`, used by `.name(...)` to find what to mutate. Cleared by
+/// every other builder call.
+#[derive(Clone, Debug)]
+pub(crate) enum NamedEntryRef {
+    /// Index into `types[key].instance_methods`.
+    Method(TypeKey, usize),
+    /// Index into `types[key].companion_methods`.
+    Companion(TypeKey, usize),
+    /// Index into `packages[subpackage].functions`.
+    Function(String, usize),
+}
+
 /// All configuration the structured builder accumulates for one
 /// canonical Rust type key. Every field is `None` by default;
 /// builder methods populate the ones they care about.
@@ -243,12 +279,20 @@ pub(crate) struct TypeConfig {
     /// closure-mangled callback name, e.g. zenoh-jni stamps `JNIOn...`
     /// here via [`JniExt::auto_callback_fqn`]).
     pub callback_kotlin_fqn: Option<String>,
-    /// `#[prebindgen]` fn idents promoted onto the generated Kotlin
-    /// class for this type via [`JniExt::method`]. For ptr classes,
-    /// wrappers become instance methods when the promoted opaque param
-    /// matches; for enums/data classes they are emitted in
-    /// `companion object`.
-    pub methods: Vec<String>,
+    /// `#[prebindgen]` fns declared as **instance methods** on this type
+    /// via [`JniExt::method`]. The fn's first parameter must syntactically
+    /// match this type (modulo `&T` / `&mut T`) — validation happens at
+    /// render time in `render_wrapper_fn`. Param-promotion drops the
+    /// matched param from the Kotlin signature and substitutes inherited
+    /// `withPtr` / `consume` scope (opaque handles) or `this` (data /
+    /// value classes).
+    pub instance_methods: Vec<MethodEntry>,
+    /// `#[prebindgen]` fns declared as **companion-object methods** on
+    /// this type via [`JniExt::companion_method`]. No first-param
+    /// constraint; the wrapper is emitted inside `companion object { ... }`
+    /// using the same body shape as the package-level wrapper form (all
+    /// params present, no `this` substitution).
+    pub companion_methods: Vec<MethodEntry>,
     /// Set by [`JniExt::throwable`]: the emitted Kotlin class extends
     /// `Exception` and a structured `throw_<short>` is generated that
     /// constructs the JVM object via this type's own output converter.
@@ -262,14 +306,14 @@ pub(crate) struct TypeConfig {
     pub value_class: bool,
 }
 
-/// Methods promoted to the synthetic package-level wrapper object.
+/// Free-standing functions emitted into a synthetic package-level wrapper
+/// object. One entry per `.kotlin_package(subpackage)` context that
+/// received `.function(...)` calls.
 #[derive(Clone, Default)]
 pub(crate) struct PackageConfig {
-    /// Kotlin subpackage used for package-level wrappers.
-    pub subpackage: Option<String>,
-    /// `#[prebindgen]` fn idents promoted onto the generated package
-    /// object via [`JniExt::method`].
-    pub methods: Vec<String>,
+    /// `#[prebindgen]` fns declared as free-standing wrappers under this
+    /// subpackage via [`JniExt::function`].
+    pub functions: Vec<MethodEntry>,
 }
 
 /// Boxed closure that builds a converter when applied to the wildcard
@@ -492,8 +536,11 @@ pub struct JniExt {
     /// primitive → struct.
     pub(crate) types: HashMap<TypeKey, TypeConfig>,
 
-    /// Package-level promoted methods written into a separate wrapper object.
-    pub(crate) package_methods: PackageConfig,
+    /// Free-standing package-level wrappers, keyed by subpackage path
+    /// (relative to [`Self::package`], dot-separated; never empty for an
+    /// entry to be emitted). Populated by [`Self::function`] under the
+    /// currently-active [`Self::active_subpackage`].
+    pub(crate) packages: BTreeMap<String, PackageConfig>,
 
     /// `impl Into<target> + Send + 'static` source arms per target type.
     pub(crate) into_sources_map: HashMap<TypeKey, Vec<IntoSource>>,
@@ -522,8 +569,19 @@ pub struct JniExt {
     /// and `kotlin_data_class`; cleared by other unrelated builders.
     last_meta_key: Option<TypeKey>,
 
-    /// Tracks whether the last fluent builder was [`Self::kotlin_package`].
-    last_package_target: bool,
+    /// The currently-active subpackage set by [`Self::kotlin_package`].
+    /// Drives where [`Self::function`] entries land and is folded into
+    /// the FQN of any class declared while it's `Some(_)`. Package
+    /// inheritance via chaining is **not** supported — each
+    /// `kotlin_package` call overwrites the previous; nest via dotted
+    /// paths (`kotlin_package("a.b")`) instead.
+    pub(crate) active_subpackage: Option<String>,
+
+    /// Back-pointer to the entry the next [`Self::name`] call should
+    /// mutate (the most recent `.method` / `.companion_method` /
+    /// `.function`). Cleared by every other builder call so `.name(...)`
+    /// only applies right after a fn-entry registration.
+    last_entry_ref: Option<NamedEntryRef>,
 }
 
 impl JniExt {
@@ -561,7 +619,7 @@ impl JniExt {
             kotlin_harness_name_mangle: None,
             kotlin_type_fqns: Vec::new(),
             types: HashMap::new(),
-            package_methods: PackageConfig::default(),
+            packages: BTreeMap::new(),
             into_sources_map: HashMap::new(),
             input_wrappers: [
                 HashMap::new(),
@@ -577,7 +635,8 @@ impl JniExt {
             ],
             last_opaque_key: None,
             last_meta_key: None,
-            last_package_target: false,
+            active_subpackage: None,
+            last_entry_ref: None,
         };
         // Built-in rank-2 `Result<_, _>` peel: every Result<T, E> succeeds
         // as T and throws E on Err. E must be declared throwable via
@@ -743,14 +802,31 @@ impl JniExt {
         self
     }
 
-    /// Declare a package-level wrapper object under a subpackage.
-    /// Subsequent [`Self::method`] calls attach to this synthetic target
-    /// instead of the orphaned object.
+    /// Activate a subpackage context. Subsequent [`Self::function`]
+    /// calls land in this subpackage, and any class declared
+    /// ([`Self::kotlin_ptr_class`] / [`Self::kotlin_data_class`] /
+    /// [`Self::kotlin_enum`] / [`Self::kotlin_value_class`]) while the
+    /// subpackage is active gets an FQN of
+    /// `<package>.<subpackage>.<ClassName>`.
+    ///
+    /// Package inheritance is **not** supported — chaining
+    /// `.kotlin_package("a").kotlin_package("b")` does not produce
+    /// `"a.b"`; each call overwrites the previous active subpackage.
+    /// To nest, pass a dotted path: `.kotlin_package("a.b")`.
+    ///
+    /// Passing an empty string clears the active subpackage (classes /
+    /// functions revert to the base `<package>`).
     pub fn kotlin_package(mut self, subpackage: impl Into<String>) -> Self {
         self.last_opaque_key = None;
         self.last_meta_key = None;
-        self.package_methods.subpackage = Some(subpackage.into().trim_matches('.').to_string());
-        self.last_package_target = true;
+        self.last_entry_ref = None;
+        let sub = subpackage.into().trim_matches('.').trim_matches('/').to_string();
+        if sub.is_empty() {
+            self.active_subpackage = None;
+        } else {
+            self.packages.entry(sub.clone()).or_default();
+            self.active_subpackage = Some(sub);
+        }
         self
     }
 
@@ -858,18 +934,15 @@ impl JniExt {
     pub(crate) fn jni_native_class_name(&self) -> String {
         self.mangle_harness("Native")
     }
-    /// The mangled name of the package-level wrapper object used by
-    /// [`Self::kotlin_package`].
-    pub(crate) fn jni_package_class_name(&self) -> String {
-        let name = self
-            .package_methods
-            .subpackage
-            .as_deref()
-            .filter(|s| !s.is_empty())
-            .unwrap_or("Package");
+    /// The mangled wrapper-object class name for a given subpackage
+    /// (one wrapper object per [`Self::kotlin_package`] context).
+    /// Derives from the subpackage's last dot-segment so
+    /// `kotlin_package("a.b")` yields a class named after `b`.
+    pub(crate) fn jni_package_class_name(&self, subpackage: &str) -> String {
+        let leaf = subpackage.rsplit('.').next().filter(|s| !s.is_empty()).unwrap_or("Package");
         match &self.kotlin_package_name_mangle {
-            Some(f) => f(name),
-            None => self.mangle_harness(name),
+            Some(f) => f(leaf),
+            None => self.mangle_harness(leaf),
         }
     }
 
@@ -885,10 +958,20 @@ impl JniExt {
             "Kotlin class name `{}` must be relative (no dots) — FQNs are derived from JniExt::package",
             name
         );
-        if self.package.is_empty() {
+        // If a `kotlin_package(p)` context is active, classes declared
+        // while it's active land under `<package>.<p>` instead of just
+        // `<package>`. The user explicitly opts in by ordering the
+        // declaration after the `kotlin_package` call.
+        let base: String = match (&self.package, &self.active_subpackage) {
+            (p, Some(sub)) if !p.is_empty() => format!("{}.{}", p, sub),
+            (p, Some(sub)) if p.is_empty() => sub.clone(),
+            (p, None) => p.clone(),
+            _ => String::new(),
+        };
+        if base.is_empty() {
             name.to_string()
         } else {
-            format!("{}.{}", self.package, name)
+            format!("{}.{}", base, name)
         }
     }
 
@@ -933,29 +1016,109 @@ impl JniExt {
             .push((key.as_str().to_string(), fqn));
         self.last_opaque_key = Some(key.clone());
         self.last_meta_key = Some(key);
+        self.last_entry_ref = None;
         self
     }
 
-    /// Promote a single `#[prebindgen]` function ident to an instance
-    /// method on the generated Kotlin class declared by the most
-    /// recent [`Self::kotlin_ptr_class`], [`Self::kotlin_enum`], or
-    /// [`Self::kotlin_data_class`] call. For enums/data classes, emitted
-    /// methods land in the generated `companion object`. Chain multiple
-    /// calls to add multiple methods.
-    pub fn method(mut self, method: impl Into<String>) -> Self {
-        if let Some(key) = self
+    /// Declare a `#[prebindgen]` function as an **instance method** on
+    /// the class declared by the most recent
+    /// [`Self::kotlin_ptr_class`] / [`Self::kotlin_data_class`] /
+    /// [`Self::kotlin_enum`] / [`Self::kotlin_value_class`] call. The
+    /// function's first parameter must syntactically match the class's
+    /// Rust type (`&T` / `&mut T` / `T` for opaque handles; `&T` for
+    /// non-opaque data/value classes); the wrapper drops it from the
+    /// Kotlin signature and substitutes `this`/inherited scope at the
+    /// JNI call site. Mismatch is a build-time error (caught when the
+    /// wrapper is rendered).
+    ///
+    /// Panics if no class context is active. For free-standing functions
+    /// under [`Self::kotlin_package`], use [`Self::function`].
+    /// For companion-object (`static`-style) methods on a class, use
+    /// [`Self::companion_method`].
+    pub fn method(mut self, ident: syn::Ident) -> Self {
+        let key = self
             .last_meta_key
             .clone()
             .or_else(|| self.last_opaque_key.clone())
-        {
-            let entry = self.types.get_mut(&key).expect("type entry vanished");
-            entry.methods.push(method.into());
-        } else if self.last_package_target {
-            self.package_methods.methods.push(method.into());
-        } else {
-            panic!(
-                "JniExt::method must be chained immediately after a `kotlin_ptr_class`, `kotlin_enum`, `kotlin_data_class`, or `kotlin_package` call",
+            .expect(
+                "JniExt::method must be chained immediately after a `kotlin_ptr_class`, \
+                 `kotlin_data_class`, `kotlin_enum`, or `kotlin_value_class` call — \
+                 for free-standing fns inside `kotlin_package`, use `.function(...)`; \
+                 for static-style class methods, use `.companion_method(...)`",
             );
+        let entry = self.types.get_mut(&key).expect("type entry vanished");
+        let idx = entry.instance_methods.len();
+        entry.instance_methods.push(MethodEntry::new(ident));
+        self.last_entry_ref = Some(NamedEntryRef::Method(key, idx));
+        self
+    }
+
+    /// Declare a `#[prebindgen]` function as a **companion-object method**
+    /// on the class declared by the most recent class builder. No
+    /// first-param constraint; the wrapper is emitted in `companion
+    /// object { ... }` using the same form as a package-level wrapper
+    /// (all params present). Panics if no class context is active.
+    pub fn companion_method(mut self, ident: syn::Ident) -> Self {
+        let key = self
+            .last_meta_key
+            .clone()
+            .or_else(|| self.last_opaque_key.clone())
+            .expect(
+                "JniExt::companion_method must be chained immediately after a \
+                 `kotlin_ptr_class`, `kotlin_data_class`, `kotlin_enum`, or \
+                 `kotlin_value_class` call",
+            );
+        let entry = self.types.get_mut(&key).expect("type entry vanished");
+        let idx = entry.companion_methods.len();
+        entry.companion_methods.push(MethodEntry::new(ident));
+        self.last_entry_ref = Some(NamedEntryRef::Companion(key, idx));
+        self
+    }
+
+    /// Declare a `#[prebindgen]` function as a free-standing wrapper
+    /// under the currently-active [`Self::kotlin_package`] context. If a
+    /// class context is also live, calling `function` clears it — the
+    /// idea being that "leak class context to package level" makes the
+    /// chain unambiguous after one fn-level declaration. Panics if no
+    /// `kotlin_package` is active.
+    pub fn function(mut self, ident: syn::Ident) -> Self {
+        let sub = self.active_subpackage.clone().expect(
+            "JniExt::function must be chained inside a `kotlin_package(...)` context",
+        );
+        // Leak any class context back to package level.
+        self.last_meta_key = None;
+        self.last_opaque_key = None;
+        let pkg = self.packages.entry(sub.clone()).or_default();
+        let idx = pkg.functions.len();
+        pkg.functions.push(MethodEntry::new(ident));
+        self.last_entry_ref = Some(NamedEntryRef::Function(sub, idx));
+        self
+    }
+
+    /// Override the Kotlin-side name for the most recent
+    /// [`Self::method`] / [`Self::companion_method`] / [`Self::function`]
+    /// entry. Default (without `.name(...)`) is
+    /// `snake_to_camel(rust_ident)` (e.g. `z_hello_whatami` → `zHelloWhatami`).
+    /// Panics if not chained immediately after a fn-level builder.
+    pub fn name(mut self, kotlin_name: impl Into<String>) -> Self {
+        let r = self.last_entry_ref.clone().expect(
+            "JniExt::name must be chained immediately after `.method(...)`, \
+             `.companion_method(...)`, or `.function(...)`",
+        );
+        let name = kotlin_name.into();
+        match r {
+            NamedEntryRef::Method(key, idx) => {
+                let entry = self.types.get_mut(&key).expect("type entry vanished");
+                entry.instance_methods[idx].kotlin_name_override = Some(name);
+            }
+            NamedEntryRef::Companion(key, idx) => {
+                let entry = self.types.get_mut(&key).expect("type entry vanished");
+                entry.companion_methods[idx].kotlin_name_override = Some(name);
+            }
+            NamedEntryRef::Function(sub, idx) => {
+                let pkg = self.packages.get_mut(&sub).expect("package entry vanished");
+                pkg.functions[idx].kotlin_name_override = Some(name);
+            }
         }
         self
     }
@@ -1032,8 +1195,7 @@ impl JniExt {
         // for chained config.
         self.last_opaque_key = None;
         self.last_meta_key = Some(key);
-        self.last_package_target = false;
-        self.last_package_target = false;
+        self.last_entry_ref = None;
         self
     }
 
@@ -1158,7 +1320,7 @@ impl JniExt {
             .push((key.as_str().to_string(), fqn));
         self.last_opaque_key = None;
         self.last_meta_key = None;
-        self.last_package_target = false;
+        self.last_entry_ref = None;
         self
     }
 
@@ -1177,7 +1339,7 @@ impl JniExt {
             .push((key.as_str().to_string(), fqn));
         self.last_opaque_key = None;
         self.last_meta_key = Some(key);
-        self.last_package_target = false;
+        self.last_entry_ref = None;
         self
     }
 
@@ -1211,7 +1373,7 @@ impl JniExt {
             .push((key.as_str().to_string(), fqn));
         self.last_opaque_key = None;
         self.last_meta_key = Some(key);
-        self.last_package_target = false;
+        self.last_entry_ref = None;
         self
     }
 
@@ -1228,7 +1390,7 @@ impl JniExt {
             .insert(key, sources.into_iter().collect());
         self.last_opaque_key = None;
         self.last_meta_key = None;
-        self.last_package_target = false;
+        self.last_entry_ref = None;
         self
     }
 
@@ -1295,7 +1457,7 @@ impl JniExt {
     /// [`Self::override_kotlin_name`].
     fn note_wrapper_registration(&mut self, key: TypeKey, rank: usize) {
         self.last_opaque_key = None;
-        self.last_package_target = false;
+        self.last_entry_ref = None;
         if rank == 0 {
             let entry = self.types.entry(key.clone()).or_default();
             // Skip callbacks (handled by callback_input) and any entry
@@ -2375,23 +2537,25 @@ impl PrebindgenExt for JniExt {
     /// typed-handle / `JNIWrappers` signature.
     type Metadata = KotlinMeta;
 
-    /// Union of every per-class `.method(...)` list and the package
-    /// object's method list. Each entry is a `#[prebindgen]` fn ident
-    /// the user explicitly hooked into the binding; functions not in
-    /// this set are skipped by the registry's signature scan and by
-    /// the per-item emitter.
+    /// Union of every per-class `.method(...)` / `.companion_method(...)`
+    /// list and every `.function(...)` list across all
+    /// [`Self::kotlin_package`] contexts. Each entry is a
+    /// `#[prebindgen]` fn ident the user explicitly hooked into the
+    /// binding; functions not in this set are skipped by the registry's
+    /// signature scan and by the per-item emitter.
     fn declared_functions(&self) -> std::collections::HashSet<syn::Ident> {
         let mut out = std::collections::HashSet::new();
         for cfg in self.types.values() {
-            for name in &cfg.methods {
-                if let Ok(ident) = syn::parse_str::<syn::Ident>(name) {
-                    out.insert(ident);
-                }
+            for m in &cfg.instance_methods {
+                out.insert(m.rust_ident.clone());
+            }
+            for m in &cfg.companion_methods {
+                out.insert(m.rust_ident.clone());
             }
         }
-        for name in &self.package_methods.methods {
-            if let Ok(ident) = syn::parse_str::<syn::Ident>(name) {
-                out.insert(ident);
+        for pkg in self.packages.values() {
+            for m in &pkg.functions {
+                out.insert(m.rust_ident.clone());
             }
         }
         out

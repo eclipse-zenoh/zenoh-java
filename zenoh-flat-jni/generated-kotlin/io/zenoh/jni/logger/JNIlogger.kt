@@ -8,10 +8,10 @@ import io.zenoh.jni.JNINative
 public fun initAndroidLogs(filter: String) =
     JNINative.initAndroidLogs(filter)
 
+public fun tryInitZenohLogsFromEnv() =
+    JNINative.tryInitZenohLogsFromEnv()
+
 @Throws(JniBindingError::class)
 public fun initZenohLogsFromEnvOr(fallbackFilter: String) =
     JNINative.initZenohLogsFromEnvOr(fallbackFilter)
-
-public fun tryInitZenohLogsFromEnv() =
-    JNINative.tryInitZenohLogsFromEnv()
 
