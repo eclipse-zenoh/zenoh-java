@@ -37,166 +37,173 @@ class Encoding internal constructor(internal val inner: JniEncoding) {
     companion object {
 
         /** Just some bytes. Constant alias for string: `"zenoh/bytes"`. */
-        @JvmField val ZENOH_BYTES = Encoding(JniEncoding.zEncodingZenohBytes())
+        @JvmField val ZENOH_BYTES = Encoding(JniEncoding.encodingZenohBytes())
 
         /** A UTF-8 string. Constant alias for string: `"zenoh/string"`. */
-        @JvmField val ZENOH_STRING = Encoding(JniEncoding.zEncodingZenohString())
+        @JvmField val ZENOH_STRING = Encoding(JniEncoding.encodingZenohString())
 
         /** Zenoh serialized data. Constant alias for string: `"zenoh/serialized"`. */
-        @JvmField val ZENOH_SERIALIZED = Encoding(JniEncoding.zEncodingZenohSerialized())
+        @JvmField val ZENOH_SERIALIZED = Encoding(JniEncoding.encodingZenohSerialized())
 
         /** An application-specific stream of bytes. Constant alias for string: `"application/octet-stream"`. */
-        @JvmField val APPLICATION_OCTET_STREAM = Encoding(JniEncoding.zEncodingApplicationOctetStream())
+        @JvmField val APPLICATION_OCTET_STREAM = Encoding(JniEncoding.encodingApplicationOctetStream())
 
         /** A textual file. Constant alias for string: `"text/plain"`. */
-        @JvmField val TEXT_PLAIN = Encoding(JniEncoding.zEncodingTextPlain())
+        @JvmField val TEXT_PLAIN = Encoding(JniEncoding.encodingTextPlain())
 
         /** JSON data intended to be consumed by an application. Constant alias for string: `"application/json"`. */
-        @JvmField val APPLICATION_JSON = Encoding(JniEncoding.zEncodingApplicationJson())
+        @JvmField val APPLICATION_JSON = Encoding(JniEncoding.encodingApplicationJson())
 
         /** JSON data intended to be human readable. Constant alias for string: `"text/json"`. */
-        @JvmField val TEXT_JSON = Encoding(JniEncoding.zEncodingTextJson())
+        @JvmField val TEXT_JSON = Encoding(JniEncoding.encodingTextJson())
 
         /** A Common Data Representation (CDR)-encoded data. Constant alias for string: `"application/cdr"`. */
-        @JvmField val APPLICATION_CDR = Encoding(JniEncoding.zEncodingApplicationCdr())
+        @JvmField val APPLICATION_CDR = Encoding(JniEncoding.encodingApplicationCdr())
 
         /** A Concise Binary Object Representation (CBOR)-encoded data. Constant alias for string: `"application/cbor"`. */
-        @JvmField val APPLICATION_CBOR = Encoding(JniEncoding.zEncodingApplicationCbor())
+        @JvmField val APPLICATION_CBOR = Encoding(JniEncoding.encodingApplicationCbor())
 
         /** YAML data intended to be consumed by an application. Constant alias for string: `"application/yaml"`. */
-        @JvmField val APPLICATION_YAML = Encoding(JniEncoding.zEncodingApplicationYaml())
+        @JvmField val APPLICATION_YAML = Encoding(JniEncoding.encodingApplicationYaml())
 
         /** YAML data intended to be human readable. Constant alias for string: `"text/yaml"`. */
-        @JvmField val TEXT_YAML = Encoding(JniEncoding.zEncodingTextYaml())
+        @JvmField val TEXT_YAML = Encoding(JniEncoding.encodingTextYaml())
 
         /** JSON5 encoded data that are human readable. Constant alias for string: `"text/json5"`. */
-        @JvmField val TEXT_JSON5 = Encoding(JniEncoding.zEncodingTextJson5())
+        @JvmField val TEXT_JSON5 = Encoding(JniEncoding.encodingTextJson5())
 
         /** A Python object serialized using [pickle](https://docs.python.org/3/library/pickle.html). Constant alias for string: `"application/python-serialized-object"`. */
-        @JvmField val APPLICATION_PYTHON_SERIALIZED_OBJECT = Encoding(JniEncoding.zEncodingApplicationPythonSerializedObject())
+        @JvmField val APPLICATION_PYTHON_SERIALIZED_OBJECT = Encoding(JniEncoding.encodingApplicationPythonSerializedObject())
 
         /** An application-specific protobuf-encoded data. Constant alias for string: `"application/protobuf"`. */
-        @JvmField val APPLICATION_PROTOBUF = Encoding(JniEncoding.zEncodingApplicationProtobuf())
+        @JvmField val APPLICATION_PROTOBUF = Encoding(JniEncoding.encodingApplicationProtobuf())
 
         /** A Java serialized object. Constant alias for string: `"application/java-serialized-object"`. */
-        @JvmField val APPLICATION_JAVA_SERIALIZED_OBJECT = Encoding(JniEncoding.zEncodingApplicationJavaSerializedObject())
+        @JvmField val APPLICATION_JAVA_SERIALIZED_OBJECT = Encoding(JniEncoding.encodingApplicationJavaSerializedObject())
 
         /** OpenMetrics data, commonly used by [Prometheus](https://prometheus.io/). Constant alias for string: `"application/openmetrics-text"`. */
-        @JvmField val APPLICATION_OPENMETRICS_TEXT = Encoding(JniEncoding.zEncodingApplicationOpenmetricsText())
+        @JvmField val APPLICATION_OPENMETRICS_TEXT = Encoding(JniEncoding.encodingApplicationOpenmetricsText())
 
         /** A Portable Network Graphics (PNG) image. Constant alias for string: `"image/png"`. */
-        @JvmField val IMAGE_PNG = Encoding(JniEncoding.zEncodingImagePng())
+        @JvmField val IMAGE_PNG = Encoding(JniEncoding.encodingImagePng())
 
         /** A Joint Photographic Experts Group (JPEG) image. Constant alias for string: `"image/jpeg"`. */
-        @JvmField val IMAGE_JPEG = Encoding(JniEncoding.zEncodingImageJpeg())
+        @JvmField val IMAGE_JPEG = Encoding(JniEncoding.encodingImageJpeg())
 
         /** A Graphics Interchange Format (GIF) image. Constant alias for string: `"image/gif"`. */
-        @JvmField val IMAGE_GIF = Encoding(JniEncoding.zEncodingImageGif())
+        @JvmField val IMAGE_GIF = Encoding(JniEncoding.encodingImageGif())
 
         /** A BitMap (BMP) image. Constant alias for string: `"image/bmp"`. */
-        @JvmField val IMAGE_BMP = Encoding(JniEncoding.zEncodingImageBmp())
+        @JvmField val IMAGE_BMP = Encoding(JniEncoding.encodingImageBmp())
 
         /** A WebP image. Constant alias for string: `"image/webp"`. */
-        @JvmField val IMAGE_WEBP = Encoding(JniEncoding.zEncodingImageWebp())
+        @JvmField val IMAGE_WEBP = Encoding(JniEncoding.encodingImageWebp())
 
         /** An XML file intended to be consumed by an application. Constant alias for string: `"application/xml"`. */
-        @JvmField val APPLICATION_XML = Encoding(JniEncoding.zEncodingApplicationXml())
+        @JvmField val APPLICATION_XML = Encoding(JniEncoding.encodingApplicationXml())
 
         /** A list of tuples, each consisting of a name and a value. Constant alias for string: `"application/x-www-form-urlencoded"`. */
-        @JvmField val APPLICATION_X_WWW_FORM_URLENCODED = Encoding(JniEncoding.zEncodingApplicationXWwwFormUrlencoded())
+        @JvmField val APPLICATION_X_WWW_FORM_URLENCODED = Encoding(JniEncoding.encodingApplicationXWwwFormUrlencoded())
 
         /** An HTML file. Constant alias for string: `"text/html"`. */
-        @JvmField val TEXT_HTML = Encoding(JniEncoding.zEncodingTextHtml())
+        @JvmField val TEXT_HTML = Encoding(JniEncoding.encodingTextHtml())
 
         /** An XML file that is human readable. Constant alias for string: `"text/xml"`. */
-        @JvmField val TEXT_XML = Encoding(JniEncoding.zEncodingTextXml())
+        @JvmField val TEXT_XML = Encoding(JniEncoding.encodingTextXml())
 
         /** A CSS file. Constant alias for string: `"text/css"`. */
-        @JvmField val TEXT_CSS = Encoding(JniEncoding.zEncodingTextCss())
+        @JvmField val TEXT_CSS = Encoding(JniEncoding.encodingTextCss())
 
         /** A JavaScript file. Constant alias for string: `"text/javascript"`. */
-        @JvmField val TEXT_JAVASCRIPT = Encoding(JniEncoding.zEncodingTextJavascript())
+        @JvmField val TEXT_JAVASCRIPT = Encoding(JniEncoding.encodingTextJavascript())
 
         /** A Markdown file. Constant alias for string: `"text/markdown"`. */
-        @JvmField val TEXT_MARKDOWN = Encoding(JniEncoding.zEncodingTextMarkdown())
+        @JvmField val TEXT_MARKDOWN = Encoding(JniEncoding.encodingTextMarkdown())
 
         /** A CSV file. Constant alias for string: `"text/csv"`. */
-        @JvmField val TEXT_CSV = Encoding(JniEncoding.zEncodingTextCsv())
+        @JvmField val TEXT_CSV = Encoding(JniEncoding.encodingTextCsv())
 
         /** An application-specific SQL query. Constant alias for string: `"application/sql"`. */
-        @JvmField val APPLICATION_SQL = Encoding(JniEncoding.zEncodingApplicationSql())
+        @JvmField val APPLICATION_SQL = Encoding(JniEncoding.encodingApplicationSql())
 
         /** Constrained Application Protocol (CoAP) data intended for CoAP-to-HTTP and HTTP-to-CoAP proxies. Constant alias for string: `"application/coap-payload"`. */
-        @JvmField val APPLICATION_COAP_PAYLOAD = Encoding(JniEncoding.zEncodingApplicationCoapPayload())
+        @JvmField val APPLICATION_COAP_PAYLOAD = Encoding(JniEncoding.encodingApplicationCoapPayload())
 
         /** Defines a JSON document structure for expressing a sequence of operations to apply to a JSON document. Constant alias for string: `"application/json-patch+json"`. */
-        @JvmField val APPLICATION_JSON_PATCH_JSON = Encoding(JniEncoding.zEncodingApplicationJsonPatchJson())
+        @JvmField val APPLICATION_JSON_PATCH_JSON = Encoding(JniEncoding.encodingApplicationJsonPatchJson())
 
         /** A JSON text sequence consists of any number of JSON texts, all encoded in UTF-8. Constant alias for string: `"application/json-seq"`. */
-        @JvmField val APPLICATION_JSON_SEQ = Encoding(JniEncoding.zEncodingApplicationJsonSeq())
+        @JvmField val APPLICATION_JSON_SEQ = Encoding(JniEncoding.encodingApplicationJsonSeq())
 
         /** A JSONPath defines a string syntax for selecting and extracting JSON values from within a given JSON value. Constant alias for string: `"application/jsonpath"`. */
-        @JvmField val APPLICATION_JSONPATH = Encoding(JniEncoding.zEncodingApplicationJsonpath())
+        @JvmField val APPLICATION_JSONPATH = Encoding(JniEncoding.encodingApplicationJsonpath())
 
         /** A JSON Web Token (JWT). Constant alias for string: `"application/jwt"`. */
-        @JvmField val APPLICATION_JWT = Encoding(JniEncoding.zEncodingApplicationJwt())
+        @JvmField val APPLICATION_JWT = Encoding(JniEncoding.encodingApplicationJwt())
 
         /** An application-specific MPEG-4 encoded data, either audio or video. Constant alias for string: `"application/mp4"`. */
-        @JvmField val APPLICATION_MP4 = Encoding(JniEncoding.zEncodingApplicationMp4())
+        @JvmField val APPLICATION_MP4 = Encoding(JniEncoding.encodingApplicationMp4())
 
         /** A SOAP 1.2 message serialized as XML 1.0. Constant alias for string: `"application/soap+xml"`. */
-        @JvmField val APPLICATION_SOAP_XML = Encoding(JniEncoding.zEncodingApplicationSoapXml())
+        @JvmField val APPLICATION_SOAP_XML = Encoding(JniEncoding.encodingApplicationSoapXml())
 
         /** A YANG-encoded data commonly used by the Network Configuration Protocol (NETCONF). Constant alias for string: `"application/yang"`. */
-        @JvmField val APPLICATION_YANG = Encoding(JniEncoding.zEncodingApplicationYang())
+        @JvmField val APPLICATION_YANG = Encoding(JniEncoding.encodingApplicationYang())
 
         /** A MPEG-4 Advanced Audio Coding (AAC) media. Constant alias for string: `"audio/aac"`. */
-        @JvmField val AUDIO_AAC = Encoding(JniEncoding.zEncodingAudioAac())
+        @JvmField val AUDIO_AAC = Encoding(JniEncoding.encodingAudioAac())
 
         /** A Free Lossless Audio Codec (FLAC) media. Constant alias for string: `"audio/flac"`. */
-        @JvmField val AUDIO_FLAC = Encoding(JniEncoding.zEncodingAudioFlac())
+        @JvmField val AUDIO_FLAC = Encoding(JniEncoding.encodingAudioFlac())
 
         /** An audio codec defined in MPEG-1, MPEG-2, MPEG-4, or registered at the MP4 registration authority. Constant alias for string: `"audio/mp4"`. */
-        @JvmField val AUDIO_MP4 = Encoding(JniEncoding.zEncodingAudioMp4())
+        @JvmField val AUDIO_MP4 = Encoding(JniEncoding.encodingAudioMp4())
 
         /** An Ogg-encapsulated audio stream. Constant alias for string: `"audio/ogg"`. */
-        @JvmField val AUDIO_OGG = Encoding(JniEncoding.zEncodingAudioOgg())
+        @JvmField val AUDIO_OGG = Encoding(JniEncoding.encodingAudioOgg())
 
         /** A Vorbis-encoded audio stream. Constant alias for string: `"audio/vorbis"`. */
-        @JvmField val AUDIO_VORBIS = Encoding(JniEncoding.zEncodingAudioVorbis())
+        @JvmField val AUDIO_VORBIS = Encoding(JniEncoding.encodingAudioVorbis())
 
         /** A h261-encoded video stream. Constant alias for string: `"video/h261"`. */
-        @JvmField val VIDEO_H261 = Encoding(JniEncoding.zEncodingVideoH261())
+        @JvmField val VIDEO_H261 = Encoding(JniEncoding.encodingVideoH261())
 
         /** A h263-encoded video stream. Constant alias for string: `"video/h263"`. */
-        @JvmField val VIDEO_H263 = Encoding(JniEncoding.zEncodingVideoH263())
+        @JvmField val VIDEO_H263 = Encoding(JniEncoding.encodingVideoH263())
 
         /** A h264-encoded video stream. Constant alias for string: `"video/h264"`. */
-        @JvmField val VIDEO_H264 = Encoding(JniEncoding.zEncodingVideoH264())
+        @JvmField val VIDEO_H264 = Encoding(JniEncoding.encodingVideoH264())
 
         /** A h265-encoded video stream. Constant alias for string: `"video/h265"`. */
-        @JvmField val VIDEO_H265 = Encoding(JniEncoding.zEncodingVideoH265())
+        @JvmField val VIDEO_H265 = Encoding(JniEncoding.encodingVideoH265())
 
         /** A h266-encoded video stream. Constant alias for string: `"video/h266"`. */
-        @JvmField val VIDEO_H266 = Encoding(JniEncoding.zEncodingVideoH266())
+        @JvmField val VIDEO_H266 = Encoding(JniEncoding.encodingVideoH266())
 
         /** A video codec defined in MPEG-1, MPEG-2, MPEG-4, or registered at the MP4 registration authority. Constant alias for string: `"video/mp4"`. */
-        @JvmField val VIDEO_MP4 = Encoding(JniEncoding.zEncodingVideoMp4())
+        @JvmField val VIDEO_MP4 = Encoding(JniEncoding.encodingVideoMp4())
 
         /** An Ogg-encapsulated video stream. Constant alias for string: `"video/ogg"`. */
-        @JvmField val VIDEO_OGG = Encoding(JniEncoding.zEncodingVideoOgg())
+        @JvmField val VIDEO_OGG = Encoding(JniEncoding.encodingVideoOgg())
 
         /** An uncompressed, studio-quality video stream. Constant alias for string: `"video/raw"`. */
-        @JvmField val VIDEO_RAW = Encoding(JniEncoding.zEncodingVideoRaw())
+        @JvmField val VIDEO_RAW = Encoding(JniEncoding.encodingVideoRaw())
 
         /** A VP8-encoded video stream. Constant alias for string: `"video/vp8"`. */
-        @JvmField val VIDEO_VP8 = Encoding(JniEncoding.zEncodingVideoVp8())
+        @JvmField val VIDEO_VP8 = Encoding(JniEncoding.encodingVideoVp8())
 
         /** A VP9-encoded video stream. Constant alias for string: `"video/vp9"`. */
-        @JvmField val VIDEO_VP9 = Encoding(JniEncoding.zEncodingVideoVp9())
+        @JvmField val VIDEO_VP9 = Encoding(JniEncoding.encodingVideoVp9())
 
         /** The default [Encoding] is [ZENOH_BYTES]. */
         @JvmStatic fun defaultEncoding() = ZENOH_BYTES
+
+        /**
+         * Parse a textual encoding (e.g. `"text/plain"`, `"text/plain;utf-8"`,
+         * `"my_encoding"`). Well-known names resolve to their canonical id;
+         * everything else is preserved as a custom encoding.
+         */
+        @JvmStatic fun from(s: String): Encoding = Encoding(JniEncoding.encodingFromString(s))
     }
 
     /**
@@ -206,7 +213,7 @@ class Encoding internal constructor(internal val inner: JniEncoding) {
     fun withSchema(schema: String): Encoding =
         Encoding(JniEncoding(inner.id, schema))
 
-    private val cachedString: String by lazy { inner.zEncodingToString() }
+    private val cachedString: String by lazy { inner.encodingToString() }
 
     override fun toString(): String = cachedString
 

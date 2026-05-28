@@ -9,274 +9,279 @@ public data class Encoding(
     val schema: String?,
 ) {
     @Throws(JniBindingError::class)
-    public fun zEncodingToString(): String =
-        JNINative.zEncodingToString(this)
+    public fun encodingToString(): String =
+        JNINative.encodingToString(this)
 
 
     public companion object {
         @Throws(JniBindingError::class)
-        public fun zEncodingZenohBytes(): Encoding =
-            JNINative.zEncodingZenohBytes()
+        public fun encodingFromString(s: String): Encoding =
+            JNINative.encodingFromString(s)
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingZenohString(): Encoding =
-            JNINative.zEncodingZenohString()
+        public fun encodingZenohBytes(): Encoding =
+            JNINative.encodingZenohBytes()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingZenohSerialized(): Encoding =
-            JNINative.zEncodingZenohSerialized()
+        public fun encodingZenohString(): Encoding =
+            JNINative.encodingZenohString()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationOctetStream(): Encoding =
-            JNINative.zEncodingApplicationOctetStream()
+        public fun encodingZenohSerialized(): Encoding =
+            JNINative.encodingZenohSerialized()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingTextPlain(): Encoding =
-            JNINative.zEncodingTextPlain()
+        public fun encodingApplicationOctetStream(): Encoding =
+            JNINative.encodingApplicationOctetStream()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationJson(): Encoding =
-            JNINative.zEncodingApplicationJson()
+        public fun encodingTextPlain(): Encoding =
+            JNINative.encodingTextPlain()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingTextJson(): Encoding =
-            JNINative.zEncodingTextJson()
+        public fun encodingApplicationJson(): Encoding =
+            JNINative.encodingApplicationJson()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationCdr(): Encoding =
-            JNINative.zEncodingApplicationCdr()
+        public fun encodingTextJson(): Encoding =
+            JNINative.encodingTextJson()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationCbor(): Encoding =
-            JNINative.zEncodingApplicationCbor()
+        public fun encodingApplicationCdr(): Encoding =
+            JNINative.encodingApplicationCdr()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationYaml(): Encoding =
-            JNINative.zEncodingApplicationYaml()
+        public fun encodingApplicationCbor(): Encoding =
+            JNINative.encodingApplicationCbor()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingTextYaml(): Encoding =
-            JNINative.zEncodingTextYaml()
+        public fun encodingApplicationYaml(): Encoding =
+            JNINative.encodingApplicationYaml()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingTextJson5(): Encoding =
-            JNINative.zEncodingTextJson5()
+        public fun encodingTextYaml(): Encoding =
+            JNINative.encodingTextYaml()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationPythonSerializedObject(): Encoding =
-            JNINative.zEncodingApplicationPythonSerializedObject()
+        public fun encodingTextJson5(): Encoding =
+            JNINative.encodingTextJson5()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationProtobuf(): Encoding =
-            JNINative.zEncodingApplicationProtobuf()
+        public fun encodingApplicationPythonSerializedObject(): Encoding =
+            JNINative.encodingApplicationPythonSerializedObject()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationJavaSerializedObject(): Encoding =
-            JNINative.zEncodingApplicationJavaSerializedObject()
+        public fun encodingApplicationProtobuf(): Encoding =
+            JNINative.encodingApplicationProtobuf()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationOpenmetricsText(): Encoding =
-            JNINative.zEncodingApplicationOpenmetricsText()
+        public fun encodingApplicationJavaSerializedObject(): Encoding =
+            JNINative.encodingApplicationJavaSerializedObject()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingImagePng(): Encoding =
-            JNINative.zEncodingImagePng()
+        public fun encodingApplicationOpenmetricsText(): Encoding =
+            JNINative.encodingApplicationOpenmetricsText()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingImageJpeg(): Encoding =
-            JNINative.zEncodingImageJpeg()
+        public fun encodingImagePng(): Encoding =
+            JNINative.encodingImagePng()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingImageGif(): Encoding =
-            JNINative.zEncodingImageGif()
+        public fun encodingImageJpeg(): Encoding =
+            JNINative.encodingImageJpeg()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingImageBmp(): Encoding =
-            JNINative.zEncodingImageBmp()
+        public fun encodingImageGif(): Encoding =
+            JNINative.encodingImageGif()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingImageWebp(): Encoding =
-            JNINative.zEncodingImageWebp()
+        public fun encodingImageBmp(): Encoding =
+            JNINative.encodingImageBmp()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationXml(): Encoding =
-            JNINative.zEncodingApplicationXml()
+        public fun encodingImageWebp(): Encoding =
+            JNINative.encodingImageWebp()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationXWwwFormUrlencoded(): Encoding =
-            JNINative.zEncodingApplicationXWwwFormUrlencoded()
+        public fun encodingApplicationXml(): Encoding =
+            JNINative.encodingApplicationXml()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingTextHtml(): Encoding =
-            JNINative.zEncodingTextHtml()
+        public fun encodingApplicationXWwwFormUrlencoded(): Encoding =
+            JNINative.encodingApplicationXWwwFormUrlencoded()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingTextXml(): Encoding =
-            JNINative.zEncodingTextXml()
+        public fun encodingTextHtml(): Encoding =
+            JNINative.encodingTextHtml()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingTextCss(): Encoding =
-            JNINative.zEncodingTextCss()
+        public fun encodingTextXml(): Encoding =
+            JNINative.encodingTextXml()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingTextJavascript(): Encoding =
-            JNINative.zEncodingTextJavascript()
+        public fun encodingTextCss(): Encoding =
+            JNINative.encodingTextCss()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingTextMarkdown(): Encoding =
-            JNINative.zEncodingTextMarkdown()
+        public fun encodingTextJavascript(): Encoding =
+            JNINative.encodingTextJavascript()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingTextCsv(): Encoding =
-            JNINative.zEncodingTextCsv()
+        public fun encodingTextMarkdown(): Encoding =
+            JNINative.encodingTextMarkdown()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationSql(): Encoding =
-            JNINative.zEncodingApplicationSql()
+        public fun encodingTextCsv(): Encoding =
+            JNINative.encodingTextCsv()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationCoapPayload(): Encoding =
-            JNINative.zEncodingApplicationCoapPayload()
+        public fun encodingApplicationSql(): Encoding =
+            JNINative.encodingApplicationSql()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationJsonPatchJson(): Encoding =
-            JNINative.zEncodingApplicationJsonPatchJson()
+        public fun encodingApplicationCoapPayload(): Encoding =
+            JNINative.encodingApplicationCoapPayload()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationJsonSeq(): Encoding =
-            JNINative.zEncodingApplicationJsonSeq()
+        public fun encodingApplicationJsonPatchJson(): Encoding =
+            JNINative.encodingApplicationJsonPatchJson()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationJsonpath(): Encoding =
-            JNINative.zEncodingApplicationJsonpath()
+        public fun encodingApplicationJsonSeq(): Encoding =
+            JNINative.encodingApplicationJsonSeq()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationJwt(): Encoding =
-            JNINative.zEncodingApplicationJwt()
+        public fun encodingApplicationJsonpath(): Encoding =
+            JNINative.encodingApplicationJsonpath()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationMp4(): Encoding =
-            JNINative.zEncodingApplicationMp4()
+        public fun encodingApplicationJwt(): Encoding =
+            JNINative.encodingApplicationJwt()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationSoapXml(): Encoding =
-            JNINative.zEncodingApplicationSoapXml()
+        public fun encodingApplicationMp4(): Encoding =
+            JNINative.encodingApplicationMp4()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingApplicationYang(): Encoding =
-            JNINative.zEncodingApplicationYang()
+        public fun encodingApplicationSoapXml(): Encoding =
+            JNINative.encodingApplicationSoapXml()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingAudioAac(): Encoding =
-            JNINative.zEncodingAudioAac()
+        public fun encodingApplicationYang(): Encoding =
+            JNINative.encodingApplicationYang()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingAudioFlac(): Encoding =
-            JNINative.zEncodingAudioFlac()
+        public fun encodingAudioAac(): Encoding =
+            JNINative.encodingAudioAac()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingAudioMp4(): Encoding =
-            JNINative.zEncodingAudioMp4()
+        public fun encodingAudioFlac(): Encoding =
+            JNINative.encodingAudioFlac()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingAudioOgg(): Encoding =
-            JNINative.zEncodingAudioOgg()
+        public fun encodingAudioMp4(): Encoding =
+            JNINative.encodingAudioMp4()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingAudioVorbis(): Encoding =
-            JNINative.zEncodingAudioVorbis()
+        public fun encodingAudioOgg(): Encoding =
+            JNINative.encodingAudioOgg()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingVideoH261(): Encoding =
-            JNINative.zEncodingVideoH261()
+        public fun encodingAudioVorbis(): Encoding =
+            JNINative.encodingAudioVorbis()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingVideoH263(): Encoding =
-            JNINative.zEncodingVideoH263()
+        public fun encodingVideoH261(): Encoding =
+            JNINative.encodingVideoH261()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingVideoH264(): Encoding =
-            JNINative.zEncodingVideoH264()
+        public fun encodingVideoH263(): Encoding =
+            JNINative.encodingVideoH263()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingVideoH265(): Encoding =
-            JNINative.zEncodingVideoH265()
+        public fun encodingVideoH264(): Encoding =
+            JNINative.encodingVideoH264()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingVideoH266(): Encoding =
-            JNINative.zEncodingVideoH266()
+        public fun encodingVideoH265(): Encoding =
+            JNINative.encodingVideoH265()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingVideoMp4(): Encoding =
-            JNINative.zEncodingVideoMp4()
+        public fun encodingVideoH266(): Encoding =
+            JNINative.encodingVideoH266()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingVideoOgg(): Encoding =
-            JNINative.zEncodingVideoOgg()
+        public fun encodingVideoMp4(): Encoding =
+            JNINative.encodingVideoMp4()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingVideoRaw(): Encoding =
-            JNINative.zEncodingVideoRaw()
+        public fun encodingVideoOgg(): Encoding =
+            JNINative.encodingVideoOgg()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingVideoVp8(): Encoding =
-            JNINative.zEncodingVideoVp8()
+        public fun encodingVideoRaw(): Encoding =
+            JNINative.encodingVideoRaw()
 
 
         @Throws(JniBindingError::class)
-        public fun zEncodingVideoVp9(): Encoding =
-            JNINative.zEncodingVideoVp9()
+        public fun encodingVideoVp8(): Encoding =
+            JNINative.encodingVideoVp8()
+
+
+        @Throws(JniBindingError::class)
+        public fun encodingVideoVp9(): Encoding =
+            JNINative.encodingVideoVp9()
 
     }
 }

@@ -15,6 +15,61 @@ import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.scouting.ZScout
 
 internal object JNINative {
+    external fun encodingApplicationCbor(): Encoding
+    external fun encodingApplicationCdr(): Encoding
+    external fun encodingApplicationCoapPayload(): Encoding
+    external fun encodingApplicationJavaSerializedObject(): Encoding
+    external fun encodingApplicationJson(): Encoding
+    external fun encodingApplicationJsonPatchJson(): Encoding
+    external fun encodingApplicationJsonSeq(): Encoding
+    external fun encodingApplicationJsonpath(): Encoding
+    external fun encodingApplicationJwt(): Encoding
+    external fun encodingApplicationMp4(): Encoding
+    external fun encodingApplicationOctetStream(): Encoding
+    external fun encodingApplicationOpenmetricsText(): Encoding
+    external fun encodingApplicationProtobuf(): Encoding
+    external fun encodingApplicationPythonSerializedObject(): Encoding
+    external fun encodingApplicationSoapXml(): Encoding
+    external fun encodingApplicationSql(): Encoding
+    external fun encodingApplicationXWwwFormUrlencoded(): Encoding
+    external fun encodingApplicationXml(): Encoding
+    external fun encodingApplicationYaml(): Encoding
+    external fun encodingApplicationYang(): Encoding
+    external fun encodingAudioAac(): Encoding
+    external fun encodingAudioFlac(): Encoding
+    external fun encodingAudioMp4(): Encoding
+    external fun encodingAudioOgg(): Encoding
+    external fun encodingAudioVorbis(): Encoding
+    external fun encodingFromString(s: String): Encoding
+    external fun encodingImageBmp(): Encoding
+    external fun encodingImageGif(): Encoding
+    external fun encodingImageJpeg(): Encoding
+    external fun encodingImagePng(): Encoding
+    external fun encodingImageWebp(): Encoding
+    external fun encodingTextCss(): Encoding
+    external fun encodingTextCsv(): Encoding
+    external fun encodingTextHtml(): Encoding
+    external fun encodingTextJavascript(): Encoding
+    external fun encodingTextJson(): Encoding
+    external fun encodingTextJson5(): Encoding
+    external fun encodingTextMarkdown(): Encoding
+    external fun encodingTextPlain(): Encoding
+    external fun encodingTextXml(): Encoding
+    external fun encodingTextYaml(): Encoding
+    external fun encodingToString(e: Encoding): String
+    external fun encodingVideoH261(): Encoding
+    external fun encodingVideoH263(): Encoding
+    external fun encodingVideoH264(): Encoding
+    external fun encodingVideoH265(): Encoding
+    external fun encodingVideoH266(): Encoding
+    external fun encodingVideoMp4(): Encoding
+    external fun encodingVideoOgg(): Encoding
+    external fun encodingVideoRaw(): Encoding
+    external fun encodingVideoVp8(): Encoding
+    external fun encodingVideoVp9(): Encoding
+    external fun encodingZenohBytes(): Encoding
+    external fun encodingZenohSerialized(): Encoding
+    external fun encodingZenohString(): Encoding
     external fun initAndroidLogs(filter: String)
     external fun initZenohLogsFromEnvOr(fallbackFilter: String)
     external fun keyexprAutocanonize(s: String): KeyExpr
@@ -33,62 +88,8 @@ internal object JNINative {
     external fun zConfigFromYaml(s: String): Long
     external fun zConfigGetJson(c: Long, key: String): String
     external fun zConfigInsertJson5(c: Long, key: String, value: String)
-    external fun zEncodingApplicationCbor(): Encoding
-    external fun zEncodingApplicationCdr(): Encoding
-    external fun zEncodingApplicationCoapPayload(): Encoding
-    external fun zEncodingApplicationJavaSerializedObject(): Encoding
-    external fun zEncodingApplicationJson(): Encoding
-    external fun zEncodingApplicationJsonPatchJson(): Encoding
-    external fun zEncodingApplicationJsonSeq(): Encoding
-    external fun zEncodingApplicationJsonpath(): Encoding
-    external fun zEncodingApplicationJwt(): Encoding
-    external fun zEncodingApplicationMp4(): Encoding
-    external fun zEncodingApplicationOctetStream(): Encoding
-    external fun zEncodingApplicationOpenmetricsText(): Encoding
-    external fun zEncodingApplicationProtobuf(): Encoding
-    external fun zEncodingApplicationPythonSerializedObject(): Encoding
-    external fun zEncodingApplicationSoapXml(): Encoding
-    external fun zEncodingApplicationSql(): Encoding
-    external fun zEncodingApplicationXWwwFormUrlencoded(): Encoding
-    external fun zEncodingApplicationXml(): Encoding
-    external fun zEncodingApplicationYaml(): Encoding
-    external fun zEncodingApplicationYang(): Encoding
-    external fun zEncodingAudioAac(): Encoding
-    external fun zEncodingAudioFlac(): Encoding
-    external fun zEncodingAudioMp4(): Encoding
-    external fun zEncodingAudioOgg(): Encoding
-    external fun zEncodingAudioVorbis(): Encoding
     external fun zEncodingId(e: Long): Int
-    external fun zEncodingImageBmp(): Encoding
-    external fun zEncodingImageGif(): Encoding
-    external fun zEncodingImageJpeg(): Encoding
-    external fun zEncodingImagePng(): Encoding
-    external fun zEncodingImageWebp(): Encoding
     external fun zEncodingSchema(e: Long): String
-    external fun zEncodingTextCss(): Encoding
-    external fun zEncodingTextCsv(): Encoding
-    external fun zEncodingTextHtml(): Encoding
-    external fun zEncodingTextJavascript(): Encoding
-    external fun zEncodingTextJson(): Encoding
-    external fun zEncodingTextJson5(): Encoding
-    external fun zEncodingTextMarkdown(): Encoding
-    external fun zEncodingTextPlain(): Encoding
-    external fun zEncodingTextXml(): Encoding
-    external fun zEncodingTextYaml(): Encoding
-    external fun zEncodingToString(e: Encoding): String
-    external fun zEncodingVideoH261(): Encoding
-    external fun zEncodingVideoH263(): Encoding
-    external fun zEncodingVideoH264(): Encoding
-    external fun zEncodingVideoH265(): Encoding
-    external fun zEncodingVideoH266(): Encoding
-    external fun zEncodingVideoMp4(): Encoding
-    external fun zEncodingVideoOgg(): Encoding
-    external fun zEncodingVideoRaw(): Encoding
-    external fun zEncodingVideoVp8(): Encoding
-    external fun zEncodingVideoVp9(): Encoding
-    external fun zEncodingZenohBytes(): Encoding
-    external fun zEncodingZenohSerialized(): Encoding
-    external fun zEncodingZenohString(): Encoding
     external fun zHelloLocators(h: Long): List<String>
     external fun zHelloWhatami(h: Long): Int
     external fun zHelloZid(h: Long): Long
