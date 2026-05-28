@@ -43,3 +43,4 @@ pub type ZScout = zenoh::scouting::Scout<()>;
 pub type ZZBytes = zenoh::bytes::ZBytes;
 pub type ZEncoding = zenoh::bytes::Encoding;
 pub type ZPublisher = zenoh::pubsub::Publisher<'static>;
+pub type ZSubscriber = zenoh::pubsub::Subscriber<()>;

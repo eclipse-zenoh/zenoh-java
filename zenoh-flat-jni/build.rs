@@ -196,6 +196,7 @@ fn main() {
         .ptr_class(pq!(ZPublisher))
         .class_fun(pq!(z_publisher_put))
         .class_fun(pq!(z_publisher_delete))
+        .ptr_class(pq!(ZSubscriber))
         .into_sources(
             pq!(ZBytes),
             [

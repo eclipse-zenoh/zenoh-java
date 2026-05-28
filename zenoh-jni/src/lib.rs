@@ -20,7 +20,6 @@ pub mod querier;
 pub mod query;
 pub mod queryable;
 pub mod session;
-pub mod subscriber;
 pub mod utils;
 pub mod zenoh_id;
 

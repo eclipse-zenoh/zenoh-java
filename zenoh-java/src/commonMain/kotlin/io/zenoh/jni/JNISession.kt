@@ -106,7 +106,7 @@ internal class JNISession(val sessionPtr: Long) {
         val subscriberRawPtr = declareSubscriberViaJNI(
             keyExpr.flat.keyExprNative?.peek() ?: 0L, keyExpr.flat.keyExprString, sessionPtr, subCallback, handler::onClose
         )
-        return HandlerSubscriber(keyExpr, JNISubscriber(subscriberRawPtr), handler.receiver())
+        return HandlerSubscriber(keyExpr, io.zenoh.jni.pubsub.ZSubscriber(subscriberRawPtr), handler.receiver())
     }
 
     @Throws(ZError::class)
@@ -134,7 +134,7 @@ internal class JNISession(val sessionPtr: Long) {
             subCallback,
             fun() {}
         )
-        return CallbackSubscriber(keyExpr, JNISubscriber(subscriberRawPtr))
+        return CallbackSubscriber(keyExpr, io.zenoh.jni.pubsub.ZSubscriber(subscriberRawPtr))
     }
 
     @Throws(ZError::class)

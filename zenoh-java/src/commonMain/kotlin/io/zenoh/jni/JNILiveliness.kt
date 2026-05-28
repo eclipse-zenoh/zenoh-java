@@ -130,7 +130,7 @@ internal object JNILiveliness {
             history,
             onClose
         )
-        return CallbackSubscriber(keyExpr, JNISubscriber(ptr))
+        return CallbackSubscriber(keyExpr, io.zenoh.jni.pubsub.ZSubscriber(ptr))
     }
 
     fun <R> declareSubscriber(
@@ -163,7 +163,7 @@ internal object JNILiveliness {
             history,
             onClose
         )
-        return HandlerSubscriber(keyExpr, JNISubscriber(ptr), receiver)
+        return HandlerSubscriber(keyExpr, io.zenoh.jni.pubsub.ZSubscriber(ptr), receiver)
     }
 
     private external fun getViaJNI(
