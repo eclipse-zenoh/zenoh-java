@@ -58,7 +58,7 @@ data class Sample(
             ZBytes(flat.payload),
             Encoding(flat.encoding),
             flat.kind.toPublic(),
-            flat.timestamp?.let { TimeStamp(it) },
+            flat.timestamp?.let { TimeStamp(it.ntp64) },
             QoS(
                 CongestionControl.fromJni(flat.congestionControl),
                 Priority.fromJni(flat.priority),

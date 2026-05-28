@@ -23,6 +23,8 @@ import io.zenoh.jni.sample.Sample
 import io.zenoh.jni.sample.SampleKind
 import io.zenoh.jni.sample.ZSample
 import io.zenoh.jni.scouting.ZScout
+import io.zenoh.jni.time.Timestamp
+import io.zenoh.jni.time.ZTimestamp
 
 internal object JNINative {
     external fun encodingApplicationCbor(): Encoding
@@ -191,6 +193,9 @@ internal object JNINative {
     external fun zSamplePriority(s: Long): Int
     external fun zSampleTimestamp(s: Long): Long
     external fun zScout(whatami: Int, config: Long, callback: ZHelloCallback, onClose: Callback): Long
+    external fun zTimestampExpand(t: Long): Timestamp
+    external fun zTimestampId(t: Long): ByteArray
+    external fun zTimestampNtp64(t: Long): Long
     external fun zZbytesFromBytes(bytes: ByteArray): Long
     external fun zZbytesToBytes(z: Long): ByteArray
     external fun zZenohIdToBytes(z: Long): ByteArray

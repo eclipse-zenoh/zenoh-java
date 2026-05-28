@@ -8,6 +8,7 @@ import io.zenoh.jni.bytes.ZZBytes
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.qos.CongestionControl
 import io.zenoh.jni.qos.Priority
+import io.zenoh.jni.time.ZTimestamp
 
 /** Typed handle for a native Zenoh `ZSample`. */
 public class ZSample(initialPtr: Long) : AutoCloseable {
@@ -69,11 +70,11 @@ public class ZSample(initialPtr: Long) : AutoCloseable {
     }
 
     @Throws(JniBindingError::class)
-    public fun zSampleTimestamp(): Long {
+    public fun zSampleTimestamp(): ZTimestamp? {
         synchronized(this) {
             val s_ptr = this.ptr
             if (s_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zSampleTimestamp(s_ptr)
+            return ZTimestamp(JNINative.zSampleTimestamp(s_ptr))
         }
     }
 

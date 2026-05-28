@@ -1,4 +1,4 @@
-use crate::{CongestionControl, Encoding, KeyExpr, Priority, SampleKind, ZBytes, ZSample};
+use crate::{CongestionControl, Encoding, KeyExpr, Priority, SampleKind, Timestamp, ZBytes, ZSample};
 use prebindgen_proc_macro::prebindgen;
 
 /// Data-class twin of [`ZSample`]. Carries every field decoded so bindings
@@ -10,7 +10,7 @@ pub struct Sample {
     pub payload: ZBytes,
     pub encoding: Encoding,
     pub kind: SampleKind,
-    pub timestamp: Option<i64>,
+    pub timestamp: Option<Timestamp>,
     pub express: bool,
     pub priority: Priority,
     pub congestion_control: CongestionControl,
@@ -26,7 +26,7 @@ impl From<&ZSample> for Sample {
             payload: ZBytes::from(s.payload().clone()),
             encoding: Encoding::from(s.encoding()),
             kind: s.kind().into(),
-            timestamp: s.timestamp().map(|t| t.get_time().as_u64() as i64),
+            timestamp: s.timestamp().map(Timestamp::from),
             express: s.express(),
             priority: s.priority().into(),
             congestion_control: s.congestion_control().into(),

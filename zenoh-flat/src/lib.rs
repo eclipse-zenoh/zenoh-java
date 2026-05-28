@@ -25,6 +25,7 @@ pub(crate) mod logger;
 pub(crate) mod publisher;
 pub(crate) mod query;
 pub(crate) mod sample;
+pub(crate) mod time;
 pub(crate) mod util;
 
 // reexports to make all zenoh-flat API really flat
@@ -38,6 +39,7 @@ pub use logger::*;
 pub use publisher::*;
 pub use query::*;
 pub use sample::*;
+pub use time::*;
 
 // reexports of zenoh types with Z prefix to distiguish them from zenoh-flat types
 pub type ZKeyExpr = zenoh::key_expr::KeyExpr<'static>;
@@ -54,3 +56,4 @@ pub type ZQuerier = zenoh::query::Querier<'static>;
 pub type ZQuery = zenoh::query::Query;
 pub type ZSample = zenoh::sample::Sample;
 pub type ZReply = zenoh::query::Reply;
+pub type ZTimestamp = zenoh::time::Timestamp;

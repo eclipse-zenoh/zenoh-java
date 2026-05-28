@@ -6,13 +6,14 @@ import io.zenoh.jni.bytes.ZBytes
 import io.zenoh.jni.keyexpr.KeyExpr
 import io.zenoh.jni.qos.CongestionControl
 import io.zenoh.jni.qos.Priority
+import io.zenoh.jni.time.Timestamp
 
 public data class Sample(
     val keyExpr: KeyExpr,
     val payload: ZBytes,
     val encoding: Encoding,
     val kind: SampleKind,
-    val timestamp: Long?,
+    val timestamp: Timestamp?,
     val express: Boolean,
     val priority: Priority,
     val congestionControl: CongestionControl,

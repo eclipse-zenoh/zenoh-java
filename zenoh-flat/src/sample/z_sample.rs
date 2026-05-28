@@ -1,5 +1,5 @@
 use super::sample::Sample;
-use crate::{CongestionControl, Priority, SampleKind, ZEncoding, ZKeyExpr, ZSample, ZZBytes};
+use crate::{CongestionControl, Priority, SampleKind, ZEncoding, ZKeyExpr, ZSample, ZTimestamp, ZZBytes};
 use prebindgen_proc_macro::prebindgen;
 
 /// Key expression the sample was published on (owned handle).
@@ -26,10 +26,10 @@ pub fn z_sample_kind(s: &ZSample) -> SampleKind {
     s.kind().into()
 }
 
-/// NTP64 timestamp, or `None` when the sample carries no timestamp.
+/// Timestamp handle, or `None` when the sample carries no timestamp.
 #[prebindgen]
-pub fn z_sample_timestamp(s: &ZSample) -> Option<i64> {
-    s.timestamp().map(|t| t.get_time().as_u64() as i64)
+pub fn z_sample_timestamp(s: &ZSample) -> Option<ZTimestamp> {
+    s.timestamp().copied()
 }
 
 /// QoS express flag.
