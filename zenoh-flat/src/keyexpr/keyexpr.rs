@@ -128,7 +128,7 @@ pub fn keyexpr_concat(
     Ok(KeyExpr::from(z_keyexpr_concat(&a_ke, b)?))
 }
 
-fn into_native(k: KeyExpr) -> Result<ZKeyExpr, Error> {
+pub(crate) fn into_native(k: KeyExpr) -> Result<ZKeyExpr, Error> {
     match k.key_expr_native {
         Some(ke) => Ok(ke),
         None => Ok(ZKeyExpr::try_from(k.key_expr_string)?),

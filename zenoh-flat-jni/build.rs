@@ -200,6 +200,10 @@ fn main() {
         .package("query")
         .ptr_class(pq!(ZQueryable))
         .ptr_class(pq!(ZQuerier))
+        .ptr_class(pq!(ZQuery))
+        .class_fun(pq!(z_query_reply_success))
+        .class_fun(pq!(z_query_reply_error))
+        .class_fun(pq!(z_query_reply_delete))
         .into_sources(
             pq!(ZBytes),
             [

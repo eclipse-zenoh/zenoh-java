@@ -143,7 +143,7 @@ internal class JNISession(val sessionPtr: Long) {
     ): CallbackQueryable {
         val queryCallback =
             JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long, acceptReplies: Int ->
-                val jniQuery = JNIQuery(queryPtr)
+                val jniQuery = io.zenoh.jni.query.ZQuery(queryPtr)
                 val keyExpr2 = KeyExpr(keyExpr1)
                 val selector = if (selectorParams.isEmpty()) {
                     Selector(keyExpr2)
@@ -179,7 +179,7 @@ internal class JNISession(val sessionPtr: Long) {
     ): HandlerQueryable<R> {
         val queryCallback =
             JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long, acceptReplies: Int ->
-                val jniQuery = JNIQuery(queryPtr)
+                val jniQuery = io.zenoh.jni.query.ZQuery(queryPtr)
                 val keyExpr2 = KeyExpr(keyExpr1)
                 val selector = if (selectorParams.isEmpty()) {
                     Selector(keyExpr2)

@@ -4,6 +4,5 @@
 pub mod liveliness;
 pub mod logger;
 pub mod querier;
-pub mod query;
 pub mod session;
 pub mod zenoh_id;
