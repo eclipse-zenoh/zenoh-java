@@ -2,6 +2,7 @@
 package io.zenoh.jni
 
 import io.zenoh.jni.bytes.Encoding
+import io.zenoh.jni.bytes.ZEncoding
 import io.zenoh.jni.bytes.ZZBytes
 import io.zenoh.jni.callbacks.Callback
 import io.zenoh.jni.callbacks.HelloCallback
@@ -88,8 +89,63 @@ internal object JNINative {
     external fun zConfigFromYaml(s: String): Long
     external fun zConfigGetJson(c: Long, key: String): String
     external fun zConfigInsertJson5(c: Long, key: String, value: String)
+    external fun zEncodingApplicationCbor(): Long
+    external fun zEncodingApplicationCdr(): Long
+    external fun zEncodingApplicationCoapPayload(): Long
+    external fun zEncodingApplicationJavaSerializedObject(): Long
+    external fun zEncodingApplicationJson(): Long
+    external fun zEncodingApplicationJsonPatchJson(): Long
+    external fun zEncodingApplicationJsonSeq(): Long
+    external fun zEncodingApplicationJsonpath(): Long
+    external fun zEncodingApplicationJwt(): Long
+    external fun zEncodingApplicationMp4(): Long
+    external fun zEncodingApplicationOctetStream(): Long
+    external fun zEncodingApplicationOpenmetricsText(): Long
+    external fun zEncodingApplicationProtobuf(): Long
+    external fun zEncodingApplicationPythonSerializedObject(): Long
+    external fun zEncodingApplicationSoapXml(): Long
+    external fun zEncodingApplicationSql(): Long
+    external fun zEncodingApplicationXWwwFormUrlencoded(): Long
+    external fun zEncodingApplicationXml(): Long
+    external fun zEncodingApplicationYaml(): Long
+    external fun zEncodingApplicationYang(): Long
+    external fun zEncodingAudioAac(): Long
+    external fun zEncodingAudioFlac(): Long
+    external fun zEncodingAudioMp4(): Long
+    external fun zEncodingAudioOgg(): Long
+    external fun zEncodingAudioVorbis(): Long
+    external fun zEncodingFromString(s: String): Long
     external fun zEncodingId(e: Long): Int
+    external fun zEncodingImageBmp(): Long
+    external fun zEncodingImageGif(): Long
+    external fun zEncodingImageJpeg(): Long
+    external fun zEncodingImagePng(): Long
+    external fun zEncodingImageWebp(): Long
     external fun zEncodingSchema(e: Long): String
+    external fun zEncodingTextCss(): Long
+    external fun zEncodingTextCsv(): Long
+    external fun zEncodingTextHtml(): Long
+    external fun zEncodingTextJavascript(): Long
+    external fun zEncodingTextJson(): Long
+    external fun zEncodingTextJson5(): Long
+    external fun zEncodingTextMarkdown(): Long
+    external fun zEncodingTextPlain(): Long
+    external fun zEncodingTextXml(): Long
+    external fun zEncodingTextYaml(): Long
+    external fun zEncodingToString(e: Long): String
+    external fun zEncodingVideoH261(): Long
+    external fun zEncodingVideoH263(): Long
+    external fun zEncodingVideoH264(): Long
+    external fun zEncodingVideoH265(): Long
+    external fun zEncodingVideoH266(): Long
+    external fun zEncodingVideoMp4(): Long
+    external fun zEncodingVideoOgg(): Long
+    external fun zEncodingVideoRaw(): Long
+    external fun zEncodingVideoVp8(): Long
+    external fun zEncodingVideoVp9(): Long
+    external fun zEncodingZenohBytes(): Long
+    external fun zEncodingZenohSerialized(): Long
+    external fun zEncodingZenohString(): Long
     external fun zHelloLocators(h: Long): List<String>
     external fun zHelloWhatami(h: Long): Int
     external fun zHelloZid(h: Long): Long
