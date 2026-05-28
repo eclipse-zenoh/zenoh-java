@@ -29,6 +29,7 @@ impl From<zenoh::key_expr::SetIntersectionLevel> for SetIntersectionLevel {
 }
 
 #[prebindgen]
+#[derive(Clone)]
 pub struct KeyExpr {
     pub key_expr_string: String,
     pub key_expr_native: Option<ZKeyExpr>,

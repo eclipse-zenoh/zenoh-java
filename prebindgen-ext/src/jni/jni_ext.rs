@@ -4151,6 +4151,27 @@ fn struct_input_body(
             let java_path = handle_field_fqn(ext, h).replace('.', "/");
             let sig = format!("L{};", java_path);
             let tmp_ident = format_ident!("__{}_jobj", fname_ident);
+            // Struct fields are owned, so a non-`Option` handle field owns
+            // its native object: decode by consuming (`Box::from_raw` → owned
+            // `T`), mirroring `struct_output_body`'s `Box::into_raw`. The
+            // borrow converter would yield `OwnedObject<T>`, which can't
+            // populate an owned field. `Option<_>` handle fields keep the
+            // niche-aware converter (jlong 0 ⇒ `None`).
+            let field_ty = &field.ty;
+            let field_is_option = matches!(
+                field_ty,
+                syn::Type::Path(p) if p.path.segments.last()
+                    .map(|s| s.ident == "Option").unwrap_or(false)
+            );
+            let decode = if field_is_option {
+                quote! { let #fname_ident = #field_conv(env, &#raw_ident)?; }
+            } else {
+                quote! {
+                    let #fname_ident: #field_ty = unsafe {
+                        *std::boxed::Box::from_raw(#raw_ident as *mut #field_ty)
+                    };
+                }
+            };
             field_preludes.push(quote! {
                 let #tmp_ident: jni::objects::JObject = env.get_field(v, #camel, #sig)
                     .and_then(|val| val.l())
@@ -4162,7 +4183,7 @@ fn struct_input_body(
                         .and_then(|val| val.j())
                         .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!(#err_prefix, e)))?
                 };
-                let #fname_ident = #field_conv(env, &#raw_ident)?;
+                #decode
             });
             field_init.push(quote!(#fname_ident));
             continue;

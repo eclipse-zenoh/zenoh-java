@@ -32,3 +32,8 @@ enum class ReplyKeyExpr {
      */
     ANY;
 }
+
+internal fun io.zenoh.jni.query.ReplyKeyExpr.toPublic(): ReplyKeyExpr = when (this) {
+    io.zenoh.jni.query.ReplyKeyExpr.ANY -> ReplyKeyExpr.ANY
+    io.zenoh.jni.query.ReplyKeyExpr.MATCHING_QUERY -> ReplyKeyExpr.MATCHING_QUERY
+}

@@ -47,6 +47,24 @@ class Query internal constructor(
     /** Shortcut to the [selector]'s parameters. */
     val parameters = selector.parameters
 
+    internal companion object {
+        /** Repacks the flat [io.zenoh.jni.query.Query] data class delivered by a queryable callback. */
+        fun from(flat: io.zenoh.jni.query.Query): Query {
+            val ke = KeyExpr(flat.keyExpr)
+            val selector = if (flat.parameters.isEmpty()) Selector(ke)
+                           else Selector(ke, Parameters.from(flat.parameters))
+            return Query(
+                ke,
+                selector,
+                flat.payload?.let { ZBytes(it) },
+                flat.encoding?.let { Encoding(it) },
+                flat.attachment?.let { ZBytes(it) },
+                flat.acceptsReplies.toPublic(),
+                flat.query
+            )
+        }
+    }
+
     /**
      * Reply to the specified key expression.
      *

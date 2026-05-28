@@ -13,6 +13,7 @@ import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.keyexpr.KeyExpr
 import io.zenoh.jni.keyexpr.SetIntersectionLevel
 import io.zenoh.jni.keyexpr.ZKeyExpr
+import io.zenoh.jni.query.Query
 import io.zenoh.jni.scouting.ZScout
 
 internal object JNINative {
@@ -80,6 +81,7 @@ internal object JNINative {
     external fun keyexprJoin(a: Any, b: String): KeyExpr
     external fun keyexprRelationTo(a: Any, b: Any): Int
     external fun keyexprTryFrom(s: String): KeyExpr
+    external fun queryTake(query: Long): Query
     external fun scout(whatami: Int, config: Long, callback: HelloCallback, onClose: Callback): Long
     external fun tryInitZenohLogsFromEnv()
     external fun zConfigDefault(): Long

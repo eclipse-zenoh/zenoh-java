@@ -142,24 +142,8 @@ internal class JNISession(val sessionPtr: Long) {
         keyExpr: KeyExpr, callback: Callback<Query>, config: QueryableOptions
     ): CallbackQueryable {
         val queryCallback =
-            JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long, acceptReplies: Int ->
-                val jniQuery = io.zenoh.jni.query.ZQuery(queryPtr)
-                val keyExpr2 = KeyExpr(keyExpr1)
-                val selector = if (selectorParams.isEmpty()) {
-                    Selector(keyExpr2)
-                } else {
-                    Selector(keyExpr2, Parameters.from(selectorParams))
-                }
-                val replyKeyExpr = ReplyKeyExpr.entries[acceptReplies]
-                val query = Query(
-                    keyExpr2,
-                    selector,
-                    payload?.into(),
-                    payload?.let { Encoding(encodingId, schema = encodingSchema) },
-                    attachmentBytes?.into(),
-                    replyKeyExpr,
-                    jniQuery
-                )
+            JNIQueryableCallback { _: String, _: String, _: ByteArray?, _: Int, _: String?, _: ByteArray?, queryPtr: Long, _: Int ->
+                val query = Query.from(io.zenoh.jni.query.ZQuery(queryPtr).queryTake())
                 callback.run(query)
             }
         val queryableRawPtr = declareQueryableViaJNI(
@@ -178,24 +162,8 @@ internal class JNISession(val sessionPtr: Long) {
         keyExpr: KeyExpr, handler: Handler<Query, R>, config: QueryableOptions
     ): HandlerQueryable<R> {
         val queryCallback =
-            JNIQueryableCallback { keyExpr1: String, selectorParams: String, payload: ByteArray?, encodingId: Int, encodingSchema: String?, attachmentBytes: ByteArray?, queryPtr: Long, acceptReplies: Int ->
-                val jniQuery = io.zenoh.jni.query.ZQuery(queryPtr)
-                val keyExpr2 = KeyExpr(keyExpr1)
-                val selector = if (selectorParams.isEmpty()) {
-                    Selector(keyExpr2)
-                } else {
-                    Selector(keyExpr2, Parameters.from(selectorParams))
-                }
-                val replyKeyExpr = ReplyKeyExpr.entries[acceptReplies]
-                val query = Query(
-                    keyExpr2,
-                    selector,
-                    payload?.into(),
-                    payload?.let { Encoding(encodingId, schema = encodingSchema) },
-                    attachmentBytes?.into(),
-                    replyKeyExpr,
-                    jniQuery
-                )
+            JNIQueryableCallback { _: String, _: String, _: ByteArray?, _: Int, _: String?, _: ByteArray?, queryPtr: Long, _: Int ->
+                val query = Query.from(io.zenoh.jni.query.ZQuery(queryPtr).queryTake())
                 handler.handle(query)
             }
         val queryableRawPtr = declareQueryableViaJNI(

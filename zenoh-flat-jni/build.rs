@@ -200,10 +200,13 @@ fn main() {
         .package("query")
         .ptr_class(pq!(ZQueryable))
         .ptr_class(pq!(ZQuerier))
+        .enum_class(pq!(ReplyKeyExpr))
         .ptr_class(pq!(ZQuery))
         .class_fun(pq!(z_query_reply_success))
         .class_fun(pq!(z_query_reply_error))
         .class_fun(pq!(z_query_reply_delete))
+        .class_fun(pq!(query_take))
+        .data_class(pq!(Query))
         .into_sources(
             pq!(ZBytes),
             [
