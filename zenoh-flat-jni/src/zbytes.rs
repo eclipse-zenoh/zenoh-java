@@ -17,15 +17,31 @@ use jni::{
     sys::jobject,
     JNIEnv,
 };
+use prebindgen_ext::jni::JniBindingError;
 use zenoh::bytes::ZBytes;
 use zenoh_ext::{VarInt, ZDeserializeError, ZDeserializer, ZSerializer};
 
-use crate::{
-    errors::ZResult,
-    throw_exception,
-    utils::{bytes_to_java_array, decode_byte_array},
-    zerror,
-};
+use crate::throw_JniBindingError;
+
+type JResult<T> = core::result::Result<T, JniBindingError>;
+
+/// Helper function to convert a JByteArray into a Vec<u8>.
+fn decode_byte_array(env: &JNIEnv<'_>, payload: JByteArray) -> JResult<Vec<u8>> {
+    let payload_len = env
+        .get_array_length(&payload)
+        .map(|length| length as usize)
+        .map_err(|err| JniBindingError(err.to_string()))?;
+    let mut buff = vec![0; payload_len];
+    env.get_byte_array_region(payload, 0, &mut buff[..])
+        .map_err(|err| JniBindingError(err.to_string()))?;
+    let buff: Vec<u8> = unsafe { std::mem::transmute::<Vec<i8>, Vec<u8>>(buff) };
+    Ok(buff)
+}
+
+fn bytes_to_java_array<'a>(env: &JNIEnv<'a>, slice: &ZBytes) -> JResult<JByteArray<'a>> {
+    env.byte_array_from_slice(&slice.to_bytes())
+        .map_err(|err| JniBindingError(err.to_string()))
+}
 
 enum JavaType {
     Boolean,
@@ -41,16 +57,16 @@ enum JavaType {
     Map(Box<JavaType>, Box<JavaType>),
 }
 
-fn decode_token_type(env: &mut JNIEnv, type_obj: JObject) -> ZResult<JavaType> {
+fn decode_token_type(env: &mut JNIEnv, type_obj: JObject) -> JResult<JavaType> {
     let type_name_jobject = env
         .call_method(&type_obj, "getTypeName", "()Ljava/lang/String;", &[])
-        .map_err(|err| zerror!(err))?
+        .map_err(|err| JniBindingError(err.to_string()))?
         .l()
-        .map_err(|err| zerror!(err))?;
+        .map_err(|err| JniBindingError(err.to_string()))?;
 
     let qualified_name: String = env
         .get_string(&JString::from(type_name_jobject))
-        .map_err(|err| zerror!(err))?
+        .map_err(|err| JniBindingError(err.to_string()))?
         .into();
 
     match qualified_name.as_str() {
@@ -66,7 +82,7 @@ fn decode_token_type(env: &mut JNIEnv, type_obj: JObject) -> ZResult<JavaType> {
         _ => {
             let type_token_class = env
                 .find_class("com/google/common/reflect/TypeToken")
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             let token_type = env
                 .call_static_method(
                     type_token_class,
@@ -74,12 +90,12 @@ fn decode_token_type(env: &mut JNIEnv, type_obj: JObject) -> ZResult<JavaType> {
                     "(Ljava/lang/reflect/Type;)Lcom/google/common/reflect/TypeToken;",
                     &[JValue::Object(&type_obj)],
                 )
-                .map_err(|err| zerror!(err))?
+                .map_err(|err| JniBindingError(err.to_string()))?
                 .l()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             let map_class: JObject = env
                 .find_class("java/util/Map")
-                .map_err(|err| zerror!(err))?
+                .map_err(|err| JniBindingError(err.to_string()))?
                 .into();
             let is_map_subtype = env
                 .call_method(
@@ -88,9 +104,9 @@ fn decode_token_type(env: &mut JNIEnv, type_obj: JObject) -> ZResult<JavaType> {
                     "(Ljava/lang/reflect/Type;)Z",
                     &[JValue::Object(&map_class)],
                 )
-                .map_err(|err| zerror!(err))?
+                .map_err(|err| JniBindingError(err.to_string()))?
                 .z()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
 
             if is_map_subtype {
                 let args = env
@@ -100,16 +116,16 @@ fn decode_token_type(env: &mut JNIEnv, type_obj: JObject) -> ZResult<JavaType> {
                         "()[Ljava/lang/reflect/Type;",
                         &[],
                     )
-                    .map_err(|err| zerror!(err))?
+                    .map_err(|err| JniBindingError(err.to_string()))?
                     .l()
-                    .map_err(|err| zerror!(err))?;
+                    .map_err(|err| JniBindingError(err.to_string()))?;
                 let jobject_array = JObjectArray::from(args);
                 let arg1 = env
                     .get_object_array_element(&jobject_array, 0)
-                    .map_err(|err| zerror!(err))?;
+                    .map_err(|err| JniBindingError(err.to_string()))?;
                 let arg2 = env
                     .get_object_array_element(&jobject_array, 1)
-                    .map_err(|err| zerror!(err))?;
+                    .map_err(|err| JniBindingError(err.to_string()))?;
 
                 return Ok(JavaType::Map(
                     Box::new(decode_token_type(env, arg1)?),
@@ -119,7 +135,7 @@ fn decode_token_type(env: &mut JNIEnv, type_obj: JObject) -> ZResult<JavaType> {
 
             let list_class: JObject = env
                 .find_class("java/util/List")
-                .map_err(|err| zerror!(err))?
+                .map_err(|err| JniBindingError(err.to_string()))?
                 .into();
             let is_list_subtype = env
                 .call_method(
@@ -128,9 +144,9 @@ fn decode_token_type(env: &mut JNIEnv, type_obj: JObject) -> ZResult<JavaType> {
                     "(Ljava/lang/reflect/Type;)Z",
                     &[JValue::Object(&list_class)],
                 )
-                .map_err(|err| zerror!(err))?
+                .map_err(|err| JniBindingError(err.to_string()))?
                 .z()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
 
             if is_list_subtype {
                 let args = env
@@ -140,41 +156,44 @@ fn decode_token_type(env: &mut JNIEnv, type_obj: JObject) -> ZResult<JavaType> {
                         "()[Ljava/lang/reflect/Type;",
                         &[],
                     )
-                    .map_err(|err| zerror!(err))?
+                    .map_err(|err| JniBindingError(err.to_string()))?
                     .l()
-                    .map_err(|err| zerror!(err))?;
+                    .map_err(|err| JniBindingError(err.to_string()))?;
                 let jobject_array = JObjectArray::from(args);
                 let arg1 = env
                     .get_object_array_element(&jobject_array, 0)
-                    .map_err(|err| zerror!(err))?;
+                    .map_err(|err| JniBindingError(err.to_string()))?;
 
                 return Ok(JavaType::List(Box::new(decode_token_type(env, arg1)?)));
             }
 
-            Err(zerror!("Unsupported type: {}", qualified_name))
+            Err(JniBindingError(format!(
+                "Unsupported type: {}",
+                qualified_name
+            )))
         }
     }
 }
 
-#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
+#[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNIZBytes_serializeViaJNI(
+pub extern "C" fn Java_io_zenoh_jni_bytes_JNIBytes_serializeViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     any: JObject,
     token_type: JObject,
 ) -> jobject {
-    || -> ZResult<jobject> {
+    || -> JResult<jobject> {
         let mut serializer = ZSerializer::new();
         let jtype = decode_token_type(&mut env, token_type)?;
         serialize(&mut env, &mut serializer, any, &jtype)?;
         let zbytes = serializer.finish();
 
-        let byte_array = bytes_to_java_array(&env, &zbytes).map_err(|err| zerror!(err))?;
+        let byte_array = bytes_to_java_array(&env, &zbytes)?;
         Ok(byte_array.as_raw())
     }()
     .unwrap_or_else(|err| {
-        throw_exception!(env, err);
+        throw_JniBindingError(&mut env, &err);
         JObject::default().as_raw()
     })
 }
@@ -184,97 +203,112 @@ fn serialize(
     serializer: &mut ZSerializer,
     any: JObject,
     jtype: &JavaType,
-) -> ZResult<()> {
+) -> JResult<()> {
     match jtype {
         JavaType::Byte => {
             let byte_value = env
                 .call_method(any, "byteValue", "()B", &[])
-                .map_err(|err| zerror!(err))?
+                .map_err(|err| JniBindingError(err.to_string()))?
                 .b()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             serializer.serialize(byte_value);
         }
         JavaType::Short => {
             let short_value = env
                 .call_method(any, "shortValue", "()S", &[])
-                .map_err(|err| zerror!(err))?
+                .map_err(|err| JniBindingError(err.to_string()))?
                 .s()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             serializer.serialize(short_value);
         }
         JavaType::Int => {
             let int_value = env
                 .call_method(any, "intValue", "()I", &[])
-                .map_err(|err| zerror!(err))?
+                .map_err(|err| JniBindingError(err.to_string()))?
                 .i()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             serializer.serialize(int_value);
         }
         JavaType::Long => {
             let long_value = env
                 .call_method(any, "longValue", "()J", &[])
-                .map_err(|err| zerror!(err))?
+                .map_err(|err| JniBindingError(err.to_string()))?
                 .j()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             serializer.serialize(long_value);
         }
         JavaType::Float => {
             let float_value = env
                 .call_method(any, "floatValue", "()F", &[])
-                .map_err(|err| zerror!(err))?
+                .map_err(|err| JniBindingError(err.to_string()))?
                 .f()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             serializer.serialize(float_value);
         }
         JavaType::Double => {
             let double_value = env
                 .call_method(any, "doubleValue", "()D", &[])
-                .map_err(|err| zerror!(err))?
+                .map_err(|err| JniBindingError(err.to_string()))?
                 .d()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             serializer.serialize(double_value);
         }
         JavaType::Boolean => {
             let boolean_value = env
                 .call_method(any, "booleanValue", "()Z", &[])
-                .map_err(|err| zerror!(err))?
+                .map_err(|err| JniBindingError(err.to_string()))?
                 .z()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             serializer.serialize(boolean_value);
         }
         JavaType::String => {
             let jstring = JString::from(any);
-            let string_value: String = env.get_string(&jstring).map_err(|err| zerror!(err))?.into();
+            let string_value: String = env
+                .get_string(&jstring)
+                .map_err(|err| JniBindingError(err.to_string()))?
+                .into();
             serializer.serialize(string_value);
         }
         JavaType::ByteArray => {
             let jbyte_array = JByteArray::from(any);
-            let bytes = decode_byte_array(env, jbyte_array).map_err(|err| zerror!(err))?;
+            let bytes = decode_byte_array(env, jbyte_array)?;
             serializer.serialize(bytes);
         }
         JavaType::List(kotlin_type) => {
             let jlist: JList<'_, '_, '_> =
-                JList::from_env(env, &any).map_err(|err| zerror!(err))?;
-            let mut iterator = jlist.iter(env).map_err(|err| zerror!(err))?;
-            let list_size = jlist.size(env).map_err(|err| zerror!(err))?;
-            serializer.serialize(zenoh_ext::VarInt(list_size as usize));
-            while let Some(value) = iterator.next(env).map_err(|err| zerror!(err))? {
+                JList::from_env(env, &any).map_err(|err| JniBindingError(err.to_string()))?;
+            let mut iterator = jlist
+                .iter(env)
+                .map_err(|err| JniBindingError(err.to_string()))?;
+            let list_size = jlist
+                .size(env)
+                .map_err(|err| JniBindingError(err.to_string()))?;
+            serializer.serialize(VarInt(list_size as usize));
+            while let Some(value) = iterator
+                .next(env)
+                .map_err(|err| JniBindingError(err.to_string()))?
+            {
                 serialize(env, serializer, value, kotlin_type)?;
             }
         }
         JavaType::Map(key_type, value_type) => {
-            let jmap = JMap::from_env(env, &any).map_err(|err| zerror!(err))?;
+            let jmap = JMap::from_env(env, &any).map_err(|err| JniBindingError(err.to_string()))?;
 
             let map_size = env
                 .call_method(&jmap, "size", "()I", &[])
-                .map_err(|err| zerror!(err))?
+                .map_err(|err| JniBindingError(err.to_string()))?
                 .i()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
 
-            serializer.serialize(zenoh_ext::VarInt(map_size as usize));
+            serializer.serialize(VarInt(map_size as usize));
 
-            let mut iterator = jmap.iter(env).map_err(|err| zerror!(err))?;
-            while let Some((key, value)) = iterator.next(env).map_err(|err| zerror!(err))? {
+            let mut iterator = jmap
+                .iter(env)
+                .map_err(|err| JniBindingError(err.to_string()))?;
+            while let Some((key, value)) = iterator
+                .next(env)
+                .map_err(|err| JniBindingError(err.to_string()))?
+            {
                 serialize(env, serializer, key, key_type)?;
                 serialize(env, serializer, value, value_type)?;
             }
@@ -283,27 +317,27 @@ fn serialize(
     Ok(())
 }
 
-#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
+#[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn Java_io_zenoh_jni_JNIZBytes_deserializeViaJNI(
+pub extern "C" fn Java_io_zenoh_jni_bytes_JNIBytes_deserializeViaJNI(
     mut env: JNIEnv,
     _class: JClass,
     bytes: JByteArray,
     jtype: JObject,
 ) -> jobject {
-    || -> ZResult<jobject> {
+    || -> JResult<jobject> {
         let decoded_bytes: Vec<u8> = decode_byte_array(&env, bytes)?;
         let zbytes = ZBytes::from(decoded_bytes);
         let mut deserializer = ZDeserializer::new(&zbytes);
         let jtype = decode_token_type(&mut env, jtype)?;
         let obj = deserialize(&mut env, &mut deserializer, &jtype)?;
         if !deserializer.done() {
-            return Err(zerror!(ZDeserializeError));
+            return Err(JniBindingError(ZDeserializeError.to_string()));
         }
         Ok(obj)
     }()
     .unwrap_or_else(|err| {
-        throw_exception!(env, err);
+        throw_JniBindingError(&mut env, &err);
         JObject::default().as_raw()
     })
 }
@@ -312,116 +346,119 @@ fn deserialize(
     env: &mut JNIEnv,
     deserializer: &mut ZDeserializer,
     jtype: &JavaType,
-) -> ZResult<jobject> {
+) -> JResult<jobject> {
     match jtype {
         JavaType::Byte => {
             let byte = deserializer
                 .deserialize::<i8>()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             let byte_obj = env
                 .new_object("java/lang/Byte", "(B)V", &[JValue::Byte(byte)])
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             Ok(byte_obj.as_raw())
         }
         JavaType::Short => {
             let short = deserializer
                 .deserialize::<i16>()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             let short_obj = env
                 .new_object("java/lang/Short", "(S)V", &[JValue::Short(short)])
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             Ok(short_obj.as_raw())
         }
         JavaType::Int => {
             let integer = deserializer
                 .deserialize::<i32>()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             let integer_obj = env
                 .new_object("java/lang/Integer", "(I)V", &[JValue::Int(integer)])
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             Ok(integer_obj.as_raw())
         }
         JavaType::Long => {
             let long = deserializer
                 .deserialize::<i64>()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             let long_obj = env
                 .new_object("java/lang/Long", "(J)V", &[JValue::Long(long)])
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             Ok(long_obj.as_raw())
         }
         JavaType::Float => {
             let float = deserializer
                 .deserialize::<f32>()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             let float_obj = env
                 .new_object("java/lang/Float", "(F)V", &[JValue::Float(float)])
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             Ok(float_obj.as_raw())
         }
         JavaType::Double => {
             let double = deserializer
                 .deserialize::<f64>()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             let double_obj = env
                 .new_object("java/lang/Double", "(D)V", &[JValue::Double(double)])
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             Ok(double_obj.as_raw())
         }
         JavaType::Boolean => {
             let boolean_value = deserializer
                 .deserialize::<bool>()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             let jboolean = if boolean_value { 1u8 } else { 0u8 };
             let boolean_obj = env
                 .new_object("java/lang/Boolean", "(Z)V", &[JValue::Bool(jboolean)])
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             Ok(boolean_obj.as_raw())
         }
         JavaType::String => {
             let deserialized_string = deserializer
                 .deserialize::<String>()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             let jstring = env
                 .new_string(&deserialized_string)
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             Ok(jstring.into_raw())
         }
         JavaType::ByteArray => {
             let deserialized_bytes = deserializer
                 .deserialize::<Vec<u8>>()
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             let jbytes = env
                 .byte_array_from_slice(deserialized_bytes.as_slice())
-                .map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
             Ok(jbytes.into_raw())
         }
         JavaType::List(kotlin_type) => {
             let list_size = deserializer
                 .deserialize::<VarInt<usize>>()
-                .map_err(|err| zerror!(err))?
+                .map_err(|err| JniBindingError(err.to_string()))?
                 .0;
             let array_list = env
                 .new_object("java/util/ArrayList", "()V", &[])
-                .map_err(|err| zerror!(err))?;
-            let jlist = JList::from_env(env, &array_list).map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
+            let jlist =
+                JList::from_env(env, &array_list).map_err(|err| JniBindingError(err.to_string()))?;
 
             for _ in 0..list_size {
                 let item = deserialize(env, deserializer, kotlin_type)?;
                 let item_obj = unsafe { JObject::from_raw(item) };
-                jlist.add(env, &item_obj).map_err(|err| zerror!(err))?;
+                jlist
+                    .add(env, &item_obj)
+                    .map_err(|err| JniBindingError(err.to_string()))?;
             }
             Ok(array_list.as_raw())
         }
         JavaType::Map(key_type, value_type) => {
             let map_size = deserializer
                 .deserialize::<VarInt<usize>>()
-                .map_err(|err| zerror!(err))?
+                .map_err(|err| JniBindingError(err.to_string()))?
                 .0;
             let map = env
                 .new_object("java/util/HashMap", "()V", &[])
-                .map_err(|err| zerror!(err))?;
-            let jmap = JMap::from_env(env, &map).map_err(|err| zerror!(err))?;
+                .map_err(|err| JniBindingError(err.to_string()))?;
+            let jmap = JMap::from_env(env, &map).map_err(|err| JniBindingError(err.to_string()))?;
 
             for _ in 0..map_size {
                 let key = deserialize(env, deserializer, key_type)?;
@@ -429,7 +466,7 @@ fn deserialize(
                 let value = deserialize(env, deserializer, value_type)?;
                 let value_obj = unsafe { JObject::from_raw(value) };
                 jmap.put(env, &key_obj, &value_obj)
-                    .map_err(|err| zerror!(err))?;
+                    .map_err(|err| JniBindingError(err.to_string()))?;
             }
             Ok(map.as_raw())
         }

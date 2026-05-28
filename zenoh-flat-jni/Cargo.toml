@@ -5,9 +5,9 @@ edition = "2021"
 
 [features]
 default = ["zenoh-ext"]
-# Propagated to zenoh-jni so the legacy zbytes JNI surface stays exported
-# through the outdated/ shim.
-zenoh-ext = ["zenoh_jni/zenoh-ext"]
+# Gates the hand-written ZBytes serialization JNI (src/zbytes.rs), which needs
+# zenoh-ext's serializer/deserializer.
+zenoh-ext = ["dep:zenoh-ext"]
 
 [dependencies]
 zenoh-flat = { version = "1.9.0", path = "../zenoh-flat" }
@@ -16,6 +16,10 @@ prebindgen-ext = { version = "1.0.0", path = "../prebindgen-ext" }
 # the export_jni_symbols feature so the same Java_… fns become regular Rust
 # pubs — only outdated/ wrappers below carry #[no_mangle] for the JNI ABI.
 zenoh_jni = { path = "../zenoh-jni", default-features = false, features = ["zenoh-default"] }
+# Direct zenoh/zenoh-ext deps for the self-contained ZBytes serialization JNI.
+# Same git rev as zenoh-flat so Cargo unifies the crate instances.
+zenoh = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["unstable", "internal"], default-features = false }
+zenoh-ext = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["internal"], default-features = false, optional = true }
 jni = "0.21.1"
 konst = "0.3.17"
 tracing = { version = "0.1", features = ["log"] }

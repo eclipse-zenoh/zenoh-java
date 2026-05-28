@@ -69,6 +69,7 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             kotlin.srcDir("../zenoh-flat-jni/generated-kotlin")
+            kotlin.srcDir("../zenoh-flat-jni/kotlin")
             dependencies {
                 implementation("commons-net:commons-net:3.9.0")
                 implementation("com.google.guava:guava:33.3.1-jre")

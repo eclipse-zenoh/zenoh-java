@@ -23,8 +23,6 @@ pub mod queryable;
 pub mod session;
 pub mod subscriber;
 pub mod utils;
-#[cfg(feature = "zenoh-ext")]
-pub mod zbytes;
 pub mod zenoh_id;
 
 pub use errors::{ZError, ZResult};

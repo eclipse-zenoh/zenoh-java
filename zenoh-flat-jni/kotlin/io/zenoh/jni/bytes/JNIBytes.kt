@@ -12,21 +12,18 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-package io.zenoh.jni
+@file:JvmName("JNIBytes")
+
+package io.zenoh.jni.bytes
 
 import io.zenoh.ZenohLoad
 import java.lang.reflect.Type
 
-@PublishedApi
-internal object JNIZBytes {
+// Forces the native library to load before the first JNI call. The standalone
+// (de)serialization path has no Session to trigger the load, and the facade
+// class <clinit> runs before either external fn below is invoked.
+private val ensureLoaded = ZenohLoad
 
-    init {
-        ZenohLoad
-    }
+internal external fun serializeViaJNI(any: Any, type: Type): ByteArray
 
-    @JvmStatic
-    external fun serializeViaJNI(any: Any, type: Type): ByteArray
-
-    @JvmStatic
-    external fun deserializeViaJNI(bytes: ByteArray, type: Type): Any
-}
+internal external fun deserializeViaJNI(bytes: ByteArray, type: Type): Any

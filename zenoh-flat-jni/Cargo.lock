@@ -4065,6 +4065,8 @@ dependencies = [
  "prebindgen-ext",
  "syn 2.0.117",
  "tracing",
+ "zenoh",
+ "zenoh-ext",
  "zenoh-flat",
  "zenoh_jni",
 ]
@@ -4443,7 +4445,6 @@ dependencies = [
  "tracing",
  "uhlc",
  "zenoh",
- "zenoh-ext",
 ]
 
 [[package]]

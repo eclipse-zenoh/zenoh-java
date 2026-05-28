@@ -10,5 +10,3 @@ pub mod queryable;
 pub mod session;
 pub mod subscriber;
 pub mod zenoh_id;
-#[cfg(feature = "zenoh-ext")]
-pub mod zbytes;
