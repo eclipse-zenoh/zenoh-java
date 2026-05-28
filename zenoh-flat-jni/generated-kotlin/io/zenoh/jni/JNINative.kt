@@ -6,14 +6,22 @@ import io.zenoh.jni.bytes.ZEncoding
 import io.zenoh.jni.bytes.ZZBytes
 import io.zenoh.jni.callbacks.Callback
 import io.zenoh.jni.callbacks.HelloCallback
+import io.zenoh.jni.callbacks.ReplyCallback
 import io.zenoh.jni.callbacks.ZHelloCallback
+import io.zenoh.jni.callbacks.ZReplyCallback
 import io.zenoh.jni.config.WhatAmI
 import io.zenoh.jni.config.ZConfig
 import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.keyexpr.KeyExpr
 import io.zenoh.jni.keyexpr.SetIntersectionLevel
 import io.zenoh.jni.keyexpr.ZKeyExpr
+import io.zenoh.jni.qos.CongestionControl
+import io.zenoh.jni.qos.Priority
 import io.zenoh.jni.query.Query
+import io.zenoh.jni.query.Reply
+import io.zenoh.jni.sample.Sample
+import io.zenoh.jni.sample.SampleKind
+import io.zenoh.jni.sample.ZSample
 import io.zenoh.jni.scouting.ZScout
 
 internal object JNINative {
@@ -81,6 +89,7 @@ internal object JNINative {
     external fun keyexprJoin(a: Any, b: String): KeyExpr
     external fun keyexprRelationTo(a: Any, b: Any): Int
     external fun keyexprTryFrom(s: String): KeyExpr
+    external fun querierGet(querier: Long, parameters: String?, payload: Any?, encoding: Any, attachment: Any?, callback: ReplyCallback, onClose: Callback)
     external fun scout(whatami: Int, config: Long, callback: HelloCallback, onClose: Callback): Long
     external fun tryInitZenohLogsFromEnv()
     external fun zConfigDefault(): Long
@@ -159,10 +168,28 @@ internal object JNINative {
     external fun zKeyexprTryFrom(s: String): Long
     external fun zPublisherDelete(publisher: Long, attachment: Any?)
     external fun zPublisherPut(publisher: Long, payload: Any, encoding: Any, attachment: Any?)
+    external fun zQuerierGet(querier: Long, parameters: String?, payload: Any?, encoding: Any, attachment: Any?, callback: ZReplyCallback, onClose: Callback)
     external fun zQueryExpand(query: Long): Query
     external fun zQueryReplyDelete(query: Long, keyExpr: Any, timestampNtp64: Long?, attachment: Any?, express: Boolean)
     external fun zQueryReplyError(query: Long, payload: Any, encoding: Any)
     external fun zQueryReplySuccess(query: Long, keyExpr: Any, payload: Any, encoding: Any, timestampNtp64: Long?, attachment: Any?, express: Boolean)
+    external fun zReplyErrorEncoding(r: Long): Long
+    external fun zReplyErrorPayload(r: Long): Long
+    external fun zReplyExpand(r: Long): Reply
+    external fun zReplyIsOk(r: Long): Boolean
+    external fun zReplyReplierEid(r: Long): Int
+    external fun zReplyReplierZid(r: Long): Long
+    external fun zReplySample(r: Long): Long
+    external fun zSampleAttachment(s: Long): Long
+    external fun zSampleCongestionControl(s: Long): Int
+    external fun zSampleEncoding(s: Long): Long
+    external fun zSampleExpand(s: Long): Sample
+    external fun zSampleExpress(s: Long): Boolean
+    external fun zSampleKeyExpr(s: Long): Long
+    external fun zSampleKind(s: Long): Int
+    external fun zSamplePayload(s: Long): Long
+    external fun zSamplePriority(s: Long): Int
+    external fun zSampleTimestamp(s: Long): Long
     external fun zScout(whatami: Int, config: Long, callback: ZHelloCallback, onClose: Callback): Long
     external fun zZbytesFromBytes(bytes: ByteArray): Long
     external fun zZbytesToBytes(z: Long): ByteArray

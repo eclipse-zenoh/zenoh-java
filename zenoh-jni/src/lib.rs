@@ -16,7 +16,6 @@ pub mod errors;
 pub mod key_expr;
 pub mod liveliness;
 pub mod logger;
-pub mod querier;
 pub mod session;
 pub mod utils;
 pub mod zenoh_id;

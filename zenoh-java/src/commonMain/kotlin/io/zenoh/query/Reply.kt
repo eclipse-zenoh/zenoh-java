@@ -19,6 +19,7 @@ import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.config.EntityGlobalId
+import io.zenoh.config.ZenohId
 import io.zenoh.sample.Sample
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
@@ -33,6 +34,21 @@ import org.apache.commons.net.ntp.TimeStamp
  * @see Error
  */
 sealed class Reply private constructor(val replierId: EntityGlobalId?) : ZenohType {
+
+    internal companion object {
+        /** Repacks the flat [io.zenoh.jni.query.Reply] delivered by `querier_get`. */
+        fun from(flat: io.zenoh.jni.query.Reply): Reply {
+            val replierId = flat.replierZid?.let {
+                EntityGlobalId(ZenohId(it), flat.replierEid.toUInt())
+            }
+            val sample = flat.sample
+            return if (sample != null) {
+                Success(replierId, Sample.from(sample))
+            } else {
+                Error(replierId, ZBytes(flat.errorPayload!!), Encoding(flat.errorEncoding!!))
+            }
+        }
+    }
 
     /**
      * A Success reply.

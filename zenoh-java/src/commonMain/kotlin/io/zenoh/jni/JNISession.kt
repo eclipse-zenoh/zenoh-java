@@ -143,7 +143,7 @@ internal class JNISession(val sessionPtr: Long) {
     ): CallbackQueryable {
         val queryCallback =
             JNIQueryableCallback { _: String, _: String, _: ByteArray?, _: Int, _: String?, _: ByteArray?, queryPtr: Long, _: Int ->
-                val query = Query.from(io.zenoh.jni.query.ZQuery(queryPtr).queryTake())
+                val query = Query.from(io.zenoh.jni.query.ZQuery(queryPtr).zQueryExpand())
                 callback.run(query)
             }
         val queryableRawPtr = declareQueryableViaJNI(
@@ -163,7 +163,7 @@ internal class JNISession(val sessionPtr: Long) {
     ): HandlerQueryable<R> {
         val queryCallback =
             JNIQueryableCallback { _: String, _: String, _: ByteArray?, _: Int, _: String?, _: ByteArray?, queryPtr: Long, _: Int ->
-                val query = Query.from(io.zenoh.jni.query.ZQuery(queryPtr).queryTake())
+                val query = Query.from(io.zenoh.jni.query.ZQuery(queryPtr).zQueryExpand())
                 handler.handle(query)
             }
         val queryableRawPtr = declareQueryableViaJNI(

@@ -22,7 +22,6 @@ import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
-import io.zenoh.jni.JNIQuerier
 import io.zenoh.jni.query.ZQuerier
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
@@ -79,7 +78,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
         options: GetOptions
     ): BlockingQueue<Optional<Reply>> {
         val handler = BlockingQueueHandler<Reply>(LinkedBlockingDeque())
-        return resolveGetWithHandler(keyExpr, handler, options)
+        return resolveGetWithHandler(handler, options)
     }
 
     /**
@@ -94,7 +93,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
         callback: Callback<Reply>,
         options: GetOptions
     ) {
-        resolveGetWithCallback(keyExpr, callback, options)
+        resolveGetWithCallback(callback, options)
     }
 
     /**
@@ -109,7 +108,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
         handler: Handler<Reply, R>,
         options: GetOptions
     ): R {
-        return resolveGetWithHandler(keyExpr, handler, options)
+        return resolveGetWithHandler(handler, options)
     }
 
     /**
@@ -143,14 +142,29 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
         undeclare()
     }
 
-    private fun resolveGetWithCallback(keyExpr: KeyExpr, callback: Callback<Reply>, options: GetOptions) {
-        val ptr = zQuerier?.peek() ?: throw ZError("Querier is not valid.")
-        JNIQuerier(ptr).performGetWithCallback(keyExpr, callback, options)
+    private fun resolveGetWithCallback(callback: Callback<Reply>, options: GetOptions) {
+        val q = zQuerier ?: throw ZError("Querier is not valid.")
+        q.querierGet(
+            options.parameters?.toString(),
+            options.payload?.into()?.inner,
+            (options.encoding ?: Encoding.defaultEncoding()).toFlat(),
+            options.attachment?.into()?.inner,
+            io.zenoh.jni.callbacks.ReplyCallback { flat -> callback.run(Reply.from(flat)) },
+            io.zenoh.jni.callbacks.Callback { }
+        )
     }
 
-    private fun <R> resolveGetWithHandler(keyExpr: KeyExpr, handler: Handler<Reply, R>, options: GetOptions): R {
-        val ptr = zQuerier?.peek() ?: throw ZError("Querier is not valid.")
-        return JNIQuerier(ptr).performGetWithHandler(keyExpr, handler, options)
+    private fun <R> resolveGetWithHandler(handler: Handler<Reply, R>, options: GetOptions): R {
+        val q = zQuerier ?: throw ZError("Querier is not valid.")
+        q.querierGet(
+            options.parameters?.toString(),
+            options.payload?.into()?.inner,
+            (options.encoding ?: Encoding.defaultEncoding()).toFlat(),
+            options.attachment?.into()?.inner,
+            io.zenoh.jni.callbacks.ReplyCallback { flat -> handler.handle(Reply.from(flat)) },
+            io.zenoh.jni.callbacks.Callback { handler.onClose() }
+        )
+        return handler.receiver()
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::util::OnceDrop;
 use crate::{Error, ZConfig, ZHello, ZScout};
 use super::hello::Hello;
 use prebindgen_proc_macro::prebindgen;
@@ -53,25 +54,4 @@ pub fn scout(
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<ZScout, Error> {
     z_scout(whatami, config, move |zh| callback(Hello::from(zh)), on_close)
-}
-
-/// Calls a no-arg closure on drop. Lets a long-lived callback closure
-/// signal teardown by capturing one of these alongside its main
-/// callback — when the outer holder is dropped, this fires.
-struct OnceDrop<F: Fn() + Send + Sync + 'static> {
-    f: Option<F>,
-}
-
-impl<F: Fn() + Send + Sync + 'static> OnceDrop<F> {
-    fn new(f: F) -> Self {
-        Self { f: Some(f) }
-    }
-}
-
-impl<F: Fn() + Send + Sync + 'static> Drop for OnceDrop<F> {
-    fn drop(&mut self) {
-        if let Some(f) = self.f.take() {
-            f();
-        }
-    }
 }
