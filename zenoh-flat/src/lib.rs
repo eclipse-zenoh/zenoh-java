@@ -22,6 +22,7 @@ pub(crate) mod qos;
 pub(crate) mod bytes;
 pub(crate) mod error;
 pub(crate) mod logger;
+pub(crate) mod publisher;
 
 // reexports to make all zenoh-flat API really flat
 pub use keyexpr::*;
@@ -31,6 +32,7 @@ pub use qos::*;
 pub use bytes::*;
 pub use error::*;
 pub use logger::*;
+pub use publisher::*;
 
 // reexports of zenoh types with Z prefix to distiguish them from zenoh-flat types
 pub type ZKeyExpr = zenoh::key_expr::KeyExpr<'static>;
@@ -39,3 +41,4 @@ pub type ZZenohId = zenoh::session::ZenohId;
 pub type ZHello = zenoh::scouting::Hello;
 pub type ZScout = zenoh::scouting::Scout<()>;
 pub type ZZBytes = zenoh::bytes::ZBytes;
+pub type ZPublisher = zenoh::pubsub::Publisher<'static>;

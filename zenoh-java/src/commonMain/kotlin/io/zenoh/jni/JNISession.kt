@@ -81,7 +81,7 @@ internal class JNISession(val sessionPtr: Long) {
             publisherOptions.congestionControl,
             publisherOptions.priority,
             publisherOptions.encoding,
-            JNIPublisher(publisherRawPtr),
+            io.zenoh.jni.pubsub.ZPublisher(publisherRawPtr),
         )
     }
 

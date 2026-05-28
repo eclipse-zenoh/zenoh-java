@@ -42,6 +42,8 @@ internal object JNINative {
     external fun zKeyexprJoin(a: Long, b: String): Long
     external fun zKeyexprRelationTo(a: Long, b: Long): Int
     external fun zKeyexprTryFrom(s: String): Long
+    external fun zPublisherDelete(publisher: Long, attachment: ByteArray?)
+    external fun zPublisherPut(publisher: Long, payload: Any, encodingId: Int, encodingSchema: String?, attachment: ByteArray?)
     external fun zScout(whatami: Int, config: Long, callback: ZHelloCallback, onClose: Callback): Long
     external fun zZbytesFromBytes(bytes: ByteArray): Long
     external fun zZbytesToBytes(z: Long): ByteArray

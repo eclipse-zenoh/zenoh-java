@@ -3,7 +3,6 @@
 
 pub mod liveliness;
 pub mod logger;
-pub mod publisher;
 pub mod querier;
 pub mod query;
 pub mod queryable;

@@ -78,6 +78,17 @@ fn main() {
         .class_fun(pq!(z_zbytes_to_bytes))
         .class_object_fun(pq!(z_zbytes_from_bytes))
         .value_class(pq!(ZBytes))
+        .package("pubsub")
+        .ptr_class(pq!(ZPublisher))
+        .class_fun(pq!(z_publisher_put))
+        .class_fun(pq!(z_publisher_delete))
+        .into_sources(
+            pq!(ZBytes),
+            [
+                IntoSource::borrow(pq!(ZZBytes)),
+                IntoSource::borrow(pq!(ZBytes)),
+            ],
+        )
         ;
 
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
