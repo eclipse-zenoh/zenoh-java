@@ -81,7 +81,6 @@ internal object JNINative {
     external fun keyexprJoin(a: Any, b: String): KeyExpr
     external fun keyexprRelationTo(a: Any, b: Any): Int
     external fun keyexprTryFrom(s: String): KeyExpr
-    external fun queryTake(query: Long): Query
     external fun scout(whatami: Int, config: Long, callback: HelloCallback, onClose: Callback): Long
     external fun tryInitZenohLogsFromEnv()
     external fun zConfigDefault(): Long
@@ -160,6 +159,7 @@ internal object JNINative {
     external fun zKeyexprTryFrom(s: String): Long
     external fun zPublisherDelete(publisher: Long, attachment: Any?)
     external fun zPublisherPut(publisher: Long, payload: Any, encoding: Any, attachment: Any?)
+    external fun zQueryExpand(query: Long): Query
     external fun zQueryReplyDelete(query: Long, keyExpr: Any, timestampNtp64: Long?, attachment: Any?, express: Boolean)
     external fun zQueryReplyError(query: Long, payload: Any, encoding: Any)
     external fun zQueryReplySuccess(query: Long, keyExpr: Any, payload: Any, encoding: Any, timestampNtp64: Long?, attachment: Any?, express: Boolean)

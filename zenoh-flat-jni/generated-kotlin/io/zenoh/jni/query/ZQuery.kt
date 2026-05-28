@@ -155,12 +155,12 @@ public class ZQuery(initialPtr: Long) : AutoCloseable {
     }
 
     @Throws(JniBindingError::class)
-    public fun queryTake(): Query {
+    public fun zQueryExpand(): Query {
         synchronized(this) {
             val query_ptr = this.ptr
             if (query_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
             return try {
-                JNINative.queryTake(query_ptr)
+                JNINative.zQueryExpand(query_ptr)
             } finally {
                 ptr = 0L
             }

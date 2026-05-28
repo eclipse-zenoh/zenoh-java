@@ -205,7 +205,7 @@ fn main() {
         .class_fun(pq!(z_query_reply_success))
         .class_fun(pq!(z_query_reply_error))
         .class_fun(pq!(z_query_reply_delete))
-        .class_fun(pq!(query_take))
+        .class_fun(pq!(z_query_expand))
         .data_class(pq!(Query))
         .into_sources(
             pq!(ZBytes),

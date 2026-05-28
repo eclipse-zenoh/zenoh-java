@@ -31,6 +31,6 @@ impl From<ZQuery> for Query {
 /// Consume an opaque [`ZQuery`] handle and repack it into the decoded
 /// [`Query`] data class (re-embedding the same native query for replies).
 #[prebindgen]
-pub fn query_take(query: ZQuery) -> Query {
+pub fn z_query_expand(query: ZQuery) -> Query {
     Query::from(query)
 }
