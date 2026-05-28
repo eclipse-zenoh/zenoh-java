@@ -114,10 +114,6 @@ internal class JNIQuerier(val ptr: Long) {
         return receiver
     }
 
-    fun close() {
-        freePtrViaJNI(ptr)
-    }
-
     @Throws(ZError::class)
     private external fun getViaJNI(
         querierPtr: Long,
@@ -131,7 +127,5 @@ internal class JNIQuerier(val ptr: Long) {
         encodingId: Int,
         encodingSchema: String?,
     )
-
-    private external fun freePtrViaJNI(ptr: Long)
 
 }

@@ -120,17 +120,3 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_getViaJNI(
     .map_err(|err| throw_exception!(env, err));
 }
 
-///
-/// Frees the pointer of the querier.
-///
-/// After a call to this function, no further jni operations should be performed using the querier associated to the raw pointer provided.
-///
-#[cfg_attr(feature = "export_jni_symbols", no_mangle)]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_freePtrViaJNI(
-    _env: JNIEnv,
-    _: JClass,
-    querier_ptr: *const Querier<'static>,
-) {
-    let _ = Box::from_raw(querier_ptr as *mut Querier<'static>);
-}

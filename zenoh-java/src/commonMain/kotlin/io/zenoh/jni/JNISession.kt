@@ -170,7 +170,7 @@ internal class JNISession(val sessionPtr: Long) {
             fun() {},
             config.complete
         )
-        return CallbackQueryable(keyExpr, JNIQueryable(queryableRawPtr))
+        return CallbackQueryable(keyExpr, io.zenoh.jni.query.ZQueryable(queryableRawPtr))
     }
 
     @Throws(ZError::class)
@@ -206,7 +206,7 @@ internal class JNISession(val sessionPtr: Long) {
             handler::onClose,
             config.complete
         )
-        return HandlerQueryable(keyExpr, JNIQueryable(queryableRawPtr), handler.receiver())
+        return HandlerQueryable(keyExpr, io.zenoh.jni.query.ZQueryable(queryableRawPtr), handler.receiver())
     }
 
     @OptIn(Unstable::class)
@@ -233,7 +233,7 @@ internal class JNISession(val sessionPtr: Long) {
                 priority = options.priority,
                 express = options.express
             ),
-            JNIQuerier(querierRawPtr)
+            io.zenoh.jni.query.ZQuerier(querierRawPtr)
         )
     }
 

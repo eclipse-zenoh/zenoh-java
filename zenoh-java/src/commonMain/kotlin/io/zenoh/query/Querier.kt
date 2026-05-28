@@ -23,6 +23,7 @@ import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
 import io.zenoh.jni.JNIQuerier
+import io.zenoh.jni.query.ZQuerier
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
@@ -54,7 +55,7 @@ import java.util.concurrent.LinkedBlockingDeque
  * @param keyExpr The [KeyExpr] of the querier.
  * @param qos The [QoS] configuration of the querier.
  */
-class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private var jniQuerier: JNIQuerier?) :
+class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private var zQuerier: ZQuerier?) :
     SessionDeclaration, AutoCloseable {
 
     /**
@@ -126,8 +127,8 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
      * performed on it will fail.
      */
     override fun undeclare() {
-        jniQuerier?.close()
-        jniQuerier = null
+        zQuerier?.close()
+        zQuerier = null
     }
 
     /**
@@ -143,11 +144,13 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
     }
 
     private fun resolveGetWithCallback(keyExpr: KeyExpr, callback: Callback<Reply>, options: GetOptions) {
-        jniQuerier?.performGetWithCallback(keyExpr, callback, options) ?: throw ZError("Querier is not valid.")
+        val ptr = zQuerier?.peek() ?: throw ZError("Querier is not valid.")
+        JNIQuerier(ptr).performGetWithCallback(keyExpr, callback, options)
     }
 
     private fun <R> resolveGetWithHandler(keyExpr: KeyExpr, handler: Handler<Reply, R>, options: GetOptions): R {
-        return jniQuerier?.performGetWithHandler(keyExpr, handler, options) ?: throw ZError("Querier is not valid.")
+        val ptr = zQuerier?.peek() ?: throw ZError("Querier is not valid.")
+        return JNIQuerier(ptr).performGetWithHandler(keyExpr, handler, options)
     }
 }
 

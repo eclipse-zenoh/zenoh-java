@@ -26,11 +26,3 @@ pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_getViaJNI(
     zenoh_jni::querier::Java_io_zenoh_jni_JNIQuerier_getViaJNI(env, _class, querier_ptr, key_expr_ptr, key_expr_str, selector_params, callback, on_close, attachment, payload, encoding_id, encoding_schema)
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn Java_io_zenoh_jni_JNIQuerier_freePtrViaJNI(
-    _env: JNIEnv,
-    _class: JClass,
-    querier_ptr: *const Querier<'static>,
-) {
-    zenoh_jni::querier::Java_io_zenoh_jni_JNIQuerier_freePtrViaJNI(_env, _class, querier_ptr)
-}
