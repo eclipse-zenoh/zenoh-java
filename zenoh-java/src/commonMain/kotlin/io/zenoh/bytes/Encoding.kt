@@ -481,6 +481,9 @@ class Encoding private constructor(
         return Encoding(this.id, schema, this.description)
     }
 
+    internal fun toFlat(): io.zenoh.jni.bytes.Encoding =
+        io.zenoh.jni.bytes.Encoding(id, schema)
+
     override fun toString(): String {
         val base = description ?: "unknown(${this.id})"
         val schemaInfo = schema?.let { ";$it" } ?: ""

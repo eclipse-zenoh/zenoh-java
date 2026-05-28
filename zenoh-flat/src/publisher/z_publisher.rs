@@ -1,22 +1,18 @@
-use crate::{Error, ZBytes, ZPublisher};
+use crate::{Encoding, Error, ZBytes, ZEncoding, ZPublisher};
 use prebindgen_proc_macro::prebindgen;
-use zenoh::{bytes::Encoding, Wait};
+use zenoh::Wait;
 
 #[prebindgen]
 pub fn z_publisher_put(
     publisher: &ZPublisher,
     payload: impl Into<ZBytes> + Send + 'static,
-    encoding_id: i32,
-    encoding_schema: Option<String>,
+    encoding: impl Into<Encoding> + Send + 'static,
     attachment: Option<impl Into<ZBytes> + Send + 'static>,
 ) -> Result<(), Error> {
-    let id = u16::try_from(encoding_id).map_err(|e| Error {
-        message: format!("Invalid encoding id {encoding_id}: {e}"),
-    })?;
-    let schema = encoding_schema.map(|s| s.into_bytes().into());
-    let encoding = Encoding::new(id, schema);
+    let encoding: Encoding = encoding.into();
+    let z_encoding: ZEncoding = encoding.try_into()?;
     let payload: ZBytes = payload.into();
-    let mut publication = publisher.put(payload.bytes).encoding(encoding);
+    let mut publication = publisher.put(payload.bytes).encoding(z_encoding);
     if let Some(att) = attachment {
         let att: ZBytes = att.into();
         publication = publication.attachment::<Vec<u8>>(att.bytes);

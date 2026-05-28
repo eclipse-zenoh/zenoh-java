@@ -136,8 +136,7 @@ class Publisher internal constructor(
         wrapJNIExceptionAsZError {
             p.zPublisherPut(
                 payload.into().inner,
-                encoding.id,
-                encoding.schema,
+                encoding.toFlat(),
                 attachment?.into()?.inner,
             )
         }

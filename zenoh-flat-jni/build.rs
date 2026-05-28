@@ -78,6 +78,10 @@ fn main() {
         .class_fun(pq!(z_zbytes_to_bytes))
         .class_object_fun(pq!(z_zbytes_from_bytes))
         .value_class(pq!(ZBytes))
+        .ptr_class(pq!(ZEncoding))
+        .class_fun(pq!(z_encoding_id))
+        .class_fun(pq!(z_encoding_schema))
+        .data_class(pq!(Encoding))
         .package("pubsub")
         .ptr_class(pq!(ZPublisher))
         .class_fun(pq!(z_publisher_put))
@@ -88,6 +92,13 @@ fn main() {
                 IntoSource::borrow(pq!(ZZBytes)),
                 IntoSource::borrow(pq!(ZBytes)),
                 IntoSource::borrow(pq!(Vec<u8>)),
+            ],
+        )
+        .into_sources(
+            pq!(Encoding),
+            [
+                IntoSource::borrow(pq!(Encoding)),
+                IntoSource::borrow(pq!(ZEncoding)),
             ],
         )
         ;

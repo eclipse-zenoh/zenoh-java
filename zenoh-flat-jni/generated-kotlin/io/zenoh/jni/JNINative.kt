@@ -32,6 +32,8 @@ internal object JNINative {
     external fun zConfigFromYaml(s: String): Long
     external fun zConfigGetJson(c: Long, key: String): String
     external fun zConfigInsertJson5(c: Long, key: String, value: String)
+    external fun zEncodingId(e: Long): Int
+    external fun zEncodingSchema(e: Long): String
     external fun zHelloLocators(h: Long): List<String>
     external fun zHelloWhatami(h: Long): Int
     external fun zHelloZid(h: Long): Long
@@ -43,7 +45,7 @@ internal object JNINative {
     external fun zKeyexprRelationTo(a: Long, b: Long): Int
     external fun zKeyexprTryFrom(s: String): Long
     external fun zPublisherDelete(publisher: Long, attachment: Any?)
-    external fun zPublisherPut(publisher: Long, payload: Any, encodingId: Int, encodingSchema: String?, attachment: Any?)
+    external fun zPublisherPut(publisher: Long, payload: Any, encoding: Any, attachment: Any?)
     external fun zScout(whatami: Int, config: Long, callback: ZHelloCallback, onClose: Callback): Long
     external fun zZbytesFromBytes(bytes: ByteArray): Long
     external fun zZbytesToBytes(z: Long): ByteArray
