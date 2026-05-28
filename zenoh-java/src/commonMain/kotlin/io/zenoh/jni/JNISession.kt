@@ -49,7 +49,11 @@ internal class JNISession(val sessionPtr: Long) {
 
         @Throws(ZError::class)
         fun open(config: Config): JNISession {
-            val sessionPtr = config.zConfig.withPtr { openSessionViaJNI(it) }
+            val sessionPtr = synchronized(config.zConfig) {
+                val ptr = config.zConfig.ptr
+                if (ptr == 0L) throw ZError("Operation on a closed native handle.")
+                openSessionViaJNI(ptr)
+            }
             return JNISession(sessionPtr)
         }
 
@@ -381,9 +385,16 @@ internal class JNISession(val sessionPtr: Long) {
             throw ZError("Attempting to undeclare a non declared key expression.")
         }
         // `undeclareKeyExprViaJNI` consumes the box on the Rust side, so
-        // take the pointer under the write lock and null the slot — the
-        // handle's cleaner will then no-op on GC.
-        handle.consume { ptr -> undeclareKeyExprViaJNI(sessionPtr, ptr) }
+        // take the pointer under the handle monitor and null the slot.
+        synchronized(handle) {
+            val ptr = handle.ptr
+            if (ptr == 0L) throw ZError("Attempting to undeclare a non declared key expression.")
+            try {
+                undeclareKeyExprViaJNI(sessionPtr, ptr)
+            } finally {
+                handle.ptr = 0L
+            }
+        }
     }
 
     @Throws(ZError::class)

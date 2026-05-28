@@ -2,38 +2,51 @@
 package io.zenoh.jni.scouting
 
 import io.zenoh.jni.JNINative
-import io.zenoh.jni.JNINativeHandle
 import io.zenoh.jni.JniBindingError
 import io.zenoh.jni.config.WhatAmI
 import io.zenoh.jni.config.ZZenohId
 
-/** Typed [JNINativeHandle] for a native Zenoh `ZHello`. */
-public class ZHello(initialPtr: Long) : JNINativeHandle(initialPtr), AutoCloseable {
-    private val cleanable: java.lang.ref.Cleaner.Cleanable =
-        JNINativeHandle.CLEANER.register(this, Cleanup(state))
+/** Typed handle for a native Zenoh `ZHello`. */
+public class ZHello(initialPtr: Long) : AutoCloseable {
+    @Volatile internal var ptr: Long = initialPtr
 
-    override fun close() = cleanable.clean()
+    public fun peek(): Long = ptr
+    public fun isClosed(): Boolean = ptr == 0L
 
-    private class Cleanup(private val state: JNINativeHandle.State) : Runnable {
-        override fun run() = state.freeOnce { ZHello.freePtr(it) }
+    @Synchronized
+    override fun close() {
+        val p = ptr
+        if (p != 0L) {
+            ptr = 0L
+            freePtr(p)
+        }
     }
 
     @Throws(JniBindingError::class)
-    public fun zHelloWhatami(): WhatAmI =
-        withPtr { h_ptr ->
-        JNINative.zHelloWhatami(h_ptr)
+    public fun zHelloWhatami(): WhatAmI {
+        synchronized(this) {
+            val h_ptr = this.ptr
+            if (h_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            return JNINative.zHelloWhatami(h_ptr)
+        }
     }
 
     @Throws(JniBindingError::class)
-    public fun zHelloZid(): ZZenohId =
-        withPtr { h_ptr ->
-        ZZenohId(JNINative.zHelloZid(h_ptr))
+    public fun zHelloZid(): ZZenohId {
+        synchronized(this) {
+            val h_ptr = this.ptr
+            if (h_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            return ZZenohId(JNINative.zHelloZid(h_ptr))
+        }
     }
 
     @Throws(JniBindingError::class)
-    public fun zHelloLocators(): List<String> =
-        withPtr { h_ptr ->
-        JNINative.zHelloLocators(h_ptr)
+    public fun zHelloLocators(): List<String> {
+        synchronized(this) {
+            val h_ptr = this.ptr
+            if (h_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            return JNINative.zHelloLocators(h_ptr)
+        }
     }
 
     public companion object {

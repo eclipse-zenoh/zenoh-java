@@ -91,7 +91,6 @@ impl JniExt {
         written.extend(self.write_exception_classes(kotlin_root)?);
         written.extend(self.write_enum_classes(registry, kotlin_root)?);
         written.extend(self.write_data_classes(registry, kotlin_root)?);
-        written.push(self.write_native_handle(kotlin_root)?);
 
         // Build the borrowed `TypedHandle<'_>` view from internal config.
         let owned = self.collect_typed_handles();
@@ -236,31 +235,6 @@ pub(crate) struct OwnedTypedHandle {
 }
 
 impl JniExt {
-    /// Emit `NativeHandle.kt` under `output_dir` (package
-    /// `io.zenoh.jni`). The class is the Java-side half of the
-    /// borrow/consume contract — `withPtr` for `&T` opaque-handle
-    /// borrows, `consume` for by-value `T` opaque-handle drops. By
-    /// generating it here, the prebindgen-ext pipeline owns the lock
-    /// primitive the rest of the auto-generated wrappers depend on.
-    /// The Kotlin exception thrown on closed-handle access is the
-    /// framework `JniBindingError` — `NativeHandle` is itself a
-    /// framework artefact (the JNI ABI between the generated Rust
-    /// converters and the Kotlin handle), and closed-handle access is
-    /// a misuse of that infrastructure rather than a domain failure.
-    /// Keeping it on the framework exception matches the contract
-    /// drawn in [`feedback_internal_contracts`]: everything below the
-    /// public zenoh-java API surface is framework-internal.
-    pub(crate) fn write_native_handle(&self, output_dir: &Path) -> Result<PathBuf, WriteKotlinError> {
-        let exc = self.framework_exception();
-        let class_name = self.mangle_harness("NativeHandle");
-        let file = templates::native_handle::emit_native_handle(
-            &self.package,
-            &class_name,
-            &exc.kotlin_fqn,
-        );
-        Ok(file.write(output_dir)?)
-    }
-
     /// Emit one Kotlin file per registered
     /// throwable class (via [`crate::jni::JniExt::throwable`]) — each becomes a
     /// `public class <Name>(message: String? = null) : Exception()`
@@ -1470,19 +1444,12 @@ fn render_typed_handle_source(
         }
     }
 
-    let native_handle_class = ext.mangle_harness("NativeHandle");
-    let native_handle_fqn = if ext.package.is_empty() {
-        native_handle_class.clone()
-    } else {
-        format!("{}.{}", ext.package, native_handle_class)
-    };
-    // Typed-handle classes emitted into subpackages still extend and call
-    // helpers on the base-package NativeHandle and JNINative objects.
-    if package != ext.package {
-        imports.insert(native_handle_fqn);
-        if !instance_methods.is_empty() || !companion_methods.is_empty() {
-            imports.insert(format!("{}.{}", ext.package, ext.jni_native_class_name()));
-        }
+    // Typed-handle classes emitted into subpackages still need to import
+    // the centralized JNINative object for their promoted method bodies.
+    if package != ext.package
+        && (!instance_methods.is_empty() || !companion_methods.is_empty())
+    {
+        imports.insert(format!("{}.{}", ext.package, ext.jni_native_class_name()));
     }
 
     // Imports filtered the same way as render_kotlin_interface — drop
@@ -1504,9 +1471,6 @@ fn render_typed_handle_source(
         s.push_str(&format!("package {}\n\n", package));
     }
     if !import_list.is_empty() {
-        // Exception and cross-package helper imports are included in
-        // `import_list`; emit them even when this class has no promoted
-        // methods (e.g. a pure typed handle shell in a subpackage).
         for imp in &import_list {
             s.push_str(&format!("import {}\n", imp));
         }
@@ -1514,32 +1478,27 @@ fn render_typed_handle_source(
     }
     let free_extern = ext.mangle_fun("freePtr");
     s.push_str(&format!(
-        "/** Typed [{native_handle_class}] for a native Zenoh `{}`. */\n",
+        "/** Typed handle for a native Zenoh `{}`. */\n",
         rust_doc_name
     ));
-    // The concrete subclass owns its own lifecycle: it is `AutoCloseable`,
-    // registers a `Cleaner` action, and that action calls its own
-    // `@JvmStatic external freePtr` directly. The base class stays minimal
-    // (pointer + lock only) and knows nothing about freeing. The cleanup
-    // `Cleanup` references only the detached `state` holder + the static
-    // `freePtr`, never `this`, so it can't pin the handle (which would
-    // stop the cleaner from ever firing).
+    // Each typed handle is self-contained: it owns its own `@Volatile`
+    // pointer slot, its own `@Synchronized close()` that calls `freePtr`
+    // exactly once, and its own per-method monitor-based synchronization.
+    // No shared base class — see render_wrapper_fn for the body shapes.
     s.push_str(&format!(
-        "public class {class_name}(initialPtr: Long) : \
-         {native_handle_class}(initialPtr), AutoCloseable {{\n",
+        "public class {class_name}(initialPtr: Long) : AutoCloseable {{\n",
     ));
-    s.push_str(&format!(
-        "    private val cleanable: java.lang.ref.Cleaner.Cleanable =\n        \
-            {native_handle_class}.CLEANER.register(this, Cleanup(state))\n\n"
-    ));
-    // `Cleaner.Cleanable.clean()` runs the action exactly once — whether
-    // invoked here or by the cleaner thread on GC — then deregisters, so
-    // explicit close() and GC cleanup can't double-free.
-    s.push_str("    override fun close() = cleanable.clean()\n\n");
-    s.push_str(&format!(
-        "    private class Cleanup(private val state: {native_handle_class}.State) : Runnable {{\n        \
-         override fun run() = state.freeOnce {{ {class_name}.{free_extern}(it) }}\n    }}\n"
-    ));
+    s.push_str("    @Volatile internal var ptr: Long = initialPtr\n\n");
+    s.push_str("    public fun peek(): Long = ptr\n");
+    s.push_str("    public fun isClosed(): Boolean = ptr == 0L\n\n");
+    s.push_str("    @Synchronized\n");
+    s.push_str("    override fun close() {\n");
+    s.push_str("        val p = ptr\n");
+    s.push_str("        if (p != 0L) {\n");
+    s.push_str("            ptr = 0L\n");
+    s.push_str(&format!("            {free_extern}(p)\n"));
+    s.push_str("        }\n");
+    s.push_str("    }\n");
     if !instance_body.is_empty() {
         s.push('\n');
         for line in instance_body.lines() {
@@ -1553,7 +1512,7 @@ fn render_typed_handle_source(
         }
     }
     // Companion object always exists — at minimum it carries the
-    // `@JvmStatic external fun freePtr(ptr: Long)` called by `Cleanup`
+    // `@JvmStatic external fun freePtr(ptr: Long)` called by `close()`
     // above. Promoted-method bodies (e.g. typed factory functions) follow.
     s.push('\n');
     s.push_str("    public companion object {\n");
@@ -1926,32 +1885,26 @@ fn render_wrapper_fn(
         // Strip leading reference for the type-map lookup; the registry's
         // input entry is keyed by the param as-written.
         let entry = registry.input_entry(arg_ty)?;
-        // Opaque-handle params surface as the base `JNINativeHandle` (the
-        // withPtr/consume lock contract lives there). Detection flows from
-        // the folded `HandleInfo` — present for both `&T` and by-value `T`
-        // (the `owned` flag is orthogonal to presence) — so it's the same
-        // source of truth the typed-surface emitters use.
+        // Opaque-handle params surface as their typed-handle FQN — every
+        // handle is self-contained (its own ptr slot + monitor), so the
+        // wrapper body inlines synchronized blocks directly on the typed
+        // receiver. Detection flows from the folded `HandleInfo` — present
+        // for both `&T` and by-value `T` (the `owned` flag is orthogonal
+        // to presence) — so it's the same source of truth the typed-surface
+        // emitters use.
         let is_opaque = entry.metadata.handle.is_some();
 
-        // `Option<&T>` / `Option<&mut T>` for opaque T uses the typed
-        // handle subclass (not the bare `NativeHandle` base) with a `?`
-        // suffix, so the call site can call `withPtrOrZero` on the
-        // nullable receiver. The typed FQN comes from
-        // `ext.kotlin_type_fqns` (set by `ptr_class`), keyed by
-        // the handle's `leaf_key`. The `KotlinMeta.kotlin_name` is
-        // intentionally the value-context name (`"Long"`) for opaque, so
-        // it can't be used here.
+        // `Option<&T>` / `Option<&mut T>` for opaque T marks the param
+        // nullable; the wrapper body branches on null before lock selection.
         let is_opt_ref_opaque = is_opaque && is_option_ref(arg_ty);
-        let (kt_type_raw, optional) = if is_opt_ref_opaque {
+        let (kt_type_raw, optional) = if is_opaque {
             let h = entry.metadata.handle.as_ref()?;
             let fqn = ext
                 .kotlin_type_fqns
                 .iter()
                 .find(|(k, _)| k == &h.leaf_key)
                 .map(|(_, v)| v.clone())?;
-            (fqn, true)
-        } else if is_opaque {
-            (ext.mangle_harness("NativeHandle"), false)
+            (fqn, is_opt_ref_opaque)
         } else {
             // Read the Kotlin name straight off the resolved entry's
             // metadata — the rank-N handler that built this converter
@@ -1988,12 +1941,8 @@ fn render_wrapper_fn(
         let mode = if is_opaque {
             let borrow = matches!(arg_ty, syn::Type::Reference(_));
             if is_opt_ref_opaque {
-                if !ext.package.is_empty() {
-                    imports.insert(format!("{}.withPtrOrZero", ext.package));
-                }
-                // Nullable borrow — promoted form not supported here (no
-                // typed-handle subclass to promote against when the param
-                // type is `T?`).
+                // Nullable borrow — promoted form not supported (the
+                // receiver can't be null).
                 ParamMode::BorrowNullable
             } else if matches_promoted {
                 promoted_taken = true;
@@ -2134,23 +2083,26 @@ fn render_wrapper_fn(
             choice.push(k);
             let inner = build_tree(level + 1, choice, dispatch_indices, params, build_call);
             choice.pop();
-            // The lock-scope wrapper (`.withPtr` / `.consume`) lives
-            // around each NativeHandle-typed arm; non-handle arms
-            // (`String`, no-runtime-check else) just inline `inner`.
-            // Lambda capture: `<name>_ptr` for unwrap arms (the inner
-            // call references it), `_` for typed-handle arms (the
-            // inner call passes the typed handle directly to JNI).
-            let capture = if arm.unwrap_to_ptr {
-                format!("{name}_ptr")
-            } else {
-                "_".to_string()
-            };
-            let arm_body = match (&arm.runtime_check, &arm.lock_qual) {
-                (Some(check), Some(qual)) => format!(
-                    "{prefix} ({name} is {check}) {name}.{qual} {{ {capture} ->\n    {inner}\n}}",
-                    prefix = if k == 0 { "if" } else { " else if" },
-                ),
-                (Some(check), None) => format!(
+            // Typed-handle arms wrap in `synchronized(name)` so a concurrent
+            // close on the same handle can't race the JNI peek. Unwrap arms
+            // additionally pull the pointer out into `<name>_ptr` for the
+            // inner JNI call; non-unwrap typed-handle arms pass the handle
+            // through unchanged. Catch-all (non-opaque) arms just inline.
+            let arm_body = match (&arm.runtime_check, arm.lock_qual.is_some()) {
+                (Some(check), true) => {
+                    let body = if arm.unwrap_to_ptr {
+                        format!(
+                            "synchronized({name}) {{\n    val {name}_ptr = {name}.ptr\n    if ({name}_ptr == 0L) throw JniBindingError(\"Operation on a closed native handle.\")\n    {inner}\n}}"
+                        )
+                    } else {
+                        format!("synchronized({name}) {{\n    {inner}\n}}")
+                    };
+                    format!(
+                        "{prefix} ({name} is {check}) {body}",
+                        prefix = if k == 0 { "if" } else { " else if" },
+                    )
+                }
+                (Some(check), false) => format!(
                     "{prefix} ({name} is {check}) {{\n    {inner}\n}}",
                     prefix = if k == 0 { "if" } else { " else if" },
                 ),
@@ -2171,54 +2123,128 @@ fn render_wrapper_fn(
     }
 
     let mut choice: Vec<usize> = Vec::with_capacity(dispatch_indices.len());
-    let mut body_expr = build_tree(0, &mut choice, &dispatch_indices, &params, &build_call);
+    let body_expr = build_tree(0, &mut choice, &dispatch_indices, &params, &build_call);
 
-    // Wrap with nested withPtr/consume from innermost to outermost
-    // for the syntactic-opaque params. Promoted variants drop the
-    // `<name>.` prefix to use the inherited `NativeHandle` scope.
-    for p in params.iter().rev() {
-        match p.mode {
-            ParamMode::Borrow => {
-                body_expr = format!(
-                    "{name}.withPtr {{ {name}_ptr ->\n    {expr}\n}}",
-                    name = p.kt_name,
-                    expr = body_expr,
-                );
-            }
-            ParamMode::Consume => {
-                body_expr = format!(
-                    "{name}.consume {{ {name}_ptr ->\n    {expr}\n}}",
-                    name = p.kt_name,
-                    expr = body_expr,
-                );
-            }
-            ParamMode::BorrowNullable => {
-                // Nullable typed-handle receiver — `withPtrOrZero` runs
-                // the block under the read lock when non-null and with
-                // `0L` when null.
-                body_expr = format!(
-                    "{name}.withPtrOrZero {{ {name}_ptr ->\n    {expr}\n}}",
-                    name = p.kt_name,
-                    expr = body_expr,
-                );
-            }
-            ParamMode::PromotedBorrow => {
-                body_expr = format!(
-                    "withPtr {{ {name}_ptr ->\n    {expr}\n}}",
-                    name = p.kt_name,
-                    expr = body_expr,
-                );
-            }
-            ParamMode::PromotedConsume => {
-                body_expr = format!(
-                    "consume {{ {name}_ptr ->\n    {expr}\n}}",
-                    name = p.kt_name,
-                    expr = body_expr,
-                );
-            }
-            ParamMode::Dispatch { .. } | ParamMode::PassThrough | ParamMode::PromotedPassThrough => {}
-        }
+    // Collect the opaque-handle params so we can scaffold pointer-ordered
+    // synchronized blocks around them. Dispatch params handle their own
+    // lock acquisition inside `build_tree` and are excluded here.
+    struct Opaque {
+        /// Kotlin param name (e.g. `"b"`). For promoted params this is
+        /// the receiver param's name (matches `<name>_ptr` references in
+        /// `body_expr`), but the `target` below is `"this"`.
+        name: String,
+        /// Object to synchronize on and read the pointer from
+        /// (`"this"` for promoted, `<name>` otherwise).
+        target: String,
+        /// Statement that nulls the pointer slot after consume
+        /// (`"<target>.ptr = 0L"`), or `None` for borrow modes.
+        consume_null: Option<String>,
+        /// `true` for `Option<&T>` — nullable param, branches before lock.
+        nullable: bool,
     }
+    let opaques: Vec<Opaque> = params
+        .iter()
+        .filter_map(|p| {
+            let (target, consume_null, nullable) = match p.mode {
+                ParamMode::Borrow => (p.kt_name.clone(), None, false),
+                ParamMode::Consume => {
+                    (p.kt_name.clone(), Some(format!("{}.ptr = 0L", p.kt_name)), false)
+                }
+                ParamMode::BorrowNullable => (p.kt_name.clone(), None, true),
+                ParamMode::PromotedBorrow => ("this".to_string(), None, false),
+                ParamMode::PromotedConsume => {
+                    ("this".to_string(), Some("ptr = 0L".to_string()), false)
+                }
+                _ => return None,
+            };
+            Some(Opaque {
+                name: p.kt_name.clone(),
+                target,
+                consume_null,
+                nullable,
+            })
+        })
+        .collect();
+
+    // Wrap body_expr in a try/finally that nulls every consume slot, then
+    // optionally prefix with `return ` for non-Unit returns.
+    let make_inner = |body: &str, is_unit: bool, opaques: &[&Opaque]| -> String {
+        let consume_stmts: Vec<&str> = opaques
+            .iter()
+            .filter_map(|o| o.consume_null.as_deref())
+            .collect();
+        let core = if consume_stmts.is_empty() {
+            body.to_string()
+        } else {
+            let finally_body = consume_stmts.join("\n        ");
+            format!("try {{\n        {body}\n    }} finally {{\n        {finally_body}\n    }}")
+        };
+        if is_unit { core } else { format!("return {core}") }
+    };
+
+    let is_unit = kt_return.is_empty();
+    let throw_stmt = "throw JniBindingError(\"Operation on a closed native handle.\")";
+
+    // Decide method shape:
+    //   * 0 opaque params → keep the existing expression body (no scaffold).
+    //   * 1 opaque param, no nullable → single `synchronized(target)` block
+    //     (equivalent to `@Synchronized` for the promoted case).
+    //   * 2 opaque params → pointer-ordered nested `synchronized()`.
+    //     Nullable case branches on null before lock selection.
+    let scaffold_body: Option<String> = match opaques.len() {
+        0 => None,
+        1 => {
+            let o = &opaques[0];
+            let o_refs = [o];
+            let inner = make_inner(&body_expr, is_unit, &o_refs);
+            let body = if o.nullable {
+                format!(
+                    "if ({n} == null) {{\n    val {n}_ptr = 0L\n    {inner}\n}}\nsynchronized({t}) {{\n    val {n}_ptr = {t}.ptr\n    if ({n}_ptr == 0L) {throw_stmt}\n    {inner}\n}}",
+                    n = o.name,
+                    t = o.target,
+                )
+            } else {
+                format!(
+                    "synchronized({t}) {{\n    val {n}_ptr = {t}.ptr\n    if ({n}_ptr == 0L) {throw_stmt}\n    {inner}\n}}",
+                    n = o.name,
+                    t = o.target,
+                )
+            };
+            Some(body)
+        }
+        2 => {
+            let (o1, o2) = (&opaques[0], &opaques[1]);
+            let o_refs = [o1, o2];
+            let inner = make_inner(&body_expr, is_unit, &o_refs);
+            // Pointer-ordered locking: read both ptrs once, throw early if
+            // either is closed, then lock the lower-ptr target first.
+            let ordered = format!(
+                "val {n1}_lo = {t1}.ptr\nval {n2}_lo = {t2}.ptr\nif ({n1}_lo == 0L || {n2}_lo == 0L) {throw_stmt}\nval (lock1, lock2) = if ({n1}_lo <= {n2}_lo) {t1} to {t2} else {t2} to {t1}\nsynchronized(lock1) {{\n    synchronized(lock2) {{\n        val {n1}_ptr = {t1}.ptr\n        val {n2}_ptr = {t2}.ptr\n        if ({n1}_ptr == 0L || {n2}_ptr == 0L) {throw_stmt}\n        {inner}\n    }}\n}}",
+                n1 = o1.name, n2 = o2.name, t1 = o1.target, t2 = o2.target,
+            );
+            if o1.nullable || o2.nullable {
+                // Pick the nullable param (currently codegen assumes at most
+                // one nullable secondary, which matches every existing
+                // Option<&T> use). Branch on null before lock selection.
+                let (n_null, n_other, t_other) = if o1.nullable {
+                    (&o1.name, &o2.name, &o2.target)
+                } else {
+                    (&o2.name, &o1.name, &o1.target)
+                };
+                // Null branch: only the non-null handle needs locking.
+                let null_inner = make_inner(&body_expr, is_unit, &[if o1.nullable { o2 } else { o1 }]);
+                Some(format!(
+                    "if ({n_null} == null) {{\n    val {n_null}_ptr = 0L\n    synchronized({t_other}) {{\n        val {n_other}_ptr = {t_other}.ptr\n        if ({n_other}_ptr == 0L) {throw_stmt}\n        {null_inner}\n    }}\n}} else {{\n    {ordered}\n}}",
+                ))
+            } else {
+                Some(ordered)
+            }
+        }
+        _ => panic!(
+            "render_wrapper_fn: methods with >2 opaque handle params are not yet supported \
+             (codegen would need an N-ary sort + nested synchronized scaffold)",
+        ),
+    };
 
     let _ = ext; // ext no longer needed here — throws comes from registry metadata
     let mut out = String::new();
@@ -2279,8 +2305,25 @@ fn render_wrapper_fn(
     if !kt_return.is_empty() {
         let _ = write!(out, ": {kt_return}");
     }
-    let _ = writeln!(out, " =");
-    let _ = writeln!(out, "    {body_expr}");
+    match &scaffold_body {
+        None => {
+            // Pure expression body (no opaque handles to lock).
+            let _ = writeln!(out, " =");
+            let _ = writeln!(out, "    {body_expr}");
+        }
+        Some(body) => {
+            // Block body — indent every line of the scaffold by four spaces.
+            let _ = writeln!(out, " {{");
+            for line in body.lines() {
+                if line.is_empty() {
+                    out.push('\n');
+                } else {
+                    let _ = writeln!(out, "    {line}");
+                }
+            }
+            let _ = writeln!(out, "}}");
+        }
+    }
     Some((out, kind))
 }
 
@@ -2458,18 +2501,16 @@ fn classify_return(
             .kotlin_type_fqns
             .iter()
             .find(|(k, _)| k == &h.leaf_key)
-            .map(|(_, v)| v.clone());
-        return Some(match fqn {
-            Some(fqn) => {
-                let short = register_fqn(&fqn, imports);
-                (render_handle_type(&h.strategy, &short), Some(short))
-            }
-            // No typed FQN registered — fall back to the base harness class.
-            None => {
-                let base = ext.mangle_harness("NativeHandle");
-                (base.clone(), Some(base))
-            }
-        });
+            .map(|(_, v)| v.clone())
+            .unwrap_or_else(|| {
+                panic!(
+                    "classify_return: opaque return type `{}` has no typed-handle FQN registered \
+                     — every opaque type must be declared via `JniExt::ptr_class(...)`.",
+                    h.leaf_key
+                )
+            });
+        let short = register_fqn(&fqn, imports);
+        return Some((render_handle_type(&h.strategy, &short), Some(short)));
     }
     // Non-opaque: read the Kotlin name straight off the resolved
     // output entry's metadata — the rank-N handler propagates

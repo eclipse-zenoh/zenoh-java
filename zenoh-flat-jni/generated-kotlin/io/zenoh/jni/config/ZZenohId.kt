@@ -2,30 +2,40 @@
 package io.zenoh.jni.config
 
 import io.zenoh.jni.JNINative
-import io.zenoh.jni.JNINativeHandle
 import io.zenoh.jni.JniBindingError
 
-/** Typed [JNINativeHandle] for a native Zenoh `ZZenohId`. */
-public class ZZenohId(initialPtr: Long) : JNINativeHandle(initialPtr), AutoCloseable {
-    private val cleanable: java.lang.ref.Cleaner.Cleanable =
-        JNINativeHandle.CLEANER.register(this, Cleanup(state))
+/** Typed handle for a native Zenoh `ZZenohId`. */
+public class ZZenohId(initialPtr: Long) : AutoCloseable {
+    @Volatile internal var ptr: Long = initialPtr
 
-    override fun close() = cleanable.clean()
+    public fun peek(): Long = ptr
+    public fun isClosed(): Boolean = ptr == 0L
 
-    private class Cleanup(private val state: JNINativeHandle.State) : Runnable {
-        override fun run() = state.freeOnce { ZZenohId.freePtr(it) }
+    @Synchronized
+    override fun close() {
+        val p = ptr
+        if (p != 0L) {
+            ptr = 0L
+            freePtr(p)
+        }
     }
 
     @Throws(JniBindingError::class)
-    public fun zZenohIdToBytes(): ByteArray =
-        withPtr { z_ptr ->
-        JNINative.zZenohIdToBytes(z_ptr)
+    public fun zZenohIdToBytes(): ByteArray {
+        synchronized(this) {
+            val z_ptr = this.ptr
+            if (z_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            return JNINative.zZenohIdToBytes(z_ptr)
+        }
     }
 
     @Throws(JniBindingError::class)
-    public fun zZenohIdToString(): String =
-        withPtr { z_ptr ->
-        JNINative.zZenohIdToString(z_ptr)
+    public fun zZenohIdToString(): String {
+        synchronized(this) {
+            val z_ptr = this.ptr
+            if (z_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            return JNINative.zZenohIdToString(z_ptr)
+        }
     }
 
     public companion object {

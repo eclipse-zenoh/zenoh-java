@@ -26,14 +26,14 @@ public data class KeyExpr(
 
         @Throws(Error::class, JniBindingError::class)
         public fun keyexprIntersects(a: Any, b: Any): Boolean =
-            if (a is ZKeyExpr) a.withPtr { _ ->
-            if (b is ZKeyExpr) b.withPtr { _ ->
+            if (a is ZKeyExpr) synchronized(a) {
+            if (b is ZKeyExpr) synchronized(b) {
             JNINative.keyexprIntersects(a, b)
         } else {
             JNINative.keyexprIntersects(a, b)
         }
         } else {
-            if (b is ZKeyExpr) b.withPtr { _ ->
+            if (b is ZKeyExpr) synchronized(b) {
             JNINative.keyexprIntersects(a, b)
         } else {
             JNINative.keyexprIntersects(a, b)
@@ -43,14 +43,14 @@ public data class KeyExpr(
 
         @Throws(Error::class, JniBindingError::class)
         public fun keyexprIncludes(a: Any, b: Any): Boolean =
-            if (a is ZKeyExpr) a.withPtr { _ ->
-            if (b is ZKeyExpr) b.withPtr { _ ->
+            if (a is ZKeyExpr) synchronized(a) {
+            if (b is ZKeyExpr) synchronized(b) {
             JNINative.keyexprIncludes(a, b)
         } else {
             JNINative.keyexprIncludes(a, b)
         }
         } else {
-            if (b is ZKeyExpr) b.withPtr { _ ->
+            if (b is ZKeyExpr) synchronized(b) {
             JNINative.keyexprIncludes(a, b)
         } else {
             JNINative.keyexprIncludes(a, b)
@@ -60,14 +60,14 @@ public data class KeyExpr(
 
         @Throws(Error::class, JniBindingError::class)
         public fun keyexprRelationTo(a: Any, b: Any): SetIntersectionLevel =
-            if (a is ZKeyExpr) a.withPtr { _ ->
-            if (b is ZKeyExpr) b.withPtr { _ ->
+            if (a is ZKeyExpr) synchronized(a) {
+            if (b is ZKeyExpr) synchronized(b) {
             JNINative.keyexprRelationTo(a, b)
         } else {
             JNINative.keyexprRelationTo(a, b)
         }
         } else {
-            if (b is ZKeyExpr) b.withPtr { _ ->
+            if (b is ZKeyExpr) synchronized(b) {
             JNINative.keyexprRelationTo(a, b)
         } else {
             JNINative.keyexprRelationTo(a, b)
@@ -77,7 +77,7 @@ public data class KeyExpr(
 
         @Throws(Error::class, JniBindingError::class)
         public fun keyexprJoin(a: Any, b: String): KeyExpr =
-            if (a is ZKeyExpr) a.withPtr { _ ->
+            if (a is ZKeyExpr) synchronized(a) {
             JNINative.keyexprJoin(a, b)
         } else {
             JNINative.keyexprJoin(a, b)
@@ -86,7 +86,7 @@ public data class KeyExpr(
 
         @Throws(Error::class, JniBindingError::class)
         public fun keyexprConcat(a: Any, b: String): KeyExpr =
-            if (a is ZKeyExpr) a.withPtr { _ ->
+            if (a is ZKeyExpr) synchronized(a) {
             JNINative.keyexprConcat(a, b)
         } else {
             JNINative.keyexprConcat(a, b)

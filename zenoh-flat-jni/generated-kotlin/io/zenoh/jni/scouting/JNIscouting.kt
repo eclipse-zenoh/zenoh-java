@@ -8,18 +8,31 @@ import io.zenoh.jni.callbacks.HelloCallback
 import io.zenoh.jni.callbacks.ZHelloCallback
 import io.zenoh.jni.config.ZConfig
 import io.zenoh.jni.scouting.ZScout
-import io.zenoh.jni.withPtrOrZero
 import io.zenoh.jni.JNINative
 
 @Throws(Error::class, JniBindingError::class)
-public fun zScout(whatami: Int, config: ZConfig?, callback: ZHelloCallback, onClose: Callback): ZScout =
-    config.withPtrOrZero { config_ptr ->
-    ZScout(JNINative.zScout(whatami, config_ptr, callback, onClose))
+public fun zScout(whatami: Int, config: ZConfig?, callback: ZHelloCallback, onClose: Callback): ZScout {
+    if (config == null) {
+        val config_ptr = 0L
+        return ZScout(JNINative.zScout(whatami, config_ptr, callback, onClose))
+    }
+    synchronized(config) {
+        val config_ptr = config.ptr
+        if (config_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        return ZScout(JNINative.zScout(whatami, config_ptr, callback, onClose))
+    }
 }
 
 @Throws(Error::class, JniBindingError::class)
-public fun scout(whatami: Int, config: ZConfig?, callback: HelloCallback, onClose: Callback): ZScout =
-    config.withPtrOrZero { config_ptr ->
-    ZScout(JNINative.scout(whatami, config_ptr, callback, onClose))
+public fun scout(whatami: Int, config: ZConfig?, callback: HelloCallback, onClose: Callback): ZScout {
+    if (config == null) {
+        val config_ptr = 0L
+        return ZScout(JNINative.scout(whatami, config_ptr, callback, onClose))
+    }
+    synchronized(config) {
+        val config_ptr = config.ptr
+        if (config_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        return ZScout(JNINative.scout(whatami, config_ptr, callback, onClose))
+    }
 }
 

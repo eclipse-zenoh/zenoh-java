@@ -1357,11 +1357,10 @@ impl JniExt {
     /// same Kotlin-side namespace as `data_class`.
     ///
     /// Note: `ptr_class` deliberately does **not** support
-    /// value-class emission. Typed-handle classes extend
-    /// `JNINativeHandle`, hold a `Cleaner.Cleanable` field, and
-    /// implement `AutoCloseable` — none of which a value class can
-    /// express without abandoning the Cleaner-based finalization
-    /// safety net.
+    /// value-class emission. Typed-handle classes carry a mutable
+    /// `@Volatile var ptr` slot, implement `AutoCloseable`, and use
+    /// `@Synchronized` for the closed-check + JNI call. A value class
+    /// can't express any of those.
     pub fn value_class(mut self, rust_type: syn::Type) -> Self {
         let key = TypeKey::from_type(&rust_type);
         let short = rust_short_name(&key);
