@@ -2329,11 +2329,16 @@ impl JniExt {
             }
         );
 
+        // JObject wire carries a genuine `null` value that no live
+        // source-arm decode ever produces — expose it as a niche so an
+        // outer `Option<impl Into<T>>` can carve it (null = None) and
+        // stay on the JObject wire (no boxing).
+        let niches = default_niches_for_wire(&wire);
         Some(ConverterImpl {
             function,
             destination: wire,
             pre_stages: vec![],
-            niches: Niches::empty(),
+            niches,
             // `impl Into<T>` parameters surface as Kotlin `Any` — the
             // safe wrapper does an `is JNI<X>` chain on the value, and
             // the JNI dispatcher's matching arm uses each source's

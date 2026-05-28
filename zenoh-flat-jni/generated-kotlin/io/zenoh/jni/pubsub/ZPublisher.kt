@@ -30,24 +30,36 @@ public class ZPublisher(initialPtr: Long) : AutoCloseable {
     }
 
     @Throws(Error::class, JniBindingError::class)
-    public fun zPublisherPut(payload: Any, encodingId: Int, encodingSchema: String?, attachment: ByteArray?) {
+    public fun zPublisherPut(payload: Any, encodingId: Int, encodingSchema: String?, attachment: Any?) {
         synchronized(this) {
             val publisher_ptr = this.ptr
             if (publisher_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
             if (payload is ZZBytes) synchronized(payload) {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zPublisherPut(publisher_ptr, payload, encodingId, encodingSchema, attachment)
+        } else {
+            JNINative.zPublisherPut(publisher_ptr, payload, encodingId, encodingSchema, attachment)
+        }
+        } else {
+            if (attachment is ZZBytes) synchronized(attachment) {
             JNINative.zPublisherPut(publisher_ptr, payload, encodingId, encodingSchema, attachment)
         } else {
             JNINative.zPublisherPut(publisher_ptr, payload, encodingId, encodingSchema, attachment)
         }
         }
+        }
     }
 
     @Throws(Error::class, JniBindingError::class)
-    public fun zPublisherDelete(attachment: ByteArray?) {
+    public fun zPublisherDelete(attachment: Any?) {
         synchronized(this) {
             val publisher_ptr = this.ptr
             if (publisher_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            if (attachment is ZZBytes) synchronized(attachment) {
             JNINative.zPublisherDelete(publisher_ptr, attachment)
+        } else {
+            JNINative.zPublisherDelete(publisher_ptr, attachment)
+        }
         }
     }
 

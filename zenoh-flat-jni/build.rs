@@ -87,6 +87,7 @@ fn main() {
             [
                 IntoSource::borrow(pq!(ZZBytes)),
                 IntoSource::borrow(pq!(ZBytes)),
+                IntoSource::borrow(pq!(Vec<u8>)),
             ],
         )
         ;

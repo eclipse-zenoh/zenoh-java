@@ -8,7 +8,7 @@ pub fn z_publisher_put(
     payload: impl Into<ZBytes> + Send + 'static,
     encoding_id: i32,
     encoding_schema: Option<String>,
-    attachment: Option<Vec<u8>>,
+    attachment: Option<impl Into<ZBytes> + Send + 'static>,
 ) -> Result<(), Error> {
     let id = u16::try_from(encoding_id).map_err(|e| Error {
         message: format!("Invalid encoding id {encoding_id}: {e}"),
@@ -18,7 +18,8 @@ pub fn z_publisher_put(
     let payload: ZBytes = payload.into();
     let mut publication = publisher.put(payload.bytes).encoding(encoding);
     if let Some(att) = attachment {
-        publication = publication.attachment::<Vec<u8>>(att);
+        let att: ZBytes = att.into();
+        publication = publication.attachment::<Vec<u8>>(att.bytes);
     }
     publication.wait().map_err(Error::from)
 }
@@ -26,11 +27,12 @@ pub fn z_publisher_put(
 #[prebindgen]
 pub fn z_publisher_delete(
     publisher: &ZPublisher,
-    attachment: Option<Vec<u8>>,
+    attachment: Option<impl Into<ZBytes> + Send + 'static>,
 ) -> Result<(), Error> {
     let mut delete = publisher.delete();
     if let Some(att) = attachment {
-        delete = delete.attachment::<Vec<u8>>(att);
+        let att: ZBytes = att.into();
+        delete = delete.attachment::<Vec<u8>>(att.bytes);
     }
     delete.wait().map_err(Error::from)
 }

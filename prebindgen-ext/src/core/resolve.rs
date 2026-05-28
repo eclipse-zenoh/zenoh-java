@@ -279,6 +279,22 @@ fn try_resolve_entry<E: PrebindgenExt>(
         });
         if let Some(c) = result {
             let sub_keys: Vec<TypeKey> = subs.iter().map(TypeKey::from_type).collect();
+            // Inherit `into_sources` from a single-sub rank-1 wrapper
+            // (e.g. `Option<impl Into<T>>`, `&impl Into<T>`) so the
+            // language emitters still see the Into-dispatch arms after
+            // the outer wrapper transparently passes the value through.
+            // Multi-sub patterns (rank ≥ 2) don't propagate here — there
+            // is no canonical single source, and no current shape needs
+            // it.
+            let inherited_sources = if captured_sources.is_none() && subs.len() == 1 {
+                let inner_lookup = match dir {
+                    Direction::Input => registry.input_entry(&subs[0]),
+                    Direction::Output => registry.output_entry(&subs[0]),
+                };
+                inner_lookup.and_then(|e| e.into_sources.clone())
+            } else {
+                None
+            };
             return Some(TypeEntry {
                 destination: c.destination,
                 function: c.function,
@@ -286,7 +302,7 @@ fn try_resolve_entry<E: PrebindgenExt>(
                 subs: sub_keys,
                 required: scan_required,
                 niches: c.niches,
-                into_sources: captured_sources,
+                into_sources: captured_sources.or(inherited_sources),
                 metadata: c.metadata,
             });
         }

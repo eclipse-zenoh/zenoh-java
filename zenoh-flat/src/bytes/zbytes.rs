@@ -36,3 +36,9 @@ impl From<&ZBytes> for ZZBytes {
         ZZBytes::from(&z.bytes)
     }
 }
+
+impl From<Vec<u8>> for ZBytes {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self { bytes }
+    }
+}
