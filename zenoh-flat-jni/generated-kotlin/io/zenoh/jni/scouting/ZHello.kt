@@ -27,7 +27,7 @@ public class ZHello(initialPtr: Long) : AutoCloseable {
         synchronized(this) {
             val h_ptr = this.ptr
             if (h_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zHelloWhatami(h_ptr)
+            return WhatAmI.fromInt(JNINative.zHelloWhatami(h_ptr))
         }
     }
 

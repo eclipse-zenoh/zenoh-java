@@ -1739,8 +1739,13 @@ pub(crate) fn render_extern_decl(
 
     let (kt_return, opaque_ctor) =
         classify_return(ext, &f.sig.output, registry, imports)?;
+    // enum_class returns cross the JNI wire as jint → Kotlin `Int`.
+    // The public wrapper converts back using `EnumType.fromInt(Int)`.
+    let is_enum_return = return_is_kotlin_enum(ext, &f.sig.output, registry);
     let wire_return = if opaque_ctor.is_some() {
         "Long".to_string()
+    } else if is_enum_return {
+        "Int".to_string()
     } else {
         kt_return
     };
@@ -2003,6 +2008,9 @@ fn render_wrapper_fn(
     // `opaque_ctor` is the constructor name to wrap the JNI return
     // in (typed FQN short name when registered, else `NativeHandle`).
     let (kt_return, opaque_ctor) = classify_return(ext, &f.sig.output, registry, imports)?;
+    // enum_class returns cross the JNI wire as jint → Kotlin `Int`.
+    // Detect this so `build_call` can wrap the result with `fromInt`.
+    let is_enum_return = return_is_kotlin_enum(ext, &f.sig.output, registry);
 
     // Indices of Dispatch-mode params.
     let dispatch_indices: Vec<usize> = params
@@ -2054,6 +2062,8 @@ fn render_wrapper_fn(
         let mut call = format!("{}.{jni_call}({})", ext.jni_native_class_name(), args.join(", "));
         if let Some(ctor) = &opaque_ctor {
             call = format!("{ctor}({call})");
+        } else if is_enum_return {
+            call = format!("{kt_return}.fromInt({call})");
         }
         call
     };
@@ -2522,6 +2532,27 @@ fn classify_return(
         }
     }
     None
+}
+
+/// Returns `true` when the function's return type resolves to a type registered
+/// via [`JniExt::enum_class`]. Enum returns cross the JNI wire as `jint` (Kotlin
+/// `Int`); the public wrapper must call `EnumType.fromInt(Int)` to convert back.
+fn return_is_kotlin_enum(
+    ext: &JniExt,
+    output: &syn::ReturnType,
+    registry: &Registry<KotlinMeta>,
+) -> bool {
+    let ty = match output {
+        syn::ReturnType::Default => return false,
+        syn::ReturnType::Type(_, t) => &**t,
+    };
+    let outer_meta = registry.output_entry(ty).map(|e| e.metadata.clone());
+    let inner_canon = outer_meta
+        .as_ref()
+        .and_then(|m| m.value_rust_key.clone())
+        .unwrap_or_else(|| ty.to_token_stream().to_string());
+    let inner: syn::Type = syn::parse_str(&inner_canon).unwrap_or_else(|_| ty.clone());
+    ext.is_kotlin_enum(&inner)
 }
 
 fn snake_to_camel(s: &str) -> String {

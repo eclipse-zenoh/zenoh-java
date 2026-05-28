@@ -64,7 +64,7 @@ public class ZKeyExpr(initialPtr: Long) : AutoCloseable {
                 val a_ptr = this.ptr
                 val b_ptr = b.ptr
                 if (a_ptr == 0L || b_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-                return JNINative.zKeyexprRelationTo(a_ptr, b_ptr)
+                return SetIntersectionLevel.fromInt(JNINative.zKeyexprRelationTo(a_ptr, b_ptr))
             }
         }
     }

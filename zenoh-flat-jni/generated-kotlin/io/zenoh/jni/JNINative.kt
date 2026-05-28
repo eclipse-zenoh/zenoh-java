@@ -21,7 +21,7 @@ internal object JNINative {
     external fun keyexprIncludes(a: Any, b: Any): Boolean
     external fun keyexprIntersects(a: Any, b: Any): Boolean
     external fun keyexprJoin(a: Any, b: String): KeyExpr
-    external fun keyexprRelationTo(a: Any, b: Any): SetIntersectionLevel
+    external fun keyexprRelationTo(a: Any, b: Any): Int
     external fun keyexprTryFrom(s: String): KeyExpr
     external fun scout(whatami: Int, config: Long, callback: HelloCallback, onClose: Callback): Long
     external fun tryInitZenohLogsFromEnv()
@@ -33,14 +33,14 @@ internal object JNINative {
     external fun zConfigGetJson(c: Long, key: String): String
     external fun zConfigInsertJson5(c: Long, key: String, value: String)
     external fun zHelloLocators(h: Long): List<String>
-    external fun zHelloWhatami(h: Long): WhatAmI
+    external fun zHelloWhatami(h: Long): Int
     external fun zHelloZid(h: Long): Long
     external fun zKeyexprAutocanonize(s: String): Long
     external fun zKeyexprConcat(a: Long, b: String): Long
     external fun zKeyexprIncludes(a: Long, b: Long): Boolean
     external fun zKeyexprIntersects(a: Long, b: Long): Boolean
     external fun zKeyexprJoin(a: Long, b: String): Long
-    external fun zKeyexprRelationTo(a: Long, b: Long): SetIntersectionLevel
+    external fun zKeyexprRelationTo(a: Long, b: Long): Int
     external fun zKeyexprTryFrom(s: String): Long
     external fun zScout(whatami: Int, config: Long, callback: ZHelloCallback, onClose: Callback): Long
     external fun zZbytesFromBytes(bytes: ByteArray): Long

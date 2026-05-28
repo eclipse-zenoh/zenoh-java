@@ -62,15 +62,15 @@ public data class KeyExpr(
         public fun keyexprRelationTo(a: Any, b: Any): SetIntersectionLevel =
             if (a is ZKeyExpr) synchronized(a) {
             if (b is ZKeyExpr) synchronized(b) {
-            JNINative.keyexprRelationTo(a, b)
+            SetIntersectionLevel.fromInt(JNINative.keyexprRelationTo(a, b))
         } else {
-            JNINative.keyexprRelationTo(a, b)
+            SetIntersectionLevel.fromInt(JNINative.keyexprRelationTo(a, b))
         }
         } else {
             if (b is ZKeyExpr) synchronized(b) {
-            JNINative.keyexprRelationTo(a, b)
+            SetIntersectionLevel.fromInt(JNINative.keyexprRelationTo(a, b))
         } else {
-            JNINative.keyexprRelationTo(a, b)
+            SetIntersectionLevel.fromInt(JNINative.keyexprRelationTo(a, b))
         }
         }
 
