@@ -21,6 +21,13 @@ public class ZConfig(initialPtr: Long) : AutoCloseable {
         }
     }
 
+    @Synchronized
+    public fun take(): ZConfig {
+        val p = ptr
+        ptr = 0L
+        return ZConfig(p)
+    }
+
     @Throws(Error::class, JniBindingError::class)
     public fun zConfigGetJson(key: String): String {
         synchronized(this) {

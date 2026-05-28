@@ -21,6 +21,13 @@ public class ZKeyExpr(initialPtr: Long) : AutoCloseable {
         }
     }
 
+    @Synchronized
+    public fun take(): ZKeyExpr {
+        val p = ptr
+        ptr = 0L
+        return ZKeyExpr(p)
+    }
+
     @Throws(JniBindingError::class)
     public fun zKeyexprIntersects(b: ZKeyExpr): Boolean {
         val a_lo = this.ptr

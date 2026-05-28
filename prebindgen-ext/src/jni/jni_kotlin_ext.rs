@@ -644,9 +644,15 @@ fn build_callback_kotlin_file(
     let mut params: Vec<String> = Vec::new();
     let mut used_fqns: BTreeSet<String> = BTreeSet::new();
     for (i, arg) in args.iter().enumerate() {
-        let kotlin_ty = registry
-            .output_entry(arg)
-            .and_then(|e| e.metadata.kotlin_name.clone())
+        let entry = registry.output_entry(arg);
+        // Opaque-handle args: the converter's value-name is `"Long"`, but the
+        // callback delivers the typed handle class. Prefer its registered FQN
+        // so the param type — and the file's import — resolve to e.g.
+        // `io.zenoh.jni.scouting.ZHello`.
+        let kotlin_ty = entry
+            .and_then(|e| e.metadata.handle.as_ref())
+            .map(|h| crate::jni::jni_ext::handle_field_fqn(ext, h))
+            .or_else(|| entry.and_then(|e| e.metadata.kotlin_name.clone()))
             .or_else(|| {
                 if let syn::Type::Path(tp) = arg {
                     if let Some(last) = tp.path.segments.last() {
@@ -1498,6 +1504,15 @@ fn render_typed_handle_source(
     s.push_str("            ptr = 0L\n");
     s.push_str(&format!("            {free_extern}(p)\n"));
     s.push_str("        }\n");
+    s.push_str("    }\n\n");
+    // Transfer ownership of the native pointer into a fresh handle, leaving
+    // this one empty. Lets a callback receiver retain a handle that the
+    // framework would otherwise `close()` when the callback returns.
+    s.push_str("    @Synchronized\n");
+    s.push_str(&format!("    public fun take(): {class_name} {{\n"));
+    s.push_str("        val p = ptr\n");
+    s.push_str("        ptr = 0L\n");
+    s.push_str(&format!("        return {class_name}(p)\n"));
     s.push_str("    }\n");
     if !instance_body.is_empty() {
         s.push('\n');

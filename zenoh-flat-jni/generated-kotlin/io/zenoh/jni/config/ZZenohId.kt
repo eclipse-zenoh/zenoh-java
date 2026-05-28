@@ -20,6 +20,13 @@ public class ZZenohId(initialPtr: Long) : AutoCloseable {
         }
     }
 
+    @Synchronized
+    public fun take(): ZZenohId {
+        val p = ptr
+        ptr = 0L
+        return ZZenohId(p)
+    }
+
     @Throws(JniBindingError::class)
     public fun zZenohIdToBytes(): ByteArray {
         synchronized(this) {

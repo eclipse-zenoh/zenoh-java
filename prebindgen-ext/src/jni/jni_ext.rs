@@ -3823,6 +3823,9 @@ fn callback_input(
     let mut arg_idents: Vec<syn::Ident> = Vec::new();
     let mut arg_preludes: Vec<TokenStream> = Vec::new();
     let mut jvalue_exprs: Vec<TokenStream> = Vec::new();
+    // Opaque-handle args wrapped into a typed handle object; closed after
+    // the callback returns so the per-invocation `Box` is freed.
+    let mut handle_obj_idents: Vec<syn::Ident> = Vec::new();
     let mut sig = String::from("(");
 
     for (i, arg_ty) in args.iter().enumerate() {
@@ -3834,6 +3837,20 @@ fn callback_input(
         let arg_entry = registry.output_entry(arg_ty)?;
         let arg_wire = arg_entry.destination.clone();
         let conv = arg_entry.function.sig.ident.clone();
+
+        // Opaque-handle arg: the output converter produces a `jlong`
+        // (`Box::into_raw`), but the callback's `run` takes the typed handle
+        // class, not a `Long`. Push the typed FQN slot; the wrapped object is
+        // built in the by-value prelude loop below and `close()`-d after the
+        // callback returns (see the body).
+        if let Some(h) = &arg_entry.metadata.handle {
+            let java_path = handle_field_fqn(ext, h).replace('.', "/");
+            sig.push_str(&format!("L{};", java_path));
+            jvalue_exprs.push(quote!(jni::objects::JValue::Object(&#obj_ident)));
+            handle_obj_idents.push(obj_ident);
+            arg_idents.push(raw_ident);
+            continue;
+        }
 
         match jni_field_access(&arg_wire) {
             Some((s, _, false)) => {
@@ -3912,6 +3929,22 @@ fn callback_input(
         let arg_entry = registry.output_entry(arg_ty)?;
         let arg_wire = arg_entry.destination.clone();
         let conv = arg_entry.function.sig.ident.clone();
+        // Opaque-handle arg: encode to `jlong` then wrap into the typed
+        // handle class via its `(J)V` ctor. By-value non-optional, so no
+        // null guard. The box is freed after the callback via `close()`
+        // in the body below.
+        if let Some(h) = &arg_entry.metadata.handle {
+            let java_path = handle_field_fqn(ext, h).replace('.', "/");
+            let java_path_lit = syn::LitStr::new(&java_path, Span::call_site());
+            fixed_preludes.push(quote! {
+                let #enc_ident = #conv(&mut env, #cb_arg)?;
+                let #obj_ident: jni::objects::JObject = env
+                    .new_object(#java_path_lit, "(J)V", &[jni::objects::JValue::from(#enc_ident)])
+                    .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("wrap typed handle {}: {}", #java_path_lit, e)))?;
+            });
+            let _ = raw_ident;
+            continue;
+        }
         // Output wrappers take rust by value (move). cb_arg is the
         // closure parameter (by value), so pass it directly.
         match jni_field_access(&arg_wire) {
@@ -3943,16 +3976,25 @@ fn callback_input(
                     .attach_current_thread_as_daemon()
                     .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("Attach thread for {}: {}", #name_lit, e)))?;
                 #(#fixed_preludes)*
-                env.call_method(
+                let __call_res: ::core::result::Result<(), __JniErr> = env.call_method(
                     &callback_global_ref,
                     "run",
                     #sig_lit,
                     &[#(#jvalue_exprs),*],
                 )
+                .map(|_| ())
                 .map_err(|e| {
+                    // `exception_describe` also clears the pending exception,
+                    // so subsequent JNI calls (the handle closes below) are safe.
                     let _ = env.exception_describe();
                     <__JniErr as ::core::convert::From<String>>::from(e.to_string())
-                })?;
+                });
+                // Free each opaque-handle arg's per-invocation `Box` once the
+                // callback returns — a no-op if the consumer `take()`-ed the
+                // handle (its slot is then already 0). Runs even when the
+                // callback threw, so a throwing consumer never leaks.
+                #(let _ = env.call_method(&#handle_obj_idents, "close", "()V", &[]);)*
+                __call_res?;
                 Ok(())
             })()
             .map_err(|e| tracing::error!("{} callback error: {e}", #name_lit));
@@ -4038,7 +4080,7 @@ fn default_niches_for_wire(wire: &syn::Type) -> Niches {
 /// in `Nullable`) are encodable as a single `L<FQN>;` ctor arg; a
 /// collection layer (`Iterable`, i.e. `Vec<Handle>`) would need array
 /// codegen and is a loud build-time error until implemented.
-fn handle_field_fqn(ext: &JniExt, h: &HandleInfo) -> String {
+pub(crate) fn handle_field_fqn(ext: &JniExt, h: &HandleInfo) -> String {
     fn assert_scalar(s: &CloseStrategy) {
         match s {
             CloseStrategy::Direct => {}

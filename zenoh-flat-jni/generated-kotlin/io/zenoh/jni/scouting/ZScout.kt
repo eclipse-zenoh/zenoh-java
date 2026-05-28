@@ -17,6 +17,13 @@ public class ZScout(initialPtr: Long) : AutoCloseable {
         }
     }
 
+    @Synchronized
+    public fun take(): ZScout {
+        val p = ptr
+        ptr = 0L
+        return ZScout(p)
+    }
+
     public companion object {
         @JvmStatic
         external fun freePtr(ptr: Long)

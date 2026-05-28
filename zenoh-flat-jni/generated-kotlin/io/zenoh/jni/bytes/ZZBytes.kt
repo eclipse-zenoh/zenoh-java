@@ -20,6 +20,13 @@ public class ZZBytes(initialPtr: Long) : AutoCloseable {
         }
     }
 
+    @Synchronized
+    public fun take(): ZZBytes {
+        val p = ptr
+        ptr = 0L
+        return ZZBytes(p)
+    }
+
     @Throws(JniBindingError::class)
     public fun zZbytesToBytes(): ByteArray {
         synchronized(this) {

@@ -22,6 +22,13 @@ public class ZHello(initialPtr: Long) : AutoCloseable {
         }
     }
 
+    @Synchronized
+    public fun take(): ZHello {
+        val p = ptr
+        ptr = 0L
+        return ZHello(p)
+    }
+
     @Throws(JniBindingError::class)
     public fun zHelloWhatami(): WhatAmI {
         synchronized(this) {
