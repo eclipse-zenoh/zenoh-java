@@ -7,14 +7,18 @@ import io.zenoh.jni.bytes.ZZBytes
 import io.zenoh.jni.callbacks.Callback
 import io.zenoh.jni.callbacks.HelloCallback
 import io.zenoh.jni.callbacks.ReplyCallback
+import io.zenoh.jni.callbacks.SampleCallback
 import io.zenoh.jni.callbacks.ZHelloCallback
 import io.zenoh.jni.callbacks.ZReplyCallback
+import io.zenoh.jni.callbacks.ZSampleCallback
 import io.zenoh.jni.config.WhatAmI
 import io.zenoh.jni.config.ZConfig
 import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.keyexpr.KeyExpr
 import io.zenoh.jni.keyexpr.SetIntersectionLevel
 import io.zenoh.jni.keyexpr.ZKeyExpr
+import io.zenoh.jni.liveliness.ZLivelinessToken
+import io.zenoh.jni.pubsub.ZSubscriber
 import io.zenoh.jni.qos.CongestionControl
 import io.zenoh.jni.qos.Priority
 import io.zenoh.jni.query.Query
@@ -91,6 +95,8 @@ internal object JNINative {
     external fun keyexprJoin(a: Any, b: String): KeyExpr
     external fun keyexprRelationTo(a: Any, b: Any): Int
     external fun keyexprTryFrom(s: String): KeyExpr
+    external fun livelinessDeclareSubscriber(session: Long, keyExpr: Any, history: Boolean, callback: SampleCallback, onClose: Callback): Long
+    external fun livelinessGet(session: Long, keyExpr: Any, timeoutMs: Long, callback: ReplyCallback, onClose: Callback)
     external fun querierGet(querier: Long, parameters: String?, payload: Any?, encoding: Any, attachment: Any?, callback: ReplyCallback, onClose: Callback)
     external fun scout(whatami: Int, config: Long, callback: HelloCallback, onClose: Callback): Long
     external fun tryInitZenohLogsFromEnv()
@@ -168,6 +174,9 @@ internal object JNINative {
     external fun zKeyexprJoin(a: Long, b: String): Long
     external fun zKeyexprRelationTo(a: Long, b: Long): Int
     external fun zKeyexprTryFrom(s: String): Long
+    external fun zLivelinessDeclareSubscriber(session: Long, keyExpr: Any, history: Boolean, callback: ZSampleCallback, onClose: Callback): Long
+    external fun zLivelinessDeclareToken(session: Long, keyExpr: Any): Long
+    external fun zLivelinessGet(session: Long, keyExpr: Any, timeoutMs: Long, callback: ZReplyCallback, onClose: Callback)
     external fun zPublisherDelete(publisher: Long, attachment: Any?)
     external fun zPublisherPut(publisher: Long, payload: Any, encoding: Any, attachment: Any?)
     external fun zQuerierGet(querier: Long, parameters: String?, payload: Any?, encoding: Any, attachment: Any?, callback: ZReplyCallback, onClose: Callback)

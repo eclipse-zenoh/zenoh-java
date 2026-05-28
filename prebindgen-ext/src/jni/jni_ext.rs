@@ -4414,23 +4414,48 @@ fn struct_output_body(
                 // primitive descriptor. The JVM ctor slot must be the field's
                 // ACTUAL declared type — `Ljava/lang/Object;` won't match
                 // because Kotlin emits the typed class in the constructor
-                // signature. Detection order:
-                //   1. Bare data-class (registered via `data_class`):
-                //      look up the typed FQN from `kotlin_type_fqns`.
-                //   2. `Vec<T>` → `java/util/List` (the Vec rank-1 handler
+                // signature.
+                //
+                // For `Option<T>` the per-field converter produces a nullable
+                // JObject, but the Kotlin ctor slot is still `T`'s concrete
+                // erased type, so unwrap the Option (and any value-class
+                // wrapper, since those erase to their inner field) before
+                // resolving the descriptor. Detection order on the resulting
+                // slot type:
+                //   1. Inner wire is a primitive/byte-array descriptor
+                //      (e.g. `Option<ZBytes>` → `[B`).
+                //   2. Bare data-class/enum (registered): typed FQN from
+                //      `kotlin_type_fqns` (e.g. `Option<Sample>` →
+                //      `Lio/zenoh/jni/sample/Sample;`).
+                //   3. `Vec<T>` → `java/util/List` (the Vec rank-1 handler
                 //      encodes to ArrayList, which implements List).
-                //   3. Anything else (e.g. `String` → `java/lang/String`):
+                //   4. Anything else (e.g. `String` → `java/lang/String`):
                 //      derive from the inner wire's J* type name.
-                //   4. Fallback → `Ljava/lang/Object;`.
-                let typed_slot = bare_path_ident(&effective_ty)
-                    .and_then(|name| {
-                        ext.kotlin_type_fqns
-                            .iter()
-                            .find(|(k, _)| k == &name.to_string())
-                            .map(|(_, v)| format!("L{};", v.replace('.', "/")))
+                //   5. Fallback → `Ljava/lang/Object;`.
+                //
+                // Non-`Option` object fields keep the previous behavior: their
+                // own wire already returned `None` from `jni_field_access`
+                // above, so step 1 is a no-op and resolution falls through to
+                // the FQN/Vec/J* chain exactly as before.
+                let slot_ty = option_inner_type(&effective_ty)
+                    .map(|inner| {
+                        value_class_inner_type(ext, registry, &inner).unwrap_or(inner)
+                    })
+                    .unwrap_or_else(|| effective_ty.clone());
+                let typed_slot = registry
+                    .output_entry(&slot_ty)
+                    .and_then(|e| jni_field_access(&e.destination))
+                    .map(|(sig, _, _)| sig.to_string())
+                    .or_else(|| {
+                        bare_path_ident(&slot_ty).and_then(|name| {
+                            ext.kotlin_type_fqns
+                                .iter()
+                                .find(|(k, _)| k == &name.to_string())
+                                .map(|(_, v)| format!("L{};", v.replace('.', "/")))
+                        })
                     })
                     .or_else(|| {
-                        if pat_match_top(&effective_ty, "Vec") {
+                        if pat_match_top(&slot_ty, "Vec") {
                             Some("Ljava/util/List;".to_string())
                         } else if let syn::Type::Path(tp) = &field_wire {
                             tp.path.segments.last().and_then(|seg| {
@@ -4887,6 +4912,46 @@ fn bare_path_ident(ty: &syn::Type) -> Option<syn::Ident> {
         }
     }
     None
+}
+
+/// If `ty` is `Option<Inner>`, return `Inner`. Used by the struct encoder to
+/// derive the JVM ctor slot descriptor of an optional field: the value is
+/// encoded as a nullable JObject, but the Kotlin constructor expects `Inner`'s
+/// concrete erased type, not `Ljava/lang/Object;`.
+fn option_inner_type(ty: &syn::Type) -> Option<syn::Type> {
+    let syn::Type::Path(tp) = ty else { return None };
+    let seg = tp.path.segments.last()?;
+    if seg.ident != "Option" {
+        return None;
+    }
+    let syn::PathArguments::AngleBracketed(ab) = &seg.arguments else {
+        return None;
+    };
+    match ab.args.first()? {
+        syn::GenericArgument::Type(inner) => Some(inner.clone()),
+        _ => None,
+    }
+}
+
+/// If `ty` is a registered `value_class`, return its single wrapped inner field
+/// type (e.g. `ZBytes` → the `bytes` field type). Value classes are JVM-erased
+/// to this inner type, so the struct encoder must resolve the ctor descriptor
+/// against it rather than the boxed value-class name.
+fn value_class_inner_type(
+    ext: &JniExt,
+    registry: &Registry<KotlinMeta>,
+    ty: &syn::Type,
+) -> Option<syn::Type> {
+    let key = TypeKey::from_type(ty);
+    if !ext.types.get(&key).map(|c| c.value_class).unwrap_or(false) {
+        return None;
+    }
+    let ident = bare_path_ident(ty)?;
+    let (item_struct, _) = registry.structs.get(&ident)?;
+    let syn::Fields::Named(n) = &item_struct.fields else {
+        return None;
+    };
+    Some(n.named.first()?.ty.clone())
 }
 
 

@@ -238,6 +238,15 @@ fn main() {
         .class_fun(pq!(z_reply_error_encoding))
         .class_fun(pq!(z_reply_expand))
         .data_class(pq!(Reply))
+        .package("liveliness")
+        .ptr_class(pq!(ZLivelinessToken))
+        .package("session")
+        .ptr_class(pq!(ZSession))
+        .class_fun(pq!(z_liveliness_declare_token))
+        .class_fun(pq!(z_liveliness_get))
+        .class_fun(pq!(liveliness_get))
+        .class_fun(pq!(z_liveliness_declare_subscriber))
+        .class_fun(pq!(liveliness_declare_subscriber))
         .into_sources(
             pq!(ZBytes),
             [

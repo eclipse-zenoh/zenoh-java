@@ -14,26 +14,15 @@
 
 package io.zenoh.jni
 
-import io.zenoh.bytes.Encoding
-import io.zenoh.bytes.into
-import io.zenoh.config.EntityGlobalId
-import io.zenoh.config.ZenohId
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.Callback
-import io.zenoh.jni.callbacks.JNIGetCallback
-import io.zenoh.jni.callbacks.JNIOnCloseCallback
-import io.zenoh.jni.callbacks.JNISubscriberCallback
+import io.zenoh.jni.session.ZSession
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.liveliness.LivelinessToken
 import io.zenoh.pubsub.CallbackSubscriber
 import io.zenoh.pubsub.HandlerSubscriber
-import io.zenoh.qos.CongestionControl
-import io.zenoh.qos.Priority
-import io.zenoh.qos.QoS
 import io.zenoh.query.Reply
 import io.zenoh.sample.Sample
-import io.zenoh.sample.SampleKind
-import org.apache.commons.net.ntp.TimeStamp
 import java.time.Duration
 
 internal object JNILiveliness {
@@ -47,60 +36,22 @@ internal object JNILiveliness {
         timeout: Duration,
         onClose: Runnable
     ): R {
-        val getCallback = JNIGetCallback {
-                replierZid: ByteArray?,
-                replierEid: Int,
-                success: Boolean,
-                keyExpr2: String?,
-                payload: ByteArray,
-                encodingId: Int,
-                encodingSchema: String?,
-                kind: Int,
-                timestampNTP64: Long,
-                timestampIsValid: Boolean,
-                attachmentBytes: ByteArray?,
-                express: Boolean,
-                priority: Int,
-                congestionControl: Int,
-            ->
-            val reply: Reply
-            if (success) {
-                val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
-                val sample = Sample(
-                    KeyExpr(keyExpr2!!),
-                    payload.into(),
-                    Encoding(encodingId, schema = encodingSchema),
-                    SampleKind.fromInt(kind),
-                    timestamp,
-                    QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
-                    attachmentBytes?.into()
-                )
-                reply = Reply.Success(replierZid?.let { EntityGlobalId(ZenohId(io.zenoh.jni.config.ZenohId(it)), replierEid.toUInt()) }, sample)
-            } else {
-                reply = Reply.Error(
-                    replierZid?.let { EntityGlobalId(ZenohId(io.zenoh.jni.config.ZenohId(it)), replierEid.toUInt()) },
-                    payload.into(),
-                    Encoding(encodingId, schema = encodingSchema)
-                )
-            }
-            callback.run(reply)
-        }
-        getViaJNI(
-            jniSession.sessionPtr,
-            keyExpr.flat.keyExprNative?.peek() ?: 0L,
-            keyExpr.flat.keyExprString,
-            getCallback,
+        ZSession(jniSession.sessionPtr).livelinessGet(
+            keyExpr.flat,
             timeout.toMillis(),
-            onClose::run
+            io.zenoh.jni.callbacks.ReplyCallback { flat -> callback.run(Reply.from(flat)) },
+            io.zenoh.jni.callbacks.Callback { onClose.run() }
         )
         return receiver
     }
 
+    @Throws(ZError::class)
     fun declareToken(jniSession: JNISession, keyExpr: KeyExpr): LivelinessToken {
-        val ptr = declareTokenViaJNI(jniSession.sessionPtr, keyExpr.flat.keyExprNative?.peek() ?: 0L, keyExpr.flat.keyExprString)
-        return LivelinessToken(JNILivelinessToken(ptr))
+        val token = ZSession(jniSession.sessionPtr).zLivelinessDeclareToken(keyExpr.flat)
+        return LivelinessToken(token)
     }
 
+    @Throws(ZError::class)
     fun declareSubscriber(
         jniSession: JNISession,
         keyExpr: KeyExpr,
@@ -108,31 +59,16 @@ internal object JNILiveliness {
         history: Boolean,
         onClose: () -> Unit
     ): CallbackSubscriber {
-        val subCallback =
-            JNISubscriberCallback { keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
-                val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
-                val sample = Sample(
-                    KeyExpr(keyExpr2),
-                    payload.into(),
-                    Encoding(encodingId, schema = encodingSchema),
-                    SampleKind.fromInt(kind),
-                    timestamp,
-                    QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
-                    attachmentBytes?.into()
-                )
-                callback.run(sample)
-            }
-        val ptr = declareSubscriberViaJNI(
-            jniSession.sessionPtr,
-            keyExpr.flat.keyExprNative?.peek() ?: 0L,
-            keyExpr.flat.keyExprString,
-            subCallback,
+        val zSubscriber = ZSession(jniSession.sessionPtr).livelinessDeclareSubscriber(
+            keyExpr.flat,
             history,
-            onClose
+            io.zenoh.jni.callbacks.SampleCallback { flat -> callback.run(Sample.from(flat)) },
+            io.zenoh.jni.callbacks.Callback { onClose() }
         )
-        return CallbackSubscriber(keyExpr, io.zenoh.jni.pubsub.ZSubscriber(ptr))
+        return CallbackSubscriber(keyExpr, zSubscriber)
     }
 
+    @Throws(ZError::class)
     fun <R> declareSubscriber(
         jniSession: JNISession,
         keyExpr: KeyExpr,
@@ -141,48 +77,12 @@ internal object JNILiveliness {
         history: Boolean,
         onClose: () -> Unit
     ): HandlerSubscriber<R> {
-        val subCallback =
-            JNISubscriberCallback { keyExpr2, payload, encodingId, encodingSchema, kind, timestampNTP64, timestampIsValid, attachmentBytes, express: Boolean, priority: Int, congestionControl: Int ->
-                val timestamp = if (timestampIsValid) TimeStamp(timestampNTP64) else null
-                val sample = Sample(
-                    KeyExpr(keyExpr2),
-                    payload.into(),
-                    Encoding(encodingId, schema = encodingSchema),
-                    SampleKind.fromInt(kind),
-                    timestamp,
-                    QoS(CongestionControl.fromInt(congestionControl), Priority.fromInt(priority), express),
-                    attachmentBytes?.into()
-                )
-                callback.run(sample)
-            }
-        val ptr = declareSubscriberViaJNI(
-            jniSession.sessionPtr,
-            keyExpr.flat.keyExprNative?.peek() ?: 0L,
-            keyExpr.flat.keyExprString,
-            subCallback,
+        val zSubscriber = ZSession(jniSession.sessionPtr).livelinessDeclareSubscriber(
+            keyExpr.flat,
             history,
-            onClose
+            io.zenoh.jni.callbacks.SampleCallback { flat -> callback.run(Sample.from(flat)) },
+            io.zenoh.jni.callbacks.Callback { onClose() }
         )
-        return HandlerSubscriber(keyExpr, io.zenoh.jni.pubsub.ZSubscriber(ptr), receiver)
+        return HandlerSubscriber(keyExpr, zSubscriber, receiver)
     }
-
-    private external fun getViaJNI(
-        sessionPtr: Long,
-        keyExprPtr: Long,
-        keyExprString: String,
-        callback: JNIGetCallback,
-        timeoutMs: Long,
-        onClose: JNIOnCloseCallback
-    )
-
-    private external fun declareTokenViaJNI(sessionPtr: Long, keyExprPtr: Long, keyExprString: String): Long
-
-    private external fun declareSubscriberViaJNI(
-        sessionPtr: Long,
-        keyExprPtr: Long,
-        keyExprString: String,
-        callback: JNISubscriberCallback,
-        history: Boolean,
-        onClose: JNIOnCloseCallback
-    ): Long
 }
