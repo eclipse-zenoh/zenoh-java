@@ -27,3 +27,17 @@ impl From<zenoh::qos::Priority> for Priority {
         }
     }
 }
+
+impl From<Priority> for zenoh::qos::Priority {
+    fn from(value: Priority) -> Self {
+        match value {
+            Priority::RealTime => zenoh::qos::Priority::RealTime,
+            Priority::InteractiveHigh => zenoh::qos::Priority::InteractiveHigh,
+            Priority::InteractiveLow => zenoh::qos::Priority::InteractiveLow,
+            Priority::DataHigh => zenoh::qos::Priority::DataHigh,
+            Priority::Data => zenoh::qos::Priority::Data,
+            Priority::DataLow => zenoh::qos::Priority::DataLow,
+            Priority::Background => zenoh::qos::Priority::Background,
+        }
+    }
+}

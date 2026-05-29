@@ -19,3 +19,13 @@ impl From<zenoh::qos::CongestionControl> for CongestionControl {
         }
     }
 }
+
+impl From<CongestionControl> for zenoh::qos::CongestionControl {
+    fn from(value: CongestionControl) -> Self {
+        match value {
+            CongestionControl::Drop => zenoh::qos::CongestionControl::Drop,
+            CongestionControl::Block => zenoh::qos::CongestionControl::Block,
+            CongestionControl::BlockFirst => zenoh::qos::CongestionControl::BlockFirst,
+        }
+    }
+}

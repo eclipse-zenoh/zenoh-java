@@ -26,6 +26,7 @@ pub(crate) mod logger;
 pub(crate) mod publisher;
 pub(crate) mod query;
 pub(crate) mod sample;
+pub(crate) mod session;
 pub(crate) mod time;
 pub(crate) mod util;
 
@@ -41,6 +42,7 @@ pub use logger::*;
 pub use publisher::*;
 pub use query::*;
 pub use sample::*;
+pub use session::*;
 pub use time::*;
 
 // reexports of zenoh types with Z prefix to distiguish them from zenoh-flat types

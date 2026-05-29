@@ -16,7 +16,6 @@ package io.zenoh.jni
 
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.Callback
-import io.zenoh.jni.session.ZSession
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.liveliness.LivelinessToken
 import io.zenoh.pubsub.CallbackSubscriber
@@ -36,7 +35,7 @@ internal object JNILiveliness {
         timeout: Duration,
         onClose: Runnable
     ): R {
-        ZSession(jniSession.sessionPtr).livelinessGet(
+        jniSession.zSession.livelinessGet(
             keyExpr.flat,
             timeout.toMillis(),
             io.zenoh.jni.callbacks.ReplyCallback { flat -> callback.run(Reply.from(flat)) },
@@ -47,7 +46,7 @@ internal object JNILiveliness {
 
     @Throws(ZError::class)
     fun declareToken(jniSession: JNISession, keyExpr: KeyExpr): LivelinessToken {
-        val token = ZSession(jniSession.sessionPtr).zLivelinessDeclareToken(keyExpr.flat)
+        val token = jniSession.zSession.zLivelinessDeclareToken(keyExpr.flat)
         return LivelinessToken(token)
     }
 
@@ -59,7 +58,7 @@ internal object JNILiveliness {
         history: Boolean,
         onClose: () -> Unit
     ): CallbackSubscriber {
-        val zSubscriber = ZSession(jniSession.sessionPtr).livelinessDeclareSubscriber(
+        val zSubscriber = jniSession.zSession.livelinessDeclareSubscriber(
             keyExpr.flat,
             history,
             io.zenoh.jni.callbacks.SampleCallback { flat -> callback.run(Sample.from(flat)) },
@@ -77,7 +76,7 @@ internal object JNILiveliness {
         history: Boolean,
         onClose: () -> Unit
     ): HandlerSubscriber<R> {
-        val zSubscriber = ZSession(jniSession.sessionPtr).livelinessDeclareSubscriber(
+        val zSubscriber = jniSession.zSession.livelinessDeclareSubscriber(
             keyExpr.flat,
             history,
             io.zenoh.jni.callbacks.SampleCallback { flat -> callback.run(Sample.from(flat)) },

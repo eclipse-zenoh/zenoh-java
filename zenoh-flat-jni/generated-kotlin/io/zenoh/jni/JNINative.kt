@@ -6,9 +6,11 @@ import io.zenoh.jni.bytes.ZEncoding
 import io.zenoh.jni.bytes.ZZBytes
 import io.zenoh.jni.callbacks.Callback
 import io.zenoh.jni.callbacks.HelloCallback
+import io.zenoh.jni.callbacks.QueryCallback
 import io.zenoh.jni.callbacks.ReplyCallback
 import io.zenoh.jni.callbacks.SampleCallback
 import io.zenoh.jni.callbacks.ZHelloCallback
+import io.zenoh.jni.callbacks.ZQueryCallback
 import io.zenoh.jni.callbacks.ZReplyCallback
 import io.zenoh.jni.callbacks.ZSampleCallback
 import io.zenoh.jni.config.WhatAmI
@@ -18,15 +20,19 @@ import io.zenoh.jni.keyexpr.KeyExpr
 import io.zenoh.jni.keyexpr.SetIntersectionLevel
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.liveliness.ZLivelinessToken
+import io.zenoh.jni.pubsub.ZPublisher
 import io.zenoh.jni.pubsub.ZSubscriber
 import io.zenoh.jni.qos.CongestionControl
 import io.zenoh.jni.qos.Priority
 import io.zenoh.jni.query.Query
 import io.zenoh.jni.query.Reply
+import io.zenoh.jni.query.ZQuerier
+import io.zenoh.jni.query.ZQueryable
 import io.zenoh.jni.sample.Sample
 import io.zenoh.jni.sample.SampleKind
 import io.zenoh.jni.sample.ZSample
 import io.zenoh.jni.scouting.ZScout
+import io.zenoh.jni.session.ZSession
 import io.zenoh.jni.time.Timestamp
 import io.zenoh.jni.time.ZTimestamp
 
@@ -99,6 +105,9 @@ internal object JNINative {
     external fun livelinessGet(session: Long, keyExpr: Any, timeoutMs: Long, callback: ReplyCallback, onClose: Callback)
     external fun querierGet(querier: Long, parameters: String?, payload: Any?, encoding: Any, attachment: Any?, callback: ReplyCallback, onClose: Callback)
     external fun scout(whatami: Int, config: Long, callback: HelloCallback, onClose: Callback): Long
+    external fun sessionDeclareQueryable(session: Long, keyExpr: Any, complete: Boolean, callback: QueryCallback, onClose: Callback): Long
+    external fun sessionDeclareSubscriber(session: Long, keyExpr: Any, callback: SampleCallback, onClose: Callback): Long
+    external fun sessionGet(session: Long, keyExpr: Any, parameters: String?, timeoutMs: Long, target: Int, consolidation: Int, acceptReplies: Int, congestionControl: Int, priority: Int, express: Boolean, payload: Any?, encoding: Any, attachment: Any?, callback: ReplyCallback, onClose: Callback)
     external fun tryInitZenohLogsFromEnv()
     external fun zConfigDefault(): Long
     external fun zConfigFromFile(path: String): Long
@@ -177,6 +186,7 @@ internal object JNINative {
     external fun zLivelinessDeclareSubscriber(session: Long, keyExpr: Any, history: Boolean, callback: ZSampleCallback, onClose: Callback): Long
     external fun zLivelinessDeclareToken(session: Long, keyExpr: Any): Long
     external fun zLivelinessGet(session: Long, keyExpr: Any, timeoutMs: Long, callback: ZReplyCallback, onClose: Callback)
+    external fun zOpen(config: Long): Long
     external fun zPublisherDelete(publisher: Long, attachment: Any?)
     external fun zPublisherPut(publisher: Long, payload: Any, encoding: Any, attachment: Any?)
     external fun zQuerierGet(querier: Long, parameters: String?, payload: Any?, encoding: Any, attachment: Any?, callback: ZReplyCallback, onClose: Callback)
@@ -202,6 +212,18 @@ internal object JNINative {
     external fun zSamplePriority(s: Long): Int
     external fun zSampleTimestamp(s: Long): Long
     external fun zScout(whatami: Int, config: Long, callback: ZHelloCallback, onClose: Callback): Long
+    external fun zSessionDeclareKeyexpr(session: Long, keyExpr: String): Long
+    external fun zSessionDeclarePublisher(session: Long, keyExpr: Any, congestionControl: Int, priority: Int, express: Boolean, reliability: Int): Long
+    external fun zSessionDeclareQuerier(session: Long, keyExpr: Any, target: Int, consolidation: Int, congestionControl: Int, priority: Int, express: Boolean, timeoutMs: Long, acceptReplies: Int): Long
+    external fun zSessionDeclareQueryable(session: Long, keyExpr: Any, complete: Boolean, callback: ZQueryCallback, onClose: Callback): Long
+    external fun zSessionDeclareSubscriber(session: Long, keyExpr: Any, callback: ZSampleCallback, onClose: Callback): Long
+    external fun zSessionDelete(session: Long, keyExpr: Any, congestionControl: Int, priority: Int, express: Boolean, attachment: Any?, reliability: Int)
+    external fun zSessionGet(session: Long, keyExpr: Any, parameters: String?, timeoutMs: Long, target: Int, consolidation: Int, acceptReplies: Int, congestionControl: Int, priority: Int, express: Boolean, payload: Any?, encoding: Any, attachment: Any?, callback: ZReplyCallback, onClose: Callback)
+    external fun zSessionPeersZid(session: Long): List<ByteArray>
+    external fun zSessionPut(session: Long, keyExpr: Any, payload: Any, encoding: Any, congestionControl: Int, priority: Int, express: Boolean, attachment: Any?, reliability: Int)
+    external fun zSessionRoutersZid(session: Long): List<ByteArray>
+    external fun zSessionUndeclareKeyexpr(session: Long, keyExpr: Long)
+    external fun zSessionZid(session: Long): ByteArray
     external fun zTimestampExpand(t: Long): Timestamp
     external fun zTimestampId(t: Long): ByteArray
     external fun zTimestampNtp64(t: Long): Long

@@ -17,3 +17,12 @@ impl From<zenoh::qos::Reliability> for Reliability {
         }
     }
 }
+
+impl From<Reliability> for zenoh::qos::Reliability {
+    fn from(value: Reliability) -> Self {
+        match value {
+            Reliability::BestEffort => zenoh::qos::Reliability::BestEffort,
+            Reliability::Reliable => zenoh::qos::Reliability::Reliable,
+        }
+    }
+}

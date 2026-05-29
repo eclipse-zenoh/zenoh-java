@@ -14,7 +14,6 @@
 
 pub mod errors;
 pub mod key_expr;
-pub mod session;
 pub mod utils;
 pub mod zenoh_id;
 

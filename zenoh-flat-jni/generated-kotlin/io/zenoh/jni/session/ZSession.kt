@@ -4,14 +4,28 @@ package io.zenoh.jni.session
 import io.zenoh.jni.Error
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniBindingError
+import io.zenoh.jni.bytes.ZEncoding
+import io.zenoh.jni.bytes.ZZBytes
 import io.zenoh.jni.callbacks.Callback
+import io.zenoh.jni.callbacks.QueryCallback
 import io.zenoh.jni.callbacks.ReplyCallback
 import io.zenoh.jni.callbacks.SampleCallback
+import io.zenoh.jni.callbacks.ZQueryCallback
 import io.zenoh.jni.callbacks.ZReplyCallback
 import io.zenoh.jni.callbacks.ZSampleCallback
+import io.zenoh.jni.config.ZConfig
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.liveliness.ZLivelinessToken
+import io.zenoh.jni.pubsub.ZPublisher
 import io.zenoh.jni.pubsub.ZSubscriber
+import io.zenoh.jni.qos.CongestionControl
+import io.zenoh.jni.qos.Priority
+import io.zenoh.jni.qos.Reliability
+import io.zenoh.jni.query.ConsolidationMode
+import io.zenoh.jni.query.QueryTarget
+import io.zenoh.jni.query.ReplyKeyExpr
+import io.zenoh.jni.query.ZQuerier
+import io.zenoh.jni.query.ZQueryable
 
 /** Typed handle for a native Zenoh `ZSession`. */
 public class ZSession(initialPtr: Long) : AutoCloseable {
@@ -34,6 +48,368 @@ public class ZSession(initialPtr: Long) : AutoCloseable {
         val p = ptr
         ptr = 0L
         return ZSession(p)
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun zSessionDeclarePublisher(keyExpr: Any, congestionControl: CongestionControl, priority: Priority, express: Boolean, reliability: Reliability): ZPublisher {
+        synchronized(this) {
+            val session_ptr = this.ptr
+            if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            return if (keyExpr is ZKeyExpr) synchronized(keyExpr) {
+            ZPublisher(JNINative.zSessionDeclarePublisher(session_ptr, keyExpr, congestionControl.value, priority.value, express, reliability.value))
+        } else {
+            ZPublisher(JNINative.zSessionDeclarePublisher(session_ptr, keyExpr, congestionControl.value, priority.value, express, reliability.value))
+        }
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun zSessionPut(keyExpr: Any, payload: Any, encoding: Any, congestionControl: CongestionControl, priority: Priority, express: Boolean, attachment: Any?, reliability: Reliability) {
+        synchronized(this) {
+            val session_ptr = this.ptr
+            if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            if (keyExpr is ZKeyExpr) synchronized(keyExpr) {
+            if (payload is ZZBytes) synchronized(payload) {
+            if (encoding is ZEncoding) synchronized(encoding) {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionPut(session_ptr, keyExpr, payload, encoding, congestionControl.value, priority.value, express, attachment, reliability.value)
+        } else {
+            JNINative.zSessionPut(session_ptr, keyExpr, payload, encoding, congestionControl.value, priority.value, express, attachment, reliability.value)
+        }
+        } else {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionPut(session_ptr, keyExpr, payload, encoding, congestionControl.value, priority.value, express, attachment, reliability.value)
+        } else {
+            JNINative.zSessionPut(session_ptr, keyExpr, payload, encoding, congestionControl.value, priority.value, express, attachment, reliability.value)
+        }
+        }
+        } else {
+            if (encoding is ZEncoding) synchronized(encoding) {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionPut(session_ptr, keyExpr, payload, encoding, congestionControl.value, priority.value, express, attachment, reliability.value)
+        } else {
+            JNINative.zSessionPut(session_ptr, keyExpr, payload, encoding, congestionControl.value, priority.value, express, attachment, reliability.value)
+        }
+        } else {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionPut(session_ptr, keyExpr, payload, encoding, congestionControl.value, priority.value, express, attachment, reliability.value)
+        } else {
+            JNINative.zSessionPut(session_ptr, keyExpr, payload, encoding, congestionControl.value, priority.value, express, attachment, reliability.value)
+        }
+        }
+        }
+        } else {
+            if (payload is ZZBytes) synchronized(payload) {
+            if (encoding is ZEncoding) synchronized(encoding) {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionPut(session_ptr, keyExpr, payload, encoding, congestionControl.value, priority.value, express, attachment, reliability.value)
+        } else {
+            JNINative.zSessionPut(session_ptr, keyExpr, payload, encoding, congestionControl.value, priority.value, express, attachment, reliability.value)
+        }
+        } else {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionPut(session_ptr, keyExpr, payload, encoding, congestionControl.value, priority.value, express, attachment, reliability.value)
+        } else {
+            JNINative.zSessionPut(session_ptr, keyExpr, payload, encoding, congestionControl.value, priority.value, express, attachment, reliability.value)
+        }
+        }
+        } else {
+            if (encoding is ZEncoding) synchronized(encoding) {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionPut(session_ptr, keyExpr, payload, encoding, congestionControl.value, priority.value, express, attachment, reliability.value)
+        } else {
+            JNINative.zSessionPut(session_ptr, keyExpr, payload, encoding, congestionControl.value, priority.value, express, attachment, reliability.value)
+        }
+        } else {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionPut(session_ptr, keyExpr, payload, encoding, congestionControl.value, priority.value, express, attachment, reliability.value)
+        } else {
+            JNINative.zSessionPut(session_ptr, keyExpr, payload, encoding, congestionControl.value, priority.value, express, attachment, reliability.value)
+        }
+        }
+        }
+        }
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun zSessionDelete(keyExpr: Any, congestionControl: CongestionControl, priority: Priority, express: Boolean, attachment: Any?, reliability: Reliability) {
+        synchronized(this) {
+            val session_ptr = this.ptr
+            if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            if (keyExpr is ZKeyExpr) synchronized(keyExpr) {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionDelete(session_ptr, keyExpr, congestionControl.value, priority.value, express, attachment, reliability.value)
+        } else {
+            JNINative.zSessionDelete(session_ptr, keyExpr, congestionControl.value, priority.value, express, attachment, reliability.value)
+        }
+        } else {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionDelete(session_ptr, keyExpr, congestionControl.value, priority.value, express, attachment, reliability.value)
+        } else {
+            JNINative.zSessionDelete(session_ptr, keyExpr, congestionControl.value, priority.value, express, attachment, reliability.value)
+        }
+        }
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun zSessionDeclareSubscriber(keyExpr: Any, callback: ZSampleCallback, onClose: Callback): ZSubscriber {
+        synchronized(this) {
+            val session_ptr = this.ptr
+            if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            return if (keyExpr is ZKeyExpr) synchronized(keyExpr) {
+            ZSubscriber(JNINative.zSessionDeclareSubscriber(session_ptr, keyExpr, callback, onClose))
+        } else {
+            ZSubscriber(JNINative.zSessionDeclareSubscriber(session_ptr, keyExpr, callback, onClose))
+        }
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun sessionDeclareSubscriber(keyExpr: Any, callback: SampleCallback, onClose: Callback): ZSubscriber {
+        synchronized(this) {
+            val session_ptr = this.ptr
+            if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            return if (keyExpr is ZKeyExpr) synchronized(keyExpr) {
+            ZSubscriber(JNINative.sessionDeclareSubscriber(session_ptr, keyExpr, callback, onClose))
+        } else {
+            ZSubscriber(JNINative.sessionDeclareSubscriber(session_ptr, keyExpr, callback, onClose))
+        }
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun zSessionDeclareQuerier(keyExpr: Any, target: QueryTarget, consolidation: ConsolidationMode, congestionControl: CongestionControl, priority: Priority, express: Boolean, timeoutMs: Long, acceptReplies: ReplyKeyExpr): ZQuerier {
+        synchronized(this) {
+            val session_ptr = this.ptr
+            if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            return if (keyExpr is ZKeyExpr) synchronized(keyExpr) {
+            ZQuerier(JNINative.zSessionDeclareQuerier(session_ptr, keyExpr, target.value, consolidation.value, congestionControl.value, priority.value, express, timeoutMs, acceptReplies.value))
+        } else {
+            ZQuerier(JNINative.zSessionDeclareQuerier(session_ptr, keyExpr, target.value, consolidation.value, congestionControl.value, priority.value, express, timeoutMs, acceptReplies.value))
+        }
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun zSessionDeclareQueryable(keyExpr: Any, complete: Boolean, callback: ZQueryCallback, onClose: Callback): ZQueryable {
+        synchronized(this) {
+            val session_ptr = this.ptr
+            if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            return if (keyExpr is ZKeyExpr) synchronized(keyExpr) {
+            ZQueryable(JNINative.zSessionDeclareQueryable(session_ptr, keyExpr, complete, callback, onClose))
+        } else {
+            ZQueryable(JNINative.zSessionDeclareQueryable(session_ptr, keyExpr, complete, callback, onClose))
+        }
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun sessionDeclareQueryable(keyExpr: Any, complete: Boolean, callback: QueryCallback, onClose: Callback): ZQueryable {
+        synchronized(this) {
+            val session_ptr = this.ptr
+            if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            return if (keyExpr is ZKeyExpr) synchronized(keyExpr) {
+            ZQueryable(JNINative.sessionDeclareQueryable(session_ptr, keyExpr, complete, callback, onClose))
+        } else {
+            ZQueryable(JNINative.sessionDeclareQueryable(session_ptr, keyExpr, complete, callback, onClose))
+        }
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun zSessionDeclareKeyexpr(keyExpr: String): ZKeyExpr {
+        synchronized(this) {
+            val session_ptr = this.ptr
+            if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            return ZKeyExpr(JNINative.zSessionDeclareKeyexpr(session_ptr, keyExpr))
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun zSessionUndeclareKeyexpr(keyExpr: ZKeyExpr) {
+        val session_lo = this.ptr
+        val keyExpr_lo = keyExpr.ptr
+        if (session_lo == 0L || keyExpr_lo == 0L) throw JniBindingError("Operation on a closed native handle.")
+        val (lock1, lock2) = if (session_lo <= keyExpr_lo) this to keyExpr else keyExpr to this
+        synchronized(lock1) {
+            synchronized(lock2) {
+                val session_ptr = this.ptr
+                val keyExpr_ptr = keyExpr.ptr
+                if (session_ptr == 0L || keyExpr_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+                try {
+                JNINative.zSessionUndeclareKeyexpr(session_ptr, keyExpr_ptr)
+            } finally {
+                keyExpr.ptr = 0L
+            }
+            }
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun zSessionGet(keyExpr: Any, parameters: String?, timeoutMs: Long, target: QueryTarget, consolidation: ConsolidationMode, acceptReplies: ReplyKeyExpr, congestionControl: CongestionControl, priority: Priority, express: Boolean, payload: Any?, encoding: Any, attachment: Any?, callback: ZReplyCallback, onClose: Callback) {
+        synchronized(this) {
+            val session_ptr = this.ptr
+            if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            if (keyExpr is ZKeyExpr) synchronized(keyExpr) {
+            if (payload is ZZBytes) synchronized(payload) {
+            if (encoding is ZEncoding) synchronized(encoding) {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        } else {
+            JNINative.zSessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        }
+        } else {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        } else {
+            JNINative.zSessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        }
+        }
+        } else {
+            if (encoding is ZEncoding) synchronized(encoding) {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        } else {
+            JNINative.zSessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        }
+        } else {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        } else {
+            JNINative.zSessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        }
+        }
+        }
+        } else {
+            if (payload is ZZBytes) synchronized(payload) {
+            if (encoding is ZEncoding) synchronized(encoding) {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        } else {
+            JNINative.zSessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        }
+        } else {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        } else {
+            JNINative.zSessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        }
+        }
+        } else {
+            if (encoding is ZEncoding) synchronized(encoding) {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        } else {
+            JNINative.zSessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        }
+        } else {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.zSessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        } else {
+            JNINative.zSessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        }
+        }
+        }
+        }
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun sessionGet(keyExpr: Any, parameters: String?, timeoutMs: Long, target: QueryTarget, consolidation: ConsolidationMode, acceptReplies: ReplyKeyExpr, congestionControl: CongestionControl, priority: Priority, express: Boolean, payload: Any?, encoding: Any, attachment: Any?, callback: ReplyCallback, onClose: Callback) {
+        synchronized(this) {
+            val session_ptr = this.ptr
+            if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            if (keyExpr is ZKeyExpr) synchronized(keyExpr) {
+            if (payload is ZZBytes) synchronized(payload) {
+            if (encoding is ZEncoding) synchronized(encoding) {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        } else {
+            JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        }
+        } else {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        } else {
+            JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        }
+        }
+        } else {
+            if (encoding is ZEncoding) synchronized(encoding) {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        } else {
+            JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        }
+        } else {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        } else {
+            JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        }
+        }
+        }
+        } else {
+            if (payload is ZZBytes) synchronized(payload) {
+            if (encoding is ZEncoding) synchronized(encoding) {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        } else {
+            JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        }
+        } else {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        } else {
+            JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        }
+        }
+        } else {
+            if (encoding is ZEncoding) synchronized(encoding) {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        } else {
+            JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        }
+        } else {
+            if (attachment is ZZBytes) synchronized(attachment) {
+            JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        } else {
+            JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target.value, consolidation.value, acceptReplies.value, congestionControl.value, priority.value, express, payload, encoding, attachment, callback, onClose)
+        }
+        }
+        }
+        }
+        }
+    }
+
+    @Throws(JniBindingError::class)
+    public fun zSessionZid(): ByteArray {
+        synchronized(this) {
+            val session_ptr = this.ptr
+            if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            return JNINative.zSessionZid(session_ptr)
+        }
+    }
+
+    @Throws(JniBindingError::class)
+    public fun zSessionPeersZid(): List<ByteArray> {
+        synchronized(this) {
+            val session_ptr = this.ptr
+            if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            return JNINative.zSessionPeersZid(session_ptr)
+        }
+    }
+
+    @Throws(JniBindingError::class)
+    public fun zSessionRoutersZid(): List<ByteArray> {
+        synchronized(this) {
+            val session_ptr = this.ptr
+            if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+            return JNINative.zSessionRoutersZid(session_ptr)
+        }
     }
 
     @Throws(Error::class, JniBindingError::class)
@@ -104,5 +480,14 @@ public class ZSession(initialPtr: Long) : AutoCloseable {
     public companion object {
         @JvmStatic
         external fun freePtr(ptr: Long)
+
+        @Throws(Error::class, JniBindingError::class)
+        public fun zOpen(config: ZConfig): ZSession {
+            synchronized(config) {
+                val config_ptr = config.ptr
+                if (config_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+                return ZSession(JNINative.zOpen(config_ptr))
+            }
+        }
     }
 }

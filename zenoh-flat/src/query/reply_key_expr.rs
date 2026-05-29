@@ -18,3 +18,12 @@ impl From<zenoh::query::ReplyKeyExpr> for ReplyKeyExpr {
         }
     }
 }
+
+impl From<ReplyKeyExpr> for zenoh::query::ReplyKeyExpr {
+    fn from(r: ReplyKeyExpr) -> Self {
+        match r {
+            ReplyKeyExpr::Any => zenoh::query::ReplyKeyExpr::Any,
+            ReplyKeyExpr::MatchingQuery => zenoh::query::ReplyKeyExpr::MatchingQuery,
+        }
+    }
+}
