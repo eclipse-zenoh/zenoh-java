@@ -24,3 +24,11 @@ impl From<ZZenohId> for ZenohId {
         Self::from(&z)
     }
 }
+
+/// Format a Zenoh node identifier (its raw byte form) as the standard string form.
+#[prebindgen]
+pub fn zenoh_id_to_string(bytes: &Vec<u8>) -> String {
+    zenoh::session::ZenohId::try_from(bytes.as_slice())
+        .map(|id| id.to_string())
+        .unwrap_or_default()
+}

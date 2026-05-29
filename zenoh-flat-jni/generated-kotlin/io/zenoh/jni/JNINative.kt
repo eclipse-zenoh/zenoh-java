@@ -232,4 +232,5 @@ internal object JNINative {
     external fun zZbytesToBytes(z: Long): ByteArray
     external fun zZenohIdToBytes(z: Long): ByteArray
     external fun zZenohIdToString(z: Long): String
+    external fun zenohIdToString(bytes: ByteArray): String
 }

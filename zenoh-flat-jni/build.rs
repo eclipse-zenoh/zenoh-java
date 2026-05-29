@@ -56,6 +56,7 @@ fn main() {
         .class_fun(pq!(z_zenoh_id_to_bytes))
         .class_fun(pq!(z_zenoh_id_to_string))
         .value_class(pq!(ZenohId))
+        .class_object_fun(pq!(zenoh_id_to_string))
         .package("scouting")
         .ptr_class(pq!(ZHello))
         .class_fun(pq!(z_hello_whatami))

@@ -15,7 +15,6 @@
 pub mod errors;
 pub mod key_expr;
 pub mod utils;
-pub mod zenoh_id;
 
 pub use errors::{ZError, ZResult};
 
