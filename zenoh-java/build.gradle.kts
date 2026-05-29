@@ -31,8 +31,7 @@ val release = project.findProperty("release")?.toString()?.toBoolean() == true
 val isRemotePublication = project.findProperty("remotePublication")?.toString()?.toBoolean() == true
 
 var buildMode = if (release) BuildMode.RELEASE else BuildMode.DEBUG
-// zenoh-jni is now a plain Rust rlib statically linked into zenoh-flat-jni.
-// Only one dylib is produced and loaded.
+// Native dylib comes from zenoh-flat-jni.
 val zenohFlatJniTargetDir = "../zenoh-flat-jni/target/$buildMode"
 val nativeLibraryPath = zenohFlatJniTargetDir
 
@@ -173,7 +172,6 @@ tasks.whenObjectAdded {
 }
 
 tasks.named("compileKotlinJvm") {
-    // Building zenoh-flat-jni transitively builds zenoh-jni as a Rust dep.
     dependsOn("buildZenohFlatJni")
 }
 

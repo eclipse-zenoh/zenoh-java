@@ -301,7 +301,7 @@ fn main() {
     // ── Write Kotlin output ───────────────────────────────────────────
     // All generated Kotlin lives under `generated-kotlin/`; the runtime
     // module's Gradle source set picks it up via
-    // `kotlin.srcDir("$rootDir/zenoh-jni/generated-kotlin")`.
+    // `kotlin.srcDir("$rootDir/zenoh-flat-jni/generated-kotlin")`.
     let kotlin_root = std::path::Path::new("generated-kotlin");
     // Remove stale generated files so package moves don't leave old classes
     // behind (e.g. io/zenoh/jni/* and io/zenoh/jni/<subpackage>/* side-by-side).

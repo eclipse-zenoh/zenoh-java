@@ -78,19 +78,13 @@ tasks {
 
     examples.forEach { example ->
         register(example, JavaExec::class) {
-            dependsOn("CompileZenohJNI")
+            dependsOn(":zenoh-java:buildZenohFlatJni")
             description = "Run the $example example"
             mainClass.set("io.zenoh.$example")
             classpath(sourceSets["main"].runtimeClasspath)
-            val zenohPaths = "../zenoh-jni/target/release"
+            val zenohPaths = "../zenoh-flat-jni/target/release"
             val defaultJvmArgs = arrayListOf("-Djava.library.path=$zenohPaths")
             jvmArgs(defaultJvmArgs)
         }
-    }
-}
-
-tasks.register("CompileZenohJNI") {
-    project.exec {
-        commandLine("cargo", "build", "--release", "--manifest-path", "../zenoh-jni/Cargo.toml")
     }
 }

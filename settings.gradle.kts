@@ -23,7 +23,6 @@ rootProject.name = "zenoh-java"
 
 include(":zenoh-java")
 include(":examples")
-include(":zenoh-jni")
 include(":zenoh-flat-jni")
 
 plugins {
