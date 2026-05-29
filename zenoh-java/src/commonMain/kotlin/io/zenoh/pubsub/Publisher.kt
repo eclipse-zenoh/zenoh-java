@@ -19,7 +19,8 @@ import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
-import io.zenoh.jni.JNIPublisher
+import io.zenoh.exceptions.wrapJNIExceptionAsZError
+import io.zenoh.jni.pubsub.ZPublisher
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
@@ -63,7 +64,7 @@ class Publisher internal constructor(
     private var congestionControl: CongestionControl,
     private var priority: Priority,
     val encoding: Encoding,
-    private var jniPublisher: JNIPublisher?,
+    private var zPublisher: ZPublisher?,
 ) : SessionDeclaration, AutoCloseable {
 
     companion object {
@@ -79,13 +80,13 @@ class Publisher internal constructor(
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
     @Throws(ZError::class)
     fun put(payload: IntoZBytes) {
-        jniPublisher?.put(payload, encoding, null) ?: throw publisherNotValid
+        performPut(payload, encoding, null)
     }
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
     @Throws(ZError::class)
     fun put(payload: IntoZBytes, options: PutOptions) {
-        jniPublisher?.put(payload, options.encoding ?: this.encoding, options.attachment) ?: throw publisherNotValid
+        performPut(payload, options.encoding ?: this.encoding, options.attachment)
     }
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
@@ -102,14 +103,17 @@ class Publisher internal constructor(
     @JvmOverloads
     @Throws(ZError::class)
     fun delete(options: DeleteOptions = DeleteOptions()) {
-        jniPublisher?.delete(options.attachment) ?: throw(publisherNotValid)
+        val p = zPublisher ?: throw publisherNotValid
+        wrapJNIExceptionAsZError {
+            p.zPublisherDelete(options.attachment?.into()?.inner)
+        }
     }
 
     /**
      * Returns `true` if the publisher is still running.
      */
     fun isValid(): Boolean {
-        return jniPublisher != null
+        return zPublisher != null
     }
 
     override fun close() {
@@ -117,12 +121,24 @@ class Publisher internal constructor(
     }
 
     override fun undeclare() {
-        jniPublisher?.close()
-        jniPublisher = null
+        zPublisher?.close()
+        zPublisher = null
     }
 
     @Suppress("removal")
     protected fun finalize() {
-        jniPublisher?.close()
+        zPublisher?.close()
+    }
+
+    @Throws(ZError::class)
+    private fun performPut(payload: IntoZBytes, encoding: Encoding, attachment: IntoZBytes?) {
+        val p = zPublisher ?: throw publisherNotValid
+        wrapJNIExceptionAsZError {
+            p.zPublisherPut(
+                payload.into().inner,
+                encoding.toFlat(),
+                attachment?.into()?.inner,
+            )
+        }
     }
 }

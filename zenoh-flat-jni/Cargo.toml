@@ -1,0 +1,46 @@
+[package]
+name = "zenoh-flat-jni"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["zenoh-ext"]
+# Gates the hand-written ZBytes serialization JNI (src/zbytes.rs), which needs
+# zenoh-ext's serializer/deserializer.
+zenoh-ext = ["dep:zenoh-ext"]
+
+[dependencies]
+zenoh-flat = { version = "1.9.0", path = "../zenoh-flat" }
+prebindgen-ext = { version = "1.0.0", path = "../prebindgen-ext" }
+# zenoh_jni is consumed here as a plain rlib. default-features = false drops
+# the export_jni_symbols feature so the same Java_… fns become regular Rust
+# pubs — only outdated/ wrappers below carry #[no_mangle] for the JNI ABI.
+zenoh_jni = { path = "../zenoh-jni", default-features = false, features = ["zenoh-default"] }
+# Direct zenoh/zenoh-ext deps for the self-contained ZBytes serialization JNI.
+# Same git rev as zenoh-flat so Cargo unifies the crate instances.
+zenoh = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["unstable", "internal"], default-features = false }
+zenoh-ext = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["internal"], default-features = false, optional = true }
+jni = "0.21.1"
+konst = "0.3.17"
+tracing = { version = "0.1", features = ["log"] }
+
+[lib]
+name = "zenoh_flat_jni"
+crate-type = ["staticlib", "dylib"]
+
+[build-dependencies]
+zenoh-flat = { version = "1.9.0", path = "../zenoh-flat" }
+prebindgen = "0.4.1"
+prebindgen-ext = { version = "1.0.0", path = "../prebindgen-ext" }
+syn = "2"
+
+# Mirror of zenoh-jni's old release profile. Critical: panic = "abort" — a
+# Rust panic crossing the JNI boundary under unwind is UB. The setting was
+# previously on zenoh-jni's dylib build; now that zenoh-jni is an rlib it
+# inherits the consuming crate's profile, so the gating must live here.
+[profile.release]
+debug = false
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+panic = "abort"

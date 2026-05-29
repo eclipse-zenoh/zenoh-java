@@ -196,6 +196,23 @@ public class QueryableTest {
         assertEquals(errorMessage, errorReply.getError());
     }
 
+    /**
+     * A queryable callback that throws must not crash the JVM: the migrated
+     * queryable path swallows/logs the exception. (Regression guard for the
+     * former legacy `on_query` double-free.)
+     */
+    @Test
+    public void throwingQueryableCallbackDoesNotCrashJvm() throws ZError, InterruptedException {
+        try (var queryable = session.declareQueryable(testKeyExpr, query -> {
+            throw new RuntimeException("boom from queryable callback");
+        })) {
+            session.get(testKeyExpr);
+            Thread.sleep(500);
+        }
+        // Reaching here (no JVM abort) means the queryable path handles a
+        // throwing callback gracefully.
+    }
+
     @Test
     public void queryReplyDeleteTest() throws ZError, InterruptedException {
         var timestamp = TimeStamp.getCurrentTime();

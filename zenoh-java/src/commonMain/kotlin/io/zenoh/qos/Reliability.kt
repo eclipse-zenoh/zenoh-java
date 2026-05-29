@@ -36,4 +36,17 @@ enum class Reliability {
      * this reliability requirement may be infringed to prevent slow readers from blocking the network.
      */
     RELIABLE,
+
+    ;
+
+    internal val jni: io.zenoh.jni.qos.Reliability
+        get() = when (this) {
+            BEST_EFFORT -> io.zenoh.jni.qos.Reliability.BEST_EFFORT
+            RELIABLE -> io.zenoh.jni.qos.Reliability.RELIABLE
+        }
+
+    companion object {
+        internal fun fromJni(jni: io.zenoh.jni.qos.Reliability): Reliability =
+            entries.first { it.jni == jni }
+    }
 }

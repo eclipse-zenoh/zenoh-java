@@ -15,11 +15,14 @@
 package io.zenoh.keyexpr
 
 import io.zenoh.Session
+import io.zenoh.ZenohLoad
 import io.zenoh.session.SessionDeclaration
 import io.zenoh.exceptions.ZError
-import io.zenoh.jni.JNIKeyExpr
+import io.zenoh.exceptions.wrapJNIExceptionAsZError
+import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.query.IntoSelector
 import io.zenoh.query.Selector
+import io.zenoh.jni.keyexpr.KeyExpr as JniKeyExpr
 
 /**
  * # Address space
@@ -59,10 +62,16 @@ import io.zenoh.query.Selector
  * ensures that [close] is automatically called, safely managing the lifecycle of the [KeyExpr] instance.
  *
  */
-class KeyExpr internal constructor(internal val keyExpr: String, internal var jniKeyExpr: JNIKeyExpr? = null): AutoCloseable, IntoSelector,
+class KeyExpr internal constructor(internal val flat: JniKeyExpr) : AutoCloseable, IntoSelector,
     SessionDeclaration {
 
+    internal constructor(keyExpr: String, ptr: Long = 0L) :
+        this(JniKeyExpr(keyExpr, ptr.takeIf { it != 0L }?.let { ZKeyExpr(it) }))
+
     companion object {
+        init {
+            ZenohLoad
+        }
 
         /**
          * Try from.
@@ -78,8 +87,8 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun tryFrom(keyExpr: String): KeyExpr {
-            return JNIKeyExpr.tryFrom(keyExpr)
+        fun tryFrom(keyExpr: String): KeyExpr = wrapJNIExceptionAsZError {
+            KeyExpr(JniKeyExpr.keyexprTryFrom(keyExpr))
         }
 
         /**
@@ -94,8 +103,8 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun autocanonize(keyExpr: String): KeyExpr {
-            return JNIKeyExpr.autocanonize(keyExpr)
+        fun autocanonize(keyExpr: String): KeyExpr = wrapJNIExceptionAsZError {
+            KeyExpr(JniKeyExpr.keyexprAutocanonize(keyExpr))
         }
     }
 
@@ -105,8 +114,8 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      * Will return false as well if the key expression is not valid anymore.
      */
     @Throws(ZError::class)
-    fun intersects(other: KeyExpr): Boolean {
-        return JNIKeyExpr.intersects(this, other)
+    fun intersects(other: KeyExpr): Boolean = wrapJNIExceptionAsZError {
+        JniKeyExpr.keyexprIntersects(this.flat, other.flat)
     }
 
     /**
@@ -115,8 +124,8 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      * Will return false as well if the key expression is not valid anymore.
      */
     @Throws(ZError::class)
-    fun includes(other: KeyExpr): Boolean {
-        return JNIKeyExpr.includes(this, other)
+    fun includes(other: KeyExpr): Boolean = wrapJNIExceptionAsZError {
+        JniKeyExpr.keyexprIncludes(this.flat, other.flat)
     }
 
     /**
@@ -125,8 +134,8 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      * so you should favor these methods for most applications.
      */
     @Throws(ZError::class)
-    fun relationTo(other: KeyExpr): SetIntersectionLevel {
-        return JNIKeyExpr.relationTo(this, other)
+    fun relationTo(other: KeyExpr): SetIntersectionLevel = wrapJNIExceptionAsZError {
+        SetIntersectionLevel.fromJni(JniKeyExpr.keyexprRelationTo(this.flat, other.flat))
     }
 
     /**
@@ -134,8 +143,8 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      * This should be your preferred method when concatenating path segments.
      */
     @Throws(ZError::class)
-    fun join(other: String): KeyExpr {
-        return JNIKeyExpr.joinViaJNI(this, other)
+    fun join(other: String): KeyExpr = wrapJNIExceptionAsZError {
+        KeyExpr(JniKeyExpr.keyexprJoin(this.flat, other))
     }
 
     /**
@@ -143,13 +152,11 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      * You should probably prefer [join] as Zenoh may then take advantage of the hierarchical separation it inserts.
      */
     @Throws(ZError::class)
-    fun concat(other: String): KeyExpr {
-        return JNIKeyExpr.concatViaJNI(this, other)
+    fun concat(other: String): KeyExpr = wrapJNIExceptionAsZError {
+        KeyExpr(JniKeyExpr.keyexprConcat(this.flat, other))
     }
 
-    override fun toString(): String {
-        return keyExpr
-    }
+    override fun toString(): String = flat.keyExprString
 
     /**
      * Equivalent to [undeclare]. This function is automatically called when using try with resources.
@@ -166,8 +173,7 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
      * operations on it, but without the inner optimizations.
      */
     override fun undeclare() {
-        jniKeyExpr?.close()
-        jniKeyExpr = null
+        flat.close()
     }
 
     override fun into(): Selector = Selector(this)
@@ -178,10 +184,10 @@ class KeyExpr internal constructor(internal val keyExpr: String, internal var jn
 
         other as KeyExpr
 
-        return keyExpr == other.keyExpr
+        return flat.keyExprString == other.flat.keyExprString
     }
 
     override fun hashCode(): Int {
-        return keyExpr.hashCode()
+        return flat.keyExprString.hashCode()
     }
 }

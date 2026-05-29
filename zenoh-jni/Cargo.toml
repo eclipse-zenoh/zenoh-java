@@ -24,7 +24,16 @@ description = "Zenoh: Zero Overhead Pub/sub, Store/Query and Compute."
 name = "zenoh_jni"
 
 [features]
-default = ["zenoh/default", "zenoh-ext"]
+default = ["zenoh-default", "zenoh-ext"]
+# Re-export of zenoh's "default" features under a name that dependents can
+# enable through this crate's [features] table (Cargo disallows raw `zenoh/…`
+# in a dependent's `features = […]` list, so we need a passthrough feature).
+zenoh-default = ["zenoh/default"]
+# Vestigial gating left in place so the standalone dylib build can be
+# re-enabled by hand (turn this feature on AND add `dylib` to crate-type).
+# In the normal build path, zenoh-flat-jni's `outdated/` shim re-exports
+# every Java_… symbol, so this is off by default.
+export_jni_symbols = []
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
@@ -41,7 +50,8 @@ zenoh-ext = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.g
 tracing = { version = "0.1" , features = ["log"] }
 [lib]
 name = "zenoh_jni"
-crate_type = ["staticlib", "dylib"]
+# Plain rlib: the JNI ABI is now exported through zenoh-flat-jni's outdated/
+# shim, which links zenoh-jni as a regular Rust library. No standalone dylib.
 
 [build-dependencies]
 rustc_version = "0.4.0"

@@ -15,17 +15,21 @@
 package io.zenoh
 
 import io.zenoh.annotations.Unstable
+import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
+import io.zenoh.bytes.into
 import io.zenoh.config.ZenohId
 import io.zenoh.exceptions.ZError
+import io.zenoh.exceptions.wrapJNIExceptionAsZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
-import io.zenoh.jni.JNISession
+import io.zenoh.jni.session.ZSession
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.liveliness.Liveliness
 import io.zenoh.pubsub.*
+import io.zenoh.qos.QoS
 import io.zenoh.query.*
 import io.zenoh.query.Query
 import io.zenoh.query.Queryable
@@ -53,7 +57,7 @@ import java.util.concurrent.LinkedBlockingDeque
  */
 class Session private constructor(private val config: Config) : AutoCloseable {
 
-    internal var jniSession: JNISession? = null
+    internal var zSession: ZSession? = null
 
     // Subscribers and Queryables that keep running despite losing references to them.
     private var strongDeclarations = mutableListOf<SessionDeclaration>()
@@ -98,8 +102,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
             true
         }
 
-        jniSession?.close()
-        jniSession = null
+        zSession?.close()
+        zSession = null
     }
 
     protected fun finalize() {
@@ -382,11 +386,12 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @Throws(ZError::class)
     fun declareKeyExpr(keyExpr: String): KeyExpr {
-        return jniSession?.run {
-            val keyexpr = declareKeyExpr(keyExpr)
-            strongDeclarations.add(keyexpr)
-            keyexpr
-        } ?: throw sessionClosedException
+        val zSession = zSession ?: throw sessionClosedException
+        val keyexpr = wrapJNIExceptionAsZError {
+            KeyExpr(io.zenoh.jni.keyexpr.KeyExpr(keyExpr, zSession.zSessionDeclareKeyexpr(keyExpr)))
+        }
+        strongDeclarations.add(keyexpr)
+        return keyexpr
     }
 
     /**
@@ -400,9 +405,14 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      */
     @Throws(ZError::class)
     fun undeclare(keyExpr: KeyExpr) {
-        return jniSession?.run {
-            undeclareKeyExpr(keyExpr)
-        } ?: throw (sessionClosedException)
+        val zSession = zSession ?: throw sessionClosedException
+        val handle = keyExpr.flat.keyExprNative
+        if (handle == null || handle.isClosed()) {
+            throw ZError("Attempting to undeclare a non declared key expression.")
+        }
+        wrapJNIExceptionAsZError {
+            zSession.zSessionUndeclareKeyexpr(handle)
+        }
     }
 
     /**
@@ -556,7 +566,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
 
     /** Returns if session is open or has been closed. */
     fun isClosed(): Boolean {
-        return jniSession == null
+        return zSession == null
     }
 
     /**
@@ -575,66 +585,126 @@ class Session private constructor(private val config: Config) : AutoCloseable {
 
     @Throws(ZError::class)
     internal fun resolvePublisher(keyExpr: KeyExpr, options: PublisherOptions): Publisher {
-        return jniSession?.run {
-            val publisher = declarePublisher(keyExpr, options)
-            weakDeclarations.add(WeakReference(publisher))
-            publisher
-        } ?: throw (sessionClosedException)
+        val zSession = zSession ?: throw sessionClosedException
+        val publisher = wrapJNIExceptionAsZError {
+            val zPublisher = zSession.zSessionDeclarePublisher(
+                keyExpr.flat,
+                options.congestionControl.jni,
+                options.priority.jni,
+                options.express,
+                options.reliability.jni
+            )
+            Publisher(
+                keyExpr,
+                options.congestionControl,
+                options.priority,
+                options.encoding,
+                zPublisher,
+            )
+        }
+        weakDeclarations.add(WeakReference(publisher))
+        return publisher
     }
 
     @Throws(ZError::class)
     internal fun <R> resolveSubscriberWithHandler(
         keyExpr: KeyExpr, handler: Handler<Sample, R>
     ): HandlerSubscriber<R> {
-        return jniSession?.run {
-            val subscriber = declareSubscriberWithHandler(keyExpr, handler)
-            strongDeclarations.add(subscriber)
-            subscriber
-        } ?: throw (sessionClosedException)
+        val zSession = zSession ?: throw sessionClosedException
+        val subscriber = wrapJNIExceptionAsZError {
+            val zSubscriber = zSession.sessionDeclareSubscriber(
+                keyExpr.flat,
+                io.zenoh.jni.callbacks.SampleCallback { flat -> handler.handle(Sample.from(flat)) },
+                io.zenoh.jni.callbacks.Callback { handler.onClose() }
+            )
+            HandlerSubscriber(keyExpr, zSubscriber, handler.receiver())
+        }
+        strongDeclarations.add(subscriber)
+        return subscriber
     }
 
     @Throws(ZError::class)
     internal fun resolveSubscriberWithCallback(
         keyExpr: KeyExpr, callback: Callback<Sample>
     ): CallbackSubscriber {
-        return jniSession?.run {
-            val subscriber = declareSubscriberWithCallback(keyExpr, callback)
-            strongDeclarations.add(subscriber)
-            subscriber
-        } ?: throw (sessionClosedException)
+        val zSession = zSession ?: throw sessionClosedException
+        val subscriber = wrapJNIExceptionAsZError {
+            val zSubscriber = zSession.sessionDeclareSubscriber(
+                keyExpr.flat,
+                io.zenoh.jni.callbacks.SampleCallback { flat -> callback.run(Sample.from(flat)) },
+                io.zenoh.jni.callbacks.Callback { }
+            )
+            CallbackSubscriber(keyExpr, zSubscriber)
+        }
+        strongDeclarations.add(subscriber)
+        return subscriber
     }
 
     @Throws(ZError::class)
     internal fun <R> resolveQueryableWithHandler(
         keyExpr: KeyExpr, handler: Handler<Query, R>, options: QueryableOptions
     ): HandlerQueryable<R> {
-        return jniSession?.run {
-            val queryable = declareQueryableWithHandler(keyExpr, handler, options)
-            strongDeclarations.add(queryable)
-            queryable
-        } ?: throw (sessionClosedException)
+        val zSession = zSession ?: throw sessionClosedException
+        val queryable = wrapJNIExceptionAsZError {
+            val zQueryable = zSession.sessionDeclareQueryable(
+                keyExpr.flat,
+                options.complete,
+                io.zenoh.jni.callbacks.QueryCallback { flat -> handler.handle(Query.from(flat)) },
+                io.zenoh.jni.callbacks.Callback { handler.onClose() }
+            )
+            HandlerQueryable(keyExpr, zQueryable, handler.receiver())
+        }
+        strongDeclarations.add(queryable)
+        return queryable
     }
 
     @Throws(ZError::class)
     internal fun resolveQueryableWithCallback(
         keyExpr: KeyExpr, callback: Callback<Query>, options: QueryableOptions
     ): CallbackQueryable {
-        return jniSession?.run {
-            val queryable = declareQueryableWithCallback(keyExpr, callback, options)
-            strongDeclarations.add(queryable)
-            queryable
-        } ?: throw (sessionClosedException)
+        val zSession = zSession ?: throw sessionClosedException
+        val queryable = wrapJNIExceptionAsZError {
+            val zQueryable = zSession.sessionDeclareQueryable(
+                keyExpr.flat,
+                options.complete,
+                io.zenoh.jni.callbacks.QueryCallback { flat -> callback.run(Query.from(flat)) },
+                io.zenoh.jni.callbacks.Callback { }
+            )
+            CallbackQueryable(keyExpr, zQueryable)
+        }
+        strongDeclarations.add(queryable)
+        return queryable
     }
 
+    @OptIn(Unstable::class)
     private fun resolveQuerier(
         keyExpr: KeyExpr,
         options: QuerierOptions
     ): Querier {
-        return jniSession?.run {
-            val querier = declareQuerier(keyExpr, options)
-            weakDeclarations.add(WeakReference(querier))
-            querier
-        } ?: throw sessionClosedException
+        val zSession = zSession ?: throw sessionClosedException
+        val querier = wrapJNIExceptionAsZError {
+            val zQuerier = zSession.zSessionDeclareQuerier(
+                keyExpr.flat,
+                options.target.toFlat(),
+                options.consolidationMode.toFlat(),
+                options.congestionControl.jni,
+                options.priority.jni,
+                options.express,
+                options.timeout.toMillis(),
+                options.acceptReplies.toFlat()
+            )
+            Querier(
+                keyExpr,
+                QoS(
+                    congestionControl = options.congestionControl,
+                    priority = options.priority,
+                    express = options.express
+                ),
+                zQuerier
+            )
+        }
+        weakDeclarations.add(WeakReference(querier))
+        return querier
     }
 
     @Throws(ZError::class)
@@ -643,11 +713,27 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         handler: Handler<Reply, R>,
         options: GetOptions
     ): R {
-        return jniSession?.performGetWithHandler(
-            selector,
-            handler,
-            options
-        ) ?: throw sessionClosedException
+        val zSession = zSession ?: throw sessionClosedException
+        return wrapJNIExceptionAsZError {
+            val sel = selector.into()
+            zSession.sessionGet(
+                sel.keyExpr.flat,
+                sel.parameters?.toString(),
+                options.timeout.toMillis(),
+                options.target.toFlat(),
+                options.consolidation.toFlat(),
+                options.acceptReplies.toFlat(),
+                options.qos.congestionControl.jni,
+                options.qos.priority.jni,
+                options.qos.express,
+                options.payload?.into()?.inner,
+                (options.encoding ?: Encoding.defaultEncoding()).toFlat(),
+                options.attachment?.into()?.inner,
+                io.zenoh.jni.callbacks.ReplyCallback { flat -> handler.handle(Reply.from(flat)) },
+                io.zenoh.jni.callbacks.Callback { handler.onClose() }
+            )
+            handler.receiver()
+        }
     }
 
     @Throws(ZError::class)
@@ -656,42 +742,84 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         callback: Callback<Reply>,
         options: GetOptions
     ) {
-        return jniSession?.performGetWithCallback(
-            selector,
-            callback,
-            options
-        ) ?: throw sessionClosedException
+        val zSession = zSession ?: throw sessionClosedException
+        wrapJNIExceptionAsZError {
+            val sel = selector.into()
+            zSession.sessionGet(
+                sel.keyExpr.flat,
+                sel.parameters?.toString(),
+                options.timeout.toMillis(),
+                options.target.toFlat(),
+                options.consolidation.toFlat(),
+                options.acceptReplies.toFlat(),
+                options.qos.congestionControl.jni,
+                options.qos.priority.jni,
+                options.qos.express,
+                options.payload?.into()?.inner,
+                (options.encoding ?: Encoding.defaultEncoding()).toFlat(),
+                options.attachment?.into()?.inner,
+                io.zenoh.jni.callbacks.ReplyCallback { flat -> callback.run(Reply.from(flat)) },
+                io.zenoh.jni.callbacks.Callback { }
+            )
+        }
     }
 
     @Throws(ZError::class)
     internal fun resolvePut(keyExpr: KeyExpr, payload: IntoZBytes, putOptions: PutOptions) {
-        jniSession?.run { performPut(keyExpr, payload, putOptions) }
+        val zSession = zSession ?: return
+        wrapJNIExceptionAsZError {
+            val encoding = putOptions.encoding ?: Encoding.defaultEncoding()
+            zSession.zSessionPut(
+                keyExpr.flat,
+                payload.into().inner,
+                encoding.toFlat(),
+                putOptions.congestionControl.jni,
+                putOptions.priority.jni,
+                putOptions.express,
+                putOptions.attachment?.into()?.inner,
+                putOptions.reliability.jni
+            )
+        }
     }
 
     @Throws(ZError::class)
     internal fun resolveDelete(keyExpr: KeyExpr, deleteOptions: DeleteOptions) {
-        jniSession?.run { performDelete(keyExpr, deleteOptions) }
+        val zSession = zSession ?: return
+        wrapJNIExceptionAsZError {
+            zSession.zSessionDelete(
+                keyExpr.flat,
+                deleteOptions.congestionControl.jni,
+                deleteOptions.priority.jni,
+                deleteOptions.express,
+                deleteOptions.attachment?.into()?.inner,
+                deleteOptions.reliability.jni
+            )
+        }
     }
 
     @Throws(ZError::class)
     internal fun zid(): ZenohId {
-        return jniSession?.zid() ?: throw sessionClosedException
+        val zSession = zSession ?: throw sessionClosedException
+        return wrapJNIExceptionAsZError { ZenohId(zSession.zSessionZid()) }
     }
 
     @Throws(ZError::class)
     internal fun getPeersId(): List<ZenohId> {
-        return jniSession?.peersZid() ?: throw sessionClosedException
+        val zSession = zSession ?: throw sessionClosedException
+        return wrapJNIExceptionAsZError { zSession.zSessionPeersZid().map { ZenohId(it) } }
     }
 
     @Throws(ZError::class)
     internal fun getRoutersId(): List<ZenohId> {
-        return jniSession?.routersZid() ?: throw sessionClosedException
+        val zSession = zSession ?: throw sessionClosedException
+        return wrapJNIExceptionAsZError { zSession.zSessionRoutersZid().map { ZenohId(it) } }
     }
 
-    /** Launches the session through the jni session, returning the [Session] on success. */
+    /** Launches the session, returning the [Session] on success. */
     @Throws(ZError::class)
     private fun launch(): Session {
-        this.jniSession = JNISession.open(config)
+        ZenohLoad
+        this.zSession = wrapJNIExceptionAsZError { ZSession.zOpen(config.zConfig) }
         return this
     }
 }

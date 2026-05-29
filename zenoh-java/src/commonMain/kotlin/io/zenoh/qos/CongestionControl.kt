@@ -15,20 +15,30 @@
 package io.zenoh.qos
 
 /** The congestion control to be applied when routing the data. */
-enum class CongestionControl (val value: Int) {
+enum class CongestionControl (internal val jni: io.zenoh.jni.qos.CongestionControl) {
     
     /**
      * Allows the message to be dropped if all buffers are full.
      */
-    DROP(0),
+    DROP(io.zenoh.jni.qos.CongestionControl.DROP),
 
     /**
      * Prevents the message from being dropped at all cost.
      * In the face of heavy congestion on a part of the network, this could result in your publisher node blocking.
      */
-    BLOCK(1);
+    BLOCK(io.zenoh.jni.qos.CongestionControl.BLOCK),
+
+    /**
+     * Blocks low-priority traffic first, then drops when needed.
+     */
+    BLOCK_FIRST(io.zenoh.jni.qos.CongestionControl.BLOCK_FIRST);
+
+    val value: Int
+        get() = jni.value
 
     companion object {
         fun fromInt(value: Int) = entries.first { it.value == value }
+
+        internal fun fromJni(jni: io.zenoh.jni.qos.CongestionControl): CongestionControl = fromInt(jni.value)
     }
 }

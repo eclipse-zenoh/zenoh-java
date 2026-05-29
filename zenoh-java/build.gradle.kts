@@ -31,6 +31,10 @@ val release = project.findProperty("release")?.toString()?.toBoolean() == true
 val isRemotePublication = project.findProperty("remotePublication")?.toString()?.toBoolean() == true
 
 var buildMode = if (release) BuildMode.RELEASE else BuildMode.DEBUG
+// zenoh-jni is now a plain Rust rlib statically linked into zenoh-flat-jni.
+// Only one dylib is produced and loaded.
+val zenohFlatJniTargetDir = "../zenoh-flat-jni/target/$buildMode"
+val nativeLibraryPath = zenohFlatJniTargetDir
 
 if (androidEnabled) {
     apply(plugin = "com.android.library")
@@ -47,8 +51,7 @@ kotlin {
             kotlinOptions.jvmTarget = "11"
         }
         testRuns["test"].executionTask.configure {
-            val zenohPaths = "../zenoh-jni/target/$buildMode"
-            jvmArgs("-Djava.library.path=$zenohPaths")
+            jvmArgs("-Djava.library.path=$nativeLibraryPath")
         }
         if (!androidEnabled) {
             withJava() // Adding java to a kotlin lib targeting android is incompatible
@@ -65,6 +68,8 @@ kotlin {
     @Suppress("Unused")
     sourceSets {
         val commonMain by getting {
+            kotlin.srcDir("../zenoh-flat-jni/generated-kotlin")
+            kotlin.srcDir("../zenoh-flat-jni/kotlin")
             dependencies {
                 implementation("commons-net:commons-net:3.9.0")
                 implementation("com.google.guava:guava:33.3.1-jre")
@@ -87,12 +92,12 @@ kotlin {
                 // The line below is intended to load the native libraries that are crosscompiled on GitHub actions when publishing a JVM package.
                 resources.srcDir("../jni-libs").include("*/**")
             } else {
-                resources.srcDir("../zenoh-jni/target/$buildMode").include(arrayListOf("*.dylib", "*.so", "*.dll"))
+                resources.srcDir(zenohFlatJniTargetDir).include(arrayListOf("*.dylib", "*.so", "*.dll"))
             }
         }
 
         val jvmTest by getting {
-            resources.srcDir("../zenoh-jni/target/$buildMode").include(arrayListOf("*.dylib", "*.so", "*.dll"))
+            resources.srcDir(zenohFlatJniTargetDir).include(arrayListOf("*.dylib", "*.so", "*.dll"))
         }
     }
 
@@ -157,7 +162,7 @@ tasks.withType<Test> {
     doFirst {
         // The line below is added for the Android Unit tests which are equivalent to the JVM tests.
         // For them to work we need to specify the path to the native library as a system property and not as a jvmArg.
-        systemProperty("java.library.path", "../zenoh-jni/target/$buildMode")
+        systemProperty("java.library.path", nativeLibraryPath)
     }
 }
 
@@ -168,20 +173,21 @@ tasks.whenObjectAdded {
 }
 
 tasks.named("compileKotlinJvm") {
-    dependsOn("buildZenohJni")
+    // Building zenoh-flat-jni transitively builds zenoh-jni as a Rust dep.
+    dependsOn("buildZenohFlatJni")
 }
 
-tasks.register("buildZenohJni") {
+tasks.register("buildZenohFlatJni") {
     doLast {
         if (!isRemotePublication) {
             // This is intended for local publications. For publications done through GitHub workflows,
-            // the zenoh-jni build is achieved and loaded differently from the CI
-            buildZenohJNI(buildMode)
+            // the zenoh-flat-jni build is achieved and loaded differently from the CI
+            buildZenohFlatJNI(buildMode)
         }
     }
 }
 
-fun buildZenohJNI(mode: BuildMode = BuildMode.DEBUG) {
+fun buildZenohFlatJNI(mode: BuildMode = BuildMode.DEBUG) {
     val cargoCommand = mutableListOf("cargo", "build")
 
     if (mode == BuildMode.RELEASE) {
@@ -189,11 +195,11 @@ fun buildZenohJNI(mode: BuildMode = BuildMode.DEBUG) {
     }
 
     val result = project.exec {
-        commandLine(*(cargoCommand.toTypedArray()), "--manifest-path", "../zenoh-jni/Cargo.toml")
+        commandLine(*(cargoCommand.toTypedArray()), "--manifest-path", "../zenoh-flat-jni/Cargo.toml")
     }
 
     if (result.exitValue != 0) {
-        throw GradleException("Failed to build Zenoh-JNI.")
+        throw GradleException("Failed to build Zenoh-Flat-JNI.")
     }
 
     Thread.sleep(1000)
@@ -253,10 +259,10 @@ fun Project.configureAndroid() {
 fun Project.configureCargo() {
     extensions.configure<CargoExtension>("cargo") {
         pythonCommand = "python3"
-        module = "../zenoh-jni"
-        libname = "zenoh-jni"
-        targetIncludes = arrayOf("libzenoh_jni.so")
-        targetDirectory = "../zenoh-jni/target/"
+        module = "../zenoh-flat-jni"
+        libname = "zenoh-flat-jni"
+        targetIncludes = arrayOf("libzenoh_flat_jni.so")
+        targetDirectory = "../zenoh-flat-jni/target/"
         profile = "release"
         targets = arrayListOf(
             "arm",

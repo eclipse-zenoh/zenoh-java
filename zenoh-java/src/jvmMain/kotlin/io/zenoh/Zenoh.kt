@@ -25,7 +25,7 @@ import java.util.zip.ZipInputStream
  * log level configuration.
  */
 internal actual object ZenohLoad {
-    private const val ZENOH_LIB_NAME = "zenoh_jni"
+    private const val ZENOH_LIB_NAME = "zenoh_flat_jni"
 
     init {
         // Try first to load the local native library for cases in which the module was built locally,

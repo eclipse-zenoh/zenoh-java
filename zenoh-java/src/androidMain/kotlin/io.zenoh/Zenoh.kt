@@ -19,7 +19,7 @@ package io.zenoh
  * log level configuration.
  */
 internal actual object ZenohLoad {
-    private const val ZENOH_LIB_NAME = "zenoh_jni"
+    private const val ZENOH_LIB_NAME = "zenoh_flat_jni"
 
     init {
         System.loadLibrary(ZENOH_LIB_NAME)

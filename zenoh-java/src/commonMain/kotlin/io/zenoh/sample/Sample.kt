@@ -16,6 +16,8 @@ package io.zenoh.sample
 
 import io.zenoh.ZenohType
 import io.zenoh.qos.QoS
+import io.zenoh.qos.CongestionControl
+import io.zenoh.qos.Priority
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.ZBytes
@@ -48,4 +50,21 @@ data class Sample(
     val express = qos.express
     val congestionControl = qos.congestionControl
     val priority = qos.priority
+
+    internal companion object {
+        /** Repacks the flat [io.zenoh.jni.sample.Sample] decoded by zenoh-flat. */
+        fun from(flat: io.zenoh.jni.sample.Sample): Sample = Sample(
+            KeyExpr(flat.keyExpr),
+            ZBytes(flat.payload),
+            Encoding(flat.encoding),
+            flat.kind.toPublic(),
+            flat.timestamp?.let { TimeStamp(it.ntp64) },
+            QoS(
+                CongestionControl.fromJni(flat.congestionControl),
+                Priority.fromJni(flat.priority),
+                flat.express
+            ),
+            flat.attachment?.let { ZBytes(it) }
+        )
+    }
 }
