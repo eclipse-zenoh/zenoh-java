@@ -736,7 +736,10 @@ fn render_handle_type(strategy: &crate::jni::jni_ext::FoldStrategy, leaf: &str) 
     use crate::jni::jni_ext::FoldStrategy::*;
     match strategy {
         Direct => leaf.to_string(),
-        Nullable(inner) => format!("{}?", render_handle_type(inner, leaf)),
+        // The declared Kotlin projection type is `T?` regardless of how null
+        // is represented over the wire — the wrap fold and the wire-return
+        // helper read the kind to handle the wire shape separately.
+        Nullable { inner, .. } => format!("{}?", render_handle_type(inner, leaf)),
         Iterable(inner) => format!("List<{}>", render_handle_type(inner, leaf)),
     }
 }
@@ -750,7 +753,10 @@ fn render_handle_close(strategy: &crate::jni::jni_ext::FoldStrategy, receiver: &
     fn go(strategy: &crate::jni::jni_ext::FoldStrategy, receiver: &str, depth: usize) -> String {
         match strategy {
             Direct => format!("{receiver}.close()"),
-            Nullable(inner) => match &**inner {
+            // The Kotlin-side receiver is already nullable (`render_handle_type`
+            // emits `T?` for both niche and boxed kinds), so `?.close()` covers
+            // both wire representations.
+            Nullable { inner, .. } => match &**inner {
                 Direct => format!("{receiver}?.close()"),
                 _ => {
                     let v = format!("e{depth}");
@@ -767,53 +773,89 @@ fn render_handle_close(strategy: &crate::jni::jni_ext::FoldStrategy, receiver: &
 }
 
 /// Fold the projection wrap call `W(receiver)` through the
-/// [`FoldStrategy`] layers: `Direct → "W(x)"`,
-/// `Nullable → "x?.let { W(it) }"`, `Iterable → "x.map { W(it) }"`.
-/// Single-layer Nullable/Iterable use `it` directly; deeper nesting picks
-/// fresh `e0`/`e1`/… to avoid shadowing.
+/// [`FoldStrategy`] layers:
+/// * `Direct`         → `W(x)`
+/// * `Nullable{Boxed}` → `x?.let { W(it) }` (JVM-null at the wire)
+/// * `Nullable{Niche}` over a primitive wire (e.g. `jlong`) →
+///   `x.let { if (it == <sentinel>) null else W(it) }`
+/// * `Nullable{Niche}` over an object wire (e.g. `JByteArray`) →
+///   `x?.let { W(it) }` (the wire is already a nullable reference)
+/// * `Iterable`       → `x.map { W(it) }`
+///
+/// `niche_sentinel` is the Kotlin literal to compare against for the
+/// `Niche+primitive` arm (e.g. `"0L"` for `jlong`-wired handles). When the
+/// wire is object-shaped the sentinel is unused — `null` is the wire-level
+/// representation and `?.let` is a no-cost null check.
 fn fold_projection_wrap(
     strategy: &crate::jni::jni_ext::FoldStrategy,
     receiver: &str,
     wrap_class: &str,
+    niche_sentinel: Option<&str>,
 ) -> String {
-    use crate::jni::jni_ext::FoldStrategy::*;
-    fn go(s: &crate::jni::jni_ext::FoldStrategy, r: &str, w: &str, depth: usize) -> String {
+    use crate::jni::jni_ext::{FoldStrategy::*, NullableKind};
+    fn go(
+        s: &crate::jni::jni_ext::FoldStrategy,
+        r: &str,
+        w: &str,
+        sentinel: Option<&str>,
+        depth: usize,
+    ) -> String {
         match s {
             Direct => format!("{w}({r})"),
-            Nullable(inner) => match &**inner {
-                Direct => format!("{r}?.let {{ {w}(it) }}"),
+            Nullable { kind, inner } => match (kind, &**inner) {
+                // Primitive-wired niche → can't carry null on the wire, so
+                // compare against the sentinel and synthesize null on the
+                // Kotlin side.
+                (NullableKind::Niche, Direct) if sentinel.is_some() => {
+                    let s = sentinel.unwrap();
+                    format!("{r}.let {{ if (it == {s}) null else {w}(it) }}")
+                }
+                // Object-wired niche or fully boxed Nullable → `?.let { W(it) }`.
+                (_, Direct) => format!("{r}?.let {{ {w}(it) }}"),
+                // Deeper nesting. The niche/boxed distinction is only
+                // observable at the outermost layer covering a `Direct`
+                // leaf; intermediate layers (nullable-of-iterable etc.)
+                // can keep the simple form because Kotlin's `?.` chain
+                // already represents the layered null.
                 _ => {
                     let v = format!("e{depth}");
-                    format!("{r}?.let {{ {v} -> {} }}", go(inner, &v, w, depth + 1))
+                    format!(
+                        "{r}?.let {{ {v} -> {} }}",
+                        go(inner, &v, w, sentinel, depth + 1)
+                    )
                 }
             },
             Iterable(inner) => match &**inner {
                 Direct => format!("{r}.map {{ {w}(it) }}"),
                 _ => {
                     let v = format!("e{depth}");
-                    format!("{r}.map {{ {v} -> {} }}", go(inner, &v, w, depth + 1))
+                    format!(
+                        "{r}.map {{ {v} -> {} }}",
+                        go(inner, &v, w, sentinel, depth + 1)
+                    )
                 }
             },
         }
     }
-    go(strategy, receiver, wrap_class, 0)
+    go(strategy, receiver, wrap_class, niche_sentinel, 0)
 }
 
-/// JNI extern's declared Kotlin wire-return for a projection. Handle: the
-/// wire is `jlong` (boxed handle), folded through `Nullable`/`Iterable` to
-/// `Long`/`Long?`/`List<Long>`. ValueClass: the wire is the inner field's
-/// converter destination, folded the same way (e.g. `Vec<ZenohId>` →
-/// `List<ByteArray>`). Reads the inner converter from the registry; never
-/// assumes a specific inner shape.
+/// JNI extern's declared Kotlin wire-return for a projection. The leaf wire
+/// is the inner converter's destination Kotlin name: `Long` for handles
+/// (boxed jlong), the inner field's converter result for value classes (e.g.
+/// `ByteArray` for `ZenohId`/`ZBytes`). The fold honours
+/// [`NullableKind`] so the declared wire matches the runtime ABI:
+/// `Niche+primitive` keeps the layer non-nullable on the wire (the sentinel
+/// represents null); `Niche+object` and `Boxed` add `?`.
 fn projection_wire_return(
     ext: &JniExt,
     registry: &Registry<KotlinMeta>,
     proj: &crate::jni::jni_ext::Projection,
     imports: &mut BTreeSet<String>,
 ) -> String {
-    use crate::jni::jni_ext::ProjectionKind;
-    let inner_wire_name: String = match proj.kind {
-        ProjectionKind::Handle => "Long".to_string(),
+    use crate::jni::jni_ext::{FoldStrategy, NullableKind, ProjectionKind};
+    let (inner_wire_name, inner_is_primitive) = match proj.kind {
+        ProjectionKind::Handle => ("Long".to_string(), true),
         ProjectionKind::ValueClass => {
             let vc_ty: syn::Type = syn::parse_str(&proj.leaf_key).unwrap_or_else(|_| {
                 panic!("projection_wire_return: bad leaf_key `{}`", proj.leaf_key)
@@ -837,10 +879,83 @@ fn projection_wire_return(
                     proj.leaf_key
                 )
             });
-            register_fqn(&n, imports)
+            let is_prim = matches!(
+                crate::jni::wire_access::jni_field_access(&inner_entry.destination),
+                Some((_, _, false))
+            );
+            (register_fqn(&n, imports), is_prim)
         }
     };
-    render_handle_type(&proj.strategy, &inner_wire_name)
+    fn fold(
+        s: &FoldStrategy,
+        leaf: &str,
+        leaf_is_primitive: bool,
+    ) -> String {
+        match s {
+            FoldStrategy::Direct => leaf.to_string(),
+            FoldStrategy::Nullable { kind, inner } => {
+                let inner_str = fold(inner, leaf, leaf_is_primitive);
+                // A niche layer over a primitive wire keeps the wire
+                // non-nullable — the sentinel value is the null
+                // representation. Object-wired niches and full-boxed
+                // Nullables both add `?` (JVM null on the reference).
+                match (kind, &**inner) {
+                    (NullableKind::Niche, FoldStrategy::Direct) if leaf_is_primitive => inner_str,
+                    _ => format!("{}?", inner_str),
+                }
+            }
+            FoldStrategy::Iterable(inner) => {
+                format!("List<{}>", fold(inner, leaf, leaf_is_primitive))
+            }
+        }
+    }
+    fold(&proj.strategy, &inner_wire_name, inner_is_primitive)
+}
+
+/// Kotlin null-sentinel literal for the *leaf wire* of a projection. Read
+/// at the wrapper-body call site and forwarded to [`fold_projection_wrap`];
+/// `None` for object-wired leaves (e.g. value classes over `ByteArray`),
+/// where `?.let { }` covers the JVM-null case directly.
+fn projection_leaf_sentinel(
+    ext: &JniExt,
+    registry: &Registry<KotlinMeta>,
+    proj: &crate::jni::jni_ext::Projection,
+) -> Option<String> {
+    use crate::jni::jni_ext::ProjectionKind;
+    let leaf_wire: syn::Type = match proj.kind {
+        ProjectionKind::Handle => syn::parse_quote!(jni::sys::jlong),
+        ProjectionKind::ValueClass => {
+            let vc_ty: syn::Type = syn::parse_str(&proj.leaf_key).ok()?;
+            let inner_ty =
+                crate::jni::jni_ext::value_class_inner_type_for(ext, registry, &vc_ty)?;
+            registry.output_entry(&inner_ty)?.destination.clone()
+        }
+    };
+    kotlin_null_sentinel(&leaf_wire).map(|s| s.to_string())
+}
+
+/// Kotlin literal for the null-sentinel of a primitive wire — used by
+/// [`fold_projection_wrap`] when a `Niche` layer covers a primitive wire and
+/// can't carry JVM null. Mirrors `jni_field_access`'s primitive descriptors.
+/// Returns `None` for object-shaped wires (where JVM null *is* the null
+/// representation and `?.let` is the right pattern).
+fn kotlin_null_sentinel(wire: &syn::Type) -> Option<&'static str> {
+    let (_, _, is_object) = crate::jni::wire_access::jni_field_access(wire)?;
+    if is_object {
+        return None;
+    }
+    let syn::Type::Path(tp) = wire else {
+        return None;
+    };
+    let last = tp.path.segments.last()?;
+    Some(match last.ident.to_string().as_str() {
+        "jlong" => "0L",
+        "jint" | "jshort" | "jbyte" | "jchar" => "0",
+        "jfloat" => "0.0f",
+        "jdouble" => "0.0",
+        "jboolean" => "false",
+        _ => return None,
+    })
 }
 
 fn register_fqn(fqn: &str, used: &mut BTreeSet<String>) -> String {
@@ -2159,10 +2274,11 @@ fn render_wrapper_fn(
         }
         let mut call = format!("{}.{jni_call}({})", ext.jni_native_class_name(), args.join(", "));
         if let Some(p) = &projection {
-            // Fold the wrap through the projection strategy: `W(x)` for
-            // Direct, `?.let { W(it) }` for Nullable, `.map { W(it) }` for
-            // Iterable. The wrap class is the projection leaf's typed short
-            // name (Handle's typed-handle class or value-class's wrapper).
+            // Fold the wrap through the projection strategy. The wrap class is
+            // the projection leaf's typed short name (Handle's typed-handle
+            // class or value-class wrapper). The sentinel is the Kotlin
+            // null-representation literal for the leaf wire — used only by
+            // the `Niche+primitive` arm of `fold_projection_wrap`.
             let leaf_fqn = ext
                 .kotlin_type_fqns
                 .iter()
@@ -2170,7 +2286,8 @@ fn render_wrapper_fn(
                 .map(|(_, v)| v.as_str())
                 .unwrap_or(&p.leaf_key);
             let short = leaf_fqn.rsplit('.').next().unwrap_or(leaf_fqn).to_string();
-            call = fold_projection_wrap(&p.strategy, &call, &short);
+            let sentinel = projection_leaf_sentinel(ext, registry, p);
+            call = fold_projection_wrap(&p.strategy, &call, &short, sentinel.as_deref());
         } else if is_enum_return {
             call = format!("{kt_return}.fromInt({call})");
         }

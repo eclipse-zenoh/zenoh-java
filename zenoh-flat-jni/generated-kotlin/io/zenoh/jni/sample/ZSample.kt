@@ -74,7 +74,7 @@ public class ZSample(initialPtr: Long) : AutoCloseable {
         synchronized(this) {
             val s_ptr = this.ptr
             if (s_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zSampleTimestamp(s_ptr)?.let { ZTimestamp(it) }
+            return JNINative.zSampleTimestamp(s_ptr).let { if (it == 0L) null else ZTimestamp(it) }
         }
     }
 
@@ -110,7 +110,7 @@ public class ZSample(initialPtr: Long) : AutoCloseable {
         synchronized(this) {
             val s_ptr = this.ptr
             if (s_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zSampleAttachment(s_ptr)?.let { ZZBytes(it) }
+            return JNINative.zSampleAttachment(s_ptr).let { if (it == 0L) null else ZZBytes(it) }
         }
     }
 

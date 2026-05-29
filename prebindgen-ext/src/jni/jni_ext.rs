@@ -47,12 +47,42 @@ use crate::util::snake_to_camel;
 /// [`FoldStrategy::Iterable`]. Drives both the typed Kotlin rendering of
 /// a handle-bearing field/return and the generated `close()` expression,
 /// uniformly across whatever wrappers compose.
+/// How a `Nullable` fold layer represents `None` over the JNI wire.
+///
+/// The choice is made at the point the `Option<_>` rank-1 handler folds the
+/// layer onto a projection's `FoldStrategy`, and only depends on whether
+/// `option_output` rode the inner converter's niche (wire stayed identical to
+/// the inner's wire) or boxed the primitive into `java.lang.<Box>` (wire
+/// widened to `JObject`). The renderer reads this to pick the matching
+/// Kotlin shape — without it, a primitive-wired `Option<Handle>` would be
+/// declared as nullable `Long?` even though the wire is a non-nullable
+/// `jlong` whose `0L` *is* the null.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum NullableKind {
+    /// Wire kept the inner converter's encoding; `None` is the carved niche
+    /// slot's `value` (e.g. `0L` for a handle's `jlong`). On Kotlin the
+    /// declared wire is non-nullable; the wrapper body converts the sentinel
+    /// to `null` explicitly via an `if (it == <sentinel>) null else W(it)`
+    /// pattern.
+    Niche,
+    /// Wire widened to `JObject`; `None` is JVM `null`. On Kotlin the
+    /// declared wire is nullable and `?.let { W(it) }` works directly. This
+    /// is also the rendering object-shaped niches (`JByteArray::null` /
+    /// `JString::null`) collapse onto — Kotlin's `T?` already maps to JVM
+    /// reference-null at no extra cost.
+    Boxed,
+}
+
 #[derive(Clone, Debug)]
 pub enum FoldStrategy {
     /// The receiver *is* the handle.
     Direct,
-    /// `T?` — receiver may be null.
-    Nullable(Box<FoldStrategy>),
+    /// `T?` — receiver may be null. `kind` records how null is represented
+    /// over the wire (see [`NullableKind`]).
+    Nullable {
+        kind: NullableKind,
+        inner: Box<FoldStrategy>,
+    },
     /// `List<T>` — receiver is a collection. EXTENSION POINT: no
     /// `Vec<Handle>` shape exists today, so the emitters guard this arm
     /// loudly rather than silently mis-generating.
@@ -2859,7 +2889,13 @@ impl PrebindgenExt for JniExt {
                 );
                 let projection = inner.metadata.projection.clone().map(|h| Projection {
                     owned: false,
-                    strategy: FoldStrategy::Nullable(Box::new(h.strategy)),
+                    // `Option<&Handle>` always rides the inner's `*v == 0` niche
+                    // (body is `if *v == 0 { None } else { ... }` above), so
+                    // null is the `0i64` sentinel — never JVM boxed.
+                    strategy: FoldStrategy::Nullable {
+                        kind: NullableKind::Niche,
+                        inner: Box::new(h.strategy),
+                    },
                     ..h
                 });
                 return Some(ConverterImpl {
@@ -2940,13 +2976,23 @@ impl PrebindgenExt for JniExt {
                 .input_entry(t1)
                 .and_then(|e| e.metadata.kotlin_name.clone());
             let kotlin_name = self.override_kotlin_name(&outer_ty, inherited);
-            // Fold a Nullable layer over the inner handle (if any), so an
-            // `Option<Handle>` field/param carries the full close strategy.
+            // Fold a Nullable layer over the inner projection (if any). The
+            // kind mirrors which path `option_input` took: when it consumed
+            // an inner niche, the wire stays identical to the inner's
+            // destination (e.g. `jlong` for handles, `JByteArray` for
+            // ByteArray-shaped value classes) and `None` is the niche slot
+            // sentinel; the boxed fallback widens the wire to `JObject`. The
+            // renderer reads `kind` so the Kotlin declared wire and wrap
+            // shape match the runtime ABI.
+            let nullable_kind = nullable_kind_for(&wire, t1, registry);
             let projection = registry
                 .input_entry(t1)
                 .and_then(|e| e.metadata.projection.clone())
                 .map(|h| Projection {
-                    strategy: FoldStrategy::Nullable(Box::new(h.strategy)),
+                    strategy: FoldStrategy::Nullable {
+                        kind: nullable_kind,
+                        inner: Box::new(h.strategy),
+                    },
                     ..h
                 });
             return Some(ConverterImpl {
@@ -3159,13 +3205,20 @@ impl PrebindgenExt for JniExt {
                 .output_entry(t1)
                 .and_then(|e| e.metadata.kotlin_name.clone());
             let kotlin_name = self.override_kotlin_name(&outer_ty, inherited);
-            // Fold a Nullable layer over the inner handle (if any), so an
-            // `Option<Handle>` output carries the full close strategy.
+            // Fold a Nullable layer over the inner projection (if any). The
+            // kind reflects which path `option_output` took (see
+            // [`nullable_kind_for`]): niche-fulfilled keeps the inner wire
+            // and treats the slot value as `None`; boxed widens to `JObject`
+            // and uses JVM null.
+            let nullable_kind = nullable_kind_for_output(&wire, t1, registry);
             let projection = registry
                 .output_entry(t1)
                 .and_then(|e| e.metadata.projection.clone())
                 .map(|h| Projection {
-                    strategy: FoldStrategy::Nullable(Box::new(h.strategy)),
+                    strategy: FoldStrategy::Nullable {
+                        kind: nullable_kind,
+                        inner: Box::new(h.strategy),
+                    },
                     ..h
                 });
             return Some(ConverterImpl {
@@ -4150,7 +4203,7 @@ pub(crate) fn handle_field_fqn(ext: &JniExt, h: &Projection) -> String {
     fn assert_scalar(s: &FoldStrategy) {
         match s {
             FoldStrategy::Direct => {}
-            FoldStrategy::Nullable(inner) => assert_scalar(inner),
+            FoldStrategy::Nullable { inner, .. } => assert_scalar(inner),
             FoldStrategy::Iterable(_) => panic!(
                 "struct handle field: collection (Vec<Handle>) layers are not yet \
                  supported by the struct encode/decode bridge — add array codegen \
@@ -4973,6 +5026,54 @@ fn value_class_inner_type(
     Some(n.named.first()?.ty.clone())
 }
 
+/// Decide which [`NullableKind`] to fold for an `Option<_>` wrapper, given
+/// the wrapper's destination wire and the registry-resolved inner. The
+/// detection mirrors the two paths in [`option_input`] / [`option_output`]:
+/// the niche path keeps the inner's wire untouched (e.g. `jlong` stays
+/// `jlong`, `JByteArray` stays `JByteArray`), while the boxed-primitive
+/// fallback widens the wire to `JObject`. So `outer_wire == inner.destination`
+/// uniquely identifies the niche path.
+///
+/// Symmetric `_input` / `_output` flavors only differ in which registry side
+/// they consult — the comparison is identical.
+fn nullable_kind_for(
+    outer_wire: &syn::Type,
+    inner_ty: &syn::Type,
+    registry: &Registry<KotlinMeta>,
+) -> NullableKind {
+    let inner_dest = registry
+        .input_entry(inner_ty)
+        .map(|e| e.destination.clone())
+        .expect(
+            "nullable_kind_for: Option<_> input handler reached here only after option_input \
+             returned Some, so the inner's input entry must exist",
+        );
+    if outer_wire == &inner_dest {
+        NullableKind::Niche
+    } else {
+        NullableKind::Boxed
+    }
+}
+
+fn nullable_kind_for_output(
+    outer_wire: &syn::Type,
+    inner_ty: &syn::Type,
+    registry: &Registry<KotlinMeta>,
+) -> NullableKind {
+    let inner_dest = registry
+        .output_entry(inner_ty)
+        .map(|e| e.destination.clone())
+        .expect(
+            "nullable_kind_for_output: Option<_> output handler reached here only after \
+             option_output returned Some, so the inner's output entry must exist",
+        );
+    if outer_wire == &inner_dest {
+        NullableKind::Niche
+    } else {
+        NullableKind::Boxed
+    }
+}
+
 /// The single named field of a `value_class` struct — `(ident, type)`. Used by
 /// the rank-0 value-class leaf to delegate to the inner field's converter.
 fn value_class_inner_field(s: &syn::ItemStruct) -> Option<(syn::Ident, syn::Type)> {
@@ -4995,7 +5096,7 @@ fn value_class_descriptor(
     fn is_iterable(s: &FoldStrategy) -> bool {
         match s {
             FoldStrategy::Iterable(_) => true,
-            FoldStrategy::Nullable(inner) => is_iterable(inner),
+            FoldStrategy::Nullable { inner, .. } => is_iterable(inner),
             FoldStrategy::Direct => false,
         }
     }
