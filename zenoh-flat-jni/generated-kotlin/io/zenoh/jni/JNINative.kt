@@ -16,6 +16,7 @@ import io.zenoh.jni.callbacks.ZSampleCallback
 import io.zenoh.jni.config.WhatAmI
 import io.zenoh.jni.config.ZConfig
 import io.zenoh.jni.config.ZZenohId
+import io.zenoh.jni.config.ZenohId
 import io.zenoh.jni.keyexpr.KeyExpr
 import io.zenoh.jni.keyexpr.SetIntersectionLevel
 import io.zenoh.jni.keyexpr.ZKeyExpr
@@ -194,14 +195,14 @@ internal object JNINative {
     external fun zQueryReplyDelete(query: Long, keyExpr: Any, timestampNtp64: Long?, attachment: Any?, express: Boolean)
     external fun zQueryReplyError(query: Long, payload: Any, encoding: Any)
     external fun zQueryReplySuccess(query: Long, keyExpr: Any, payload: Any, encoding: Any, timestampNtp64: Long?, attachment: Any?, express: Boolean)
-    external fun zReplyErrorEncoding(r: Long): Long
-    external fun zReplyErrorPayload(r: Long): Long
+    external fun zReplyErrorEncoding(r: Long): Long?
+    external fun zReplyErrorPayload(r: Long): Long?
     external fun zReplyExpand(r: Long): Reply
     external fun zReplyIsOk(r: Long): Boolean
     external fun zReplyReplierEid(r: Long): Int
-    external fun zReplyReplierZid(r: Long): Long
-    external fun zReplySample(r: Long): Long
-    external fun zSampleAttachment(s: Long): Long
+    external fun zReplyReplierZid(r: Long): Long?
+    external fun zReplySample(r: Long): Long?
+    external fun zSampleAttachment(s: Long): Long?
     external fun zSampleCongestionControl(s: Long): Int
     external fun zSampleEncoding(s: Long): Long
     external fun zSampleExpand(s: Long): Sample
@@ -210,7 +211,7 @@ internal object JNINative {
     external fun zSampleKind(s: Long): Int
     external fun zSamplePayload(s: Long): Long
     external fun zSamplePriority(s: Long): Int
-    external fun zSampleTimestamp(s: Long): Long
+    external fun zSampleTimestamp(s: Long): Long?
     external fun zScout(whatami: Int, config: Long, callback: ZHelloCallback, onClose: Callback): Long
     external fun zSessionDeclareKeyexpr(session: Long, keyExpr: String): Long
     external fun zSessionDeclarePublisher(session: Long, keyExpr: Any, congestionControl: Int, priority: Int, express: Boolean, reliability: Int): Long

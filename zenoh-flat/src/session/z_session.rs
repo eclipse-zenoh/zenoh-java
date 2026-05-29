@@ -2,7 +2,7 @@ use crate::util::OnceDrop;
 use crate::{
     into_native, CongestionControl, ConsolidationMode, Encoding, Error, KeyExpr, Priority, Query,
     QueryTarget, Reliability, Reply, ReplyKeyExpr, Sample, ZBytes, ZConfig, ZEncoding, ZKeyExpr,
-    ZPublisher, ZQuerier, ZQuery, ZQueryable, ZReply, ZSample, ZSession, ZSubscriber,
+    ZPublisher, ZQuerier, ZQuery, ZQueryable, ZReply, ZSample, ZSession, ZSubscriber, ZenohId,
 };
 use prebindgen_proc_macro::prebindgen;
 use std::time::Duration;
@@ -300,32 +300,27 @@ pub fn session_get(
     )
 }
 
-// Zid accessors return raw little-endian id bytes (Kotlin `ByteArray` /
-// `List<ByteArray>`); the public layer wraps them into `ZenohId`. Returning the
-// `ZenohId` value class directly would be ambiguous in a `Vec` — value classes
-// box in generic position but erase to their inner elsewhere — so bytes keep
-// the FFI surface unambiguous and match the existing public bridging.
+// Zid accessors return the value-class `ZenohId` directly. With the unified
+// newtype projection, value classes ride the same fold-and-wrap machinery as
+// opaque handles: the generated Kotlin surface is `ZenohId` / `List<ZenohId>`,
+// each value erased to its inner `[B` over the wire and wrapped on the Kotlin
+// side, with no raw-bytes hop visible in the FFI surface.
 #[prebindgen]
-pub fn z_session_zid(session: &ZSession) -> Vec<u8> {
-    session.info().zid().wait().to_le_bytes().to_vec()
+pub fn z_session_zid(session: &ZSession) -> ZenohId {
+    ZenohId::from(session.info().zid().wait())
 }
 
 #[prebindgen]
-pub fn z_session_peers_zid(session: &ZSession) -> Vec<Vec<u8>> {
-    session
-        .info()
-        .peers_zid()
-        .wait()
-        .map(|z| z.to_le_bytes().to_vec())
-        .collect()
+pub fn z_session_peers_zid(session: &ZSession) -> Vec<ZenohId> {
+    session.info().peers_zid().wait().map(ZenohId::from).collect()
 }
 
 #[prebindgen]
-pub fn z_session_routers_zid(session: &ZSession) -> Vec<Vec<u8>> {
+pub fn z_session_routers_zid(session: &ZSession) -> Vec<ZenohId> {
     session
         .info()
         .routers_zid()
         .wait()
-        .map(|z| z.to_le_bytes().to_vec())
+        .map(ZenohId::from)
         .collect()
 }

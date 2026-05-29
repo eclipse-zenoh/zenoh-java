@@ -41,43 +41,60 @@ use crate::util::snake_to_camel;
 // ──────────────────────────────────────────────────────────────────────
 
 /// Folded nullability / collection layers wrapping a closeable native
-/// handle, outermost first. Mirrors how the type folds: the opaque-handle
-/// leaf is [`CloseStrategy::Direct`]; an `Option<_>` wrapper adds
-/// [`CloseStrategy::Nullable`]; a collection wrapper would add
-/// [`CloseStrategy::Iterable`]. Drives both the typed Kotlin rendering of
+/// projection, outermost first. Mirrors how the type folds: the opaque-handle
+/// leaf is [`FoldStrategy::Direct`]; an `Option<_>` wrapper adds
+/// [`FoldStrategy::Nullable`]; a collection wrapper would add
+/// [`FoldStrategy::Iterable`]. Drives both the typed Kotlin rendering of
 /// a handle-bearing field/return and the generated `close()` expression,
 /// uniformly across whatever wrappers compose.
 #[derive(Clone, Debug)]
-pub enum CloseStrategy {
+pub enum FoldStrategy {
     /// The receiver *is* the handle.
     Direct,
     /// `T?` — receiver may be null.
-    Nullable(Box<CloseStrategy>),
+    Nullable(Box<FoldStrategy>),
     /// `List<T>` — receiver is a collection. EXTENSION POINT: no
     /// `Vec<Handle>` shape exists today, so the emitters guard this arm
     /// loudly rather than silently mis-generating.
-    Iterable(Box<CloseStrategy>),
+    Iterable(Box<FoldStrategy>),
 }
 
-/// Folded description of a closeable native handle reached through zero or
-/// more wrapper layers. Set at the opaque-handle leaf, transformed by each
-/// wrapper as the type folds (see [`CloseStrategy`]), and read by every
-/// typed-surface emitter (data-class fields, struct encode/decode,
-/// `classify_return`, param classification) so "is this an owned closeable
-/// handle, what is its Kotlin class, how do I close it" has one source of
-/// truth instead of a parallel ad-hoc decision tree.
+/// Which flavor of Kotlin newtype a [`Projection`] surfaces. Both share the
+/// same "wire ≠ declared Kotlin type, wrap as `W(wire)`, fold through
+/// `Option`/`Vec`" shape; they differ only in how a struct field stores them
+/// and whether they own a closeable resource.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ProjectionKind {
+    /// Opaque native handle (`ptr_class`). Wire is `jlong`; a struct field
+    /// stores the **boxed** handle object (`L<fqn>;`); closeable when owned.
+    Handle,
+    /// Kotlin `@JvmInline value class`. Wire + JVM descriptor come from the
+    /// single inner field's converter (the value class is **erased** to it in
+    /// field/direct positions); never closeable.
+    ValueClass,
+}
+
+/// Folded description of a Kotlin newtype projection (opaque handle or value
+/// class) reached through zero or more wrapper layers. Set at the leaf,
+/// transformed by each wrapper as the type folds (see [`FoldStrategy`]), and
+/// read by every typed-surface emitter (data-class fields, struct
+/// encode/decode, `classify_return`, param classification) so "what Kotlin
+/// class does this surface, how do I wrap/fold it, do I close it" has one
+/// source of truth instead of a parallel ad-hoc decision tree.
 #[derive(Clone, Debug)]
-pub struct HandleInfo {
-    /// Canonical [`TypeKey`] string of the leaf opaque handle (e.g.
-    /// `"ZKeyExpr"`); look up [`JniExt::kotlin_type_fqns`] for the typed
+pub struct Projection {
+    /// Canonical [`TypeKey`] string of the leaf type (e.g. `"ZKeyExpr"`,
+    /// `"ZenohId"`); look up [`JniExt::kotlin_type_fqns`] for the typed
     /// Kotlin FQN.
     pub leaf_key: String,
-    /// `false` for `&T` borrows — still an opaque handle (param
+    /// `false` for `&T` borrows of a handle — still a projection (param
     /// classification needs this), but not the holder's to close, so
-    /// `close()` emission skips it.
+    /// `close()` emission skips it. Always `false` for [`ProjectionKind::ValueClass`].
     pub owned: bool,
     /// Nullability / collection layers.
-    pub strategy: CloseStrategy,
+    pub strategy: FoldStrategy,
+    /// Handle vs value class — see [`ProjectionKind`].
+    pub kind: ProjectionKind,
 }
 
 /// Per-converter language-specific extras carried by every
@@ -126,8 +143,8 @@ pub struct KotlinMeta {
     /// handle. Set at the opaque-handle leaf and folded outward by the
     /// rank-1 `&_` / `Option<_>` handlers and the `lookup_*` composed
     /// branches. The single source of truth for typed-handle rendering
-    /// and `close()` generation — see [`HandleInfo`].
-    pub handle: Option<HandleInfo>,
+    /// and `close()` generation — see [`Projection`].
+    pub projection: Option<Projection>,
 }
 
 impl KotlinMeta {
@@ -137,7 +154,7 @@ impl KotlinMeta {
             throws: None,
             throws_action: None,
             value_rust_key: None,
-            handle: None,
+            projection: None,
         }
     }
 }
@@ -1537,7 +1554,7 @@ impl JniExt {
             throws: Some(exc.kotlin_fqn.clone()),
             throws_action: Some(exception_throw_path(exc)),
             value_rust_key: None,
-            handle: None,
+            projection: None,
         }
     }
 
@@ -1613,7 +1630,7 @@ impl JniExt {
                         value_rust_key: None,
                         // Terminal: body produces the wire directly, no inner
                         // converter composed, so no handle to carry.
-                        handle: None,
+                        projection: None,
                     },
                 })
             }
@@ -1659,7 +1676,7 @@ impl JniExt {
                         // Identity propagation: a composed wrapper (e.g.
                         // `Result<Handle,Error>`) projects to its inner value,
                         // so a handle inner stays a handle (same strategy).
-                        handle: inner.metadata.handle.clone(),
+                        projection: inner.metadata.projection.clone(),
                     },
                 })
             }
@@ -1738,7 +1755,7 @@ impl JniExt {
                         value_rust_key,
                         // Terminal: body produces the wire directly, no inner
                         // converter composed, so no handle to carry.
-                        handle: None,
+                        projection: None,
                     },
                 })
             }
@@ -1779,7 +1796,7 @@ impl JniExt {
                         // Identity propagation: a composed wrapper (e.g.
                         // `Result<Handle,Error>`) projects to its inner value,
                         // so a handle inner stays a handle (same strategy).
-                        handle: inner.metadata.handle.clone(),
+                        projection: inner.metadata.projection.clone(),
                     },
                 })
             }
@@ -2082,15 +2099,16 @@ impl JniExt {
     }
 
     /// Leaf metadata for an opaque handle: value-context name `"Long"`
-    /// plus the [`HandleInfo`] that folds outward through wrappers (owned,
-    /// [`CloseStrategy::Direct`]). The single seam where a Rust type is
+    /// plus the [`Projection`] that folds outward through wrappers (owned,
+    /// [`FoldStrategy::Direct`]). The single seam where a Rust type is
     /// first marked a closeable native handle.
     fn opaque_leaf_meta(&self, ty: &syn::Type) -> KotlinMeta {
         KotlinMeta {
-            handle: Some(HandleInfo {
+            projection: Some(Projection {
                 leaf_key: TypeKey::from_type(ty).as_str().to_string(),
                 owned: true,
-                strategy: CloseStrategy::Direct,
+                strategy: FoldStrategy::Direct,
+                kind: ProjectionKind::Handle,
             }),
             ..self.framework_meta(Some("Long".to_string()))
         }
@@ -2198,7 +2216,7 @@ impl JniExt {
                 syn::parse_quote!(*v == 0),
             ),
             // Opaque handles' value-context name `"Long"` + folded
-            // `HandleInfo` — see [`Self::opaque_handle_input`] /
+            // `Projection` — see [`Self::opaque_handle_input`] /
             // [`Self::opaque_leaf_meta`]. Framework throws because the
             // wrapper's emitted match-arm still has a `JniBindingError`
             // branch reachable via the chain.
@@ -2783,7 +2801,7 @@ impl PrebindgenExt for JniExt {
             // A borrowed handle (mut or not) is still opaque (param
             // classification needs to see it), but the holder doesn't own
             // it — mark `owned: false` so `close()` emission skips it.
-            let handle = inner.metadata.handle.clone().map(|h| HandleInfo {
+            let projection = inner.metadata.projection.clone().map(|h| Projection {
                 owned: false,
                 ..h
             });
@@ -2797,7 +2815,7 @@ impl PrebindgenExt for JniExt {
                     throws: inner.metadata.throws.clone(),
                     throws_action: inner.metadata.throws_action.clone(),
                     value_rust_key: None,
-                    handle,
+                    projection,
                 },
             });
         }
@@ -2839,9 +2857,9 @@ impl PrebindgenExt for JniExt {
                     &outer_ty,
                     inner.metadata.kotlin_name.clone(),
                 );
-                let handle = inner.metadata.handle.clone().map(|h| HandleInfo {
+                let projection = inner.metadata.projection.clone().map(|h| Projection {
                     owned: false,
-                    strategy: CloseStrategy::Nullable(Box::new(h.strategy)),
+                    strategy: FoldStrategy::Nullable(Box::new(h.strategy)),
                     ..h
                 });
                 return Some(ConverterImpl {
@@ -2854,7 +2872,7 @@ impl PrebindgenExt for JniExt {
                         throws: inner.metadata.throws.clone(),
                         throws_action: inner.metadata.throws_action.clone(),
                         value_rust_key: None,
-                        handle,
+                        projection,
                     },
                 });
             }
@@ -2909,7 +2927,7 @@ impl PrebindgenExt for JniExt {
                     throws: inner.metadata.throws.clone(),
                     throws_action: inner.metadata.throws_action.clone(),
                     value_rust_key: None,
-                    handle: None,
+                    projection: None,
                 },
             });
         }
@@ -2924,11 +2942,11 @@ impl PrebindgenExt for JniExt {
             let kotlin_name = self.override_kotlin_name(&outer_ty, inherited);
             // Fold a Nullable layer over the inner handle (if any), so an
             // `Option<Handle>` field/param carries the full close strategy.
-            let handle = registry
+            let projection = registry
                 .input_entry(t1)
-                .and_then(|e| e.metadata.handle.clone())
-                .map(|h| HandleInfo {
-                    strategy: CloseStrategy::Nullable(Box::new(h.strategy)),
+                .and_then(|e| e.metadata.projection.clone())
+                .map(|h| Projection {
+                    strategy: FoldStrategy::Nullable(Box::new(h.strategy)),
                     ..h
                 });
             return Some(ConverterImpl {
@@ -2937,7 +2955,7 @@ impl PrebindgenExt for JniExt {
                 destination: wire,
                 niches,
                 metadata: KotlinMeta {
-                    handle,
+                    projection,
                     ..self.framework_meta(kotlin_name)
                 },
             });
@@ -3073,6 +3091,38 @@ impl PrebindgenExt for JniExt {
         }
         if let Some(name) = bare_path_ident(ty) {
             if let Some((s, _)) = registry.structs.get(&name) {
+                // Value-class leaf: a `@JvmInline value class` is erased to its
+                // single inner field, so the converter delegates to the inner
+                // field's converter (wire + descriptor + value-context Kotlin
+                // name all come from it) and tags a `ValueClass` projection.
+                // Every typed-surface emitter then wraps `W(inner)` and folds
+                // through Option/Vec uniformly — same machinery opaque handles
+                // ride, no value-class special cases in the struct encoder.
+                if self.types.get(&key).map(|c| c.value_class).unwrap_or(false) {
+                    if let Some(inner) = value_class_inner_field(s) {
+                        let (inner_ident, inner_ty) = inner;
+                        let inner_entry = registry.output_entry(&inner_ty)?;
+                        let inner_conv = inner_entry.function.sig.ident.clone();
+                        let wire = inner_entry.destination.clone();
+                        let body: syn::Expr =
+                            syn::parse_quote!({ #inner_conv(env, v.#inner_ident)? });
+                        return Some(ConverterImpl {
+                            pre_stages: vec![],
+                            function: self.build_output_fn(ty, &wire, &body, None),
+                            destination: wire,
+                            niches: inner_entry.niches.clone(),
+                            metadata: KotlinMeta {
+                                projection: Some(Projection {
+                                    leaf_key: key.as_str().to_string(),
+                                    owned: false,
+                                    strategy: FoldStrategy::Direct,
+                                    kind: ProjectionKind::ValueClass,
+                                }),
+                                ..self.framework_meta(inner_entry.metadata.kotlin_name.clone())
+                            },
+                        });
+                    }
+                }
                 let (wire, body) = struct_output_body(self, s, registry)?;
                 let niches = default_niches_for_wire(&wire);
                 let kotlin_name = self.types.get(&key).and_then(|c| c.kotlin_name.clone());
@@ -3111,11 +3161,11 @@ impl PrebindgenExt for JniExt {
             let kotlin_name = self.override_kotlin_name(&outer_ty, inherited);
             // Fold a Nullable layer over the inner handle (if any), so an
             // `Option<Handle>` output carries the full close strategy.
-            let handle = registry
+            let projection = registry
                 .output_entry(t1)
-                .and_then(|e| e.metadata.handle.clone())
-                .map(|h| HandleInfo {
-                    strategy: CloseStrategy::Nullable(Box::new(h.strategy)),
+                .and_then(|e| e.metadata.projection.clone())
+                .map(|h| Projection {
+                    strategy: FoldStrategy::Nullable(Box::new(h.strategy)),
                     ..h
                 });
             return Some(ConverterImpl {
@@ -3124,7 +3174,7 @@ impl PrebindgenExt for JniExt {
                 destination: wire,
                 niches,
                 metadata: KotlinMeta {
-                    handle,
+                    projection,
                     ..self.framework_meta(kotlin_name)
                 },
             });
@@ -3160,9 +3210,20 @@ impl PrebindgenExt for JniExt {
                 &outer_ty,
                 // `List` is auto-imported in Kotlin (default imports), so we
                 // skip the FQN to avoid `register_fqn` treating the generic
-                // as part of the import path.
+                // as part of the import path. When the inner carries a
+                // projection, this wire-context name still drives non-
+                // projection consumers; projection-aware sites (classify_return,
+                // data-class fields) prefer `projection` and render the typed
+                // `List<TypedShort>` instead.
                 Some(format!("List<{}>", inner_kotlin)),
             );
+            // Fold an Iterable layer over the inner projection (if any), so
+            // `Vec<Handle>` / `Vec<ValueClass>` carry the full strategy.
+            let projection =
+                inner.metadata.projection.clone().map(|h| Projection {
+                    strategy: FoldStrategy::Iterable(Box::new(h.strategy)),
+                    ..h
+                });
             return Some(ConverterImpl {
                 pre_stages: vec![],
                 function: self.build_output_fn(&outer_ty, &wire, &body, None),
@@ -3173,7 +3234,7 @@ impl PrebindgenExt for JniExt {
                     throws: inner.metadata.throws.clone(),
                     throws_action: inner.metadata.throws_action.clone(),
                     value_rust_key: None,
-                    handle: None,
+                    projection,
                 },
             });
         }
@@ -3848,7 +3909,7 @@ fn callback_input(
         // class, not a `Long`. Push the typed FQN slot; the wrapped object is
         // built in the by-value prelude loop below and `close()`-d after the
         // callback returns (see the body).
-        if let Some(h) = &arg_entry.metadata.handle {
+        if let Some(h) = &arg_entry.metadata.projection {
             let java_path = handle_field_fqn(ext, h).replace('.', "/");
             sig.push_str(&format!("L{};", java_path));
             jvalue_exprs.push(quote!(jni::objects::JValue::Object(&#obj_ident)));
@@ -3938,7 +3999,7 @@ fn callback_input(
         // handle class via its `(J)V` ctor. By-value non-optional, so no
         // null guard. The box is freed after the callback via `close()`
         // in the body below.
-        if let Some(h) = &arg_entry.metadata.handle {
+        if let Some(h) = &arg_entry.metadata.projection {
             let java_path = handle_field_fqn(ext, h).replace('.', "/");
             let java_path_lit = syn::LitStr::new(&java_path, Span::call_site());
             fixed_preludes.push(quote! {
@@ -4085,12 +4146,12 @@ fn default_niches_for_wire(wire: &syn::Type) -> Niches {
 /// in `Nullable`) are encodable as a single `L<FQN>;` ctor arg; a
 /// collection layer (`Iterable`, i.e. `Vec<Handle>`) would need array
 /// codegen and is a loud build-time error until implemented.
-pub(crate) fn handle_field_fqn(ext: &JniExt, h: &HandleInfo) -> String {
-    fn assert_scalar(s: &CloseStrategy) {
+pub(crate) fn handle_field_fqn(ext: &JniExt, h: &Projection) -> String {
+    fn assert_scalar(s: &FoldStrategy) {
         match s {
-            CloseStrategy::Direct => {}
-            CloseStrategy::Nullable(inner) => assert_scalar(inner),
-            CloseStrategy::Iterable(_) => panic!(
+            FoldStrategy::Direct => {}
+            FoldStrategy::Nullable(inner) => assert_scalar(inner),
+            FoldStrategy::Iterable(_) => panic!(
                 "struct handle field: collection (Vec<Handle>) layers are not yet \
                  supported by the struct encode/decode bridge — add array codegen \
                  to struct_output_body/struct_input_body to lift this guard"
@@ -4141,13 +4202,13 @@ fn struct_input_body(
         let field_conv = field_entry.function.sig.ident.clone();
 
         // Mirror of the struct_output_body bridge: when the field is a
-        // closeable native handle (folded `HandleInfo` on its converter
+        // closeable native handle (folded `Projection` on its converter
         // metadata), read the JNINativeHandle object from the JVM slot,
         // `peek()` the raw jlong, then run the per-field input converter
         // (still jlong-keyed). Null handle ⇒ jlong = 0 ⇒ `None` via the
         // niche-path. Detection now flows from the type-unfolding metadata,
         // not a syntactic `Option<T>` peel.
-        if let Some(h) = &field_entry.metadata.handle {
+        if let Some(h) = &field_entry.metadata.projection {
             let java_path = handle_field_fqn(ext, h).replace('.', "/");
             let sig = format!("L{};", java_path);
             let tmp_ident = format_ident!("__{}_jobj", fname_ident);
@@ -4252,50 +4313,6 @@ fn struct_output_body(
         format!("{}/{}", ext.java_class_prefix, struct_name)
     };
 
-    // A `value_class` is JVM-erased to its single wrapped field, so its JObject
-    // form is that inner field's encoded value (e.g. `ZBytes`/`ZenohId` → a
-    // `[B` byte array), never a boxed wrapper object — Kotlin never
-    // materializes the wrapper. Boxing it via `new_object` would produce an
-    // object the consumer reinterprets as the erased inner type (e.g. a
-    // `ZBytes` stored into a `byte[]` slot → corrupt array). The data-class
-    // encoder already computes the erased inner descriptor for value-class
-    // fields, so emit the inner converter here to match. Only object-shaped
-    // inners can be returned as a bare JObject; primitive-backed value classes
-    // would need boxing and none exist today, so those fall through.
-    //
-    // The inner field is *moved* into the (by-value) inner converter — `v` is
-    // owned here and the single field is never read again. Moving (vs cloning)
-    // avoids a redundant copy of the payload and imposes no `Clone` bound on
-    // the inner type. A value class that implemented `Drop` would block the
-    // partial move with a clear compile error, but newtype wrappers don't.
-    if ext
-        .types
-        .get(&TypeKey::from_type(&struct_ty))
-        .map(|c| c.value_class)
-        .unwrap_or(false)
-    {
-        if let syn::Fields::Named(named) = &s.fields {
-            if let Some(inner) = named.named.first() {
-                if let (Some(inner_ident), Some(inner_entry)) =
-                    (inner.ident.clone(), registry.output_entry(&inner.ty))
-                {
-                    if matches!(
-                        jni_field_access(&inner_entry.destination),
-                        Some((_, _, true)) | None
-                    ) {
-                        let inner_conv = inner_entry.function.sig.ident.clone();
-                        let body: syn::Expr = syn::parse_quote!({
-                            let __inner = #inner_conv(env, v.#inner_ident)?;
-                            let __obj: jni::objects::JObject = __inner.into();
-                            __obj
-                        });
-                        return Some((syn::parse_quote!(jni::objects::JObject), body));
-                    }
-                }
-            }
-        }
-    }
-
     let syn::Fields::Named(named) = &s.fields else {
         return None;
     };
@@ -4310,64 +4327,12 @@ fn struct_output_body(
         let encoded_ident = format_ident!("__{}_encoded", fname_ident);
         let encoded_obj_ident = format_ident!("__{}_encoded_obj", fname_ident);
 
-        // Value-class fields are JVM-erased to their wrapped inner
-        // type: `val zid: ZenohId` where ZenohId is `@JvmInline value
-        // class ZenohId(val bytes: ByteArray)` compiles to a `byte[]
-        // zid` slot in the enclosing class — both the JVM ctor
-        // signature and the runtime argument must use the inner type,
-        // not a boxed ZenohId. Detect it up front and route through
-        // the inner field's converter; the rest of the per-field
-        // dispatch is type-driven and naturally falls into the
-        // inner-type branch.
-        let (effective_ty, field_access): (syn::Type, TokenStream) = {
-            let key = TypeKey::from_type(&field.ty);
-            let is_value_class = ext
-                .types
-                .get(&key)
-                .map(|c| c.value_class)
-                .unwrap_or(false);
-            if is_value_class {
-                let ident = bare_path_ident(&field.ty).unwrap_or_else(|| {
-                    panic!(
-                        "struct_output_body: value-class field `{}.{}` type \
-                         is not a bare path — value classes must be \
-                         registered against a concrete struct type",
-                        s.ident, fname_ident
-                    )
-                });
-                let (item_struct, _) = registry.structs.get(&ident).unwrap_or_else(|| {
-                    panic!(
-                        "struct_output_body: value-class struct `{}` is not in \
-                         the registry — make sure it was scanned by \
-                         `#[prebindgen]`",
-                        ident
-                    )
-                });
-                let syn::Fields::Named(n) = &item_struct.fields else {
-                    panic!(
-                        "struct_output_body: value-class struct `{}` must use \
-                         named fields",
-                        ident
-                    )
-                };
-                assert_eq!(
-                    n.named.len(),
-                    1,
-                    "struct_output_body: value-class struct `{}` must have \
-                     exactly one field; found {}",
-                    ident,
-                    n.named.len()
-                );
-                let inner = n.named.first().unwrap();
-                let inner_ident = inner.ident.as_ref().unwrap().clone();
-                (
-                    inner.ty.clone(),
-                    quote! { v.#fname_ident.#inner_ident.clone() },
-                )
-            } else {
-                (field.ty.clone(), quote! { v.#fname_ident.clone() })
-            }
-        };
+        // Every field — value classes included — uses its own converter. A
+        // value-class field's converter delegates to the inner field and tags
+        // a `ValueClass` projection, so the projection branch below emits the
+        // erased descriptor; no value-class special case is needed here.
+        let effective_ty = field.ty.clone();
+        let field_access = quote! { v.#fname_ident.clone() };
 
         // Defer if any field's output converter isn't resolved yet.
         let field_entry = registry.output_entry(&effective_ty)?;
@@ -4379,26 +4344,37 @@ fn struct_output_body(
             let #encoded_ident = #field_conv(env, #field_value_ident)?;
         });
 
-        // Closeable native-handle fields are bridged: the per-field output
-        // converter still produces `jlong` (sentinel 0L for None); we wrap
-        // that into the typed-handle Kotlin class so the data-class field
-        // type matches. Detection flows from the folded `HandleInfo` the
-        // type-unfolding mechanism propagated onto this field's metadata.
-        // JVM ctor slot is `L<typed-FQN>;`, not `J`.
-        if let Some(h) = &field_entry.metadata.handle {
-            let java_path = handle_field_fqn(ext, h).replace('.', "/");
-            let ctor_slot = format!("L{};", java_path);
-            ctor_sig.push_str(&ctor_slot);
-            let java_path_lit = syn::LitStr::new(&java_path, Span::call_site());
-            field_preludes.push(quote! {
-                let #encoded_obj_ident: jni::objects::JObject<'a> = if #encoded_ident == 0 {
-                    jni::objects::JObject::null()
-                } else {
-                    env
-                        .new_object(#java_path_lit, "(J)V", &[jni::objects::JValue::from(#encoded_ident)])
-                        .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("wrap typed handle {}: {}", #java_path_lit, e)))?
-                };
-            });
+        // Projection fields (opaque handle or value class). The per-field
+        // converter already produced the projection's wire; here we only pick
+        // the JVM ctor slot descriptor and any wrap, branching on kind:
+        //  * Handle: wire is `jlong`; slot is the boxed typed-handle class
+        //    `L<fqn>;`; wrap the jlong into that class (null when 0).
+        //  * ValueClass: the class is JVM-erased to its inner field, so the
+        //    slot is the inner converter's descriptor (e.g. `[B`) and the
+        //    inner wire is passed straight through — no boxed wrapper.
+        if let Some(proj) = &field_entry.metadata.projection {
+            match proj.kind {
+                ProjectionKind::Handle => {
+                    let java_path = handle_field_fqn(ext, proj).replace('.', "/");
+                    ctor_sig.push_str(&format!("L{};", java_path));
+                    let java_path_lit = syn::LitStr::new(&java_path, Span::call_site());
+                    field_preludes.push(quote! {
+                        let #encoded_obj_ident: jni::objects::JObject<'a> = if #encoded_ident == 0 {
+                            jni::objects::JObject::null()
+                        } else {
+                            env
+                                .new_object(#java_path_lit, "(J)V", &[jni::objects::JValue::from(#encoded_ident)])
+                                .map_err(|e| <__JniErr as ::core::convert::From<String>>::from(format!("wrap typed handle {}: {}", #java_path_lit, e)))?
+                        };
+                    });
+                }
+                ProjectionKind::ValueClass => {
+                    ctor_sig.push_str(&value_class_descriptor(ext, registry, proj));
+                    field_preludes.push(quote! {
+                        let #encoded_obj_ident: jni::objects::JObject = #encoded_ident.into();
+                    });
+                }
+            }
             ctor_args.push(quote!(jni::objects::JValue::Object(&#encoded_obj_ident)));
             continue;
         }
@@ -4462,12 +4438,11 @@ fn struct_output_body(
                 //
                 // For `Option<T>` the per-field converter produces a nullable
                 // JObject, but the Kotlin ctor slot is still `T`'s concrete
-                // erased type, so unwrap the Option (and any value-class
-                // wrapper, since those erase to their inner field) before
-                // resolving the descriptor. Detection order on the resulting
-                // slot type:
-                //   1. Inner wire is a primitive/byte-array descriptor
-                //      (e.g. `Option<ZBytes>` → `[B`).
+                // type, so unwrap the Option before resolving the descriptor.
+                // (Value-class fields never reach here — they carry a
+                // `ValueClass` projection and are handled above.) Detection
+                // order on the resulting slot type:
+                //   1. Inner wire is a primitive/byte-array descriptor.
                 //   2. Bare data-class/enum (registered): typed FQN from
                 //      `kotlin_type_fqns` (e.g. `Option<Sample>` →
                 //      `Lio/zenoh/jni/sample/Sample;`).
@@ -4476,16 +4451,8 @@ fn struct_output_body(
                 //   4. Anything else (e.g. `String` → `java/lang/String`):
                 //      derive from the inner wire's J* type name.
                 //   5. Fallback → `Ljava/lang/Object;`.
-                //
-                // Non-`Option` object fields keep the previous behavior: their
-                // own wire already returned `None` from `jni_field_access`
-                // above, so step 1 is a no-op and resolution falls through to
-                // the FQN/Vec/J* chain exactly as before.
-                let slot_ty = option_inner_type(&effective_ty)
-                    .map(|inner| {
-                        value_class_inner_type(ext, registry, &inner).unwrap_or(inner)
-                    })
-                    .unwrap_or_else(|| effective_ty.clone());
+                let slot_ty =
+                    option_inner_type(&effective_ty).unwrap_or_else(|| effective_ty.clone());
                 let typed_slot = registry
                     .output_entry(&slot_ty)
                     .and_then(|e| jni_field_access(&e.destination))
@@ -4981,6 +4948,14 @@ fn option_inner_type(ty: &syn::Type) -> Option<syn::Type> {
 /// type (e.g. `ZBytes` → the `bytes` field type). Value classes are JVM-erased
 /// to this inner type, so the struct encoder must resolve the ctor descriptor
 /// against it rather than the boxed value-class name.
+pub(crate) fn value_class_inner_type_for(
+    ext: &JniExt,
+    registry: &Registry<KotlinMeta>,
+    ty: &syn::Type,
+) -> Option<syn::Type> {
+    value_class_inner_type(ext, registry, ty)
+}
+
 fn value_class_inner_type(
     ext: &JniExt,
     registry: &Registry<KotlinMeta>,
@@ -4996,6 +4971,64 @@ fn value_class_inner_type(
         return None;
     };
     Some(n.named.first()?.ty.clone())
+}
+
+/// The single named field of a `value_class` struct — `(ident, type)`. Used by
+/// the rank-0 value-class leaf to delegate to the inner field's converter.
+fn value_class_inner_field(s: &syn::ItemStruct) -> Option<(syn::Ident, syn::Type)> {
+    let syn::Fields::Named(n) = &s.fields else {
+        return None;
+    };
+    let f = n.named.first()?;
+    Some((f.ident.clone()?, f.ty.clone()))
+}
+
+/// JVM data-class ctor-slot descriptor for a `ValueClass` projection field. The
+/// value class is erased to its inner field, so the slot is the inner
+/// converter's descriptor (`[B` for byte-backed classes like `ZenohId`/`ZBytes`);
+/// a `Vec<value-class>` field folds to `List`.
+fn value_class_descriptor(
+    ext: &JniExt,
+    registry: &Registry<KotlinMeta>,
+    proj: &Projection,
+) -> String {
+    fn is_iterable(s: &FoldStrategy) -> bool {
+        match s {
+            FoldStrategy::Iterable(_) => true,
+            FoldStrategy::Nullable(inner) => is_iterable(inner),
+            FoldStrategy::Direct => false,
+        }
+    }
+    if is_iterable(&proj.strategy) {
+        return "Ljava/util/List;".to_string();
+    }
+    let vc_ty: syn::Type = syn::parse_str(&proj.leaf_key)
+        .unwrap_or_else(|_| panic!("value_class_descriptor: bad leaf_key `{}`", proj.leaf_key));
+    let inner_ty = value_class_inner_type(ext, registry, &vc_ty).unwrap_or_else(|| {
+        panic!(
+            "value_class_descriptor: `{}` is not a registered value class",
+            proj.leaf_key
+        )
+    });
+    let inner_wire = registry
+        .output_entry(&inner_ty)
+        .unwrap_or_else(|| {
+            panic!(
+                "value_class_descriptor: inner of `{}` has no output converter",
+                proj.leaf_key
+            )
+        })
+        .destination
+        .clone();
+    jni_field_access(&inner_wire)
+        .map(|(sig, _, _)| sig.to_string())
+        .unwrap_or_else(|| {
+            panic!(
+                "value_class_descriptor: inner wire of `{}` has no scalar field descriptor \
+                 — value classes over non-primitive inners need a descriptor rule here",
+                proj.leaf_key
+            )
+        })
 }
 
 

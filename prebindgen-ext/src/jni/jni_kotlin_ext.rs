@@ -650,7 +650,7 @@ fn build_callback_kotlin_file(
         // so the param type — and the file's import — resolve to e.g.
         // `io.zenoh.jni.scouting.ZHello`.
         let kotlin_ty = entry
-            .and_then(|e| e.metadata.handle.as_ref())
+            .and_then(|e| e.metadata.projection.as_ref())
             .map(|h| crate::jni::jni_ext::handle_field_fqn(ext, h))
             .or_else(|| entry.and_then(|e| e.metadata.kotlin_name.clone()))
             .or_else(|| {
@@ -729,11 +729,11 @@ fn is_option_ref(ty: &syn::Type) -> bool {
 }
 
 /// Render the Kotlin type for a closeable handle reached through the
-/// folded [`CloseStrategy`] layers, given the leaf typed-handle short
+/// folded [`FoldStrategy`] layers, given the leaf typed-handle short
 /// name (e.g. `"ZKeyExpr"`): `Direct → "ZKeyExpr"`,
 /// `Nullable(inner) → "<inner>?"`, `Iterable(inner) → "List<<inner>>"`.
-fn render_handle_type(strategy: &crate::jni::jni_ext::CloseStrategy, leaf: &str) -> String {
-    use crate::jni::jni_ext::CloseStrategy::*;
+fn render_handle_type(strategy: &crate::jni::jni_ext::FoldStrategy, leaf: &str) -> String {
+    use crate::jni::jni_ext::FoldStrategy::*;
     match strategy {
         Direct => leaf.to_string(),
         Nullable(inner) => format!("{}?", render_handle_type(inner, leaf)),
@@ -742,12 +742,12 @@ fn render_handle_type(strategy: &crate::jni::jni_ext::CloseStrategy, leaf: &str)
 }
 
 /// Render the Kotlin `close()` expression for a handle `receiver` through
-/// the folded [`CloseStrategy`] layers. Fresh lambda variable per nesting
+/// the folded [`FoldStrategy`] layers. Fresh lambda variable per nesting
 /// level avoids `it` shadowing; the common single-layer cases are
 /// special-cased for readable output (`x?.close()`, `x.forEach { it.close() }`).
-fn render_handle_close(strategy: &crate::jni::jni_ext::CloseStrategy, receiver: &str) -> String {
-    use crate::jni::jni_ext::CloseStrategy::*;
-    fn go(strategy: &crate::jni::jni_ext::CloseStrategy, receiver: &str, depth: usize) -> String {
+fn render_handle_close(strategy: &crate::jni::jni_ext::FoldStrategy, receiver: &str) -> String {
+    use crate::jni::jni_ext::FoldStrategy::*;
+    fn go(strategy: &crate::jni::jni_ext::FoldStrategy, receiver: &str, depth: usize) -> String {
         match strategy {
             Direct => format!("{receiver}.close()"),
             Nullable(inner) => match &**inner {
@@ -764,6 +764,83 @@ fn render_handle_close(strategy: &crate::jni::jni_ext::CloseStrategy, receiver: 
         }
     }
     go(strategy, receiver, 0)
+}
+
+/// Fold the projection wrap call `W(receiver)` through the
+/// [`FoldStrategy`] layers: `Direct → "W(x)"`,
+/// `Nullable → "x?.let { W(it) }"`, `Iterable → "x.map { W(it) }"`.
+/// Single-layer Nullable/Iterable use `it` directly; deeper nesting picks
+/// fresh `e0`/`e1`/… to avoid shadowing.
+fn fold_projection_wrap(
+    strategy: &crate::jni::jni_ext::FoldStrategy,
+    receiver: &str,
+    wrap_class: &str,
+) -> String {
+    use crate::jni::jni_ext::FoldStrategy::*;
+    fn go(s: &crate::jni::jni_ext::FoldStrategy, r: &str, w: &str, depth: usize) -> String {
+        match s {
+            Direct => format!("{w}({r})"),
+            Nullable(inner) => match &**inner {
+                Direct => format!("{r}?.let {{ {w}(it) }}"),
+                _ => {
+                    let v = format!("e{depth}");
+                    format!("{r}?.let {{ {v} -> {} }}", go(inner, &v, w, depth + 1))
+                }
+            },
+            Iterable(inner) => match &**inner {
+                Direct => format!("{r}.map {{ {w}(it) }}"),
+                _ => {
+                    let v = format!("e{depth}");
+                    format!("{r}.map {{ {v} -> {} }}", go(inner, &v, w, depth + 1))
+                }
+            },
+        }
+    }
+    go(strategy, receiver, wrap_class, 0)
+}
+
+/// JNI extern's declared Kotlin wire-return for a projection. Handle: the
+/// wire is `jlong` (boxed handle), folded through `Nullable`/`Iterable` to
+/// `Long`/`Long?`/`List<Long>`. ValueClass: the wire is the inner field's
+/// converter destination, folded the same way (e.g. `Vec<ZenohId>` →
+/// `List<ByteArray>`). Reads the inner converter from the registry; never
+/// assumes a specific inner shape.
+fn projection_wire_return(
+    ext: &JniExt,
+    registry: &Registry<KotlinMeta>,
+    proj: &crate::jni::jni_ext::Projection,
+    imports: &mut BTreeSet<String>,
+) -> String {
+    use crate::jni::jni_ext::ProjectionKind;
+    let inner_wire_name: String = match proj.kind {
+        ProjectionKind::Handle => "Long".to_string(),
+        ProjectionKind::ValueClass => {
+            let vc_ty: syn::Type = syn::parse_str(&proj.leaf_key).unwrap_or_else(|_| {
+                panic!("projection_wire_return: bad leaf_key `{}`", proj.leaf_key)
+            });
+            let inner_ty = crate::jni::jni_ext::value_class_inner_type_for(ext, registry, &vc_ty)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "projection_wire_return: `{}` is not a registered value class",
+                        proj.leaf_key
+                    )
+                });
+            let inner_entry = registry.output_entry(&inner_ty).unwrap_or_else(|| {
+                panic!(
+                    "projection_wire_return: inner of `{}` has no output converter",
+                    proj.leaf_key
+                )
+            });
+            let n = inner_entry.metadata.kotlin_name.clone().unwrap_or_else(|| {
+                panic!(
+                    "projection_wire_return: inner of `{}` has no Kotlin name",
+                    proj.leaf_key
+                )
+            });
+            register_fqn(&n, imports)
+        }
+    };
+    render_handle_type(&proj.strategy, &inner_wire_name)
 }
 
 fn register_fqn(fqn: &str, used: &mut BTreeSet<String>) -> String {
@@ -957,7 +1034,7 @@ fn render_data_class_source(
     let mut field_lines: Vec<String> = Vec::new();
     // Track per-field destructible (name, folded close strategy) so the
     // bottom emitter can produce a matching `close()` body for each.
-    let mut destructible_fields: Vec<(String, crate::jni::jni_ext::CloseStrategy)> = Vec::new();
+    let mut destructible_fields: Vec<(String, crate::jni::jni_ext::FoldStrategy)> = Vec::new();
     for field in fields_named {
         let field_ident = field.ident.as_ref().unwrap_or_else(|| {
             panic!(
@@ -974,22 +1051,22 @@ fn render_data_class_source(
             ""
         };
 
-        // Closeable native-handle field: both the typed Kotlin type
-        // (`ZKeyExpr?`, `List<ZKeyExpr>`, …) and the `close()` expression
-        // are derived from the folded `HandleInfo` the type-unfolding
-        // mechanism propagated onto this field's converter metadata —
-        // instead of a syntactic `Option<T>` peel. The struct
-        // encoder/decoder in jni_ext.rs bridges the JVM handle object to
-        // the per-field jlong-wired converter.
-        let field_handle = registry
+        // Projection field (opaque handle or value class): the typed Kotlin
+        // type (`ZKeyExpr?`, `List<ZKeyExpr>`, `ZenohId`, `List<ZenohId>`, …)
+        // is derived from the folded `Projection` the type-unfolding mechanism
+        // propagated onto this field's converter metadata, instead of a
+        // syntactic `Option<T>` peel. Closeable `close()` emission applies
+        // only to `Handle` kind (and only when owned); value classes are
+        // erased to their inner wire, so they never close.
+        let field_projection = registry
             .output_entry(&field.ty)
-            .and_then(|e| e.metadata.handle.clone())
+            .and_then(|e| e.metadata.projection.clone())
             .or_else(|| {
                 registry
                     .input_entry(&field.ty)
-                    .and_then(|e| e.metadata.handle.clone())
+                    .and_then(|e| e.metadata.projection.clone())
             });
-        if let Some(h) = field_handle.filter(|h| h.owned) {
+        if let Some(h) = field_projection {
             let fqn = ext
                 .kotlin_type_fqns
                 .iter()
@@ -997,8 +1074,8 @@ fn render_data_class_source(
                 .map(|(_, v)| v.clone())
                 .unwrap_or_else(|| {
                     panic!(
-                        "render_data_class_source: handle field `{}.{}` leaf `{}` has no \
-                         Kotlin FQN registered (ptr_class)",
+                        "render_data_class_source: projection field `{}.{}` leaf `{}` has no \
+                         Kotlin FQN registered (ptr_class / value_class)",
                         item_struct.ident, field_ident, h.leaf_key
                     )
                 });
@@ -1007,7 +1084,9 @@ fn render_data_class_source(
                 "    {override_prefix}val {kotlin_field_name}: {},",
                 render_handle_type(&h.strategy, &short)
             ));
-            destructible_fields.push((kotlin_field_name, h.strategy));
+            if matches!(h.kind, crate::jni::jni_ext::ProjectionKind::Handle) && h.owned {
+                destructible_fields.push((kotlin_field_name, h.strategy));
+            }
             continue;
         }
 
@@ -1733,11 +1812,11 @@ pub(crate) fn render_extern_decl(
         // with `0` encoding `None`; nullability lives in the safe wrapper
         // (`withPtrOrZero`) not the JNI extern. Strip the `?` here so the
         // extern signature matches what the JVM will look up. Detection
-        // uses `metadata.handle.is_some()` because the `Option<OwnedObject<T>>`
+        // uses `metadata.projection.is_some()` because the `Option<OwnedObject<T>>`
         // converter doesn't return `OwnedObject` directly so the local
         // `is_opaque` flag (which checks the return shape) misses it.
         let is_opt_ref_opaque =
-            entry.metadata.handle.is_some() && is_option_ref(arg_ty);
+            entry.metadata.projection.is_some() && is_option_ref(arg_ty);
         let optional = is_option_type(arg_ty) && !is_opt_ref_opaque;
 
         let kt_type_raw = if is_opaque || is_opt_ref_opaque {
@@ -1752,17 +1831,20 @@ pub(crate) fn render_extern_decl(
         params.push((name, format!("{short}{suffix}")));
     }
 
-    let (kt_return, opaque_ctor) =
+    let (kt_return, projection) =
         classify_return(ext, &f.sig.output, registry, imports)?;
     // enum_class returns cross the JNI wire as jint → Kotlin `Int`.
     // The public wrapper converts back using `EnumType.fromInt(Int)`.
     let is_enum_return = return_is_kotlin_enum(ext, &f.sig.output, registry);
-    let wire_return = if opaque_ctor.is_some() {
-        "Long".to_string()
-    } else if is_enum_return {
-        "Int".to_string()
-    } else {
-        kt_return
+    // JNI extern's wire return: handle projections wire as `Long` (the boxed
+    // jlong gets wrapped); value-class projections wire as their inner
+    // converter's Kotlin type folded through the projection's strategy (the
+    // value class is erased to that inner). Enums wire as `Int`; everything
+    // else is the declared return.
+    let wire_return = match &projection {
+        Some(p) => projection_wire_return(ext, registry, p, imports),
+        None if is_enum_return => "Int".to_string(),
+        None => kt_return,
     };
 
     let formals = params
@@ -1908,17 +1990,17 @@ fn render_wrapper_fn(
         // Opaque-handle params surface as their typed-handle FQN — every
         // handle is self-contained (its own ptr slot + monitor), so the
         // wrapper body inlines synchronized blocks directly on the typed
-        // receiver. Detection flows from the folded `HandleInfo` — present
+        // receiver. Detection flows from the folded `Projection` — present
         // for both `&T` and by-value `T` (the `owned` flag is orthogonal
         // to presence) — so it's the same source of truth the typed-surface
         // emitters use.
-        let is_opaque = entry.metadata.handle.is_some();
+        let is_opaque = entry.metadata.projection.is_some();
 
         // `Option<&T>` / `Option<&mut T>` for opaque T marks the param
         // nullable; the wrapper body branches on null before lock selection.
         let is_opt_ref_opaque = is_opaque && is_option_ref(arg_ty);
         let (kt_type_raw, optional) = if is_opaque {
-            let h = entry.metadata.handle.as_ref()?;
+            let h = entry.metadata.projection.as_ref()?;
             let fqn = ext
                 .kotlin_type_fqns
                 .iter()
@@ -2019,10 +2101,11 @@ fn render_wrapper_fn(
         MethodKind::Instance
     };
 
-    // Return type: peel ZResult<...>; detect opaque-handle return.
-    // `opaque_ctor` is the constructor name to wrap the JNI return
-    // in (typed FQN short name when registered, else `NativeHandle`).
-    let (kt_return, opaque_ctor) = classify_return(ext, &f.sig.output, registry, imports)?;
+    // Return type: peel ZResult<...>; detect projection return (opaque
+    // handle or value class). `projection` carries the folded fold
+    // strategy + kind the wrap emission and JNINative wire-return code
+    // branch on.
+    let (kt_return, projection) = classify_return(ext, &f.sig.output, registry, imports)?;
     // enum_class returns cross the JNI wire as jint → Kotlin `Int`.
     // Detect this so `build_call` can wrap the result with `fromInt`.
     let is_enum_return = return_is_kotlin_enum(ext, &f.sig.output, registry);
@@ -2075,8 +2158,19 @@ fn render_wrapper_fn(
             args.push(arg);
         }
         let mut call = format!("{}.{jni_call}({})", ext.jni_native_class_name(), args.join(", "));
-        if let Some(ctor) = &opaque_ctor {
-            call = format!("{ctor}({call})");
+        if let Some(p) = &projection {
+            // Fold the wrap through the projection strategy: `W(x)` for
+            // Direct, `?.let { W(it) }` for Nullable, `.map { W(it) }` for
+            // Iterable. The wrap class is the projection leaf's typed short
+            // name (Handle's typed-handle class or value-class's wrapper).
+            let leaf_fqn = ext
+                .kotlin_type_fqns
+                .iter()
+                .find(|(k, _)| k == &p.leaf_key)
+                .map(|(_, v)| v.as_str())
+                .unwrap_or(&p.leaf_key);
+            let short = leaf_fqn.rsplit('.').next().unwrap_or(leaf_fqn).to_string();
+            call = fold_projection_wrap(&p.strategy, &call, &short);
         } else if is_enum_return {
             call = format!("{kt_return}.fromInt({call})");
         }
@@ -2480,25 +2574,22 @@ pub(crate) fn kotlin_for_wire(wire: &syn::Type) -> Option<String> {
     None
 }
 
-/// Returns `(kt_return, opaque_ctor)` where:
+/// Returns `(kt_return, projection)` where:
 /// * `kt_return` is the declared Kotlin return type written in the
 ///   wrapper's signature (empty for `Unit`).
-/// * `opaque_ctor` is `Some(<ctor>)` when the return is an
-///   opaque-handle type (jlong wire) — `<ctor>` is the registered
-///   typed FQN's short name (e.g. `JNIKeyExpr`) when one is mapped,
-///   else `NativeHandle`. The wrapper body uses this to construct
-///   the returned object so its runtime class survives downstream
-///   `instanceof` checks at the JNI boundary. `None` for non-opaque
-///   returns. The declared `kt_return` deliberately stays at the
-///   base `NativeHandle` for opaque returns even when a typed FQN
-///   exists — minimises caller-side churn (typed instance, upcast
-///   declared type).
+/// * `projection` is `Some(Projection)` when the return is a Kotlin newtype
+///   (opaque handle or value class) reached through 0+ wrappers. The
+///   wrapper body uses it to fold the wrap call (`W(x)` for `Direct`,
+///   `?.let { W(it) }` for `Nullable`, `.map { W(it) }` for `Iterable`)
+///   and pick the JNI extern's wire return (`Long` for `Handle`,
+///   the inner wire's Kotlin name for `ValueClass`). `None` for plain
+///   non-projection returns.
 fn classify_return(
     ext: &JniExt,
     output: &syn::ReturnType,
     registry: &Registry<KotlinMeta>,
     imports: &mut BTreeSet<String>,
-) -> Option<(String, Option<String>)> {
+) -> Option<(String, Option<crate::jni::jni_ext::Projection>)> {
     let ty = match output {
         syn::ReturnType::Default => return Some((String::new(), None)),
         syn::ReturnType::Type(_, t) => &**t,
@@ -2514,14 +2605,13 @@ fn classify_return(
     if crate::util::is_unit(&inner) {
         return Some((String::new(), None));
     }
-    // Opaque-handle return: read the folded `HandleInfo` the type-unfolding
-    // mechanism propagated onto this return type's converter metadata —
-    // one source of truth, no shape-specific peeling. The declared return
-    // type is the concrete typed handle (`AutoCloseable`, so the caller can
-    // `close()` / `use {}`); `opaque_ctor` is the typed short name the
-    // wrapper body uses to wrap the jlong so the runtime class survives
-    // downstream `instanceof` checks.
-    if let Some(h) = outer_meta.as_ref().and_then(|m| m.handle.clone()) {
+    // Projection return (opaque handle or value class): read the folded
+    // `Projection` the type-unfolding mechanism propagated onto this return
+    // type's converter metadata — one source of truth, no shape-specific
+    // peeling. The declared return type is the concrete projection class
+    // folded through `Nullable`/`Iterable`; callers fold the wrap and pick
+    // the wire return based on `kind`.
+    if let Some(h) = outer_meta.as_ref().and_then(|m| m.projection.clone()) {
         let fqn = ext
             .kotlin_type_fqns
             .iter()
@@ -2529,13 +2619,14 @@ fn classify_return(
             .map(|(_, v)| v.clone())
             .unwrap_or_else(|| {
                 panic!(
-                    "classify_return: opaque return type `{}` has no typed-handle FQN registered \
-                     — every opaque type must be declared via `JniExt::ptr_class(...)`.",
+                    "classify_return: projection return type `{}` has no Kotlin FQN registered \
+                     — every opaque/value class must be declared via `JniExt::ptr_class(...)` \
+                     / `JniExt::value_class(...)`.",
                     h.leaf_key
                 )
             });
         let short = register_fqn(&fqn, imports);
-        return Some((render_handle_type(&h.strategy, &short), Some(short)));
+        return Some((render_handle_type(&h.strategy, &short), Some(h)));
     }
     // Non-opaque: read the Kotlin name straight off the resolved
     // output entry's metadata — the rank-N handler propagates

@@ -249,16 +249,16 @@ internal class JNISession(internal val zSession: ZSession) {
 
     @Throws(ZError::class)
     fun zid(): ZenohId = wrapJNIExceptionAsZError {
-        ZenohId(io.zenoh.jni.config.ZenohId(zSession.zSessionZid()))
+        ZenohId(zSession.zSessionZid())
     }
 
     @Throws(ZError::class)
     fun peersZid(): List<ZenohId> = wrapJNIExceptionAsZError {
-        zSession.zSessionPeersZid().map { ZenohId(io.zenoh.jni.config.ZenohId(it)) }
+        zSession.zSessionPeersZid().map { ZenohId(it) }
     }
 
     @Throws(ZError::class)
     fun routersZid(): List<ZenohId> = wrapJNIExceptionAsZError {
-        zSession.zSessionRoutersZid().map { ZenohId(io.zenoh.jni.config.ZenohId(it)) }
+        zSession.zSessionRoutersZid().map { ZenohId(it) }
     }
 }

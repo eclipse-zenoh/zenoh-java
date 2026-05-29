@@ -36,7 +36,7 @@ public class ZReply(initialPtr: Long) : AutoCloseable {
         synchronized(this) {
             val r_ptr = this.ptr
             if (r_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return ZZenohId(JNINative.zReplyReplierZid(r_ptr))
+            return JNINative.zReplyReplierZid(r_ptr)?.let { ZZenohId(it) }
         }
     }
 
@@ -63,7 +63,7 @@ public class ZReply(initialPtr: Long) : AutoCloseable {
         synchronized(this) {
             val r_ptr = this.ptr
             if (r_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return ZSample(JNINative.zReplySample(r_ptr))
+            return JNINative.zReplySample(r_ptr)?.let { ZSample(it) }
         }
     }
 
@@ -72,7 +72,7 @@ public class ZReply(initialPtr: Long) : AutoCloseable {
         synchronized(this) {
             val r_ptr = this.ptr
             if (r_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return ZZBytes(JNINative.zReplyErrorPayload(r_ptr))
+            return JNINative.zReplyErrorPayload(r_ptr)?.let { ZZBytes(it) }
         }
     }
 
@@ -81,7 +81,7 @@ public class ZReply(initialPtr: Long) : AutoCloseable {
         synchronized(this) {
             val r_ptr = this.ptr
             if (r_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return ZEncoding(JNINative.zReplyErrorEncoding(r_ptr))
+            return JNINative.zReplyErrorEncoding(r_ptr)?.let { ZEncoding(it) }
         }
     }
 

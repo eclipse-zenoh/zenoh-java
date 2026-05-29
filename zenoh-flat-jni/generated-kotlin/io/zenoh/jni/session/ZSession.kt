@@ -14,6 +14,7 @@ import io.zenoh.jni.callbacks.ZQueryCallback
 import io.zenoh.jni.callbacks.ZReplyCallback
 import io.zenoh.jni.callbacks.ZSampleCallback
 import io.zenoh.jni.config.ZConfig
+import io.zenoh.jni.config.ZenohId
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.liveliness.ZLivelinessToken
 import io.zenoh.jni.pubsub.ZPublisher
@@ -386,29 +387,29 @@ public class ZSession(initialPtr: Long) : AutoCloseable {
     }
 
     @Throws(JniBindingError::class)
-    public fun zSessionZid(): ByteArray {
+    public fun zSessionZid(): ZenohId {
         synchronized(this) {
             val session_ptr = this.ptr
             if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zSessionZid(session_ptr)
+            return ZenohId(JNINative.zSessionZid(session_ptr))
         }
     }
 
     @Throws(JniBindingError::class)
-    public fun zSessionPeersZid(): List<ByteArray> {
+    public fun zSessionPeersZid(): List<ZenohId> {
         synchronized(this) {
             val session_ptr = this.ptr
             if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zSessionPeersZid(session_ptr)
+            return JNINative.zSessionPeersZid(session_ptr).map { ZenohId(it) }
         }
     }
 
     @Throws(JniBindingError::class)
-    public fun zSessionRoutersZid(): List<ByteArray> {
+    public fun zSessionRoutersZid(): List<ZenohId> {
         synchronized(this) {
             val session_ptr = this.ptr
             if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zSessionRoutersZid(session_ptr)
+            return JNINative.zSessionRoutersZid(session_ptr).map { ZenohId(it) }
         }
     }
 
