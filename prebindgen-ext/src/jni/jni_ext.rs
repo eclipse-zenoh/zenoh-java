@@ -4252,6 +4252,50 @@ fn struct_output_body(
         format!("{}/{}", ext.java_class_prefix, struct_name)
     };
 
+    // A `value_class` is JVM-erased to its single wrapped field, so its JObject
+    // form is that inner field's encoded value (e.g. `ZBytes`/`ZenohId` → a
+    // `[B` byte array), never a boxed wrapper object — Kotlin never
+    // materializes the wrapper. Boxing it via `new_object` would produce an
+    // object the consumer reinterprets as the erased inner type (e.g. a
+    // `ZBytes` stored into a `byte[]` slot → corrupt array). The data-class
+    // encoder already computes the erased inner descriptor for value-class
+    // fields, so emit the inner converter here to match. Only object-shaped
+    // inners can be returned as a bare JObject; primitive-backed value classes
+    // would need boxing and none exist today, so those fall through.
+    //
+    // The inner field is *moved* into the (by-value) inner converter — `v` is
+    // owned here and the single field is never read again. Moving (vs cloning)
+    // avoids a redundant copy of the payload and imposes no `Clone` bound on
+    // the inner type. A value class that implemented `Drop` would block the
+    // partial move with a clear compile error, but newtype wrappers don't.
+    if ext
+        .types
+        .get(&TypeKey::from_type(&struct_ty))
+        .map(|c| c.value_class)
+        .unwrap_or(false)
+    {
+        if let syn::Fields::Named(named) = &s.fields {
+            if let Some(inner) = named.named.first() {
+                if let (Some(inner_ident), Some(inner_entry)) =
+                    (inner.ident.clone(), registry.output_entry(&inner.ty))
+                {
+                    if matches!(
+                        jni_field_access(&inner_entry.destination),
+                        Some((_, _, true)) | None
+                    ) {
+                        let inner_conv = inner_entry.function.sig.ident.clone();
+                        let body: syn::Expr = syn::parse_quote!({
+                            let __inner = #inner_conv(env, v.#inner_ident)?;
+                            let __obj: jni::objects::JObject = __inner.into();
+                            __obj
+                        });
+                        return Some((syn::parse_quote!(jni::objects::JObject), body));
+                    }
+                }
+            }
+        }
+    }
+
     let syn::Fields::Named(named) = &s.fields else {
         return None;
     };
