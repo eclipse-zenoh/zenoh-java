@@ -5,7 +5,6 @@ import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniBindingError
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.config.WhatAmI
-import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.withSortedHandleLocks
 
 /** Typed handle for a native Zenoh `ZHello`. */
@@ -38,13 +37,13 @@ public class ZHello(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 
     @Throws(JniBindingError::class)
-    public fun zHelloZid(): ZZenohId {
+    public fun zHelloZid(): ByteArray {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(this)
         return withSortedHandleLocks(__locks) {
         val h_ptr = this.ptr
         if (h_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-        ZZenohId(JNINative.zHelloZid(h_ptr))
+        JNINative.zHelloZid(h_ptr)
         }
     }
 

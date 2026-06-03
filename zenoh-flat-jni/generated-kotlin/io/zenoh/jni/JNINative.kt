@@ -15,7 +15,6 @@ import io.zenoh.jni.callbacks.ZReplyCallback
 import io.zenoh.jni.callbacks.ZSampleCallback
 import io.zenoh.jni.config.WhatAmI
 import io.zenoh.jni.config.ZConfig
-import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.keyexpr.KeyExpr
 import io.zenoh.jni.keyexpr.SetIntersectionLevel
 import io.zenoh.jni.keyexpr.ZKeyExpr
@@ -179,7 +178,7 @@ internal object JNINative {
     external fun zEncodingZenohString(): Long
     external fun zHelloLocators(h: Long): List<String>
     external fun zHelloWhatami(h: Long): Int
-    external fun zHelloZid(h: Long): Long
+    external fun zHelloZid(h: Long): ByteArray
     external fun zKeyexprAutocanonize(s: String): Long
     external fun zKeyexprConcat(a: Long, b: String): Long
     external fun zKeyexprIncludes(a: Long, b: Long): Boolean
@@ -203,7 +202,7 @@ internal object JNINative {
     external fun zReplyExpand(r: Long): Reply
     external fun zReplyIsOk(r: Long): Boolean
     external fun zReplyReplierEid(r: Long): Int
-    external fun zReplyReplierZid(r: Long): Long
+    external fun zReplyReplierZid(r: Long): ByteArray
     external fun zReplySample(r: Long): Long
     external fun zSampleAttachment(s: Long): Long
     external fun zSampleCongestionControl(s: Long): Int
@@ -223,15 +222,17 @@ internal object JNINative {
     external fun zSessionDeclareSubscriber(session: Long, keyExpr: Long, callback: ZSampleCallback, onClose: Callback): Long
     external fun zSessionDelete(session: Long, keyExpr: Long, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, attachment: Long?, reliability: Reliability?)
     external fun zSessionGet(session: Long, keyExpr: Long, parameters: String?, timeoutMs: Long?, target: QueryTarget?, consolidation: ConsolidationMode?, acceptReplies: ReplyKeyExpr?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, payload: Long?, encoding: Long, attachment: Long?, callback: ZReplyCallback, onClose: Callback)
+    external fun zSessionPeersZid(session: Long): List<ByteArray>
     external fun zSessionPut(session: Long, keyExpr: Long, payload: Long, encoding: Long, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, attachment: Long?, reliability: Reliability?)
+    external fun zSessionRoutersZid(session: Long): List<ByteArray>
     external fun zSessionUndeclareKeyexpr(session: Long, keyExpr: Long)
-    external fun zSessionZid(session: Long): Long
+    external fun zSessionZid(session: Long): ByteArray
     external fun zTimestampExpand(t: Long): Timestamp
     external fun zTimestampId(t: Long): ByteArray
     external fun zTimestampNtp64(t: Long): Long
     external fun zZbytesFromVec(bytes: ByteArray): Long
     external fun zZbytesToBytes(z: Long): ByteArray
-    external fun zZenohIdToBytes(z: Long): ByteArray
-    external fun zZenohIdToString(z: Long): String
+    external fun zZenohIdToBytes(z: ByteArray): ByteArray
+    external fun zZenohIdToString(z: ByteArray): String
     external fun zenohIdToString(bytes: ByteArray): String
 }

@@ -51,9 +51,14 @@ fn main() {
         .class_fun(pq!(z_config_get_json))
         .class_fun(pq!(z_config_insert_json5))
         .enum_class(pq!(WhatAmI))
-        .ptr_class(pq!(ZZenohId))
-        .class_fun(pq!(z_zenoh_id_to_bytes))
-        .class_fun(pq!(z_zenoh_id_to_string))
+        // ZZenohId is a `Copy` value (zenoh::session::ZenohId, repr(transparent)),
+        // so it crosses as a raw byte-blob `ByteArray` rather than a closeable
+        // jlong handle — this also lets `Vec<ZZenohId>` surface as
+        // `List<ByteArray>` (see z_session_peers_zid/routers_zid below). Its
+        // accessors become package-level functions (no Kotlin class for a blob).
+        .value_blob(pq!(ZZenohId))
+        .package_fun(pq!(z_zenoh_id_to_bytes))
+        .package_fun(pq!(z_zenoh_id_to_string))
         .value_class(pq!(ZenohId))
         .class_object_fun(pq!(zenoh_id_to_string))
         .package("scouting")
@@ -258,13 +263,9 @@ fn main() {
         .class_fun(pq!(z_session_get))
         .class_fun(pq!(session_get))
         .class_fun(pq!(z_session_zid))
-        // TODO(jnigen parity): z_session_peers_zid / z_session_routers_zid return
-        // `Vec<ZZenohId>` (a Vec of opaque handles). The JNI backend doesn't yet
-        // encode `Vec<opaque-handle>` (it would need to box each `jlong` into a
-        // `java.lang.Long` collection element; the Kotlin side already folds
-        // `Iterable(Handle)`). Deferred to the converter-coverage follow-up.
-        // .class_fun(pq!(z_session_peers_zid))
-        // .class_fun(pq!(z_session_routers_zid))
+        // `Vec<ZZenohId>` → `List<ByteArray>` now that ZZenohId is a value-blob.
+        .class_fun(pq!(z_session_peers_zid))
+        .class_fun(pq!(z_session_routers_zid))
         .class_fun(pq!(z_liveliness_declare_token))
         .class_fun(pq!(z_liveliness_get))
         .class_fun(pq!(liveliness_get))
