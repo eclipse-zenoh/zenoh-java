@@ -1114,15 +1114,6 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
@@ -1797,11 +1788,10 @@ dependencies = [
 [[package]]
 name = "prebindgen"
 version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b005ec2d8a59f83ecc1b63ef25ab4d42fa33d9642e24d5d8dab5e750d5f6f46"
 dependencies = [
  "if_rust_version",
- "itertools 0.14.0",
+ "itertools",
+ "jni",
  "konst 0.3.17",
  "prettyplease",
  "proc-macro2",
@@ -1815,22 +1805,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "prebindgen-ext"
-version = "1.0.0"
-dependencies = [
- "itertools 0.12.1",
- "jni",
- "prebindgen",
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
 name = "prebindgen-proc-macro"
 version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47a68d8870ef9ba6f8abbe9d4bca5775e1d854d5fa6dac8c27dd1c79ecebe398"
 dependencies = [
  "prebindgen",
  "proc-macro2",
@@ -3801,7 +3777,7 @@ dependencies = [
  "flume",
  "futures",
  "git-version",
- "itertools 0.14.0",
+ "itertools",
  "json5",
  "lazy_static",
  "nonempty-collections",
@@ -3952,7 +3928,6 @@ dependencies = [
  "jni",
  "konst 0.3.17",
  "prebindgen",
- "prebindgen-ext",
  "syn 2.0.117",
  "tracing",
  "zenoh",

@@ -17,7 +17,7 @@ use jni::{
     sys::jobject,
     JNIEnv,
 };
-use prebindgen_ext::jni::JniBindingError;
+use prebindgen::lang::JniBindingError;
 use zenoh::bytes::ZBytes;
 use zenoh_ext::{VarInt, ZDeserializeError, ZDeserializer, ZSerializer};
 

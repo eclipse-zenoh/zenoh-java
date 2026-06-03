@@ -1,15 +1,14 @@
-use prebindgen_ext::core::prebindgen_ext::IntoSource;
-use prebindgen_ext::core::registry::Registry;
-use prebindgen_ext::jni::JniExt;
+use prebindgen::core::{IntoSource, Registry};
+use prebindgen::lang::JniGen;
 use syn::parse_quote as pq;
 
 fn fail(context: &str, err: impl std::fmt::Display) -> ! {
-    eprintln!("error: prebindgen-ext {context}: {err}");
+    eprintln!("error: prebindgen jnigen {context}: {err}");
     std::process::exit(1);
 }
 
 fn main() {
-    let jni = JniExt::new()
+    let jni = JniGen::new()
         .source_module(pq!(zenoh_flat)) // how to prefix prebindgen-marked items (functions, types
         .package_prefix("io.zenoh.jni") // the package of the generated JNI bindings
         .data_class(pq!(Error)) // structured Kotlin data class for Error
@@ -77,7 +76,7 @@ fn main() {
         .package("bytes")
         .ptr_class(pq!(ZZBytes))
         .class_fun(pq!(z_zbytes_to_bytes))
-        .class_object_fun(pq!(z_zbytes_from_bytes))
+        .class_object_fun(pq!(z_zbytes_from_vec))
         .value_class(pq!(ZBytes))
         .ptr_class(pq!(ZEncoding))
         .class_fun(pq!(z_encoding_id))
@@ -215,21 +214,26 @@ fn main() {
         .data_class(pq!(Sample))
         .package("pubsub")
         .ptr_class(pq!(ZPublisher))
-        .class_fun(pq!(z_publisher_put))
+        // TODO(jnigen parity): `z_publisher_put` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
+        // .class_fun(pq!(z_publisher_put))
         .class_fun(pq!(z_publisher_delete))
         .ptr_class(pq!(ZSubscriber))
         .package("query")
         .ptr_class(pq!(ZQueryable))
         .ptr_class(pq!(ZQuerier))
-        .class_fun(pq!(z_querier_get))
+        // TODO(jnigen parity): `z_querier_get` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
+        // .class_fun(pq!(z_querier_get))
         .class_fun(pq!(querier_get))
         .enum_class(pq!(ReplyKeyExpr))
         .enum_class(pq!(QueryTarget))
         .enum_class(pq!(ConsolidationMode))
         .ptr_class(pq!(ZQuery))
-        .class_fun(pq!(z_query_reply_success))
-        .class_fun(pq!(z_query_reply_error))
-        .class_fun(pq!(z_query_reply_delete))
+        // TODO(jnigen parity): `z_query_reply_success` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
+        // .class_fun(pq!(z_query_reply_success))
+        // TODO(jnigen parity): `z_query_reply_error` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
+        // .class_fun(pq!(z_query_reply_error))
+        // TODO(jnigen parity): `z_query_reply_delete` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
+        // .class_fun(pq!(z_query_reply_delete))
         .class_fun(pq!(z_query_expand))
         .data_class(pq!(Query))
         .ptr_class(pq!(ZReply))
@@ -247,24 +251,36 @@ fn main() {
         .ptr_class(pq!(ZSession))
         .class_object_fun(pq!(z_open))
         .class_fun(pq!(z_session_declare_publisher))
-        .class_fun(pq!(z_session_put))
-        .class_fun(pq!(z_session_delete))
-        .class_fun(pq!(z_session_declare_subscriber))
+        // TODO(jnigen parity): `z_session_put` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
+        // .class_fun(pq!(z_session_put))
+        // TODO(jnigen parity): `z_session_delete` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
+        // .class_fun(pq!(z_session_delete))
+        // TODO(jnigen parity): `z_session_declare_subscriber` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
+        // .class_fun(pq!(z_session_declare_subscriber))
         .class_fun(pq!(session_declare_subscriber))
         .class_fun(pq!(z_session_declare_querier))
-        .class_fun(pq!(z_session_declare_queryable))
+        // TODO(jnigen parity): `z_session_declare_queryable` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
+        // .class_fun(pq!(z_session_declare_queryable))
         .class_fun(pq!(session_declare_queryable))
         .class_fun(pq!(z_session_declare_keyexpr))
         .class_fun(pq!(z_session_undeclare_keyexpr))
-        .class_fun(pq!(z_session_get))
+        // TODO(jnigen parity): `z_session_get` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
+        // .class_fun(pq!(z_session_get))
         .class_fun(pq!(session_get))
         .class_fun(pq!(z_session_zid))
-        .class_fun(pq!(z_session_peers_zid))
-        .class_fun(pq!(z_session_routers_zid))
+        // TODO(jnigen parity): z_session_peers_zid / z_session_routers_zid return
+        // `Vec<ZZenohId>` (a Vec of opaque handles). The JNI backend doesn't yet
+        // encode `Vec<opaque-handle>` (it would need to box each `jlong` into a
+        // `java.lang.Long` collection element; the Kotlin side already folds
+        // `Iterable(Handle)`). Deferred to the converter-coverage follow-up.
+        // .class_fun(pq!(z_session_peers_zid))
+        // .class_fun(pq!(z_session_routers_zid))
         .class_fun(pq!(z_liveliness_declare_token))
-        .class_fun(pq!(z_liveliness_get))
+        // TODO(jnigen parity): `z_liveliness_get` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
+        // .class_fun(pq!(z_liveliness_get))
         .class_fun(pq!(liveliness_get))
-        .class_fun(pq!(z_liveliness_declare_subscriber))
+        // TODO(jnigen parity): `z_liveliness_declare_subscriber` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
+        // .class_fun(pq!(z_liveliness_declare_subscriber))
         .class_fun(pq!(liveliness_declare_subscriber))
         .into_sources(
             pq!(ZBytes),
