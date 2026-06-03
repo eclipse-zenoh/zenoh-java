@@ -3,14 +3,11 @@ package io.zenoh.jni.time
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniBindingError
+import io.zenoh.jni.NativeHandle
+import io.zenoh.jni.withSortedHandleLocks
 
 /** Typed handle for a native Zenoh `ZTimestamp`. */
-public class ZTimestamp(initialPtr: Long) : AutoCloseable {
-    @Volatile internal var ptr: Long = initialPtr
-
-    public fun peek(): Long = ptr
-    public fun isClosed(): Boolean = ptr == 0L
-
+public class ZTimestamp(initialPtr: Long) : NativeHandle(initialPtr) {
     @Synchronized
     override fun close() {
         val p = ptr
@@ -29,28 +26,34 @@ public class ZTimestamp(initialPtr: Long) : AutoCloseable {
 
     @Throws(JniBindingError::class)
     public fun zTimestampNtp64(): Long {
-        synchronized(this) {
-            val t_ptr = this.ptr
-            if (t_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zTimestampNtp64(t_ptr)
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val t_ptr = this.ptr
+        if (t_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zTimestampNtp64(t_ptr)
         }
     }
 
     @Throws(JniBindingError::class)
     public fun zTimestampId(): ByteArray {
-        synchronized(this) {
-            val t_ptr = this.ptr
-            if (t_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zTimestampId(t_ptr)
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val t_ptr = this.ptr
+        if (t_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zTimestampId(t_ptr)
         }
     }
 
     @Throws(JniBindingError::class)
     public fun zTimestampExpand(): Timestamp {
-        synchronized(this) {
-            val t_ptr = this.ptr
-            if (t_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zTimestampExpand(t_ptr)
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val t_ptr = this.ptr
+        if (t_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zTimestampExpand(t_ptr)
         }
     }
 

@@ -3,14 +3,11 @@ package io.zenoh.jni.bytes
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniBindingError
+import io.zenoh.jni.NativeHandle
+import io.zenoh.jni.withSortedHandleLocks
 
 /** Typed handle for a native Zenoh `ZEncoding`. */
-public class ZEncoding(initialPtr: Long) : AutoCloseable {
-    @Volatile internal var ptr: Long = initialPtr
-
-    public fun peek(): Long = ptr
-    public fun isClosed(): Boolean = ptr == 0L
-
+public class ZEncoding(initialPtr: Long) : NativeHandle(initialPtr) {
     @Synchronized
     override fun close() {
         val p = ptr
@@ -29,28 +26,34 @@ public class ZEncoding(initialPtr: Long) : AutoCloseable {
 
     @Throws(JniBindingError::class)
     public fun zEncodingId(): Int {
-        synchronized(this) {
-            val e_ptr = this.ptr
-            if (e_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zEncodingId(e_ptr)
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val e_ptr = this.ptr
+        if (e_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zEncodingId(e_ptr)
         }
     }
 
     @Throws(JniBindingError::class)
     public fun zEncodingSchema(): String {
-        synchronized(this) {
-            val e_ptr = this.ptr
-            if (e_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zEncodingSchema(e_ptr)
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val e_ptr = this.ptr
+        if (e_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zEncodingSchema(e_ptr)
         }
     }
 
     @Throws(JniBindingError::class)
     public fun zEncodingToString(): String {
-        synchronized(this) {
-            val e_ptr = this.ptr
-            if (e_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zEncodingToString(e_ptr)
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val e_ptr = this.ptr
+        if (e_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zEncodingToString(e_ptr)
         }
     }
 

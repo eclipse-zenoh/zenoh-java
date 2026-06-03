@@ -4,14 +4,11 @@ package io.zenoh.jni.config
 import io.zenoh.jni.Error
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniBindingError
+import io.zenoh.jni.NativeHandle
+import io.zenoh.jni.withSortedHandleLocks
 
 /** Typed handle for a native Zenoh `ZConfig`. */
-public class ZConfig(initialPtr: Long) : AutoCloseable {
-    @Volatile internal var ptr: Long = initialPtr
-
-    public fun peek(): Long = ptr
-    public fun isClosed(): Boolean = ptr == 0L
-
+public class ZConfig(initialPtr: Long) : NativeHandle(initialPtr) {
     @Synchronized
     override fun close() {
         val p = ptr
@@ -30,19 +27,23 @@ public class ZConfig(initialPtr: Long) : AutoCloseable {
 
     @Throws(Error::class, JniBindingError::class)
     public fun zConfigGetJson(key: String): String {
-        synchronized(this) {
-            val c_ptr = this.ptr
-            if (c_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zConfigGetJson(c_ptr, key)
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val c_ptr = this.ptr
+        if (c_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zConfigGetJson(c_ptr, key)
         }
     }
 
     @Throws(Error::class, JniBindingError::class)
     public fun zConfigInsertJson5(key: String, value: String) {
-        synchronized(this) {
-            val c_ptr = this.ptr
-            if (c_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            JNINative.zConfigInsertJson5(c_ptr, key, value)
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        withSortedHandleLocks(__locks) {
+        val c_ptr = this.ptr
+        if (c_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zConfigInsertJson5(c_ptr, key, value)
         }
     }
 

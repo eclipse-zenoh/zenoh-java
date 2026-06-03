@@ -214,26 +214,21 @@ fn main() {
         .data_class(pq!(Sample))
         .package("pubsub")
         .ptr_class(pq!(ZPublisher))
-        // TODO(jnigen parity): `z_publisher_put` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
-        // .class_fun(pq!(z_publisher_put))
+        .class_fun(pq!(z_publisher_put))
         .class_fun(pq!(z_publisher_delete))
         .ptr_class(pq!(ZSubscriber))
         .package("query")
         .ptr_class(pq!(ZQueryable))
         .ptr_class(pq!(ZQuerier))
-        // TODO(jnigen parity): `z_querier_get` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
-        // .class_fun(pq!(z_querier_get))
+        .class_fun(pq!(z_querier_get))
         .class_fun(pq!(querier_get))
         .enum_class(pq!(ReplyKeyExpr))
         .enum_class(pq!(QueryTarget))
         .enum_class(pq!(ConsolidationMode))
         .ptr_class(pq!(ZQuery))
-        // TODO(jnigen parity): `z_query_reply_success` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
-        // .class_fun(pq!(z_query_reply_success))
-        // TODO(jnigen parity): `z_query_reply_error` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
-        // .class_fun(pq!(z_query_reply_error))
-        // TODO(jnigen parity): `z_query_reply_delete` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
-        // .class_fun(pq!(z_query_reply_delete))
+        .class_fun(pq!(z_query_reply_success))
+        .class_fun(pq!(z_query_reply_error))
+        .class_fun(pq!(z_query_reply_delete))
         .class_fun(pq!(z_query_expand))
         .data_class(pq!(Query))
         .ptr_class(pq!(ZReply))
@@ -251,21 +246,16 @@ fn main() {
         .ptr_class(pq!(ZSession))
         .class_object_fun(pq!(z_open))
         .class_fun(pq!(z_session_declare_publisher))
-        // TODO(jnigen parity): `z_session_put` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
-        // .class_fun(pq!(z_session_put))
-        // TODO(jnigen parity): `z_session_delete` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
-        // .class_fun(pq!(z_session_delete))
-        // TODO(jnigen parity): `z_session_declare_subscriber` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
-        // .class_fun(pq!(z_session_declare_subscriber))
+        .class_fun(pq!(z_session_put))
+        .class_fun(pq!(z_session_delete))
+        .class_fun(pq!(z_session_declare_subscriber))
         .class_fun(pq!(session_declare_subscriber))
         .class_fun(pq!(z_session_declare_querier))
-        // TODO(jnigen parity): `z_session_declare_queryable` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
-        // .class_fun(pq!(z_session_declare_queryable))
+        .class_fun(pq!(z_session_declare_queryable))
         .class_fun(pq!(session_declare_queryable))
         .class_fun(pq!(z_session_declare_keyexpr))
         .class_fun(pq!(z_session_undeclare_keyexpr))
-        // TODO(jnigen parity): `z_session_get` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
-        // .class_fun(pq!(z_session_get))
+        .class_fun(pq!(z_session_get))
         .class_fun(pq!(session_get))
         .class_fun(pq!(z_session_zid))
         // TODO(jnigen parity): z_session_peers_zid / z_session_routers_zid return
@@ -276,11 +266,9 @@ fn main() {
         // .class_fun(pq!(z_session_peers_zid))
         // .class_fun(pq!(z_session_routers_zid))
         .class_fun(pq!(z_liveliness_declare_token))
-        // TODO(jnigen parity): `z_liveliness_get` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
-        // .class_fun(pq!(z_liveliness_get))
+        .class_fun(pq!(z_liveliness_get))
         .class_fun(pq!(liveliness_get))
-        // TODO(jnigen parity): `z_liveliness_declare_subscriber` has >2 opaque-handle params; Kotlin emitter needs an N-ary ordered-synchronized lock scaffold. Deferred.
-        // .class_fun(pq!(z_liveliness_declare_subscriber))
+        .class_fun(pq!(z_liveliness_declare_subscriber))
         .class_fun(pq!(liveliness_declare_subscriber))
         .into_sources(
             pq!(ZBytes),

@@ -3,14 +3,11 @@ package io.zenoh.jni.config
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniBindingError
+import io.zenoh.jni.NativeHandle
+import io.zenoh.jni.withSortedHandleLocks
 
 /** Typed handle for a native Zenoh `ZZenohId`. */
-public class ZZenohId(initialPtr: Long) : AutoCloseable {
-    @Volatile internal var ptr: Long = initialPtr
-
-    public fun peek(): Long = ptr
-    public fun isClosed(): Boolean = ptr == 0L
-
+public class ZZenohId(initialPtr: Long) : NativeHandle(initialPtr) {
     @Synchronized
     override fun close() {
         val p = ptr
@@ -29,19 +26,23 @@ public class ZZenohId(initialPtr: Long) : AutoCloseable {
 
     @Throws(JniBindingError::class)
     public fun zZenohIdToBytes(): ByteArray {
-        synchronized(this) {
-            val z_ptr = this.ptr
-            if (z_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zZenohIdToBytes(z_ptr)
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val z_ptr = this.ptr
+        if (z_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zZenohIdToBytes(z_ptr)
         }
     }
 
     @Throws(JniBindingError::class)
     public fun zZenohIdToString(): String {
-        synchronized(this) {
-            val z_ptr = this.ptr
-            if (z_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zZenohIdToString(z_ptr)
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val z_ptr = this.ptr
+        if (z_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zZenohIdToString(z_ptr)
         }
     }
 

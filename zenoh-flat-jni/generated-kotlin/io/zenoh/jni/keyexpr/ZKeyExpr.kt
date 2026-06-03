@@ -4,14 +4,11 @@ package io.zenoh.jni.keyexpr
 import io.zenoh.jni.Error
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniBindingError
+import io.zenoh.jni.NativeHandle
+import io.zenoh.jni.withSortedHandleLocks
 
 /** Typed handle for a native Zenoh `ZKeyExpr`. */
-public class ZKeyExpr(initialPtr: Long) : AutoCloseable {
-    @Volatile internal var ptr: Long = initialPtr
-
-    public fun peek(): Long = ptr
-    public fun isClosed(): Boolean = ptr == 0L
-
+public class ZKeyExpr(initialPtr: Long) : NativeHandle(initialPtr) {
     @Synchronized
     override fun close() {
         val p = ptr
@@ -30,67 +27,65 @@ public class ZKeyExpr(initialPtr: Long) : AutoCloseable {
 
     @Throws(JniBindingError::class)
     public fun zKeyexprIntersects(b: ZKeyExpr): Boolean {
-        val a_lo = this.ptr
-        val b_lo = b.ptr
-        if (a_lo == 0L || b_lo == 0L) throw JniBindingError("Operation on a closed native handle.")
-        val (lock1, lock2) = if (a_lo <= b_lo) this to b else b to this
-        synchronized(lock1) {
-            synchronized(lock2) {
-                val a_ptr = this.ptr
-                val b_ptr = b.ptr
-                if (a_ptr == 0L || b_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-                return JNINative.zKeyexprIntersects(a_ptr, b_ptr)
-            }
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        __locks.add(b)
+        return withSortedHandleLocks(__locks) {
+        val a_ptr = this.ptr
+        if (a_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        val b_ptr = b.ptr
+        if (b_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zKeyexprIntersects(a_ptr, b_ptr)
         }
     }
 
     @Throws(JniBindingError::class)
     public fun zKeyexprIncludes(b: ZKeyExpr): Boolean {
-        val a_lo = this.ptr
-        val b_lo = b.ptr
-        if (a_lo == 0L || b_lo == 0L) throw JniBindingError("Operation on a closed native handle.")
-        val (lock1, lock2) = if (a_lo <= b_lo) this to b else b to this
-        synchronized(lock1) {
-            synchronized(lock2) {
-                val a_ptr = this.ptr
-                val b_ptr = b.ptr
-                if (a_ptr == 0L || b_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-                return JNINative.zKeyexprIncludes(a_ptr, b_ptr)
-            }
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        __locks.add(b)
+        return withSortedHandleLocks(__locks) {
+        val a_ptr = this.ptr
+        if (a_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        val b_ptr = b.ptr
+        if (b_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zKeyexprIncludes(a_ptr, b_ptr)
         }
     }
 
     @Throws(JniBindingError::class)
     public fun zKeyexprRelationTo(b: ZKeyExpr): SetIntersectionLevel {
-        val a_lo = this.ptr
-        val b_lo = b.ptr
-        if (a_lo == 0L || b_lo == 0L) throw JniBindingError("Operation on a closed native handle.")
-        val (lock1, lock2) = if (a_lo <= b_lo) this to b else b to this
-        synchronized(lock1) {
-            synchronized(lock2) {
-                val a_ptr = this.ptr
-                val b_ptr = b.ptr
-                if (a_ptr == 0L || b_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-                return SetIntersectionLevel.fromInt(JNINative.zKeyexprRelationTo(a_ptr, b_ptr))
-            }
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        __locks.add(b)
+        return withSortedHandleLocks(__locks) {
+        val a_ptr = this.ptr
+        if (a_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        val b_ptr = b.ptr
+        if (b_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        SetIntersectionLevel.fromInt(JNINative.zKeyexprRelationTo(a_ptr, b_ptr))
         }
     }
 
     @Throws(Error::class, JniBindingError::class)
     public fun zKeyexprJoin(b: String): ZKeyExpr {
-        synchronized(this) {
-            val a_ptr = this.ptr
-            if (a_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return ZKeyExpr(JNINative.zKeyexprJoin(a_ptr, b))
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val a_ptr = this.ptr
+        if (a_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        ZKeyExpr(JNINative.zKeyexprJoin(a_ptr, b))
         }
     }
 
     @Throws(Error::class, JniBindingError::class)
     public fun zKeyexprConcat(b: String): ZKeyExpr {
-        synchronized(this) {
-            val a_ptr = this.ptr
-            if (a_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return ZKeyExpr(JNINative.zKeyexprConcat(a_ptr, b))
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val a_ptr = this.ptr
+        if (a_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        ZKeyExpr(JNINative.zKeyexprConcat(a_ptr, b))
         }
     }
 

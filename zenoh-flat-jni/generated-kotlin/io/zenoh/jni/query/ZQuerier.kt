@@ -4,18 +4,16 @@ package io.zenoh.jni.query
 import io.zenoh.jni.Error
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniBindingError
+import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.bytes.ZEncoding
 import io.zenoh.jni.bytes.ZZBytes
 import io.zenoh.jni.callbacks.Callback
 import io.zenoh.jni.callbacks.ReplyCallback
+import io.zenoh.jni.callbacks.ZReplyCallback
+import io.zenoh.jni.withSortedHandleLocks
 
 /** Typed handle for a native Zenoh `ZQuerier`. */
-public class ZQuerier(initialPtr: Long) : AutoCloseable {
-    @Volatile internal var ptr: Long = initialPtr
-
-    public fun peek(): Long = ptr
-    public fun isClosed(): Boolean = ptr == 0L
-
+public class ZQuerier(initialPtr: Long) : NativeHandle(initialPtr) {
     @Synchronized
     override fun close() {
         val p = ptr
@@ -33,39 +31,41 @@ public class ZQuerier(initialPtr: Long) : AutoCloseable {
     }
 
     @Throws(Error::class, JniBindingError::class)
+    public fun zQuerierGet(parameters: String?, payload: ZZBytes, encoding: ZEncoding?, attachment: ZZBytes, callback: ZReplyCallback, onClose: Callback) {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        __locks.add(payload)
+        encoding?.let { __locks.add(it) }
+        __locks.add(attachment)
+        withSortedHandleLocks(__locks) {
+        val querier_ptr = this.ptr
+        if (querier_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        val payload_ptr = payload.ptr
+        if (payload_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        val encoding_ptr = encoding?.ptr ?: 0L
+        if (encoding != null && encoding_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        val attachment_ptr = attachment.ptr
+        if (attachment_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        try {
+        JNINative.zQuerierGet(querier_ptr, parameters, payload_ptr, encoding_ptr, attachment_ptr, callback, onClose)
+        } finally {
+        payload.ptr = 0L
+        attachment.ptr = 0L
+        }
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
     public fun querierGet(parameters: String?, payload: Any?, encoding: Any?, attachment: Any?, callback: ReplyCallback, onClose: Callback) {
-        synchronized(this) {
-            val querier_ptr = this.ptr
-            if (querier_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            if (payload is ZZBytes) synchronized(payload) {
-            if (encoding is ZEncoding) synchronized(encoding) {
-            if (attachment is ZZBytes) synchronized(attachment) {
-            JNINative.querierGet(querier_ptr, parameters, payload, encoding, attachment, callback, onClose)
-        } else {
-            JNINative.querierGet(querier_ptr, parameters, payload, encoding, attachment, callback, onClose)
-        }
-        } else {
-            if (attachment is ZZBytes) synchronized(attachment) {
-            JNINative.querierGet(querier_ptr, parameters, payload, encoding, attachment, callback, onClose)
-        } else {
-            JNINative.querierGet(querier_ptr, parameters, payload, encoding, attachment, callback, onClose)
-        }
-        }
-        } else {
-            if (encoding is ZEncoding) synchronized(encoding) {
-            if (attachment is ZZBytes) synchronized(attachment) {
-            JNINative.querierGet(querier_ptr, parameters, payload, encoding, attachment, callback, onClose)
-        } else {
-            JNINative.querierGet(querier_ptr, parameters, payload, encoding, attachment, callback, onClose)
-        }
-        } else {
-            if (attachment is ZZBytes) synchronized(attachment) {
-            JNINative.querierGet(querier_ptr, parameters, payload, encoding, attachment, callback, onClose)
-        } else {
-            JNINative.querierGet(querier_ptr, parameters, payload, encoding, attachment, callback, onClose)
-        }
-        }
-        }
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        (payload as? NativeHandle)?.let { __locks.add(it) }
+        (encoding as? NativeHandle)?.let { __locks.add(it) }
+        (attachment as? NativeHandle)?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+        val querier_ptr = this.ptr
+        if (querier_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.querierGet(querier_ptr, parameters, payload, encoding, attachment, callback, onClose)
         }
     }
 

@@ -10,6 +10,9 @@ import io.zenoh.jni.callbacks.QueryCallback
 import io.zenoh.jni.callbacks.ReplyCallback
 import io.zenoh.jni.callbacks.SampleCallback
 import io.zenoh.jni.callbacks.ZHelloCallback
+import io.zenoh.jni.callbacks.ZQueryCallback
+import io.zenoh.jni.callbacks.ZReplyCallback
+import io.zenoh.jni.callbacks.ZSampleCallback
 import io.zenoh.jni.config.WhatAmI
 import io.zenoh.jni.config.ZConfig
 import io.zenoh.jni.config.ZZenohId
@@ -184,10 +187,17 @@ internal object JNINative {
     external fun zKeyexprJoin(a: Long, b: String): Long
     external fun zKeyexprRelationTo(a: Long, b: Long): Int
     external fun zKeyexprTryFrom(s: String): Long
+    external fun zLivelinessDeclareSubscriber(session: Long, keyExpr: Long, history: Boolean, callback: ZSampleCallback, onClose: Callback): Long
     external fun zLivelinessDeclareToken(session: Long, keyExpr: Long): Long
+    external fun zLivelinessGet(session: Long, keyExpr: Long, timeoutMs: Long, callback: ZReplyCallback, onClose: Callback)
     external fun zOpen(config: Long): Long
     external fun zPublisherDelete(publisher: Long, attachment: Long?)
+    external fun zPublisherPut(publisher: Long, payload: Long, encoding: Long, attachment: Long?)
+    external fun zQuerierGet(querier: Long, parameters: String?, payload: Long?, encoding: Long, attachment: Long?, callback: ZReplyCallback, onClose: Callback)
     external fun zQueryExpand(query: Long): Query
+    external fun zQueryReplyDelete(query: Long, keyExpr: Long, timestampNtp64: Long?, attachment: Long?, express: Boolean?)
+    external fun zQueryReplyError(query: Long, payload: Long, encoding: Long)
+    external fun zQueryReplySuccess(query: Long, keyExpr: Long, payload: Long, encoding: Long, timestampNtp64: Long?, attachment: Long?, express: Boolean?)
     external fun zReplyErrorEncoding(r: Long): Long
     external fun zReplyErrorPayload(r: Long): Long
     external fun zReplyExpand(r: Long): Reply
@@ -209,6 +219,11 @@ internal object JNINative {
     external fun zSessionDeclareKeyexpr(session: Long, keyExpr: String): Long
     external fun zSessionDeclarePublisher(session: Long, keyExpr: Long, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, reliability: Reliability?): Long
     external fun zSessionDeclareQuerier(session: Long, keyExpr: Long, target: QueryTarget?, consolidation: ConsolidationMode?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, timeoutMs: Long?, acceptReplies: ReplyKeyExpr?): Long
+    external fun zSessionDeclareQueryable(session: Long, keyExpr: Long, complete: Boolean?, callback: ZQueryCallback, onClose: Callback): Long
+    external fun zSessionDeclareSubscriber(session: Long, keyExpr: Long, callback: ZSampleCallback, onClose: Callback): Long
+    external fun zSessionDelete(session: Long, keyExpr: Long, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, attachment: Long?, reliability: Reliability?)
+    external fun zSessionGet(session: Long, keyExpr: Long, parameters: String?, timeoutMs: Long?, target: QueryTarget?, consolidation: ConsolidationMode?, acceptReplies: ReplyKeyExpr?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, payload: Long?, encoding: Long, attachment: Long?, callback: ZReplyCallback, onClose: Callback)
+    external fun zSessionPut(session: Long, keyExpr: Long, payload: Long, encoding: Long, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, attachment: Long?, reliability: Reliability?)
     external fun zSessionUndeclareKeyexpr(session: Long, keyExpr: Long)
     external fun zSessionZid(session: Long): Long
     external fun zTimestampExpand(t: Long): Timestamp

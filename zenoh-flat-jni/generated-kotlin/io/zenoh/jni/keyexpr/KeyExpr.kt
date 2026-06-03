@@ -4,6 +4,8 @@ package io.zenoh.jni.keyexpr
 import io.zenoh.jni.Error
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniBindingError
+import io.zenoh.jni.NativeHandle
+import io.zenoh.jni.withSortedHandleLocks
 
 public data class KeyExpr(
     val keyExprString: String,
@@ -25,71 +27,55 @@ public data class KeyExpr(
 
 
         @Throws(Error::class, JniBindingError::class)
-        public fun keyexprIntersects(a: Any, b: Any): Boolean =
-            if (a is ZKeyExpr) synchronized(a) {
-            if (b is ZKeyExpr) synchronized(b) {
+        public fun keyexprIntersects(a: Any, b: Any): Boolean {
+            val __locks = ArrayList<NativeHandle>()
+            (a as? NativeHandle)?.let { __locks.add(it) }
+            (b as? NativeHandle)?.let { __locks.add(it) }
+            return withSortedHandleLocks(__locks) {
             JNINative.keyexprIntersects(a, b)
-        } else {
-            JNINative.keyexprIntersects(a, b)
-        }
-        } else {
-            if (b is ZKeyExpr) synchronized(b) {
-            JNINative.keyexprIntersects(a, b)
-        } else {
-            JNINative.keyexprIntersects(a, b)
-        }
+            }
         }
 
 
         @Throws(Error::class, JniBindingError::class)
-        public fun keyexprIncludes(a: Any, b: Any): Boolean =
-            if (a is ZKeyExpr) synchronized(a) {
-            if (b is ZKeyExpr) synchronized(b) {
+        public fun keyexprIncludes(a: Any, b: Any): Boolean {
+            val __locks = ArrayList<NativeHandle>()
+            (a as? NativeHandle)?.let { __locks.add(it) }
+            (b as? NativeHandle)?.let { __locks.add(it) }
+            return withSortedHandleLocks(__locks) {
             JNINative.keyexprIncludes(a, b)
-        } else {
-            JNINative.keyexprIncludes(a, b)
-        }
-        } else {
-            if (b is ZKeyExpr) synchronized(b) {
-            JNINative.keyexprIncludes(a, b)
-        } else {
-            JNINative.keyexprIncludes(a, b)
-        }
+            }
         }
 
 
         @Throws(Error::class, JniBindingError::class)
-        public fun keyexprRelationTo(a: Any, b: Any): SetIntersectionLevel =
-            if (a is ZKeyExpr) synchronized(a) {
-            if (b is ZKeyExpr) synchronized(b) {
+        public fun keyexprRelationTo(a: Any, b: Any): SetIntersectionLevel {
+            val __locks = ArrayList<NativeHandle>()
+            (a as? NativeHandle)?.let { __locks.add(it) }
+            (b as? NativeHandle)?.let { __locks.add(it) }
+            return withSortedHandleLocks(__locks) {
             SetIntersectionLevel.fromInt(JNINative.keyexprRelationTo(a, b))
-        } else {
-            SetIntersectionLevel.fromInt(JNINative.keyexprRelationTo(a, b))
-        }
-        } else {
-            if (b is ZKeyExpr) synchronized(b) {
-            SetIntersectionLevel.fromInt(JNINative.keyexprRelationTo(a, b))
-        } else {
-            SetIntersectionLevel.fromInt(JNINative.keyexprRelationTo(a, b))
-        }
+            }
         }
 
 
         @Throws(Error::class, JniBindingError::class)
-        public fun keyexprJoin(a: Any, b: String): KeyExpr =
-            if (a is ZKeyExpr) synchronized(a) {
+        public fun keyexprJoin(a: Any, b: String): KeyExpr {
+            val __locks = ArrayList<NativeHandle>()
+            (a as? NativeHandle)?.let { __locks.add(it) }
+            return withSortedHandleLocks(__locks) {
             JNINative.keyexprJoin(a, b)
-        } else {
-            JNINative.keyexprJoin(a, b)
+            }
         }
 
 
         @Throws(Error::class, JniBindingError::class)
-        public fun keyexprConcat(a: Any, b: String): KeyExpr =
-            if (a is ZKeyExpr) synchronized(a) {
+        public fun keyexprConcat(a: Any, b: String): KeyExpr {
+            val __locks = ArrayList<NativeHandle>()
+            (a as? NativeHandle)?.let { __locks.add(it) }
+            return withSortedHandleLocks(__locks) {
             JNINative.keyexprConcat(a, b)
-        } else {
-            JNINative.keyexprConcat(a, b)
+            }
         }
 
     }

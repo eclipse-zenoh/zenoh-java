@@ -3,14 +3,11 @@ package io.zenoh.jni.bytes
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniBindingError
+import io.zenoh.jni.NativeHandle
+import io.zenoh.jni.withSortedHandleLocks
 
 /** Typed handle for a native Zenoh `ZZBytes`. */
-public class ZZBytes(initialPtr: Long) : AutoCloseable {
-    @Volatile internal var ptr: Long = initialPtr
-
-    public fun peek(): Long = ptr
-    public fun isClosed(): Boolean = ptr == 0L
-
+public class ZZBytes(initialPtr: Long) : NativeHandle(initialPtr) {
     @Synchronized
     override fun close() {
         val p = ptr
@@ -29,10 +26,12 @@ public class ZZBytes(initialPtr: Long) : AutoCloseable {
 
     @Throws(JniBindingError::class)
     public fun zZbytesToBytes(): ByteArray {
-        synchronized(this) {
-            val z_ptr = this.ptr
-            if (z_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-            return JNINative.zZbytesToBytes(z_ptr)
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val z_ptr = this.ptr
+        if (z_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zZbytesToBytes(z_ptr)
         }
     }
 

@@ -3,36 +3,34 @@ package io.zenoh.jni.scouting
 
 import io.zenoh.jni.Error
 import io.zenoh.jni.JniBindingError
+import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.callbacks.Callback
 import io.zenoh.jni.callbacks.HelloCallback
 import io.zenoh.jni.callbacks.ZHelloCallback
 import io.zenoh.jni.config.ZConfig
 import io.zenoh.jni.scouting.ZScout
+import io.zenoh.jni.withSortedHandleLocks
 import io.zenoh.jni.JNINative
 
 @Throws(Error::class, JniBindingError::class)
 public fun zScout(whatami: Int, config: ZConfig?, callback: ZHelloCallback, onClose: Callback): ZScout {
-    if (config == null) {
-        val config_ptr = 0L
-        return ZScout(JNINative.zScout(whatami, config_ptr, callback, onClose))
-    }
-    synchronized(config) {
-        val config_ptr = config.ptr
-        if (config_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-        return ZScout(JNINative.zScout(whatami, config_ptr, callback, onClose))
+    val __locks = ArrayList<NativeHandle>()
+    config?.let { __locks.add(it) }
+    return withSortedHandleLocks(__locks) {
+    val config_ptr = config?.ptr ?: 0L
+    if (config != null && config_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+    ZScout(JNINative.zScout(whatami, config_ptr, callback, onClose))
     }
 }
 
 @Throws(Error::class, JniBindingError::class)
 public fun scout(whatami: Int, config: ZConfig?, callback: HelloCallback, onClose: Callback): ZScout {
-    if (config == null) {
-        val config_ptr = 0L
-        return ZScout(JNINative.scout(whatami, config_ptr, callback, onClose))
-    }
-    synchronized(config) {
-        val config_ptr = config.ptr
-        if (config_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-        return ZScout(JNINative.scout(whatami, config_ptr, callback, onClose))
+    val __locks = ArrayList<NativeHandle>()
+    config?.let { __locks.add(it) }
+    return withSortedHandleLocks(__locks) {
+    val config_ptr = config?.ptr ?: 0L
+    if (config != null && config_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+    ZScout(JNINative.scout(whatami, config_ptr, callback, onClose))
     }
 }
 

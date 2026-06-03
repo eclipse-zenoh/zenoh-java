@@ -4,15 +4,13 @@ package io.zenoh.jni.pubsub
 import io.zenoh.jni.Error
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniBindingError
+import io.zenoh.jni.NativeHandle
+import io.zenoh.jni.bytes.ZEncoding
 import io.zenoh.jni.bytes.ZZBytes
+import io.zenoh.jni.withSortedHandleLocks
 
 /** Typed handle for a native Zenoh `ZPublisher`. */
-public class ZPublisher(initialPtr: Long) : AutoCloseable {
-    @Volatile internal var ptr: Long = initialPtr
-
-    public fun peek(): Long = ptr
-    public fun isClosed(): Boolean = ptr == 0L
-
+public class ZPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
     @Synchronized
     override fun close() {
         val p = ptr
@@ -30,22 +28,45 @@ public class ZPublisher(initialPtr: Long) : AutoCloseable {
     }
 
     @Throws(Error::class, JniBindingError::class)
+    public fun zPublisherPut(payload: ZZBytes, encoding: ZEncoding?, attachment: ZZBytes) {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        __locks.add(payload)
+        encoding?.let { __locks.add(it) }
+        __locks.add(attachment)
+        withSortedHandleLocks(__locks) {
+        val publisher_ptr = this.ptr
+        if (publisher_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        val payload_ptr = payload.ptr
+        if (payload_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        val encoding_ptr = encoding?.ptr ?: 0L
+        if (encoding != null && encoding_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        val attachment_ptr = attachment.ptr
+        if (attachment_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        try {
+        JNINative.zPublisherPut(publisher_ptr, payload_ptr, encoding_ptr, attachment_ptr)
+        } finally {
+        payload.ptr = 0L
+        attachment.ptr = 0L
+        }
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
     public fun zPublisherDelete(attachment: ZZBytes) {
-        val publisher_lo = this.ptr
-        val attachment_lo = attachment.ptr
-        if (publisher_lo == 0L || attachment_lo == 0L) throw JniBindingError("Operation on a closed native handle.")
-        val (lock1, lock2) = if (publisher_lo <= attachment_lo) this to attachment else attachment to this
-        synchronized(lock1) {
-            synchronized(lock2) {
-                val publisher_ptr = this.ptr
-                val attachment_ptr = attachment.ptr
-                if (publisher_ptr == 0L || attachment_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-                try {
-                JNINative.zPublisherDelete(publisher_ptr, attachment_ptr)
-            } finally {
-                attachment.ptr = 0L
-            }
-            }
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        __locks.add(attachment)
+        withSortedHandleLocks(__locks) {
+        val publisher_ptr = this.ptr
+        if (publisher_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        val attachment_ptr = attachment.ptr
+        if (attachment_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        try {
+        JNINative.zPublisherDelete(publisher_ptr, attachment_ptr)
+        } finally {
+        attachment.ptr = 0L
+        }
         }
     }
 
