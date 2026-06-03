@@ -70,6 +70,32 @@ public class ZPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
         }
     }
 
+    @Throws(Error::class, JniBindingError::class)
+    public fun publisherPut(payload: Any, encoding: Any?, attachment: Any?) {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        (payload as? NativeHandle)?.let { __locks.add(it) }
+        (encoding as? NativeHandle)?.let { __locks.add(it) }
+        (attachment as? NativeHandle)?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+        val publisher_ptr = this.ptr
+        if (publisher_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.publisherPut(publisher_ptr, payload, encoding, attachment)
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun publisherDelete(attachment: Any?) {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        (attachment as? NativeHandle)?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+        val publisher_ptr = this.ptr
+        if (publisher_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.publisherDelete(publisher_ptr, attachment)
+        }
+    }
+
     public companion object {
         @JvmStatic
         external fun freePtr(ptr: Long)

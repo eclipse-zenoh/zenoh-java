@@ -57,6 +57,17 @@ public class ZEncoding(initialPtr: Long) : NativeHandle(initialPtr) {
         }
     }
 
+    @Throws(JniBindingError::class)
+    public fun zEncodingClone(): ZEncoding {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val e_ptr = this.ptr
+        if (e_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        ZEncoding(JNINative.zEncodingClone(e_ptr))
+        }
+    }
+
     public companion object {
         @JvmStatic
         external fun freePtr(ptr: Long)

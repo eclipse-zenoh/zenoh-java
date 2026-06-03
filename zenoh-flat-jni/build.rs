@@ -24,6 +24,8 @@ fn main() {
         .class_fun(pq!(z_keyexpr_relation_to))
         .class_fun(pq!(z_keyexpr_join))
         .class_fun(pq!(z_keyexpr_concat))
+        .class_fun(pq!(z_keyexpr_clone))
+        .class_fun(pq!(z_keyexpr_to_string))
         .enum_class(pq!(SetIntersectionLevel))
         .data_class(pq!(KeyExpr))
         .class_object_fun(pq!(keyexpr_try_from))
@@ -50,6 +52,7 @@ fn main() {
         .class_object_fun(pq!(z_config_from_yaml))
         .class_fun(pq!(z_config_get_json))
         .class_fun(pq!(z_config_insert_json5))
+        .class_fun(pq!(z_config_clone))
         .enum_class(pq!(WhatAmI))
         // ZZenohId is a `Copy` value (zenoh::session::ZenohId, repr(transparent)),
         // so it crosses as a raw byte-blob `ByteArray` rather than a closeable
@@ -64,6 +67,9 @@ fn main() {
         .package("scouting")
         .ptr_class(pq!(ZHello))
         .class_fun(pq!(z_hello_whatami))
+        .class_fun(pq!(hello_zid))
+        // Blob tier kept for full-surface coverage (value_blob demo); the typed
+        // `hello_zid` above is what real bindings use.
         .class_fun(pq!(z_hello_zid))
         .class_fun(pq!(z_hello_locators))
         .data_class(pq!(Hello))
@@ -81,12 +87,18 @@ fn main() {
         .package("bytes")
         .ptr_class(pq!(ZZBytes))
         .class_fun(pq!(z_zbytes_to_bytes))
+        .class_fun(pq!(z_zbytes_clone))
         .class_object_fun(pq!(z_zbytes_from_vec))
+        // NOTE: `z_zbytes_from_slice(&[u8])` is the C-pointer constructor shape
+        // (`const uint8_t* + size`); its JNI form is `z_zbytes_from_vec(Vec<u8>)`
+        // above (→ `ByteArray`). The `&[u8]` slice input has no JNI representation,
+        // so it's intentionally not exported here.
         .value_class(pq!(ZBytes))
         .ptr_class(pq!(ZEncoding))
         .class_fun(pq!(z_encoding_id))
         .class_fun(pq!(z_encoding_schema))
         .class_fun(pq!(z_encoding_to_string))
+        .class_fun(pq!(z_encoding_clone))
         .class_object_fun(pq!(z_encoding_from_string))
         .class_object_fun(pq!(z_encoding_zenoh_bytes))
         .class_object_fun(pq!(z_encoding_zenoh_string))
@@ -221,6 +233,9 @@ fn main() {
         .ptr_class(pq!(ZPublisher))
         .class_fun(pq!(z_publisher_put))
         .class_fun(pq!(z_publisher_delete))
+        // Expanded (`impl Into<…>`) ergonomic twins.
+        .class_fun(pq!(publisher_put))
+        .class_fun(pq!(publisher_delete))
         .ptr_class(pq!(ZSubscriber))
         .package("query")
         .ptr_class(pq!(ZQueryable))
@@ -234,9 +249,20 @@ fn main() {
         .class_fun(pq!(z_query_reply_success))
         .class_fun(pq!(z_query_reply_error))
         .class_fun(pq!(z_query_reply_delete))
+        .class_fun(pq!(z_query_keyexpr))
+        .class_fun(pq!(z_query_parameters))
+        .class_fun(pq!(z_query_payload))
+        .class_fun(pq!(z_query_encoding))
         .class_fun(pq!(z_query_expand))
+        // Expanded (`impl Into<…>`) ergonomic reply twins.
+        .class_fun(pq!(query_reply_success))
+        .class_fun(pq!(query_reply_error))
+        .class_fun(pq!(query_reply_delete))
         .data_class(pq!(Query))
         .ptr_class(pq!(ZReply))
+        .class_fun(pq!(reply_replier_zid))
+        // Blob tier kept for full-surface coverage (value_blob demo); the typed
+        // `reply_replier_zid` above is what real bindings use.
         .class_fun(pq!(z_reply_replier_zid))
         .class_fun(pq!(z_reply_replier_eid))
         .class_fun(pq!(z_reply_is_ok))
@@ -262,11 +288,27 @@ fn main() {
         .class_fun(pq!(z_session_undeclare_keyexpr))
         .class_fun(pq!(z_session_get))
         .class_fun(pq!(session_get))
+        // Expanded (`impl Into<…>`) ergonomic twins of the declare/put/delete API.
+        .class_fun(pq!(session_declare_publisher))
+        .class_fun(pq!(session_declare_querier))
+        .class_fun(pq!(session_put))
+        .class_fun(pq!(session_delete))
+        // Real, natively-representable zid API: `ZenohId` value-class twins
+        // (`sessionZid(): ZenohId`, `sessionPeersZid(): List<ZenohId>`). This is
+        // what downstream zenoh-java uses.
+        .class_fun(pq!(session_zid))
+        .class_fun(pq!(session_peers_zid))
+        .class_fun(pq!(session_routers_zid))
+        // value_blob demonstration: the same zid surfaced as the opaque-handle
+        // tier's `ZZenohId` — a `Copy` type carried as a `ByteArray` value
+        // (no rust-side close/lock), in both the Direct (`zSessionZid`) and
+        // `Vec` (`zSessionPeersZid`/`zSessionRoutersZid` → `List<ZZenohId>`)
+        // shapes value_blob was built for. Not used by the real zenoh-java API.
         .class_fun(pq!(z_session_zid))
-        // `Vec<ZZenohId>` → `List<ByteArray>` now that ZZenohId is a value-blob.
         .class_fun(pq!(z_session_peers_zid))
         .class_fun(pq!(z_session_routers_zid))
         .class_fun(pq!(z_liveliness_declare_token))
+        .class_fun(pq!(liveliness_declare_token))
         .class_fun(pq!(z_liveliness_get))
         .class_fun(pq!(liveliness_get))
         .class_fun(pq!(z_liveliness_declare_subscriber))

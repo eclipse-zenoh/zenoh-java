@@ -99,6 +99,50 @@ public class ZQuery(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 
     @Throws(JniBindingError::class)
+    public fun zQueryKeyexpr(): ZKeyExpr {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val q_ptr = this.ptr
+        if (q_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        ZKeyExpr(JNINative.zQueryKeyexpr(q_ptr))
+        }
+    }
+
+    @Throws(JniBindingError::class)
+    public fun zQueryParameters(): String {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val q_ptr = this.ptr
+        if (q_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zQueryParameters(q_ptr)
+        }
+    }
+
+    @Throws(JniBindingError::class)
+    public fun zQueryPayload(): ZZBytes? {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val q_ptr = this.ptr
+        if (q_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zQueryPayload(q_ptr).let { if (it == 0L) null else ZZBytes(it) }
+        }
+    }
+
+    @Throws(JniBindingError::class)
+    public fun zQueryEncoding(): ZEncoding? {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val q_ptr = this.ptr
+        if (q_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zQueryEncoding(q_ptr).let { if (it == 0L) null else ZEncoding(it) }
+        }
+    }
+
+    @Throws(JniBindingError::class)
     public fun zQueryExpand(): Query {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(this)
@@ -107,6 +151,59 @@ public class ZQuery(initialPtr: Long) : NativeHandle(initialPtr) {
         if (query_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         try {
         JNINative.zQueryExpand(query_ptr)
+        } finally {
+        ptr = 0L
+        }
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun queryReplySuccess(keyExpr: Any, payload: Any, encoding: Any?, timestampNtp64: Long?, attachment: Any?, express: Boolean?) {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        (keyExpr as? NativeHandle)?.let { __locks.add(it) }
+        (payload as? NativeHandle)?.let { __locks.add(it) }
+        (encoding as? NativeHandle)?.let { __locks.add(it) }
+        (attachment as? NativeHandle)?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+        val query_ptr = this.ptr
+        if (query_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        try {
+        JNINative.queryReplySuccess(query_ptr, keyExpr, payload, encoding, timestampNtp64, attachment, express)
+        } finally {
+        ptr = 0L
+        }
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun queryReplyError(payload: Any, encoding: Any?) {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        (payload as? NativeHandle)?.let { __locks.add(it) }
+        (encoding as? NativeHandle)?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+        val query_ptr = this.ptr
+        if (query_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        try {
+        JNINative.queryReplyError(query_ptr, payload, encoding)
+        } finally {
+        ptr = 0L
+        }
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun queryReplyDelete(keyExpr: Any, timestampNtp64: Long?, attachment: Any?, express: Boolean?) {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        (keyExpr as? NativeHandle)?.let { __locks.add(it) }
+        (attachment as? NativeHandle)?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+        val query_ptr = this.ptr
+        if (query_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        try {
+        JNINative.queryReplyDelete(query_ptr, keyExpr, timestampNtp64, attachment, express)
         } finally {
         ptr = 0L
         }

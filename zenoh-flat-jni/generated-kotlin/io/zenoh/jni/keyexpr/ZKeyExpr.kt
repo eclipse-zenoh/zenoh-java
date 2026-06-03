@@ -89,6 +89,28 @@ public class ZKeyExpr(initialPtr: Long) : NativeHandle(initialPtr) {
         }
     }
 
+    @Throws(JniBindingError::class)
+    public fun zKeyexprClone(): ZKeyExpr {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val ke_ptr = this.ptr
+        if (ke_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        ZKeyExpr(JNINative.zKeyexprClone(ke_ptr))
+        }
+    }
+
+    @Throws(JniBindingError::class)
+    public fun zKeyexprToString(): String {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val ke_ptr = this.ptr
+        if (ke_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.zKeyexprToString(ke_ptr)
+        }
+    }
+
     public companion object {
         @JvmStatic
         external fun freePtr(ptr: Long)

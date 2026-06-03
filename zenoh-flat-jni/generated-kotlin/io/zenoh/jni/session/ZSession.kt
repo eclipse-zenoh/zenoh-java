@@ -16,6 +16,7 @@ import io.zenoh.jni.callbacks.ZReplyCallback
 import io.zenoh.jni.callbacks.ZSampleCallback
 import io.zenoh.jni.config.ZConfig
 import io.zenoh.jni.config.ZZenohId
+import io.zenoh.jni.config.ZenohId
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.liveliness.ZLivelinessToken
 import io.zenoh.jni.pubsub.ZPublisher
@@ -265,6 +266,91 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
         }
     }
 
+    @Throws(Error::class, JniBindingError::class)
+    public fun sessionDeclarePublisher(keyExpr: Any, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, reliability: Reliability?): ZPublisher {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        (keyExpr as? NativeHandle)?.let { __locks.add(it) }
+        return withSortedHandleLocks(__locks) {
+        val session_ptr = this.ptr
+        if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        ZPublisher(JNINative.sessionDeclarePublisher(session_ptr, keyExpr, congestionControl, priority, express, reliability))
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun sessionDeclareQuerier(keyExpr: Any, target: QueryTarget?, consolidation: ConsolidationMode?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, timeoutMs: Long?, acceptReplies: ReplyKeyExpr?): ZQuerier {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        (keyExpr as? NativeHandle)?.let { __locks.add(it) }
+        return withSortedHandleLocks(__locks) {
+        val session_ptr = this.ptr
+        if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        ZQuerier(JNINative.sessionDeclareQuerier(session_ptr, keyExpr, target, consolidation, congestionControl, priority, express, timeoutMs, acceptReplies))
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun sessionPut(keyExpr: Any, payload: Any, encoding: Any?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, attachment: Any?, reliability: Reliability?) {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        (keyExpr as? NativeHandle)?.let { __locks.add(it) }
+        (payload as? NativeHandle)?.let { __locks.add(it) }
+        (encoding as? NativeHandle)?.let { __locks.add(it) }
+        (attachment as? NativeHandle)?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+        val session_ptr = this.ptr
+        if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.sessionPut(session_ptr, keyExpr, payload, encoding, congestionControl, priority, express, attachment, reliability)
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun sessionDelete(keyExpr: Any, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, attachment: Any?, reliability: Reliability?) {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        (keyExpr as? NativeHandle)?.let { __locks.add(it) }
+        (attachment as? NativeHandle)?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+        val session_ptr = this.ptr
+        if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.sessionDelete(session_ptr, keyExpr, congestionControl, priority, express, attachment, reliability)
+        }
+    }
+
+    @Throws(JniBindingError::class)
+    public fun sessionZid(): ZenohId {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val session_ptr = this.ptr
+        if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        ZenohId(JNINative.sessionZid(session_ptr))
+        }
+    }
+
+    @Throws(JniBindingError::class)
+    public fun sessionPeersZid(): List<ZenohId> {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val session_ptr = this.ptr
+        if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.sessionPeersZid(session_ptr).map { ZenohId(it) }
+        }
+    }
+
+    @Throws(JniBindingError::class)
+    public fun sessionRoutersZid(): List<ZenohId> {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val session_ptr = this.ptr
+        if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        JNINative.sessionRoutersZid(session_ptr).map { ZenohId(it) }
+        }
+    }
+
     @Throws(JniBindingError::class)
     public fun zSessionZid(): ZZenohId {
         val __locks = ArrayList<NativeHandle>()
@@ -313,6 +399,18 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
         } finally {
         keyExpr.ptr = 0L
         }
+        }
+    }
+
+    @Throws(Error::class, JniBindingError::class)
+    public fun livelinessDeclareToken(keyExpr: Any): ZLivelinessToken {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        (keyExpr as? NativeHandle)?.let { __locks.add(it) }
+        return withSortedHandleLocks(__locks) {
+        val session_ptr = this.ptr
+        if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        ZLivelinessToken(JNINative.livelinessDeclareToken(session_ptr, keyExpr))
         }
     }
 

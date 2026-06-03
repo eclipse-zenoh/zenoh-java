@@ -16,6 +16,7 @@ import io.zenoh.jni.callbacks.ZSampleCallback
 import io.zenoh.jni.config.WhatAmI
 import io.zenoh.jni.config.ZConfig
 import io.zenoh.jni.config.ZZenohId
+import io.zenoh.jni.config.ZenohId
 import io.zenoh.jni.keyexpr.KeyExpr
 import io.zenoh.jni.keyexpr.SetIntersectionLevel
 import io.zenoh.jni.keyexpr.ZKeyExpr
@@ -96,6 +97,7 @@ internal object JNINative {
     external fun encodingZenohBytes(): Encoding
     external fun encodingZenohSerialized(): Encoding
     external fun encodingZenohString(): Encoding
+    external fun helloZid(h: Long): ByteArray
     external fun initAndroidLogs(filter: String)
     external fun initZenohLogsFromEnvOr(fallbackFilter: String)
     external fun keyexprAutocanonize(s: String): KeyExpr
@@ -106,13 +108,28 @@ internal object JNINative {
     external fun keyexprRelationTo(a: Any, b: Any): Int
     external fun keyexprTryFrom(s: String): KeyExpr
     external fun livelinessDeclareSubscriber(session: Long, keyExpr: Any, history: Boolean, callback: SampleCallback, onClose: Callback): Long
+    external fun livelinessDeclareToken(session: Long, keyExpr: Any): Long
     external fun livelinessGet(session: Long, keyExpr: Any, timeoutMs: Long, callback: ReplyCallback, onClose: Callback)
+    external fun publisherDelete(publisher: Long, attachment: Any?)
+    external fun publisherPut(publisher: Long, payload: Any, encoding: Any?, attachment: Any?)
     external fun querierGet(querier: Long, parameters: String?, payload: Any?, encoding: Any?, attachment: Any?, callback: ReplyCallback, onClose: Callback)
+    external fun queryReplyDelete(query: Long, keyExpr: Any, timestampNtp64: Long?, attachment: Any?, express: Boolean?)
+    external fun queryReplyError(query: Long, payload: Any, encoding: Any?)
+    external fun queryReplySuccess(query: Long, keyExpr: Any, payload: Any, encoding: Any?, timestampNtp64: Long?, attachment: Any?, express: Boolean?)
+    external fun replyReplierZid(r: Long): ByteArray?
     external fun scout(whatami: Int, config: Long, callback: HelloCallback, onClose: Callback): Long
+    external fun sessionDeclarePublisher(session: Long, keyExpr: Any, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, reliability: Reliability?): Long
+    external fun sessionDeclareQuerier(session: Long, keyExpr: Any, target: QueryTarget?, consolidation: ConsolidationMode?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, timeoutMs: Long?, acceptReplies: ReplyKeyExpr?): Long
     external fun sessionDeclareQueryable(session: Long, keyExpr: Any, complete: Boolean?, callback: QueryCallback, onClose: Callback): Long
     external fun sessionDeclareSubscriber(session: Long, keyExpr: Any, callback: SampleCallback, onClose: Callback): Long
+    external fun sessionDelete(session: Long, keyExpr: Any, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, attachment: Any?, reliability: Reliability?)
     external fun sessionGet(session: Long, keyExpr: Any, parameters: String?, timeoutMs: Long?, target: QueryTarget?, consolidation: ConsolidationMode?, acceptReplies: ReplyKeyExpr?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, payload: Any?, encoding: Any?, attachment: Any?, callback: ReplyCallback, onClose: Callback)
+    external fun sessionPeersZid(session: Long): List<ByteArray>
+    external fun sessionPut(session: Long, keyExpr: Any, payload: Any, encoding: Any?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, attachment: Any?, reliability: Reliability?)
+    external fun sessionRoutersZid(session: Long): List<ByteArray>
+    external fun sessionZid(session: Long): ByteArray
     external fun tryInitZenohLogsFromEnv()
+    external fun zConfigClone(c: Long): Long
     external fun zConfigDefault(): Long
     external fun zConfigFromFile(path: String): Long
     external fun zConfigFromJson(s: String): Long
@@ -145,6 +162,7 @@ internal object JNINative {
     external fun zEncodingAudioMp4(): Long
     external fun zEncodingAudioOgg(): Long
     external fun zEncodingAudioVorbis(): Long
+    external fun zEncodingClone(e: Long): Long
     external fun zEncodingFromString(s: String): Long
     external fun zEncodingId(e: Long): Int
     external fun zEncodingImageBmp(): Long
@@ -181,11 +199,13 @@ internal object JNINative {
     external fun zHelloWhatami(h: Long): Int
     external fun zHelloZid(h: Long): ByteArray
     external fun zKeyexprAutocanonize(s: String): Long
+    external fun zKeyexprClone(ke: Long): Long
     external fun zKeyexprConcat(a: Long, b: String): Long
     external fun zKeyexprIncludes(a: Long, b: Long): Boolean
     external fun zKeyexprIntersects(a: Long, b: Long): Boolean
     external fun zKeyexprJoin(a: Long, b: String): Long
     external fun zKeyexprRelationTo(a: Long, b: Long): Int
+    external fun zKeyexprToString(ke: Long): String
     external fun zKeyexprTryFrom(s: String): Long
     external fun zLivelinessDeclareSubscriber(session: Long, keyExpr: Long, history: Boolean, callback: ZSampleCallback, onClose: Callback): Long
     external fun zLivelinessDeclareToken(session: Long, keyExpr: Long): Long
@@ -194,7 +214,11 @@ internal object JNINative {
     external fun zPublisherDelete(publisher: Long, attachment: Long?)
     external fun zPublisherPut(publisher: Long, payload: Long, encoding: Long, attachment: Long?)
     external fun zQuerierGet(querier: Long, parameters: String?, payload: Long?, encoding: Long, attachment: Long?, callback: ZReplyCallback, onClose: Callback)
+    external fun zQueryEncoding(q: Long): Long
     external fun zQueryExpand(query: Long): Query
+    external fun zQueryKeyexpr(q: Long): Long
+    external fun zQueryParameters(q: Long): String
+    external fun zQueryPayload(q: Long): Long
     external fun zQueryReplyDelete(query: Long, keyExpr: Long, timestampNtp64: Long?, attachment: Long?, express: Boolean?)
     external fun zQueryReplyError(query: Long, payload: Long, encoding: Long)
     external fun zQueryReplySuccess(query: Long, keyExpr: Long, payload: Long, encoding: Long, timestampNtp64: Long?, attachment: Long?, express: Boolean?)
@@ -231,6 +255,7 @@ internal object JNINative {
     external fun zTimestampExpand(t: Long): Timestamp
     external fun zTimestampId(t: Long): ByteArray
     external fun zTimestampNtp64(t: Long): Long
+    external fun zZbytesClone(z: Long): Long
     external fun zZbytesFromVec(bytes: ByteArray): Long
     external fun zZbytesToBytes(z: Long): ByteArray
     external fun zZenohIdToBytes(z: ByteArray): ByteArray

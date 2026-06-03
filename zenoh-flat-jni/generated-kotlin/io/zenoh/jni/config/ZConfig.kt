@@ -47,6 +47,17 @@ public class ZConfig(initialPtr: Long) : NativeHandle(initialPtr) {
         }
     }
 
+    @Throws(JniBindingError::class)
+    public fun zConfigClone(): ZConfig {
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(this)
+        return withSortedHandleLocks(__locks) {
+        val c_ptr = this.ptr
+        if (c_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
+        ZConfig(JNINative.zConfigClone(c_ptr))
+        }
+    }
+
     public companion object {
         @JvmStatic
         external fun freePtr(ptr: Long)
