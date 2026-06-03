@@ -6,6 +6,7 @@ import io.zenoh.jni.JniBindingError
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.bytes.ZEncoding
 import io.zenoh.jni.bytes.ZZBytes
+import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.sample.ZSample
 import io.zenoh.jni.withSortedHandleLocks
 
@@ -28,13 +29,13 @@ public class ZReply(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 
     @Throws(JniBindingError::class)
-    public fun zReplyReplierZid(): ByteArray {
+    public fun zReplyReplierZid(): ZZenohId? {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(this)
         return withSortedHandleLocks(__locks) {
         val r_ptr = this.ptr
         if (r_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-        JNINative.zReplyReplierZid(r_ptr)
+        JNINative.zReplyReplierZid(r_ptr)?.let { ZZenohId(it) }
         }
     }
 

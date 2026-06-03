@@ -2,13 +2,14 @@
 package io.zenoh.jni.config
 
 import io.zenoh.jni.JniBindingError
+import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.JNINative
 
 @Throws(JniBindingError::class)
-public fun zZenohIdToBytes(z: ByteArray): ByteArray =
-    JNINative.zZenohIdToBytes(z)
+public fun zZenohIdToBytes(z: ZZenohId): ByteArray =
+    JNINative.zZenohIdToBytes(z.bytes)
 
 @Throws(JniBindingError::class)
-public fun zZenohIdToString(z: ByteArray): String =
-    JNINative.zZenohIdToString(z)
+public fun zZenohIdToString(z: ZZenohId): String =
+    JNINative.zZenohIdToString(z.bytes)
 

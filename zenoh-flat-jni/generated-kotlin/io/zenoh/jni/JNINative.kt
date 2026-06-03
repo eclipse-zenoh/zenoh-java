@@ -15,6 +15,7 @@ import io.zenoh.jni.callbacks.ZReplyCallback
 import io.zenoh.jni.callbacks.ZSampleCallback
 import io.zenoh.jni.config.WhatAmI
 import io.zenoh.jni.config.ZConfig
+import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.keyexpr.KeyExpr
 import io.zenoh.jni.keyexpr.SetIntersectionLevel
 import io.zenoh.jni.keyexpr.ZKeyExpr
@@ -202,7 +203,7 @@ internal object JNINative {
     external fun zReplyExpand(r: Long): Reply
     external fun zReplyIsOk(r: Long): Boolean
     external fun zReplyReplierEid(r: Long): Int
-    external fun zReplyReplierZid(r: Long): ByteArray
+    external fun zReplyReplierZid(r: Long): ByteArray?
     external fun zReplySample(r: Long): Long
     external fun zSampleAttachment(s: Long): Long
     external fun zSampleCongestionControl(s: Long): Int
