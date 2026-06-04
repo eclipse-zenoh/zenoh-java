@@ -5,5 +5,11 @@ public data class Error(
     override val message: String,
 ) : Exception(message) {
     public companion object {
+        @JvmStatic
+        public fun fromParts(
+            message: String
+        ): Error = Error(
+            message
+        )
     }
 }

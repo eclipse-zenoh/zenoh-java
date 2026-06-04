@@ -6,5 +6,13 @@ public data class Timestamp(
     val id: ByteArray,
 ) {
     public companion object {
+        @JvmStatic
+        public fun fromParts(
+            ntp64: Long,
+            id: ByteArray
+        ): Timestamp = Timestamp(
+            ntp64,
+            id
+        )
     }
 }

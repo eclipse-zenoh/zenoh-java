@@ -14,5 +14,19 @@ public data class Reply(
     val errorEncoding: Encoding?,
 ) {
     public companion object {
+        @JvmStatic
+        public fun fromParts(
+            replierZid: ByteArray?,
+            replierEid: Int,
+            sample: Sample?,
+            errorPayload: ByteArray?,
+            errorEncoding: Encoding?
+        ): Reply = Reply(
+            replierZid?.let { ZenohId(it) },
+            replierEid,
+            sample,
+            errorPayload?.let { ZBytes(it) },
+            errorEncoding
+        )
     }
 }

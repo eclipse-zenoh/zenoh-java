@@ -20,5 +20,27 @@ public data class Sample(
     val attachment: ZBytes?,
 ) {
     public companion object {
+        @JvmStatic
+        public fun fromParts(
+            keyExpr: KeyExpr,
+            payload: ByteArray,
+            encoding: Encoding,
+            kind: Int,
+            timestamp: Timestamp?,
+            express: Boolean,
+            priority: Int,
+            congestionControl: Int,
+            attachment: ByteArray?
+        ): Sample = Sample(
+            keyExpr,
+            ZBytes(payload),
+            encoding,
+            SampleKind.fromInt(kind),
+            timestamp,
+            express,
+            Priority.fromInt(priority),
+            CongestionControl.fromInt(congestionControl),
+            attachment?.let { ZBytes(it) }
+        )
     }
 }

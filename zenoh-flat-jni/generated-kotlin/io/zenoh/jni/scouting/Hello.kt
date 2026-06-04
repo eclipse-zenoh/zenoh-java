@@ -10,5 +10,15 @@ public data class Hello(
     val locators: List<String>,
 ) {
     public companion object {
+        @JvmStatic
+        public fun fromParts(
+            whatami: Int,
+            zid: ByteArray,
+            locators: List<String>
+        ): Hello = Hello(
+            WhatAmI.fromInt(whatami),
+            ZenohId(zid),
+            locators
+        )
     }
 }

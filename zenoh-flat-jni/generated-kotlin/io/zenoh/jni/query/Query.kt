@@ -19,5 +19,23 @@ public data class Query(
     }
 
     public companion object {
+        @JvmStatic
+        public fun fromParts(
+            keyExpr: KeyExpr,
+            parameters: String,
+            payload: ByteArray?,
+            encoding: Encoding?,
+            attachment: ByteArray?,
+            acceptsReplies: Int,
+            query: Long
+        ): Query = Query(
+            keyExpr,
+            parameters,
+            payload?.let { ZBytes(it) },
+            encoding,
+            attachment?.let { ZBytes(it) },
+            ReplyKeyExpr.fromInt(acceptsReplies),
+            ZQuery(query)
+        )
     }
 }
