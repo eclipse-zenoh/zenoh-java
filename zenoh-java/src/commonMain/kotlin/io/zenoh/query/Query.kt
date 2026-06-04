@@ -77,7 +77,7 @@ class Query internal constructor(
     @JvmOverloads
     fun reply(keyExpr: KeyExpr, payload: IntoZBytes, options: ReplyOptions = ReplyOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
-        q.zQueryReplySuccess(
+        q.queryReplySuccess(
             keyExpr.flat,
             payload.into().inner,
             options.encoding.toFlat(),
@@ -111,7 +111,7 @@ class Query internal constructor(
     @Throws(ZError::class)
     fun replyDel(keyExpr: KeyExpr, options: ReplyDelOptions = ReplyDelOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
-        q.zQueryReplyDelete(
+        q.queryReplyDelete(
             keyExpr.flat,
             options.timeStamp?.ntpValue(),
             options.attachment?.into()?.inner,
@@ -130,7 +130,7 @@ class Query internal constructor(
     @Throws(ZError::class)
     fun replyErr(message: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
-        q.zQueryReplyError(message.into().inner, options.encoding.toFlat())
+        q.queryReplyError(message.into().inner, options.encoding.toFlat())
         zQuery = null
     }
 

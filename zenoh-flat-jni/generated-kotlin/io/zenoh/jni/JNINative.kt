@@ -25,12 +25,8 @@ import io.zenoh.jni.pubsub.ZPublisher
 import io.zenoh.jni.pubsub.ZSubscriber
 import io.zenoh.jni.qos.CongestionControl
 import io.zenoh.jni.qos.Priority
-import io.zenoh.jni.qos.Reliability
-import io.zenoh.jni.query.ConsolidationMode
 import io.zenoh.jni.query.Query
-import io.zenoh.jni.query.QueryTarget
 import io.zenoh.jni.query.Reply
-import io.zenoh.jni.query.ReplyKeyExpr
 import io.zenoh.jni.query.ZQuerier
 import io.zenoh.jni.query.ZQueryable
 import io.zenoh.jni.sample.Sample
@@ -118,14 +114,14 @@ internal object JNINative {
     external fun queryReplySuccess(query: Long, keyExpr: Any, payload: Any, encoding: Any?, timestampNtp64: Long?, attachment: Any?, express: Boolean?)
     external fun replyReplierZid(r: Long): ByteArray?
     external fun scout(whatami: Int, config: Long, callback: HelloCallback, onClose: Callback): Long
-    external fun sessionDeclarePublisher(session: Long, keyExpr: Any, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, reliability: Reliability?): Long
-    external fun sessionDeclareQuerier(session: Long, keyExpr: Any, target: QueryTarget?, consolidation: ConsolidationMode?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, timeoutMs: Long?, acceptReplies: ReplyKeyExpr?): Long
+    external fun sessionDeclarePublisher(session: Long, keyExpr: Any, congestionControl: Int?, priority: Int?, express: Boolean?, reliability: Int?): Long
+    external fun sessionDeclareQuerier(session: Long, keyExpr: Any, target: Int?, consolidation: Int?, congestionControl: Int?, priority: Int?, express: Boolean?, timeoutMs: Long?, acceptReplies: Int?): Long
     external fun sessionDeclareQueryable(session: Long, keyExpr: Any, complete: Boolean?, callback: QueryCallback, onClose: Callback): Long
     external fun sessionDeclareSubscriber(session: Long, keyExpr: Any, callback: SampleCallback, onClose: Callback): Long
-    external fun sessionDelete(session: Long, keyExpr: Any, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, attachment: Any?, reliability: Reliability?)
-    external fun sessionGet(session: Long, keyExpr: Any, parameters: String?, timeoutMs: Long?, target: QueryTarget?, consolidation: ConsolidationMode?, acceptReplies: ReplyKeyExpr?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, payload: Any?, encoding: Any?, attachment: Any?, callback: ReplyCallback, onClose: Callback)
+    external fun sessionDelete(session: Long, keyExpr: Any, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: Any?, reliability: Int?)
+    external fun sessionGet(session: Long, keyExpr: Any, parameters: String?, timeoutMs: Long?, target: Int?, consolidation: Int?, acceptReplies: Int?, congestionControl: Int?, priority: Int?, express: Boolean?, payload: Any?, encoding: Any?, attachment: Any?, callback: ReplyCallback, onClose: Callback)
     external fun sessionPeersZid(session: Long): List<ByteArray>
-    external fun sessionPut(session: Long, keyExpr: Any, payload: Any, encoding: Any?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, attachment: Any?, reliability: Reliability?)
+    external fun sessionPut(session: Long, keyExpr: Any, payload: Any, encoding: Any?, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: Any?, reliability: Int?)
     external fun sessionRoutersZid(session: Long): List<ByteArray>
     external fun sessionZid(session: Long): ByteArray
     external fun tryInitZenohLogsFromEnv()
@@ -241,14 +237,14 @@ internal object JNINative {
     external fun zSampleTimestamp(s: Long): Long
     external fun zScout(whatami: Int, config: Long, callback: ZHelloCallback, onClose: Callback): Long
     external fun zSessionDeclareKeyexpr(session: Long, keyExpr: String): Long
-    external fun zSessionDeclarePublisher(session: Long, keyExpr: Long, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, reliability: Reliability?): Long
-    external fun zSessionDeclareQuerier(session: Long, keyExpr: Long, target: QueryTarget?, consolidation: ConsolidationMode?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, timeoutMs: Long?, acceptReplies: ReplyKeyExpr?): Long
+    external fun zSessionDeclarePublisher(session: Long, keyExpr: Long, congestionControl: Int?, priority: Int?, express: Boolean?, reliability: Int?): Long
+    external fun zSessionDeclareQuerier(session: Long, keyExpr: Long, target: Int?, consolidation: Int?, congestionControl: Int?, priority: Int?, express: Boolean?, timeoutMs: Long?, acceptReplies: Int?): Long
     external fun zSessionDeclareQueryable(session: Long, keyExpr: Long, complete: Boolean?, callback: ZQueryCallback, onClose: Callback): Long
     external fun zSessionDeclareSubscriber(session: Long, keyExpr: Long, callback: ZSampleCallback, onClose: Callback): Long
-    external fun zSessionDelete(session: Long, keyExpr: Long, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, attachment: Long?, reliability: Reliability?)
-    external fun zSessionGet(session: Long, keyExpr: Long, parameters: String?, timeoutMs: Long?, target: QueryTarget?, consolidation: ConsolidationMode?, acceptReplies: ReplyKeyExpr?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, payload: Long?, encoding: Long, attachment: Long?, callback: ZReplyCallback, onClose: Callback)
+    external fun zSessionDelete(session: Long, keyExpr: Long, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: Long?, reliability: Int?)
+    external fun zSessionGet(session: Long, keyExpr: Long, parameters: String?, timeoutMs: Long?, target: Int?, consolidation: Int?, acceptReplies: Int?, congestionControl: Int?, priority: Int?, express: Boolean?, payload: Long?, encoding: Long, attachment: Long?, callback: ZReplyCallback, onClose: Callback)
     external fun zSessionPeersZid(session: Long): List<ByteArray>
-    external fun zSessionPut(session: Long, keyExpr: Long, payload: Long, encoding: Long, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, attachment: Long?, reliability: Reliability?)
+    external fun zSessionPut(session: Long, keyExpr: Long, payload: Long, encoding: Long, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: Long?, reliability: Int?)
     external fun zSessionRoutersZid(session: Long): List<ByteArray>
     external fun zSessionUndeclareKeyexpr(session: Long, keyExpr: Long)
     external fun zSessionZid(session: Long): ByteArray

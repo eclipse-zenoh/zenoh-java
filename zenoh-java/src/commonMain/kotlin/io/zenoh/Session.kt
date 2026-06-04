@@ -587,7 +587,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     internal fun resolvePublisher(keyExpr: KeyExpr, options: PublisherOptions): Publisher {
         val zSession = zSession ?: throw sessionClosedException
         val publisher = wrapJNIExceptionAsZError {
-            val zPublisher = zSession.zSessionDeclarePublisher(
+            val zPublisher = zSession.sessionDeclarePublisher(
                 keyExpr.flat,
                 options.congestionControl.jni,
                 options.priority.jni,
@@ -683,7 +683,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     ): Querier {
         val zSession = zSession ?: throw sessionClosedException
         val querier = wrapJNIExceptionAsZError {
-            val zQuerier = zSession.zSessionDeclareQuerier(
+            val zQuerier = zSession.sessionDeclareQuerier(
                 keyExpr.flat,
                 options.target.toFlat(),
                 options.consolidationMode.toFlat(),
@@ -769,7 +769,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val zSession = zSession ?: return
         wrapJNIExceptionAsZError {
             val encoding = putOptions.encoding ?: Encoding.defaultEncoding()
-            zSession.zSessionPut(
+            zSession.sessionPut(
                 keyExpr.flat,
                 payload.into().inner,
                 encoding.toFlat(),
@@ -786,7 +786,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     internal fun resolveDelete(keyExpr: KeyExpr, deleteOptions: DeleteOptions) {
         val zSession = zSession ?: return
         wrapJNIExceptionAsZError {
-            zSession.zSessionDelete(
+            zSession.sessionDelete(
                 keyExpr.flat,
                 deleteOptions.congestionControl.jni,
                 deleteOptions.priority.jni,
@@ -800,19 +800,19 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     internal fun zid(): ZenohId {
         val zSession = zSession ?: throw sessionClosedException
-        return wrapJNIExceptionAsZError { ZenohId(zSession.zSessionZid()) }
+        return wrapJNIExceptionAsZError { ZenohId(zSession.sessionZid()) }
     }
 
     @Throws(ZError::class)
     internal fun getPeersId(): List<ZenohId> {
         val zSession = zSession ?: throw sessionClosedException
-        return wrapJNIExceptionAsZError { zSession.zSessionPeersZid().map { ZenohId(it) } }
+        return wrapJNIExceptionAsZError { zSession.sessionPeersZid().map { ZenohId(it) } }
     }
 
     @Throws(ZError::class)
     internal fun getRoutersId(): List<ZenohId> {
         val zSession = zSession ?: throw sessionClosedException
-        return wrapJNIExceptionAsZError { zSession.zSessionRoutersZid().map { ZenohId(it) } }
+        return wrapJNIExceptionAsZError { zSession.sessionRoutersZid().map { ZenohId(it) } }
     }
 
     /** Launches the session, returning the [Session] on success. */

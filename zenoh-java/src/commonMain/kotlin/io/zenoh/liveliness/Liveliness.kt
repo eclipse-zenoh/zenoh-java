@@ -48,7 +48,7 @@ class Liveliness internal constructor(private val session: Session) {
     @Throws(ZError::class)
     fun declareToken(keyExpr: KeyExpr): LivelinessToken {
         val zSession = session.zSession ?: throw Session.sessionClosedException
-        return LivelinessToken(zSession.zLivelinessDeclareToken(keyExpr.flat))
+        return LivelinessToken(zSession.livelinessDeclareToken(keyExpr.flat))
     }
 
     /**

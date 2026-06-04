@@ -60,7 +60,7 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
         val keyExpr_ptr = keyExpr.ptr
         if (keyExpr_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         try {
-        ZPublisher(JNINative.zSessionDeclarePublisher(session_ptr, keyExpr_ptr, congestionControl, priority, express, reliability))
+        ZPublisher(JNINative.zSessionDeclarePublisher(session_ptr, keyExpr_ptr, congestionControl?.value, priority?.value, express, reliability?.value))
         } finally {
         keyExpr.ptr = 0L
         }
@@ -87,7 +87,7 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
         val attachment_ptr = attachment.ptr
         if (attachment_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         try {
-        JNINative.zSessionPut(session_ptr, keyExpr_ptr, payload_ptr, encoding_ptr, congestionControl, priority, express, attachment_ptr, reliability)
+        JNINative.zSessionPut(session_ptr, keyExpr_ptr, payload_ptr, encoding_ptr, congestionControl?.value, priority?.value, express, attachment_ptr, reliability?.value)
         } finally {
         payload.ptr = 0L
         attachment.ptr = 0L
@@ -109,7 +109,7 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
         val attachment_ptr = attachment.ptr
         if (attachment_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         try {
-        JNINative.zSessionDelete(session_ptr, keyExpr_ptr, congestionControl, priority, express, attachment_ptr, reliability)
+        JNINative.zSessionDelete(session_ptr, keyExpr_ptr, congestionControl?.value, priority?.value, express, attachment_ptr, reliability?.value)
         } finally {
         attachment.ptr = 0L
         }
@@ -157,7 +157,7 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
         val keyExpr_ptr = keyExpr.ptr
         if (keyExpr_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         try {
-        ZQuerier(JNINative.zSessionDeclareQuerier(session_ptr, keyExpr_ptr, target, consolidation, congestionControl, priority, express, timeoutMs, acceptReplies))
+        ZQuerier(JNINative.zSessionDeclareQuerier(session_ptr, keyExpr_ptr, target?.value, consolidation?.value, congestionControl?.value, priority?.value, express, timeoutMs, acceptReplies?.value))
         } finally {
         keyExpr.ptr = 0L
         }
@@ -243,7 +243,7 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
         val attachment_ptr = attachment.ptr
         if (attachment_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         try {
-        JNINative.zSessionGet(session_ptr, keyExpr_ptr, parameters, timeoutMs, target, consolidation, acceptReplies, congestionControl, priority, express, payload_ptr, encoding_ptr, attachment_ptr, callback, onClose)
+        JNINative.zSessionGet(session_ptr, keyExpr_ptr, parameters, timeoutMs, target?.value, consolidation?.value, acceptReplies?.value, congestionControl?.value, priority?.value, express, payload_ptr, encoding_ptr, attachment_ptr, callback, onClose)
         } finally {
         payload.ptr = 0L
         attachment.ptr = 0L
@@ -262,7 +262,7 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
         withSortedHandleLocks(__locks) {
         val session_ptr = this.ptr
         if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-        JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target, consolidation, acceptReplies, congestionControl, priority, express, payload, encoding, attachment, callback, onClose)
+        JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target?.value, consolidation?.value, acceptReplies?.value, congestionControl?.value, priority?.value, express, payload, encoding, attachment, callback, onClose)
         }
     }
 
@@ -274,7 +274,7 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
         return withSortedHandleLocks(__locks) {
         val session_ptr = this.ptr
         if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-        ZPublisher(JNINative.sessionDeclarePublisher(session_ptr, keyExpr, congestionControl, priority, express, reliability))
+        ZPublisher(JNINative.sessionDeclarePublisher(session_ptr, keyExpr, congestionControl?.value, priority?.value, express, reliability?.value))
         }
     }
 
@@ -286,7 +286,7 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
         return withSortedHandleLocks(__locks) {
         val session_ptr = this.ptr
         if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-        ZQuerier(JNINative.sessionDeclareQuerier(session_ptr, keyExpr, target, consolidation, congestionControl, priority, express, timeoutMs, acceptReplies))
+        ZQuerier(JNINative.sessionDeclareQuerier(session_ptr, keyExpr, target?.value, consolidation?.value, congestionControl?.value, priority?.value, express, timeoutMs, acceptReplies?.value))
         }
     }
 
@@ -301,7 +301,7 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
         withSortedHandleLocks(__locks) {
         val session_ptr = this.ptr
         if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-        JNINative.sessionPut(session_ptr, keyExpr, payload, encoding, congestionControl, priority, express, attachment, reliability)
+        JNINative.sessionPut(session_ptr, keyExpr, payload, encoding, congestionControl?.value, priority?.value, express, attachment, reliability?.value)
         }
     }
 
@@ -314,7 +314,7 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
         withSortedHandleLocks(__locks) {
         val session_ptr = this.ptr
         if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-        JNINative.sessionDelete(session_ptr, keyExpr, congestionControl, priority, express, attachment, reliability)
+        JNINative.sessionDelete(session_ptr, keyExpr, congestionControl?.value, priority?.value, express, attachment, reliability?.value)
         }
     }
 

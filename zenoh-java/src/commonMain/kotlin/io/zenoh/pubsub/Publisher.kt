@@ -105,7 +105,7 @@ class Publisher internal constructor(
     fun delete(options: DeleteOptions = DeleteOptions()) {
         val p = zPublisher ?: throw publisherNotValid
         wrapJNIExceptionAsZError {
-            p.zPublisherDelete(options.attachment?.into()?.inner)
+            p.publisherDelete(options.attachment?.into()?.inner)
         }
     }
 
@@ -134,7 +134,7 @@ class Publisher internal constructor(
     private fun performPut(payload: IntoZBytes, encoding: Encoding, attachment: IntoZBytes?) {
         val p = zPublisher ?: throw publisherNotValid
         wrapJNIExceptionAsZError {
-            p.zPublisherPut(
+            p.publisherPut(
                 payload.into().inner,
                 encoding.toFlat(),
                 attachment?.into()?.inner,
