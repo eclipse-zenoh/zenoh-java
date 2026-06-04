@@ -27,12 +27,29 @@ import io.zenoh.jni.bytes.Encoding as JniEncoding
  * A set of associated constants are provided to cover the most common encodings for user convenience.
  * This is particularly useful in helping Zenoh to perform additional network optimizations.
  */
-class Encoding internal constructor(internal val inner: JniEncoding) {
+class Encoding private constructor(
+    private val eagerInner: JniEncoding?,
+    private val leafId: Int,
+    private val leafSchema: String?,
+) {
 
-    internal constructor(id: Int, schema: String? = null) : this(JniEncoding(id, schema))
+    /** Eager path: an already-built [JniEncoding] (the predefined constants). */
+    internal constructor(inner: JniEncoding) : this(inner, 0, null)
 
-    internal val id: Int get() = inner.id
-    internal val schema: String? get() = inner.schema
+    /**
+     * Lazy leaf path (hot inbound callback): keep only `id` + `schema`; the
+     * [JniEncoding] is built on first `.inner`/`.toFlat()` access (native ops /
+     * outbound only). An inbound-only encoding never allocates a `JniEncoding`.
+     */
+    internal constructor(id: Int, schema: String? = null) : this(null, id, schema)
+
+    /** The native-facing flat form; builds the [JniEncoding] lazily for the leaf path. */
+    internal val inner: JniEncoding
+        get() = eagerInner ?: lazyInner
+    private val lazyInner: JniEncoding by lazy { JniEncoding(leafId, leafSchema) }
+
+    internal val id: Int get() = eagerInner?.id ?: leafId
+    internal val schema: String? get() = eagerInner?.schema ?: leafSchema
 
     companion object {
 
@@ -221,10 +238,11 @@ class Encoding internal constructor(internal val inner: JniEncoding) {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
         other as Encoding
-        return inner == other.inner
+        // Compare leaves directly — avoids forcing the lazy JniEncoding build.
+        return id == other.id && schema == other.schema
     }
 
-    override fun hashCode(): Int = inner.hashCode()
+    override fun hashCode(): Int = 31 * id + (schema?.hashCode() ?: 0)
 
     internal fun toFlat(): JniEncoding = inner
 }

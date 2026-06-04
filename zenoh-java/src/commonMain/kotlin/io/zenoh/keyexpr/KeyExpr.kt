@@ -62,11 +62,34 @@ import io.zenoh.jni.keyexpr.KeyExpr as JniKeyExpr
  * ensures that [close] is automatically called, safely managing the lifecycle of the [KeyExpr] instance.
  *
  */
-class KeyExpr internal constructor(internal val flat: JniKeyExpr) : AutoCloseable, IntoSelector,
-    SessionDeclaration {
+class KeyExpr private constructor(
+    private val eagerFlat: JniKeyExpr?,
+    private val leafString: String?,
+    private val leafPtr: Long,
+) : AutoCloseable, IntoSelector, SessionDeclaration {
 
-    internal constructor(keyExpr: String, ptr: Long = 0L) :
-        this(JniKeyExpr(keyExpr, ptr.takeIf { it != 0L }?.let { ZKeyExpr(it) }))
+    /** Eager path: an already-built [JniKeyExpr] (tryFrom / autocanonize / declareKeyExpr). */
+    internal constructor(flat: JniKeyExpr) : this(flat, null, 0L)
+
+    /**
+     * Lazy leaf path (hot inbound callback): keep only the leaf wires; the
+     * [JniKeyExpr] is built on first `.flat` access (native ops only). An
+     * inbound-only key expression — received in a [io.zenoh.sample.Sample] the
+     * consumer never sends back — never allocates a `JniKeyExpr`, matching the
+     * string + lazy-native model and avoiding per-message allocation/GC.
+     */
+    internal constructor(keyExpr: String, ptr: Long = 0L) : this(null, keyExpr, ptr)
+
+    /** The native-facing flat form; builds the [JniKeyExpr] lazily for the leaf path. */
+    internal val flat: JniKeyExpr
+        get() = eagerFlat ?: lazyFlat
+    private val lazyFlat: JniKeyExpr by lazy {
+        JniKeyExpr(leafString!!, leafPtr.takeIf { it != 0L }?.let { ZKeyExpr(it) })
+    }
+
+    /** String form — read without forcing the lazy [JniKeyExpr] build. */
+    private val keyExprString: String
+        get() = eagerFlat?.keyExprString ?: leafString!!
 
     companion object {
         init {
@@ -156,7 +179,7 @@ class KeyExpr internal constructor(internal val flat: JniKeyExpr) : AutoCloseabl
         KeyExpr(JniKeyExpr.keyexprConcat(this.flat, other))
     }
 
-    override fun toString(): String = flat.keyExprString
+    override fun toString(): String = keyExprString
 
     /**
      * Equivalent to [undeclare]. This function is automatically called when using try with resources.
@@ -173,7 +196,13 @@ class KeyExpr internal constructor(internal val flat: JniKeyExpr) : AutoCloseabl
      * operations on it, but without the inner optimizations.
      */
     override fun undeclare() {
-        flat.close()
+        // Only free a native handle if one exists. An inbound string-only key
+        // expression (leaf path, no ptr) has nothing to close and must NOT
+        // force-build its lazy JniKeyExpr just to no-op.
+        when {
+            eagerFlat != null -> eagerFlat.close()
+            leafPtr != 0L -> flat.close()
+        }
     }
 
     override fun into(): Selector = Selector(this)
@@ -184,10 +213,10 @@ class KeyExpr internal constructor(internal val flat: JniKeyExpr) : AutoCloseabl
 
         other as KeyExpr
 
-        return flat.keyExprString == other.flat.keyExprString
+        return keyExprString == other.keyExprString
     }
 
     override fun hashCode(): Int {
-        return flat.keyExprString.hashCode()
+        return keyExprString.hashCode()
     }
 }

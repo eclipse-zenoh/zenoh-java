@@ -87,12 +87,18 @@ data class Sample(
             priority: Int,
             congestionControl: Int,
             attachment: ByteArray?,
-        ): Sample = from(
-            io.zenoh.jni.sample.Sample.fromParts(
-                keyExprString, keyExprNative, payload, encodingId, encodingSchema, kind,
-                timestampPresent, timestampNtp64, timestampId, express, priority,
-                congestionControl, attachment
-            )
+        ): Sample = Sample(
+            KeyExpr(keyExprString, keyExprNative),
+            ZBytes.from(payload),
+            Encoding(encodingId, encodingSchema),
+            io.zenoh.jni.sample.SampleKind.fromInt(kind).toPublic(),
+            if (timestampPresent) TimeStamp(timestampNtp64) else null,
+            QoS(
+                CongestionControl.fromInt(congestionControl),
+                Priority.fromInt(priority),
+                express
+            ),
+            attachment?.let { ZBytes.from(it) }
         )
     }
 }

@@ -77,6 +77,12 @@ internal fun replyCallbackOf(f: (Reply) -> Unit): io.zenoh.jni.callbacks.ReplyCa
 
 internal fun helloCallbackOf(f: (Hello) -> Unit): io.zenoh.jni.callbacks.HelloCallback =
     io.zenoh.jni.callbacks.HelloCallback { whatami, zid, locators ->
-        val jniHello = io.zenoh.jni.scouting.Hello.fromParts(whatami, zid, locators)
-        f(Hello(WhatAmI.fromJni(jniHello.whatami), ZenohId(jniHello.zid), jniHello.locators))
+        // Build io.zenoh.Hello directly from the leaf wires — no jni.Hello object.
+        f(
+            Hello(
+                WhatAmI.fromJni(io.zenoh.jni.config.WhatAmI.fromInt(whatami)),
+                ZenohId(io.zenoh.jni.config.ZenohId(zid)),
+                locators
+            )
+        )
     }

@@ -49,7 +49,11 @@ sealed class Reply private constructor(val replierId: EntityGlobalId?) : ZenohTy
             }
         }
 
-        /** Builds a [Reply] from the flattened leaf wires the JNI callback delivers. */
+        /**
+         * Builds a [Reply] **directly** from the flattened leaf wires the JNI callback
+         * delivers — no intermediate `jni.Reply`/`jni.Sample` objects. The nested sample
+         * is reconstructed via [Sample.fromFlat] from its own (sample-prefixed) leaves.
+         */
         @Suppress("LongParameterList")
         fun fromFlat(
             replierZid: ByteArray?,
@@ -72,15 +76,29 @@ sealed class Reply private constructor(val replierId: EntityGlobalId?) : ZenohTy
             errorEncodingPresent: Boolean,
             errorEncodingId: Int,
             errorEncodingSchema: String?,
-        ): Reply = from(
-            io.zenoh.jni.query.Reply.fromParts(
-                replierZid, replierEid, samplePresent, sampleKeyExprString, sampleKeyExprNative,
-                samplePayload, sampleEncodingId, sampleEncodingSchema, sampleKind,
-                sampleTimestampPresent, sampleTimestampNtp64, sampleTimestampId, sampleExpress,
-                samplePriority, sampleCongestionControl, sampleAttachment, errorPayload,
-                errorEncodingPresent, errorEncodingId, errorEncodingSchema
-            )
-        )
+        ): Reply {
+            val replierId = replierZid?.let {
+                EntityGlobalId(ZenohId(io.zenoh.jni.config.ZenohId(it)), replierEid.toUInt())
+            }
+            return if (samplePresent) {
+                Success(
+                    replierId,
+                    Sample.fromFlat(
+                        sampleKeyExprString!!, sampleKeyExprNative, samplePayload!!,
+                        sampleEncodingId, sampleEncodingSchema, sampleKind, sampleTimestampPresent,
+                        sampleTimestampNtp64, sampleTimestampId, sampleExpress, samplePriority,
+                        sampleCongestionControl, sampleAttachment
+                    )
+                )
+            } else {
+                Error(
+                    replierId,
+                    ZBytes.from(errorPayload!!),
+                    if (errorEncodingPresent) Encoding(errorEncodingId, errorEncodingSchema)
+                    else Encoding(0, null)
+                )
+            }
+        }
     }
 
     /**

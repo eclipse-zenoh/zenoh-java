@@ -64,7 +64,10 @@ class Query internal constructor(
             )
         }
 
-        /** Builds a [Query] from the flattened leaf wires the JNI callback delivers. */
+        /**
+         * Builds a [Query] **directly** from the flattened leaf wires the JNI callback
+         * delivers — no intermediate `jni.Query`/`jni.Encoding` objects.
+         */
         fun fromFlat(
             keyExprString: String,
             keyExprNative: Long,
@@ -76,12 +79,20 @@ class Query internal constructor(
             attachment: ByteArray?,
             acceptsReplies: Int,
             query: Long,
-        ): Query = from(
-            io.zenoh.jni.query.Query.fromParts(
-                keyExprString, keyExprNative, parameters, payload, encodingPresent, encodingId,
-                encodingSchema, attachment, acceptsReplies, query
+        ): Query {
+            val ke = KeyExpr(keyExprString, keyExprNative)
+            val selector = if (parameters.isEmpty()) Selector(ke)
+                           else Selector(ke, Parameters.from(parameters))
+            return Query(
+                ke,
+                selector,
+                payload?.let { ZBytes.from(it) },
+                if (encodingPresent) Encoding(encodingId, encodingSchema) else null,
+                attachment?.let { ZBytes.from(it) },
+                io.zenoh.jni.query.ReplyKeyExpr.fromInt(acceptsReplies).toPublic(),
+                ZQuery(query)
             )
-        )
+        }
     }
 
     /**
