@@ -5,6 +5,8 @@ import io.zenoh.jni.Error
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniBindingError
 import io.zenoh.jni.NativeHandle
+import io.zenoh.jni.bytes.Encoding
+import io.zenoh.jni.bytes.ZBytes
 import io.zenoh.jni.bytes.ZEncoding
 import io.zenoh.jni.bytes.ZZBytes
 import io.zenoh.jni.callbacks.Callback
@@ -56,16 +58,13 @@ public class ZQuerier(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 
     @Throws(Error::class, JniBindingError::class)
-    public fun querierGet(parameters: String?, payload: Any?, encoding: Any?, attachment: Any?, callback: ReplyCallback, onClose: Callback) {
+    public fun querierGet(parameters: String?, payload: ZBytes?, encoding: Encoding?, attachment: ZBytes?, callback: ReplyCallback, onClose: Callback) {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(this)
-        (payload as? NativeHandle)?.let { __locks.add(it) }
-        (encoding as? NativeHandle)?.let { __locks.add(it) }
-        (attachment as? NativeHandle)?.let { __locks.add(it) }
         withSortedHandleLocks(__locks) {
         val querier_ptr = this.ptr
         if (querier_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-        JNINative.querierGet(querier_ptr, parameters, payload, encoding, attachment, callback, onClose)
+        JNINative.querierGet(querier_ptr, parameters, payload?.bytes, encoding, attachment?.bytes, callback, onClose)
         }
     }
 

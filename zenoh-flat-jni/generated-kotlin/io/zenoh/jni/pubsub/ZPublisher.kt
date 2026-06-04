@@ -5,6 +5,8 @@ import io.zenoh.jni.Error
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniBindingError
 import io.zenoh.jni.NativeHandle
+import io.zenoh.jni.bytes.Encoding
+import io.zenoh.jni.bytes.ZBytes
 import io.zenoh.jni.bytes.ZEncoding
 import io.zenoh.jni.bytes.ZZBytes
 import io.zenoh.jni.withSortedHandleLocks
@@ -71,28 +73,24 @@ public class ZPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 
     @Throws(Error::class, JniBindingError::class)
-    public fun publisherPut(payload: Any, encoding: Any?, attachment: Any?) {
+    public fun publisherPut(payload: ZBytes, encoding: Encoding?, attachment: ZBytes?) {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(this)
-        (payload as? NativeHandle)?.let { __locks.add(it) }
-        (encoding as? NativeHandle)?.let { __locks.add(it) }
-        (attachment as? NativeHandle)?.let { __locks.add(it) }
         withSortedHandleLocks(__locks) {
         val publisher_ptr = this.ptr
         if (publisher_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-        JNINative.publisherPut(publisher_ptr, payload, encoding, attachment)
+        JNINative.publisherPut(publisher_ptr, payload.bytes, encoding, attachment?.bytes)
         }
     }
 
     @Throws(Error::class, JniBindingError::class)
-    public fun publisherDelete(attachment: Any?) {
+    public fun publisherDelete(attachment: ZBytes?) {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(this)
-        (attachment as? NativeHandle)?.let { __locks.add(it) }
         withSortedHandleLocks(__locks) {
         val publisher_ptr = this.ptr
         if (publisher_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-        JNINative.publisherDelete(publisher_ptr, attachment)
+        JNINative.publisherDelete(publisher_ptr, attachment?.bytes)
         }
     }
 

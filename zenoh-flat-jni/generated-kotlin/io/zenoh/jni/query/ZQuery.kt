@@ -5,8 +5,11 @@ import io.zenoh.jni.Error
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniBindingError
 import io.zenoh.jni.NativeHandle
+import io.zenoh.jni.bytes.Encoding
+import io.zenoh.jni.bytes.ZBytes
 import io.zenoh.jni.bytes.ZEncoding
 import io.zenoh.jni.bytes.ZZBytes
+import io.zenoh.jni.keyexpr.KeyExpr
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.withSortedHandleLocks
 
@@ -158,18 +161,14 @@ public class ZQuery(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 
     @Throws(Error::class, JniBindingError::class)
-    public fun queryReplySuccess(keyExpr: Any, payload: Any, encoding: Any?, timestampNtp64: Long?, attachment: Any?, express: Boolean?) {
+    public fun queryReplySuccess(keyExpr: KeyExpr, payload: ZBytes, encoding: Encoding?, timestampNtp64: Long?, attachment: ZBytes?, express: Boolean?) {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(this)
-        (keyExpr as? NativeHandle)?.let { __locks.add(it) }
-        (payload as? NativeHandle)?.let { __locks.add(it) }
-        (encoding as? NativeHandle)?.let { __locks.add(it) }
-        (attachment as? NativeHandle)?.let { __locks.add(it) }
         withSortedHandleLocks(__locks) {
         val query_ptr = this.ptr
         if (query_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         try {
-        JNINative.queryReplySuccess(query_ptr, keyExpr, payload, encoding, timestampNtp64, attachment, express)
+        JNINative.queryReplySuccess(query_ptr, keyExpr, payload.bytes, encoding, timestampNtp64, attachment?.bytes, express)
         } finally {
         ptr = 0L
         }
@@ -177,16 +176,14 @@ public class ZQuery(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 
     @Throws(Error::class, JniBindingError::class)
-    public fun queryReplyError(payload: Any, encoding: Any?) {
+    public fun queryReplyError(payload: ZBytes, encoding: Encoding?) {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(this)
-        (payload as? NativeHandle)?.let { __locks.add(it) }
-        (encoding as? NativeHandle)?.let { __locks.add(it) }
         withSortedHandleLocks(__locks) {
         val query_ptr = this.ptr
         if (query_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         try {
-        JNINative.queryReplyError(query_ptr, payload, encoding)
+        JNINative.queryReplyError(query_ptr, payload.bytes, encoding)
         } finally {
         ptr = 0L
         }
@@ -194,16 +191,14 @@ public class ZQuery(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 
     @Throws(Error::class, JniBindingError::class)
-    public fun queryReplyDelete(keyExpr: Any, timestampNtp64: Long?, attachment: Any?, express: Boolean?) {
+    public fun queryReplyDelete(keyExpr: KeyExpr, timestampNtp64: Long?, attachment: ZBytes?, express: Boolean?) {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(this)
-        (keyExpr as? NativeHandle)?.let { __locks.add(it) }
-        (attachment as? NativeHandle)?.let { __locks.add(it) }
         withSortedHandleLocks(__locks) {
         val query_ptr = this.ptr
         if (query_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         try {
-        JNINative.queryReplyDelete(query_ptr, keyExpr, timestampNtp64, attachment, express)
+        JNINative.queryReplyDelete(query_ptr, keyExpr, timestampNtp64, attachment?.bytes, express)
         } finally {
         ptr = 0L
         }

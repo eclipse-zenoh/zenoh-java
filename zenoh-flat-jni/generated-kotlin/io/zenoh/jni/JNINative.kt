@@ -97,31 +97,31 @@ internal object JNINative {
     external fun initAndroidLogs(filter: String)
     external fun initZenohLogsFromEnvOr(fallbackFilter: String)
     external fun keyexprAutocanonize(s: String): KeyExpr
-    external fun keyexprConcat(a: Any, b: String): KeyExpr
-    external fun keyexprIncludes(a: Any, b: Any): Boolean
-    external fun keyexprIntersects(a: Any, b: Any): Boolean
-    external fun keyexprJoin(a: Any, b: String): KeyExpr
-    external fun keyexprRelationTo(a: Any, b: Any): Int
+    external fun keyexprConcat(a: KeyExpr, b: String): KeyExpr
+    external fun keyexprIncludes(a: KeyExpr, b: KeyExpr): Boolean
+    external fun keyexprIntersects(a: KeyExpr, b: KeyExpr): Boolean
+    external fun keyexprJoin(a: KeyExpr, b: String): KeyExpr
+    external fun keyexprRelationTo(a: KeyExpr, b: KeyExpr): Int
     external fun keyexprTryFrom(s: String): KeyExpr
-    external fun livelinessDeclareSubscriber(session: Long, keyExpr: Any, history: Boolean, callback: SampleCallback, onClose: Callback): Long
-    external fun livelinessDeclareToken(session: Long, keyExpr: Any): Long
-    external fun livelinessGet(session: Long, keyExpr: Any, timeoutMs: Long, callback: ReplyCallback, onClose: Callback)
-    external fun publisherDelete(publisher: Long, attachment: Any?)
-    external fun publisherPut(publisher: Long, payload: Any, encoding: Any?, attachment: Any?)
-    external fun querierGet(querier: Long, parameters: String?, payload: Any?, encoding: Any?, attachment: Any?, callback: ReplyCallback, onClose: Callback)
-    external fun queryReplyDelete(query: Long, keyExpr: Any, timestampNtp64: Long?, attachment: Any?, express: Boolean?)
-    external fun queryReplyError(query: Long, payload: Any, encoding: Any?)
-    external fun queryReplySuccess(query: Long, keyExpr: Any, payload: Any, encoding: Any?, timestampNtp64: Long?, attachment: Any?, express: Boolean?)
+    external fun livelinessDeclareSubscriber(session: Long, keyExpr: KeyExpr, history: Boolean, callback: SampleCallback, onClose: Callback): Long
+    external fun livelinessDeclareToken(session: Long, keyExpr: KeyExpr): Long
+    external fun livelinessGet(session: Long, keyExpr: KeyExpr, timeoutMs: Long, callback: ReplyCallback, onClose: Callback)
+    external fun publisherDelete(publisher: Long, attachment: ByteArray?)
+    external fun publisherPut(publisher: Long, payload: ByteArray, encoding: Encoding?, attachment: ByteArray?)
+    external fun querierGet(querier: Long, parameters: String?, payload: ByteArray?, encoding: Encoding?, attachment: ByteArray?, callback: ReplyCallback, onClose: Callback)
+    external fun queryReplyDelete(query: Long, keyExpr: KeyExpr, timestampNtp64: Long?, attachment: ByteArray?, express: Boolean?)
+    external fun queryReplyError(query: Long, payload: ByteArray, encoding: Encoding?)
+    external fun queryReplySuccess(query: Long, keyExpr: KeyExpr, payload: ByteArray, encoding: Encoding?, timestampNtp64: Long?, attachment: ByteArray?, express: Boolean?)
     external fun replyReplierZid(r: Long): ByteArray?
     external fun scout(whatami: Int, config: Long, callback: HelloCallback, onClose: Callback): Long
-    external fun sessionDeclarePublisher(session: Long, keyExpr: Any, congestionControl: Int?, priority: Int?, express: Boolean?, reliability: Int?): Long
-    external fun sessionDeclareQuerier(session: Long, keyExpr: Any, target: Int?, consolidation: Int?, congestionControl: Int?, priority: Int?, express: Boolean?, timeoutMs: Long?, acceptReplies: Int?): Long
-    external fun sessionDeclareQueryable(session: Long, keyExpr: Any, complete: Boolean?, callback: QueryCallback, onClose: Callback): Long
-    external fun sessionDeclareSubscriber(session: Long, keyExpr: Any, callback: SampleCallback, onClose: Callback): Long
-    external fun sessionDelete(session: Long, keyExpr: Any, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: Any?, reliability: Int?)
-    external fun sessionGet(session: Long, keyExpr: Any, parameters: String?, timeoutMs: Long?, target: Int?, consolidation: Int?, acceptReplies: Int?, congestionControl: Int?, priority: Int?, express: Boolean?, payload: Any?, encoding: Any?, attachment: Any?, callback: ReplyCallback, onClose: Callback)
+    external fun sessionDeclarePublisher(session: Long, keyExpr: KeyExpr, congestionControl: Int?, priority: Int?, express: Boolean?, reliability: Int?): Long
+    external fun sessionDeclareQuerier(session: Long, keyExpr: KeyExpr, target: Int?, consolidation: Int?, congestionControl: Int?, priority: Int?, express: Boolean?, timeoutMs: Long?, acceptReplies: Int?): Long
+    external fun sessionDeclareQueryable(session: Long, keyExpr: KeyExpr, complete: Boolean?, callback: QueryCallback, onClose: Callback): Long
+    external fun sessionDeclareSubscriber(session: Long, keyExpr: KeyExpr, callback: SampleCallback, onClose: Callback): Long
+    external fun sessionDelete(session: Long, keyExpr: KeyExpr, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: ByteArray?, reliability: Int?)
+    external fun sessionGet(session: Long, keyExpr: KeyExpr, parameters: String?, timeoutMs: Long?, target: Int?, consolidation: Int?, acceptReplies: Int?, congestionControl: Int?, priority: Int?, express: Boolean?, payload: ByteArray?, encoding: Encoding?, attachment: ByteArray?, callback: ReplyCallback, onClose: Callback)
     external fun sessionPeersZid(session: Long): List<ByteArray>
-    external fun sessionPut(session: Long, keyExpr: Any, payload: Any, encoding: Any?, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: Any?, reliability: Int?)
+    external fun sessionPut(session: Long, keyExpr: KeyExpr, payload: ByteArray, encoding: Encoding?, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: ByteArray?, reliability: Int?)
     external fun sessionRoutersZid(session: Long): List<ByteArray>
     external fun sessionZid(session: Long): ByteArray
     external fun tryInitZenohLogsFromEnv()

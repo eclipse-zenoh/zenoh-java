@@ -35,14 +35,11 @@ fn main() {
         .class_object_fun(pq!(keyexpr_relation_to))
         .class_object_fun(pq!(keyexpr_join))
         .class_object_fun(pq!(keyexpr_concat))
-        .into_sources(
-            pq!(KeyExpr),
-            [
-                IntoSource::borrow(pq!(KeyExpr)),
-                IntoSource::borrow(pq!(ZKeyExpr)),
-                IntoSource::borrow(pq!(String)),
-            ],
-        )
+        // Deterministic single source: the SDK always passes the target's own
+        // generated `KeyExpr` (data class) at the JNI boundary — String/ZKeyExpr
+        // conversions happen Kotlin-side — so the twin decodes it directly with
+        // no runtime find_class/instanceof dispatch.
+        .into_sources(pq!(KeyExpr), [IntoSource::borrow(pq!(KeyExpr))])
         .package("config")
         .ptr_class(pq!(ZConfig))
         .class_object_fun(pq!(z_config_default))
@@ -313,22 +310,11 @@ fn main() {
         .class_fun(pq!(liveliness_get))
         .class_fun(pq!(z_liveliness_declare_subscriber))
         .class_fun(pq!(liveliness_declare_subscriber))
-        .into_sources(
-            pq!(ZBytes),
-            [
-                IntoSource::borrow(pq!(ZZBytes)),
-                IntoSource::borrow(pq!(ZBytes)),
-                IntoSource::borrow(pq!(Vec<u8>)),
-            ],
-        )
-        .into_sources(
-            pq!(Encoding),
-            [
-                IntoSource::borrow(pq!(Encoding)),
-                IntoSource::borrow(pq!(ZEncoding)),
-                IntoSource::borrow(pq!(String)),
-            ],
-        )
+        // Deterministic single source (see KeyExpr note above): the SDK passes
+        // the value-class `ZBytes` (payload.into().inner) and the data-class
+        // `Encoding` (encoding.toFlat()) directly — no runtime dispatch.
+        .into_sources(pq!(ZBytes), [IntoSource::borrow(pq!(ZBytes))])
+        .into_sources(pq!(Encoding), [IntoSource::borrow(pq!(Encoding))])
         ;
 
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
