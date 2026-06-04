@@ -15,10 +15,7 @@ public data class Hello(
             whatami: Int,
             zid: ByteArray,
             locators: List<String>
-        ): Hello = Hello(
-            WhatAmI.fromInt(whatami),
-            ZenohId(zid),
-            locators
-        )
+        ): Hello =
+            Hello(WhatAmI.fromInt(whatami), ZenohId(zid), locators)
     }
 }

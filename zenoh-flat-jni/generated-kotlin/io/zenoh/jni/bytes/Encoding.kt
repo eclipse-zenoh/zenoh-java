@@ -18,10 +18,8 @@ public data class Encoding(
         public fun fromParts(
             id: Int,
             schema: String?
-        ): Encoding = Encoding(
-            id,
-            schema
-        )
+        ): Encoding =
+            Encoding(id, schema)
         @Throws(JniBindingError::class)
         public fun encodingFromString(s: String): Encoding =
             JNINative.encodingFromString(s)

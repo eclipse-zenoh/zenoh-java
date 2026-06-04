@@ -18,10 +18,8 @@ public data class KeyExpr(
         public fun fromParts(
             keyExprString: String,
             keyExprNative: Long
-        ): KeyExpr = KeyExpr(
-            keyExprString,
-            if (keyExprNative == 0L) null else ZKeyExpr(keyExprNative)
-        )
+        ): KeyExpr =
+            KeyExpr(keyExprString, if (keyExprNative == 0L) null else ZKeyExpr(keyExprNative))
         @Throws(Error::class, JniBindingError::class)
         public fun keyexprTryFrom(s: String): KeyExpr =
             JNINative.keyexprTryFrom(s)

@@ -4,6 +4,7 @@ package io.zenoh.jni.sample
 import io.zenoh.jni.bytes.Encoding
 import io.zenoh.jni.bytes.ZBytes
 import io.zenoh.jni.keyexpr.KeyExpr
+import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.qos.CongestionControl
 import io.zenoh.jni.qos.Priority
 import io.zenoh.jni.time.Timestamp
@@ -22,25 +23,20 @@ public data class Sample(
     public companion object {
         @JvmStatic
         public fun fromParts(
-            keyExpr: KeyExpr,
+            keyExpr_keyExprString: String,
+            keyExpr_keyExprNative: Long,
             payload: ByteArray,
-            encoding: Encoding,
+            encoding_id: Int,
+            encoding_schema: String?,
             kind: Int,
-            timestamp: Timestamp?,
+            timestamp__present: Boolean,
+            timestamp_ntp64: Long,
+            timestamp_id: ByteArray?,
             express: Boolean,
             priority: Int,
             congestionControl: Int,
             attachment: ByteArray?
-        ): Sample = Sample(
-            keyExpr,
-            ZBytes(payload),
-            encoding,
-            SampleKind.fromInt(kind),
-            timestamp,
-            express,
-            Priority.fromInt(priority),
-            CongestionControl.fromInt(congestionControl),
-            attachment?.let { ZBytes(it) }
-        )
+        ): Sample =
+            Sample(KeyExpr.fromParts(keyExpr_keyExprString, keyExpr_keyExprNative), ZBytes(payload), Encoding.fromParts(encoding_id, encoding_schema), SampleKind.fromInt(kind), if (timestamp__present) Timestamp.fromParts(timestamp_ntp64, timestamp_id!!) else null, express, Priority.fromInt(priority), CongestionControl.fromInt(congestionControl), attachment?.let { ZBytes(it) })
     }
 }

@@ -10,9 +10,7 @@ public data class Timestamp(
         public fun fromParts(
             ntp64: Long,
             id: ByteArray
-        ): Timestamp = Timestamp(
-            ntp64,
-            id
-        )
+        ): Timestamp =
+            Timestamp(ntp64, id)
     }
 }

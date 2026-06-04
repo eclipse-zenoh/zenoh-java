@@ -8,8 +8,7 @@ public data class Error(
         @JvmStatic
         public fun fromParts(
             message: String
-        ): Error = Error(
-            message
-        )
+        ): Error =
+            Error(message)
     }
 }

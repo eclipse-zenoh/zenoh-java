@@ -4,6 +4,7 @@ package io.zenoh.jni.query
 import io.zenoh.jni.bytes.Encoding
 import io.zenoh.jni.bytes.ZBytes
 import io.zenoh.jni.keyexpr.KeyExpr
+import io.zenoh.jni.keyexpr.ZKeyExpr
 
 public data class Query(
     val keyExpr: KeyExpr,
@@ -21,21 +22,17 @@ public data class Query(
     public companion object {
         @JvmStatic
         public fun fromParts(
-            keyExpr: KeyExpr,
+            keyExpr_keyExprString: String,
+            keyExpr_keyExprNative: Long,
             parameters: String,
             payload: ByteArray?,
-            encoding: Encoding?,
+            encoding__present: Boolean,
+            encoding_id: Int,
+            encoding_schema: String?,
             attachment: ByteArray?,
             acceptsReplies: Int,
             query: Long
-        ): Query = Query(
-            keyExpr,
-            parameters,
-            payload?.let { ZBytes(it) },
-            encoding,
-            attachment?.let { ZBytes(it) },
-            ReplyKeyExpr.fromInt(acceptsReplies),
-            ZQuery(query)
-        )
+        ): Query =
+            Query(KeyExpr.fromParts(keyExpr_keyExprString, keyExpr_keyExprNative), parameters, payload?.let { ZBytes(it) }, if (encoding__present) Encoding.fromParts(encoding_id, encoding_schema) else null, attachment?.let { ZBytes(it) }, ReplyKeyExpr.fromInt(acceptsReplies), ZQuery(query))
     }
 }
