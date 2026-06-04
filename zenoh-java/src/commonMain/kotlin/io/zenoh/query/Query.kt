@@ -63,6 +63,25 @@ class Query internal constructor(
                 flat.query
             )
         }
+
+        /** Builds a [Query] from the flattened leaf wires the JNI callback delivers. */
+        fun fromFlat(
+            keyExprString: String,
+            keyExprNative: Long,
+            parameters: String,
+            payload: ByteArray?,
+            encodingPresent: Boolean,
+            encodingId: Int,
+            encodingSchema: String?,
+            attachment: ByteArray?,
+            acceptsReplies: Int,
+            query: Long,
+        ): Query = from(
+            io.zenoh.jni.query.Query.fromParts(
+                keyExprString, keyExprNative, parameters, payload, encodingPresent, encodingId,
+                encodingSchema, attachment, acceptsReplies, query
+            )
+        )
     }
 
     /**

@@ -614,7 +614,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val subscriber = wrapJNIExceptionAsZError {
             val zSubscriber = zSession.sessionDeclareSubscriber(
                 keyExpr.flat,
-                io.zenoh.jni.callbacks.SampleCallback { flat -> handler.handle(Sample.from(flat)) },
+                sampleCallbackOf { handler.handle(it) },
                 io.zenoh.jni.callbacks.Callback { handler.onClose() }
             )
             HandlerSubscriber(keyExpr, zSubscriber, handler.receiver())
@@ -631,7 +631,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val subscriber = wrapJNIExceptionAsZError {
             val zSubscriber = zSession.sessionDeclareSubscriber(
                 keyExpr.flat,
-                io.zenoh.jni.callbacks.SampleCallback { flat -> callback.run(Sample.from(flat)) },
+                sampleCallbackOf { callback.run(it) },
                 io.zenoh.jni.callbacks.Callback { }
             )
             CallbackSubscriber(keyExpr, zSubscriber)
@@ -649,7 +649,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
             val zQueryable = zSession.sessionDeclareQueryable(
                 keyExpr.flat,
                 options.complete,
-                io.zenoh.jni.callbacks.QueryCallback { flat -> handler.handle(Query.from(flat)) },
+                queryCallbackOf { handler.handle(it) },
                 io.zenoh.jni.callbacks.Callback { handler.onClose() }
             )
             HandlerQueryable(keyExpr, zQueryable, handler.receiver())
@@ -667,7 +667,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
             val zQueryable = zSession.sessionDeclareQueryable(
                 keyExpr.flat,
                 options.complete,
-                io.zenoh.jni.callbacks.QueryCallback { flat -> callback.run(Query.from(flat)) },
+                queryCallbackOf { callback.run(it) },
                 io.zenoh.jni.callbacks.Callback { }
             )
             CallbackQueryable(keyExpr, zQueryable)
@@ -729,7 +729,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.payload?.into()?.inner,
                 (options.encoding ?: Encoding.defaultEncoding()).toFlat(),
                 options.attachment?.into()?.inner,
-                io.zenoh.jni.callbacks.ReplyCallback { flat -> handler.handle(Reply.from(flat)) },
+                replyCallbackOf { handler.handle(it) },
                 io.zenoh.jni.callbacks.Callback { handler.onClose() }
             )
             handler.receiver()
@@ -758,7 +758,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.payload?.into()?.inner,
                 (options.encoding ?: Encoding.defaultEncoding()).toFlat(),
                 options.attachment?.into()?.inner,
-                io.zenoh.jni.callbacks.ReplyCallback { flat -> callback.run(Reply.from(flat)) },
+                replyCallbackOf { callback.run(it) },
                 io.zenoh.jni.callbacks.Callback { }
             )
         }

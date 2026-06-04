@@ -15,6 +15,8 @@
 package io.zenoh.liveliness
 
 import io.zenoh.Session
+import io.zenoh.replyCallbackOf
+import io.zenoh.sampleCallbackOf
 import io.zenoh.exceptions.ZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
@@ -68,7 +70,7 @@ class Liveliness internal constructor(private val session: Session) {
         zSession.livelinessGet(
             keyExpr.flat,
             timeout.toMillis(),
-            io.zenoh.jni.callbacks.ReplyCallback { flat -> handler.handle(Reply.from(flat)) },
+            replyCallbackOf { handler.handle(it) },
             io.zenoh.jni.callbacks.Callback { handler.onClose() }
         )
         return handler.receiver()
@@ -90,7 +92,7 @@ class Liveliness internal constructor(private val session: Session) {
         zSession.livelinessGet(
             keyExpr.flat,
             timeout.toMillis(),
-            io.zenoh.jni.callbacks.ReplyCallback { flat -> callback.run(Reply.from(flat)) },
+            replyCallbackOf { callback.run(it) },
             io.zenoh.jni.callbacks.Callback { }
         )
     }
@@ -112,7 +114,7 @@ class Liveliness internal constructor(private val session: Session) {
         zSession.livelinessGet(
             keyExpr.flat,
             timeout.toMillis(),
-            io.zenoh.jni.callbacks.ReplyCallback { flat -> handler.handle(Reply.from(flat)) },
+            replyCallbackOf { handler.handle(it) },
             io.zenoh.jni.callbacks.Callback { handler.onClose() }
         )
         return handler.receiver()
@@ -135,7 +137,7 @@ class Liveliness internal constructor(private val session: Session) {
         val zSubscriber = zSession.livelinessDeclareSubscriber(
             keyExpr.flat,
             options.history,
-            io.zenoh.jni.callbacks.SampleCallback { flat -> handler.handle(Sample.from(flat)) },
+            sampleCallbackOf { handler.handle(it) },
             io.zenoh.jni.callbacks.Callback { handler.onClose() }
         )
         return HandlerSubscriber(keyExpr, zSubscriber, handler.receiver())
@@ -159,7 +161,7 @@ class Liveliness internal constructor(private val session: Session) {
         val zSubscriber = zSession.livelinessDeclareSubscriber(
             keyExpr.flat,
             options.history,
-            io.zenoh.jni.callbacks.SampleCallback { flat -> callback.run(Sample.from(flat)) },
+            sampleCallbackOf { callback.run(it) },
             io.zenoh.jni.callbacks.Callback { }
         )
         return CallbackSubscriber(keyExpr, zSubscriber)
@@ -184,7 +186,7 @@ class Liveliness internal constructor(private val session: Session) {
         val zSubscriber = zSession.livelinessDeclareSubscriber(
             keyExpr.flat,
             options.history,
-            io.zenoh.jni.callbacks.SampleCallback { flat -> handler.handle(Sample.from(flat)) },
+            sampleCallbackOf { handler.handle(it) },
             io.zenoh.jni.callbacks.Callback { handler.onClose() }
         )
         return HandlerSubscriber(keyExpr, zSubscriber, handler.receiver())

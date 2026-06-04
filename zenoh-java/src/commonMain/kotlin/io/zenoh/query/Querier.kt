@@ -15,6 +15,7 @@
 package io.zenoh.query
 
 import io.zenoh.annotations.Unstable
+import io.zenoh.replyCallbackOf
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
@@ -149,7 +150,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
             options.payload?.into()?.inner,
             (options.encoding ?: Encoding.defaultEncoding()).toFlat(),
             options.attachment?.into()?.inner,
-            io.zenoh.jni.callbacks.ReplyCallback { flat -> callback.run(Reply.from(flat)) },
+            replyCallbackOf { callback.run(it) },
             io.zenoh.jni.callbacks.Callback { }
         )
     }
@@ -161,7 +162,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
             options.payload?.into()?.inner,
             (options.encoding ?: Encoding.defaultEncoding()).toFlat(),
             options.attachment?.into()?.inner,
-            io.zenoh.jni.callbacks.ReplyCallback { flat -> handler.handle(Reply.from(flat)) },
+            replyCallbackOf { handler.handle(it) },
             io.zenoh.jni.callbacks.Callback { handler.onClose() }
         )
         return handler.receiver()

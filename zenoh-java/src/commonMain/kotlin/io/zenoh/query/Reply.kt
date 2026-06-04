@@ -48,6 +48,39 @@ sealed class Reply private constructor(val replierId: EntityGlobalId?) : ZenohTy
                 Error(replierId, ZBytes(flat.errorPayload!!), Encoding(flat.errorEncoding!!))
             }
         }
+
+        /** Builds a [Reply] from the flattened leaf wires the JNI callback delivers. */
+        @Suppress("LongParameterList")
+        fun fromFlat(
+            replierZid: ByteArray?,
+            replierEid: Int,
+            samplePresent: Boolean,
+            sampleKeyExprString: String?,
+            sampleKeyExprNative: Long,
+            samplePayload: ByteArray?,
+            sampleEncodingId: Int,
+            sampleEncodingSchema: String?,
+            sampleKind: Int,
+            sampleTimestampPresent: Boolean,
+            sampleTimestampNtp64: Long,
+            sampleTimestampId: ByteArray?,
+            sampleExpress: Boolean,
+            samplePriority: Int,
+            sampleCongestionControl: Int,
+            sampleAttachment: ByteArray?,
+            errorPayload: ByteArray?,
+            errorEncodingPresent: Boolean,
+            errorEncodingId: Int,
+            errorEncodingSchema: String?,
+        ): Reply = from(
+            io.zenoh.jni.query.Reply.fromParts(
+                replierZid, replierEid, samplePresent, sampleKeyExprString, sampleKeyExprNative,
+                samplePayload, sampleEncodingId, sampleEncodingSchema, sampleKind,
+                sampleTimestampPresent, sampleTimestampNtp64, sampleTimestampId, sampleExpress,
+                samplePriority, sampleCongestionControl, sampleAttachment, errorPayload,
+                errorEncodingPresent, errorEncodingId, errorEncodingSchema
+            )
+        )
     }
 
     /**

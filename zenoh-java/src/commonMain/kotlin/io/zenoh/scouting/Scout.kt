@@ -106,15 +106,7 @@ sealed class Scout (
             onClose: () -> Unit,
         ): ZScout {
             val bitfield = whatAmI.map { it.jni.value }.reduce { acc, v -> acc or v }
-            val helloCallback = HelloCallback { jniHello ->
-                callback.run(
-                    Hello(
-                        whatAmI = WhatAmI.fromJni(jniHello.whatami),
-                        zid = ZenohId(jniHello.zid),
-                        locators = jniHello.locators,
-                    )
-                )
-            }
+            val helloCallback = io.zenoh.helloCallbackOf { callback.run(it) }
             val onCloseCallback = io.zenoh.jni.callbacks.Callback { onClose() }
             return io.zenoh.jni.scouting.scout(bitfield, config?.zConfig, helloCallback, onCloseCallback)
         }

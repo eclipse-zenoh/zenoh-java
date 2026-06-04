@@ -66,5 +66,33 @@ data class Sample(
             ),
             flat.attachment?.let { ZBytes(it) }
         )
+
+        /**
+         * Builds a [Sample] from the flattened leaf wires the JNI callback now
+         * delivers (the native side makes one `run(...)` crossing instead of
+         * building a `jni.Sample` and round-tripping it). The graph is
+         * reassembled in JVM bytecode via the generated `fromParts` factory.
+         */
+        fun fromFlat(
+            keyExprString: String,
+            keyExprNative: Long,
+            payload: ByteArray,
+            encodingId: Int,
+            encodingSchema: String?,
+            kind: Int,
+            timestampPresent: Boolean,
+            timestampNtp64: Long,
+            timestampId: ByteArray?,
+            express: Boolean,
+            priority: Int,
+            congestionControl: Int,
+            attachment: ByteArray?,
+        ): Sample = from(
+            io.zenoh.jni.sample.Sample.fromParts(
+                keyExprString, keyExprNative, payload, encodingId, encodingSchema, kind,
+                timestampPresent, timestampNtp64, timestampId, express, priority,
+                congestionControl, attachment
+            )
+        )
     }
 }
