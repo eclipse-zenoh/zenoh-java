@@ -79,7 +79,7 @@ public class ZPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
         withSortedHandleLocks(__locks) {
         val publisher_ptr = this.ptr
         if (publisher_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-        JNINative.publisherPut(publisher_ptr, payload.bytes, encoding, attachment?.bytes)
+        JNINative.publisherPut(publisher_ptr, payload.bytes, encoding != null, encoding?.id ?: 0, encoding?.schema, attachment?.bytes)
         }
     }
 

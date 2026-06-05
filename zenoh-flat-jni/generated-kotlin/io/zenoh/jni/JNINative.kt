@@ -79,7 +79,7 @@ internal object JNINative {
     external fun encodingTextPlain(): Encoding
     external fun encodingTextXml(): Encoding
     external fun encodingTextYaml(): Encoding
-    external fun encodingToString(e: Encoding): String
+    external fun encodingToString(eId: Int, eSchema: String?): String
     external fun encodingVideoH261(): Encoding
     external fun encodingVideoH263(): Encoding
     external fun encodingVideoH264(): Encoding
@@ -107,11 +107,11 @@ internal object JNINative {
     external fun livelinessDeclareToken(session: Long, keyExpr: KeyExpr): Long
     external fun livelinessGet(session: Long, keyExpr: KeyExpr, timeoutMs: Long, callback: ReplyCallback, onClose: Callback)
     external fun publisherDelete(publisher: Long, attachment: ByteArray?)
-    external fun publisherPut(publisher: Long, payload: ByteArray, encoding: Encoding?, attachment: ByteArray?)
-    external fun querierGet(querier: Long, parameters: String?, payload: ByteArray?, encoding: Encoding?, attachment: ByteArray?, callback: ReplyCallback, onClose: Callback)
+    external fun publisherPut(publisher: Long, payload: ByteArray, encodingPresent: Boolean, encodingId: Int, encodingSchema: String?, attachment: ByteArray?)
+    external fun querierGet(querier: Long, parameters: String?, payload: ByteArray?, encodingPresent: Boolean, encodingId: Int, encodingSchema: String?, attachment: ByteArray?, callback: ReplyCallback, onClose: Callback)
     external fun queryReplyDelete(query: Long, keyExpr: KeyExpr, timestampNtp64: Long?, attachment: ByteArray?, express: Boolean?)
-    external fun queryReplyError(query: Long, payload: ByteArray, encoding: Encoding?)
-    external fun queryReplySuccess(query: Long, keyExpr: KeyExpr, payload: ByteArray, encoding: Encoding?, timestampNtp64: Long?, attachment: ByteArray?, express: Boolean?)
+    external fun queryReplyError(query: Long, payload: ByteArray, encodingPresent: Boolean, encodingId: Int, encodingSchema: String?)
+    external fun queryReplySuccess(query: Long, keyExpr: KeyExpr, payload: ByteArray, encodingPresent: Boolean, encodingId: Int, encodingSchema: String?, timestampNtp64: Long?, attachment: ByteArray?, express: Boolean?)
     external fun replyReplierZid(r: Long): ByteArray?
     external fun scout(whatami: Int, config: Long, callback: HelloCallback, onClose: Callback): Long
     external fun sessionDeclarePublisher(session: Long, keyExpr: KeyExpr, congestionControl: Int?, priority: Int?, express: Boolean?, reliability: Int?): Long
@@ -119,9 +119,9 @@ internal object JNINative {
     external fun sessionDeclareQueryable(session: Long, keyExpr: KeyExpr, complete: Boolean?, callback: QueryCallback, onClose: Callback): Long
     external fun sessionDeclareSubscriber(session: Long, keyExpr: KeyExpr, callback: SampleCallback, onClose: Callback): Long
     external fun sessionDelete(session: Long, keyExpr: KeyExpr, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: ByteArray?, reliability: Int?)
-    external fun sessionGet(session: Long, keyExpr: KeyExpr, parameters: String?, timeoutMs: Long?, target: Int?, consolidation: Int?, acceptReplies: Int?, congestionControl: Int?, priority: Int?, express: Boolean?, payload: ByteArray?, encoding: Encoding?, attachment: ByteArray?, callback: ReplyCallback, onClose: Callback)
+    external fun sessionGet(session: Long, keyExpr: KeyExpr, parameters: String?, timeoutMs: Long?, target: Int?, consolidation: Int?, acceptReplies: Int?, congestionControl: Int?, priority: Int?, express: Boolean?, payload: ByteArray?, encodingPresent: Boolean, encodingId: Int, encodingSchema: String?, attachment: ByteArray?, callback: ReplyCallback, onClose: Callback)
     external fun sessionPeersZid(session: Long): List<ByteArray>
-    external fun sessionPut(session: Long, keyExpr: KeyExpr, payload: ByteArray, encoding: Encoding?, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: ByteArray?, reliability: Int?)
+    external fun sessionPut(session: Long, keyExpr: KeyExpr, payload: ByteArray, encodingPresent: Boolean, encodingId: Int, encodingSchema: String?, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: ByteArray?, reliability: Int?)
     external fun sessionRoutersZid(session: Long): List<ByteArray>
     external fun sessionZid(session: Long): ByteArray
     external fun tryInitZenohLogsFromEnv()

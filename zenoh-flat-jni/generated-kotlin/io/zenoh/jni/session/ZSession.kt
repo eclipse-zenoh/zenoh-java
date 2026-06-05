@@ -259,7 +259,7 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
         withSortedHandleLocks(__locks) {
         val session_ptr = this.ptr
         if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-        JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target?.value, consolidation?.value, acceptReplies?.value, congestionControl?.value, priority?.value, express, payload?.bytes, encoding, attachment?.bytes, callback, onClose)
+        JNINative.sessionGet(session_ptr, keyExpr, parameters, timeoutMs, target?.value, consolidation?.value, acceptReplies?.value, congestionControl?.value, priority?.value, express, payload?.bytes, encoding != null, encoding?.id ?: 0, encoding?.schema, attachment?.bytes, callback, onClose)
         }
     }
 
@@ -292,7 +292,7 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
         withSortedHandleLocks(__locks) {
         val session_ptr = this.ptr
         if (session_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
-        JNINative.sessionPut(session_ptr, keyExpr, payload.bytes, encoding, congestionControl?.value, priority?.value, express, attachment?.bytes, reliability?.value)
+        JNINative.sessionPut(session_ptr, keyExpr, payload.bytes, encoding != null, encoding?.id ?: 0, encoding?.schema, congestionControl?.value, priority?.value, express, attachment?.bytes, reliability?.value)
         }
     }
 

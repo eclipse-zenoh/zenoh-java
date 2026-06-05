@@ -168,7 +168,7 @@ public class ZQuery(initialPtr: Long) : NativeHandle(initialPtr) {
         val query_ptr = this.ptr
         if (query_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         try {
-        JNINative.queryReplySuccess(query_ptr, keyExpr, payload.bytes, encoding, timestampNtp64, attachment?.bytes, express)
+        JNINative.queryReplySuccess(query_ptr, keyExpr, payload.bytes, encoding != null, encoding?.id ?: 0, encoding?.schema, timestampNtp64, attachment?.bytes, express)
         } finally {
         ptr = 0L
         }
@@ -183,7 +183,7 @@ public class ZQuery(initialPtr: Long) : NativeHandle(initialPtr) {
         val query_ptr = this.ptr
         if (query_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         try {
-        JNINative.queryReplyError(query_ptr, payload.bytes, encoding)
+        JNINative.queryReplyError(query_ptr, payload.bytes, encoding != null, encoding?.id ?: 0, encoding?.schema)
         } finally {
         ptr = 0L
         }

@@ -9,6 +9,7 @@ fn fail(context: &str, err: impl std::fmt::Display) -> ! {
 
 fn main() {
     let jni = JniGen::new()
+        .handle_locks(true)              // Enable handle locks (default, thread-safe)
         .source_module(pq!(zenoh_flat)) // how to prefix prebindgen-marked items (functions, types
         .package_prefix("io.zenoh.jni") // the package of the generated JNI bindings
         .data_class(pq!(Error)) // structured Kotlin data class for Error

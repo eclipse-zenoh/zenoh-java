@@ -10,7 +10,7 @@ public data class Encoding(
 ) {
     @Throws(JniBindingError::class)
     public fun encodingToString(): String =
-        JNINative.encodingToString(this)
+        JNINative.encodingToString(this.id, this.schema)
 
 
     public companion object {
