@@ -19,3 +19,32 @@ internal fun <R> withSortedHandleLocks(handles: List<NativeHandle>, body: () -> 
     fun rec(i: Int): R = if (i == sorted.size) body() else synchronized(sorted[i]) { rec(i + 1) }
     return rec(0)
 }
+/** Allocation-free single-handle lock (one monitor, nothing to order). */
+internal inline fun <R> withSortedHandleLocks(a: NativeHandle, body: () -> R): R =
+    synchronized(a) { body() }
+/** Allocation-free two-handle lock: order by `ptr` then nest monitors. */
+internal inline fun <R> withSortedHandleLocks(
+    a: NativeHandle,
+    b: NativeHandle,
+    body: () -> R,
+): R {
+    val first: NativeHandle
+    val second: NativeHandle
+    if (a.ptr <= b.ptr) { first = a; second = b } else { first = b; second = a }
+    return synchronized(first) { synchronized(second) { body() } }
+}
+/** Allocation-free three-handle lock: 3-compare sorting network, then nest. */
+internal inline fun <R> withSortedHandleLocks(
+    a: NativeHandle,
+    b: NativeHandle,
+    c: NativeHandle,
+    body: () -> R,
+): R {
+    var x = a
+    var y = b
+    var z = c
+    if (x.ptr > y.ptr) { val t = x; x = y; y = t }
+    if (y.ptr > z.ptr) { val t = y; y = z; z = t }
+    if (x.ptr > y.ptr) { val t = x; x = y; y = t }
+    return synchronized(x) { synchronized(y) { synchronized(z) { body() } } }
+}

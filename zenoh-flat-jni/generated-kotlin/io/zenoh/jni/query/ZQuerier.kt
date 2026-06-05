@@ -59,9 +59,7 @@ public class ZQuerier(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(Error::class, JniBindingError::class)
     public fun querierGet(parameters: String?, payload: ZBytes?, encoding: Encoding?, attachment: ZBytes?, callback: ReplyCallback, onClose: Callback) {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        withSortedHandleLocks(__locks) {
+        withSortedHandleLocks(this) {
         val querier_ptr = this.ptr
         if (querier_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.querierGet(querier_ptr, parameters, payload?.bytes, encoding != null, encoding?.id ?: 0, encoding?.schema, attachment?.bytes, callback, onClose)

@@ -56,10 +56,7 @@ public class ZPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(Error::class, JniBindingError::class)
     public fun zPublisherDelete(attachment: ZZBytes) {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        __locks.add(attachment)
-        withSortedHandleLocks(__locks) {
+        withSortedHandleLocks(this, attachment) {
         val publisher_ptr = this.ptr
         if (publisher_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         val attachment_ptr = attachment.ptr
@@ -74,9 +71,7 @@ public class ZPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(Error::class, JniBindingError::class)
     public fun publisherPut(payload: ZBytes, encoding: Encoding?, attachment: ZBytes?) {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        withSortedHandleLocks(__locks) {
+        withSortedHandleLocks(this) {
         val publisher_ptr = this.ptr
         if (publisher_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.publisherPut(publisher_ptr, payload.bytes, encoding != null, encoding?.id ?: 0, encoding?.schema, attachment?.bytes)
@@ -85,9 +80,7 @@ public class ZPublisher(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(Error::class, JniBindingError::class)
     public fun publisherDelete(attachment: ZBytes?) {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        withSortedHandleLocks(__locks) {
+        withSortedHandleLocks(this) {
         val publisher_ptr = this.ptr
         if (publisher_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.publisherDelete(publisher_ptr, attachment?.bytes)

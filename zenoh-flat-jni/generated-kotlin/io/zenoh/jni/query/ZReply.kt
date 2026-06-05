@@ -31,9 +31,7 @@ public class ZReply(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun replyReplierZid(): ZenohId? {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val r_ptr = this.ptr
         if (r_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.replyReplierZid(r_ptr)?.let { ZenohId(it) }
@@ -42,9 +40,7 @@ public class ZReply(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zReplyReplierZid(): ZZenohId? {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val r_ptr = this.ptr
         if (r_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zReplyReplierZid(r_ptr)?.let { ZZenohId(it) }
@@ -53,9 +49,7 @@ public class ZReply(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zReplyReplierEid(): Int {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val r_ptr = this.ptr
         if (r_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zReplyReplierEid(r_ptr)
@@ -64,9 +58,7 @@ public class ZReply(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zReplyIsOk(): Boolean {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val r_ptr = this.ptr
         if (r_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zReplyIsOk(r_ptr)
@@ -75,9 +67,7 @@ public class ZReply(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zReplySample(): ZSample? {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val r_ptr = this.ptr
         if (r_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zReplySample(r_ptr).let { if (it == 0L) null else ZSample(it) }
@@ -86,9 +76,7 @@ public class ZReply(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zReplyErrorPayload(): ZZBytes? {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val r_ptr = this.ptr
         if (r_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zReplyErrorPayload(r_ptr).let { if (it == 0L) null else ZZBytes(it) }
@@ -97,9 +85,7 @@ public class ZReply(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zReplyErrorEncoding(): ZEncoding? {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val r_ptr = this.ptr
         if (r_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zReplyErrorEncoding(r_ptr).let { if (it == 0L) null else ZEncoding(it) }
@@ -108,9 +94,7 @@ public class ZReply(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zReplyExpand(): Reply {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val r_ptr = this.ptr
         if (r_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zReplyExpand(r_ptr)

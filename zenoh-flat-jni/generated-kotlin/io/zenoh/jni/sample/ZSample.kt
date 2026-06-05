@@ -32,9 +32,7 @@ public class ZSample(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zSampleKeyExpr(): ZKeyExpr {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val s_ptr = this.ptr
         if (s_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         ZKeyExpr(JNINative.zSampleKeyExpr(s_ptr))
@@ -43,9 +41,7 @@ public class ZSample(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zSamplePayload(): ZZBytes {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val s_ptr = this.ptr
         if (s_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         ZZBytes(JNINative.zSamplePayload(s_ptr))
@@ -54,9 +50,7 @@ public class ZSample(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zSampleEncoding(): ZEncoding {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val s_ptr = this.ptr
         if (s_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         ZEncoding(JNINative.zSampleEncoding(s_ptr))
@@ -65,9 +59,7 @@ public class ZSample(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zSampleKind(): SampleKind {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val s_ptr = this.ptr
         if (s_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         SampleKind.fromInt(JNINative.zSampleKind(s_ptr))
@@ -76,9 +68,7 @@ public class ZSample(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zSampleTimestamp(): ZTimestamp? {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val s_ptr = this.ptr
         if (s_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zSampleTimestamp(s_ptr).let { if (it == 0L) null else ZTimestamp(it) }
@@ -87,9 +77,7 @@ public class ZSample(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zSampleExpress(): Boolean {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val s_ptr = this.ptr
         if (s_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zSampleExpress(s_ptr)
@@ -98,9 +86,7 @@ public class ZSample(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zSamplePriority(): Priority {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val s_ptr = this.ptr
         if (s_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         Priority.fromInt(JNINative.zSamplePriority(s_ptr))
@@ -109,9 +95,7 @@ public class ZSample(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zSampleCongestionControl(): CongestionControl {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val s_ptr = this.ptr
         if (s_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         CongestionControl.fromInt(JNINative.zSampleCongestionControl(s_ptr))
@@ -120,9 +104,7 @@ public class ZSample(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zSampleAttachment(): ZZBytes? {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val s_ptr = this.ptr
         if (s_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zSampleAttachment(s_ptr).let { if (it == 0L) null else ZZBytes(it) }
@@ -131,9 +113,7 @@ public class ZSample(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zSampleExpand(): Sample {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val s_ptr = this.ptr
         if (s_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zSampleExpand(s_ptr)

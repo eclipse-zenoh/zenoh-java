@@ -26,9 +26,7 @@ public class ZTimestamp(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zTimestampNtp64(): Long {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val t_ptr = this.ptr
         if (t_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zTimestampNtp64(t_ptr)
@@ -37,9 +35,7 @@ public class ZTimestamp(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zTimestampId(): ByteArray {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val t_ptr = this.ptr
         if (t_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zTimestampId(t_ptr)
@@ -48,9 +44,7 @@ public class ZTimestamp(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zTimestampExpand(): Timestamp {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val t_ptr = this.ptr
         if (t_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zTimestampExpand(t_ptr)

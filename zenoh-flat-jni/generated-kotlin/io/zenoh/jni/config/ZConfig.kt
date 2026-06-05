@@ -27,9 +27,7 @@ public class ZConfig(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(Error::class, JniBindingError::class)
     public fun zConfigGetJson(key: String): String {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val c_ptr = this.ptr
         if (c_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zConfigGetJson(c_ptr, key)
@@ -38,9 +36,7 @@ public class ZConfig(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(Error::class, JniBindingError::class)
     public fun zConfigInsertJson5(key: String, value: String) {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        withSortedHandleLocks(__locks) {
+        withSortedHandleLocks(this) {
         val c_ptr = this.ptr
         if (c_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zConfigInsertJson5(c_ptr, key, value)
@@ -49,9 +45,7 @@ public class ZConfig(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zConfigClone(): ZConfig {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val c_ptr = this.ptr
         if (c_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         ZConfig(JNINative.zConfigClone(c_ptr))

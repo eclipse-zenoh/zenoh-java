@@ -29,9 +29,7 @@ public class ZHello(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zHelloWhatami(): WhatAmI {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val h_ptr = this.ptr
         if (h_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         WhatAmI.fromInt(JNINative.zHelloWhatami(h_ptr))
@@ -40,9 +38,7 @@ public class ZHello(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun helloZid(): ZenohId {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val h_ptr = this.ptr
         if (h_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         ZenohId(JNINative.helloZid(h_ptr))
@@ -51,9 +47,7 @@ public class ZHello(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zHelloZid(): ZZenohId {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val h_ptr = this.ptr
         if (h_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         ZZenohId(JNINative.zHelloZid(h_ptr))
@@ -62,9 +56,7 @@ public class ZHello(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zHelloLocators(): List<String> {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val h_ptr = this.ptr
         if (h_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zHelloLocators(h_ptr)

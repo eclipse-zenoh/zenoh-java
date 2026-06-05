@@ -26,9 +26,7 @@ public class ZZBytes(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zZbytesToBytes(): ByteArray {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val z_ptr = this.ptr
         if (z_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zZbytesToBytes(z_ptr)
@@ -37,9 +35,7 @@ public class ZZBytes(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zZbytesClone(): ZZBytes {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val z_ptr = this.ptr
         if (z_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         ZZBytes(JNINative.zZbytesClone(z_ptr))

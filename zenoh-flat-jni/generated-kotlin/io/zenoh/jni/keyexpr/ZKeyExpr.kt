@@ -27,10 +27,7 @@ public class ZKeyExpr(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zKeyexprIntersects(b: ZKeyExpr): Boolean {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        __locks.add(b)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this, b) {
         val a_ptr = this.ptr
         if (a_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         val b_ptr = b.ptr
@@ -41,10 +38,7 @@ public class ZKeyExpr(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zKeyexprIncludes(b: ZKeyExpr): Boolean {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        __locks.add(b)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this, b) {
         val a_ptr = this.ptr
         if (a_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         val b_ptr = b.ptr
@@ -55,10 +49,7 @@ public class ZKeyExpr(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zKeyexprRelationTo(b: ZKeyExpr): SetIntersectionLevel {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        __locks.add(b)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this, b) {
         val a_ptr = this.ptr
         if (a_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         val b_ptr = b.ptr
@@ -69,9 +60,7 @@ public class ZKeyExpr(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(Error::class, JniBindingError::class)
     public fun zKeyexprJoin(b: String): ZKeyExpr {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val a_ptr = this.ptr
         if (a_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         ZKeyExpr(JNINative.zKeyexprJoin(a_ptr, b))
@@ -80,9 +69,7 @@ public class ZKeyExpr(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(Error::class, JniBindingError::class)
     public fun zKeyexprConcat(b: String): ZKeyExpr {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val a_ptr = this.ptr
         if (a_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         ZKeyExpr(JNINative.zKeyexprConcat(a_ptr, b))
@@ -91,9 +78,7 @@ public class ZKeyExpr(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zKeyexprClone(): ZKeyExpr {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val ke_ptr = this.ptr
         if (ke_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         ZKeyExpr(JNINative.zKeyexprClone(ke_ptr))
@@ -102,9 +87,7 @@ public class ZKeyExpr(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zKeyexprToString(): String {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val ke_ptr = this.ptr
         if (ke_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zKeyexprToString(ke_ptr)

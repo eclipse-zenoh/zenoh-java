@@ -26,9 +26,7 @@ public class ZEncoding(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zEncodingId(): Int {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val e_ptr = this.ptr
         if (e_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zEncodingId(e_ptr)
@@ -37,9 +35,7 @@ public class ZEncoding(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zEncodingSchema(): String {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val e_ptr = this.ptr
         if (e_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zEncodingSchema(e_ptr)
@@ -48,9 +44,7 @@ public class ZEncoding(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zEncodingToString(): String {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val e_ptr = this.ptr
         if (e_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         JNINative.zEncodingToString(e_ptr)
@@ -59,9 +53,7 @@ public class ZEncoding(initialPtr: Long) : NativeHandle(initialPtr) {
 
     @Throws(JniBindingError::class)
     public fun zEncodingClone(): ZEncoding {
-        val __locks = ArrayList<NativeHandle>()
-        __locks.add(this)
-        return withSortedHandleLocks(__locks) {
+        return withSortedHandleLocks(this) {
         val e_ptr = this.ptr
         if (e_ptr == 0L) throw JniBindingError("Operation on a closed native handle.")
         ZEncoding(JNINative.zEncodingClone(e_ptr))
