@@ -125,7 +125,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun intersects(other: KeyExpr): Boolean = wrapJNIExceptionAsZError {
-        zKeyexprIntersects(this.flat, other.flat)
+        zKeyexprIntersects(this.exprSel, this.exprStr, this.exprHandle, other.exprSel, other.exprStr, other.exprHandle)
     }
 
     /**
@@ -135,7 +135,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun includes(other: KeyExpr): Boolean = wrapJNIExceptionAsZError {
-        zKeyexprIncludes(this.flat, other.flat)
+        zKeyexprIncludes(this.exprSel, this.exprStr, this.exprHandle, other.exprSel, other.exprStr, other.exprHandle)
     }
 
     /**
@@ -145,7 +145,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun relationTo(other: KeyExpr): SetIntersectionLevel = wrapJNIExceptionAsZError {
-        SetIntersectionLevel.fromJni(zKeyexprRelationTo(this.flat, other.flat))
+        SetIntersectionLevel.fromJni(zKeyexprRelationTo(this.exprSel, this.exprStr, this.exprHandle, other.exprSel, other.exprStr, other.exprHandle))
     }
 
     /**
@@ -154,7 +154,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun join(other: String): KeyExpr = wrapJNIExceptionAsZError {
-        KeyExpr(zKeyexprJoin(this.flat, other))
+        KeyExpr(zKeyexprJoin(this.exprSel, this.exprStr, this.exprHandle, other))
     }
 
     /**
@@ -163,7 +163,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun concat(other: String): KeyExpr = wrapJNIExceptionAsZError {
-        KeyExpr(zKeyexprConcat(this.flat, other))
+        KeyExpr(zKeyexprConcat(this.exprSel, this.exprStr, this.exprHandle, other))
     }
 
     override fun toString(): String = keyExprString
@@ -188,6 +188,21 @@ class KeyExpr internal constructor(
     }
 
     override fun into(): Selector = Selector(this)
+
+    // ── Constructor-expansion bridge ────────────────────────────────
+    // Key-expr consumer wrappers are generated with a combined constructor:
+    // each key-expr parameter is flattened into `(sel: Int, str: String?,
+    // handle: ZKeyExpr?)`. A declared KeyExpr is a network-optimized handle, so
+    // the SDK passes the **handle** arm (`exprSel = 1`). By-reference consumers
+    // (put/get/delete/reply/relational) clone the handle Rust-side, so the
+    // caller's KeyExpr survives. By-value consumers (declare_*) **consume** it,
+    // so pass [exprHandleOwned] (a clone) there to keep this instance valid.
+    internal val exprSel: Int get() = 1
+    internal val exprStr: String? get() = null
+    /** Borrowed handle arm — Rust clones it; this KeyExpr stays valid. */
+    internal val exprHandle: ZKeyExpr get() = flat
+    /** Owned handle arm for by-value consumers — a clone the wrapper consumes. */
+    internal fun exprHandleOwned(): ZKeyExpr = io.zenoh.jni.keyexpr.zKeyexprClone(flat)
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

@@ -19,112 +19,59 @@ import io.zenoh.jni.sample.ZSample
 import io.zenoh.jni.withSortedHandleLocks
 import io.zenoh.jni.JNINative
 
-public fun zQuerierGet(querier: ZQuerier, parameters: String?, payload: ZZBytes?, encoding: ZEncoding?, attachment: ZZBytes?, callback: ZReplyCallback, onClose: Callback) {
+public fun zQuerierGet(querier: ZQuerier, parameters: String?, payload: ByteArray?, encoding: String?, attachment: ByteArray?, callback: ZReplyCallback, onClose: Callback) {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
-    run {
-    val __locks = ArrayList<NativeHandle>()
-    __locks.add(querier)
-    payload?.let { __locks.add(it) }
-    encoding?.let { __locks.add(it) }
-    attachment?.let { __locks.add(it) }
-    withSortedHandleLocks(__locks) {
+    withSortedHandleLocks(querier) {
     val querier_ptr = querier.ptr
     if (querier_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val payload_ptr = payload?.ptr ?: 0L
-    if (payload != null && payload_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val encoding_ptr = encoding?.ptr ?: 0L
-    if (encoding != null && encoding_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val attachment_ptr = attachment?.ptr ?: 0L
-    if (attachment != null && attachment_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    try {
-    JNINative.zQuerierGet(querier_ptr, parameters, payload_ptr, encoding_ptr, attachment_ptr, callback, onClose, __sink)
-    } finally {
-    payload?.let { it.ptr = 0L }
-    attachment?.let { it.ptr = 0L }
-    }
-    }
+    JNINative.zQuerierGet(querier_ptr, parameters, payload, encoding, attachment, callback, onClose, __sink)
     }
     __err.message?.let { throw ZException(it) }
 }
 
-public fun zQueryReplySuccess(query: ZQuery, keyExpr: ZKeyExpr, payload: ZZBytes, encoding: ZEncoding?, timestampNtp64: Long?, attachment: ZZBytes?, express: Boolean?) {
+public fun zQueryReplySuccess(query: ZQuery, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, payload: ByteArray, encoding: String?, timestampNtp64: Long?, attachment: ByteArray?, express: Boolean?) {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
     run {
     val __locks = ArrayList<NativeHandle>()
     __locks.add(query)
-    __locks.add(keyExpr)
-    __locks.add(payload)
-    encoding?.let { __locks.add(it) }
-    attachment?.let { __locks.add(it) }
+    keyExpr1?.let { __locks.add(it) }
     withSortedHandleLocks(__locks) {
     val query_ptr = query.ptr
     if (query_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val keyExpr_ptr = keyExpr.ptr
-    if (keyExpr_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val payload_ptr = payload.ptr
-    if (payload_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val encoding_ptr = encoding?.ptr ?: 0L
-    if (encoding != null && encoding_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val attachment_ptr = attachment?.ptr ?: 0L
-    if (attachment != null && attachment_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    try {
-    JNINative.zQueryReplySuccess(query_ptr, keyExpr_ptr, payload_ptr, encoding_ptr, timestampNtp64, attachment_ptr, express, __sink)
-    } finally {
-    payload.ptr = 0L
-    attachment?.let { it.ptr = 0L }
-    }
+    val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
+    if (keyExpr1 != null && keyExpr1_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    JNINative.zQueryReplySuccess(query_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, payload, encoding, timestampNtp64, attachment, express, __sink)
     }
     }
     __err.message?.let { throw ZException(it) }
 }
 
-public fun zQueryReplyError(query: ZQuery, payload: ZZBytes, encoding: ZEncoding?) {
+public fun zQueryReplyError(query: ZQuery, payload: ByteArray, encoding: String?) {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
-    run {
-    val __locks = ArrayList<NativeHandle>()
-    __locks.add(query)
-    __locks.add(payload)
-    encoding?.let { __locks.add(it) }
-    withSortedHandleLocks(__locks) {
+    withSortedHandleLocks(query) {
     val query_ptr = query.ptr
     if (query_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val payload_ptr = payload.ptr
-    if (payload_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val encoding_ptr = encoding?.ptr ?: 0L
-    if (encoding != null && encoding_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    try {
-    JNINative.zQueryReplyError(query_ptr, payload_ptr, encoding_ptr, __sink)
-    } finally {
-    payload.ptr = 0L
-    }
-    }
+    JNINative.zQueryReplyError(query_ptr, payload, encoding, __sink)
     }
     __err.message?.let { throw ZException(it) }
 }
 
-public fun zQueryReplyDelete(query: ZQuery, keyExpr: ZKeyExpr, timestampNtp64: Long?, attachment: ZZBytes?, express: Boolean?) {
+public fun zQueryReplyDelete(query: ZQuery, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, timestampNtp64: Long?, attachment: ByteArray?, express: Boolean?) {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
     run {
     val __locks = ArrayList<NativeHandle>()
     __locks.add(query)
-    __locks.add(keyExpr)
-    attachment?.let { __locks.add(it) }
+    keyExpr1?.let { __locks.add(it) }
     withSortedHandleLocks(__locks) {
     val query_ptr = query.ptr
     if (query_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val keyExpr_ptr = keyExpr.ptr
-    if (keyExpr_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val attachment_ptr = attachment?.ptr ?: 0L
-    if (attachment != null && attachment_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    try {
-    JNINative.zQueryReplyDelete(query_ptr, keyExpr_ptr, timestampNtp64, attachment_ptr, express, __sink)
-    } finally {
-    attachment?.let { it.ptr = 0L }
-    }
+    val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
+    if (keyExpr1 != null && keyExpr1_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    JNINative.zQueryReplyDelete(query_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, timestampNtp64, attachment, express, __sink)
     }
     }
     __err.message?.let { throw ZException(it) }

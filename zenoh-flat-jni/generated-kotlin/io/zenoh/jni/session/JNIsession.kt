@@ -5,8 +5,6 @@ import io.zenoh.jni.ErrorHolder
 import io.zenoh.jni.ErrorSink
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.ZException
-import io.zenoh.jni.bytes.ZEncoding
-import io.zenoh.jni.bytes.ZZBytes
 import io.zenoh.jni.callbacks.Callback
 import io.zenoh.jni.callbacks.ZQueryCallback
 import io.zenoh.jni.callbacks.ZReplyCallback
@@ -45,129 +43,128 @@ public fun zOpen(config: ZConfig): ZSession {
     return __ret
 }
 
-public fun zSessionDeclarePublisher(session: ZSession, keyExpr: ZKeyExpr, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, reliability: Reliability?): ZPublisher {
+public fun zSessionDeclarePublisher(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, reliability: Reliability?): ZPublisher {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
-    val __ret = withSortedHandleLocks(session, keyExpr) {
+    val __ret = run {
+    val __locks = ArrayList<NativeHandle>()
+    __locks.add(session)
+    keyExpr1?.let { __locks.add(it) }
+    withSortedHandleLocks(__locks) {
     val session_ptr = session.ptr
     if (session_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val keyExpr_ptr = keyExpr.ptr
-    if (keyExpr_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
+    if (keyExpr1 != null && keyExpr1_ptr == 0L) throw ZException("Operation on a closed native handle.")
     try {
-    ZPublisher(JNINative.zSessionDeclarePublisher(session_ptr, keyExpr_ptr, congestionControl?.value, priority?.value, express, reliability?.value, __sink))
+    ZPublisher(JNINative.zSessionDeclarePublisher(session_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, congestionControl?.value, priority?.value, express, reliability?.value, __sink))
     } finally {
-    keyExpr.ptr = 0L
+    keyExpr1?.let { it.ptr = 0L }
+    }
     }
     }
     __err.message?.let { throw ZException(it) }
     return __ret
 }
 
-public fun zSessionPut(session: ZSession, keyExpr: ZKeyExpr, payload: ZZBytes, encoding: ZEncoding?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, attachment: ZZBytes?, reliability: Reliability?) {
+public fun zSessionPut(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, payload: ByteArray, encoding: String?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, attachment: ByteArray?, reliability: Reliability?) {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
     run {
     val __locks = ArrayList<NativeHandle>()
     __locks.add(session)
-    __locks.add(keyExpr)
-    __locks.add(payload)
-    encoding?.let { __locks.add(it) }
-    attachment?.let { __locks.add(it) }
+    keyExpr1?.let { __locks.add(it) }
     withSortedHandleLocks(__locks) {
     val session_ptr = session.ptr
     if (session_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val keyExpr_ptr = keyExpr.ptr
-    if (keyExpr_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val payload_ptr = payload.ptr
-    if (payload_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val encoding_ptr = encoding?.ptr ?: 0L
-    if (encoding != null && encoding_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val attachment_ptr = attachment?.ptr ?: 0L
-    if (attachment != null && attachment_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    try {
-    JNINative.zSessionPut(session_ptr, keyExpr_ptr, payload_ptr, encoding_ptr, congestionControl?.value, priority?.value, express, attachment_ptr, reliability?.value, __sink)
-    } finally {
-    payload.ptr = 0L
-    attachment?.let { it.ptr = 0L }
-    }
+    val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
+    if (keyExpr1 != null && keyExpr1_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    JNINative.zSessionPut(session_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, payload, encoding, congestionControl?.value, priority?.value, express, attachment, reliability?.value, __sink)
     }
     }
     __err.message?.let { throw ZException(it) }
 }
 
-public fun zSessionDelete(session: ZSession, keyExpr: ZKeyExpr, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, attachment: ZZBytes?, reliability: Reliability?) {
+public fun zSessionDelete(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, attachment: ByteArray?, reliability: Reliability?) {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
     run {
     val __locks = ArrayList<NativeHandle>()
     __locks.add(session)
-    __locks.add(keyExpr)
-    attachment?.let { __locks.add(it) }
+    keyExpr1?.let { __locks.add(it) }
     withSortedHandleLocks(__locks) {
     val session_ptr = session.ptr
     if (session_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val keyExpr_ptr = keyExpr.ptr
-    if (keyExpr_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val attachment_ptr = attachment?.ptr ?: 0L
-    if (attachment != null && attachment_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    try {
-    JNINative.zSessionDelete(session_ptr, keyExpr_ptr, congestionControl?.value, priority?.value, express, attachment_ptr, reliability?.value, __sink)
-    } finally {
-    attachment?.let { it.ptr = 0L }
-    }
+    val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
+    if (keyExpr1 != null && keyExpr1_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    JNINative.zSessionDelete(session_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, congestionControl?.value, priority?.value, express, attachment, reliability?.value, __sink)
     }
     }
     __err.message?.let { throw ZException(it) }
 }
 
-public fun zSessionDeclareSubscriber(session: ZSession, keyExpr: ZKeyExpr, callback: ZSampleCallback, onClose: Callback): ZSubscriber {
+public fun zSessionDeclareSubscriber(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, callback: ZSampleCallback, onClose: Callback): ZSubscriber {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
-    val __ret = withSortedHandleLocks(session, keyExpr) {
+    val __ret = run {
+    val __locks = ArrayList<NativeHandle>()
+    __locks.add(session)
+    keyExpr1?.let { __locks.add(it) }
+    withSortedHandleLocks(__locks) {
     val session_ptr = session.ptr
     if (session_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val keyExpr_ptr = keyExpr.ptr
-    if (keyExpr_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
+    if (keyExpr1 != null && keyExpr1_ptr == 0L) throw ZException("Operation on a closed native handle.")
     try {
-    ZSubscriber(JNINative.zSessionDeclareSubscriber(session_ptr, keyExpr_ptr, callback, onClose, __sink))
+    ZSubscriber(JNINative.zSessionDeclareSubscriber(session_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, callback, onClose, __sink))
     } finally {
-    keyExpr.ptr = 0L
+    keyExpr1?.let { it.ptr = 0L }
     }
-    }
-    __err.message?.let { throw ZException(it) }
-    return __ret
-}
-
-public fun zSessionDeclareQuerier(session: ZSession, keyExpr: ZKeyExpr, target: QueryTarget?, consolidation: ConsolidationMode?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, timeoutMs: Long?, acceptReplies: ReplyKeyExpr?): ZQuerier {
-    val __err = ErrorHolder()
-    val __sink = ErrorSink { __m -> __err.message = __m }
-    val __ret = withSortedHandleLocks(session, keyExpr) {
-    val session_ptr = session.ptr
-    if (session_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val keyExpr_ptr = keyExpr.ptr
-    if (keyExpr_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    try {
-    ZQuerier(JNINative.zSessionDeclareQuerier(session_ptr, keyExpr_ptr, target?.value, consolidation?.value, congestionControl?.value, priority?.value, express, timeoutMs, acceptReplies?.value, __sink))
-    } finally {
-    keyExpr.ptr = 0L
     }
     }
     __err.message?.let { throw ZException(it) }
     return __ret
 }
 
-public fun zSessionDeclareQueryable(session: ZSession, keyExpr: ZKeyExpr, complete: Boolean?, callback: ZQueryCallback, onClose: Callback): ZQueryable {
+public fun zSessionDeclareQuerier(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, target: QueryTarget?, consolidation: ConsolidationMode?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, timeoutMs: Long?, acceptReplies: ReplyKeyExpr?): ZQuerier {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
-    val __ret = withSortedHandleLocks(session, keyExpr) {
+    val __ret = run {
+    val __locks = ArrayList<NativeHandle>()
+    __locks.add(session)
+    keyExpr1?.let { __locks.add(it) }
+    withSortedHandleLocks(__locks) {
     val session_ptr = session.ptr
     if (session_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val keyExpr_ptr = keyExpr.ptr
-    if (keyExpr_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
+    if (keyExpr1 != null && keyExpr1_ptr == 0L) throw ZException("Operation on a closed native handle.")
     try {
-    ZQueryable(JNINative.zSessionDeclareQueryable(session_ptr, keyExpr_ptr, complete, callback, onClose, __sink))
+    ZQuerier(JNINative.zSessionDeclareQuerier(session_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, target?.value, consolidation?.value, congestionControl?.value, priority?.value, express, timeoutMs, acceptReplies?.value, __sink))
     } finally {
-    keyExpr.ptr = 0L
+    keyExpr1?.let { it.ptr = 0L }
+    }
+    }
+    }
+    __err.message?.let { throw ZException(it) }
+    return __ret
+}
+
+public fun zSessionDeclareQueryable(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, complete: Boolean?, callback: ZQueryCallback, onClose: Callback): ZQueryable {
+    val __err = ErrorHolder()
+    val __sink = ErrorSink { __m -> __err.message = __m }
+    val __ret = run {
+    val __locks = ArrayList<NativeHandle>()
+    __locks.add(session)
+    keyExpr1?.let { __locks.add(it) }
+    withSortedHandleLocks(__locks) {
+    val session_ptr = session.ptr
+    if (session_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
+    if (keyExpr1 != null && keyExpr1_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    try {
+    ZQueryable(JNINative.zSessionDeclareQueryable(session_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, complete, callback, onClose, __sink))
+    } finally {
+    keyExpr1?.let { it.ptr = 0L }
+    }
     }
     }
     __err.message?.let { throw ZException(it) }
@@ -203,33 +200,19 @@ public fun zSessionUndeclareKeyexpr(session: ZSession, keyExpr: ZKeyExpr) {
     __err.message?.let { throw ZException(it) }
 }
 
-public fun zSessionGet(session: ZSession, keyExpr: ZKeyExpr, parameters: String?, timeoutMs: Long?, target: QueryTarget?, consolidation: ConsolidationMode?, acceptReplies: ReplyKeyExpr?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, payload: ZZBytes?, encoding: ZEncoding?, attachment: ZZBytes?, callback: ZReplyCallback, onClose: Callback) {
+public fun zSessionGet(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, parameters: String?, timeoutMs: Long?, target: QueryTarget?, consolidation: ConsolidationMode?, acceptReplies: ReplyKeyExpr?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, payload: ByteArray?, encoding: String?, attachment: ByteArray?, callback: ZReplyCallback, onClose: Callback) {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
     run {
     val __locks = ArrayList<NativeHandle>()
     __locks.add(session)
-    __locks.add(keyExpr)
-    payload?.let { __locks.add(it) }
-    encoding?.let { __locks.add(it) }
-    attachment?.let { __locks.add(it) }
+    keyExpr1?.let { __locks.add(it) }
     withSortedHandleLocks(__locks) {
     val session_ptr = session.ptr
     if (session_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val keyExpr_ptr = keyExpr.ptr
-    if (keyExpr_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val payload_ptr = payload?.ptr ?: 0L
-    if (payload != null && payload_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val encoding_ptr = encoding?.ptr ?: 0L
-    if (encoding != null && encoding_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val attachment_ptr = attachment?.ptr ?: 0L
-    if (attachment != null && attachment_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    try {
-    JNINative.zSessionGet(session_ptr, keyExpr_ptr, parameters, timeoutMs, target?.value, consolidation?.value, acceptReplies?.value, congestionControl?.value, priority?.value, express, payload_ptr, encoding_ptr, attachment_ptr, callback, onClose, __sink)
-    } finally {
-    payload?.let { it.ptr = 0L }
-    attachment?.let { it.ptr = 0L }
-    }
+    val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
+    if (keyExpr1 != null && keyExpr1_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    JNINative.zSessionGet(session_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, parameters, timeoutMs, target?.value, consolidation?.value, acceptReplies?.value, congestionControl?.value, priority?.value, express, payload, encoding, attachment, callback, onClose, __sink)
     }
     }
     __err.message?.let { throw ZException(it) }
@@ -271,49 +254,64 @@ public fun zSessionRoutersZid(session: ZSession): List<ZZenohId> {
     return __ret
 }
 
-public fun zLivelinessDeclareToken(session: ZSession, keyExpr: ZKeyExpr): ZLivelinessToken {
+public fun zLivelinessDeclareToken(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?): ZLivelinessToken {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
-    val __ret = withSortedHandleLocks(session, keyExpr) {
+    val __ret = run {
+    val __locks = ArrayList<NativeHandle>()
+    __locks.add(session)
+    keyExpr1?.let { __locks.add(it) }
+    withSortedHandleLocks(__locks) {
     val session_ptr = session.ptr
     if (session_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val keyExpr_ptr = keyExpr.ptr
-    if (keyExpr_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
+    if (keyExpr1 != null && keyExpr1_ptr == 0L) throw ZException("Operation on a closed native handle.")
     try {
-    ZLivelinessToken(JNINative.zLivelinessDeclareToken(session_ptr, keyExpr_ptr, __sink))
+    ZLivelinessToken(JNINative.zLivelinessDeclareToken(session_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, __sink))
     } finally {
-    keyExpr.ptr = 0L
+    keyExpr1?.let { it.ptr = 0L }
+    }
     }
     }
     __err.message?.let { throw ZException(it) }
     return __ret
 }
 
-public fun zLivelinessGet(session: ZSession, keyExpr: ZKeyExpr, timeoutMs: Long, callback: ZReplyCallback, onClose: Callback) {
+public fun zLivelinessGet(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, timeoutMs: Long, callback: ZReplyCallback, onClose: Callback) {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
-    withSortedHandleLocks(session, keyExpr) {
+    run {
+    val __locks = ArrayList<NativeHandle>()
+    __locks.add(session)
+    keyExpr1?.let { __locks.add(it) }
+    withSortedHandleLocks(__locks) {
     val session_ptr = session.ptr
     if (session_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val keyExpr_ptr = keyExpr.ptr
-    if (keyExpr_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    JNINative.zLivelinessGet(session_ptr, keyExpr_ptr, timeoutMs, callback, onClose, __sink)
+    val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
+    if (keyExpr1 != null && keyExpr1_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    JNINative.zLivelinessGet(session_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, timeoutMs, callback, onClose, __sink)
+    }
     }
     __err.message?.let { throw ZException(it) }
 }
 
-public fun zLivelinessDeclareSubscriber(session: ZSession, keyExpr: ZKeyExpr, history: Boolean, callback: ZSampleCallback, onClose: Callback): ZSubscriber {
+public fun zLivelinessDeclareSubscriber(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, history: Boolean, callback: ZSampleCallback, onClose: Callback): ZSubscriber {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
-    val __ret = withSortedHandleLocks(session, keyExpr) {
+    val __ret = run {
+    val __locks = ArrayList<NativeHandle>()
+    __locks.add(session)
+    keyExpr1?.let { __locks.add(it) }
+    withSortedHandleLocks(__locks) {
     val session_ptr = session.ptr
     if (session_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val keyExpr_ptr = keyExpr.ptr
-    if (keyExpr_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
+    if (keyExpr1 != null && keyExpr1_ptr == 0L) throw ZException("Operation on a closed native handle.")
     try {
-    ZSubscriber(JNINative.zLivelinessDeclareSubscriber(session_ptr, keyExpr_ptr, history, callback, onClose, __sink))
+    ZSubscriber(JNINative.zLivelinessDeclareSubscriber(session_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, history, callback, onClose, __sink))
     } finally {
-    keyExpr.ptr = 0L
+    keyExpr1?.let { it.ptr = 0L }
+    }
     }
     }
     __err.message?.let { throw ZException(it) }

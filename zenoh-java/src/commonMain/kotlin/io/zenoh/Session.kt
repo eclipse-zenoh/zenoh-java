@@ -589,7 +589,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val publisher = wrapJNIExceptionAsZError {
             val zPublisher = io.zenoh.jni.session.zSessionDeclarePublisher(
                 zSession,
-                io.zenoh.jni.keyexpr.zKeyexprClone(keyExpr.flat),
+                keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(),
                 options.congestionControl.jni,
                 options.priority.jni,
                 options.express,
@@ -615,7 +615,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val subscriber = wrapJNIExceptionAsZError {
             val zSubscriber = io.zenoh.jni.session.zSessionDeclareSubscriber(
                 zSession,
-                io.zenoh.jni.keyexpr.zKeyexprClone(keyExpr.flat),
+                keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(),
                 sampleCallbackOf { handler.handle(it) },
                 io.zenoh.jni.callbacks.Callback { handler.onClose() }
             )
@@ -633,7 +633,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val subscriber = wrapJNIExceptionAsZError {
             val zSubscriber = io.zenoh.jni.session.zSessionDeclareSubscriber(
                 zSession,
-                io.zenoh.jni.keyexpr.zKeyexprClone(keyExpr.flat),
+                keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(),
                 sampleCallbackOf { callback.run(it) },
                 io.zenoh.jni.callbacks.Callback { }
             )
@@ -651,7 +651,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val queryable = wrapJNIExceptionAsZError {
             val zQueryable = io.zenoh.jni.session.zSessionDeclareQueryable(
                 zSession,
-                io.zenoh.jni.keyexpr.zKeyexprClone(keyExpr.flat),
+                keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(),
                 options.complete,
                 queryCallbackOf { handler.handle(it) },
                 io.zenoh.jni.callbacks.Callback { handler.onClose() }
@@ -670,7 +670,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val queryable = wrapJNIExceptionAsZError {
             val zQueryable = io.zenoh.jni.session.zSessionDeclareQueryable(
                 zSession,
-                io.zenoh.jni.keyexpr.zKeyexprClone(keyExpr.flat),
+                keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(),
                 options.complete,
                 queryCallbackOf { callback.run(it) },
                 io.zenoh.jni.callbacks.Callback { }
@@ -690,7 +690,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val querier = wrapJNIExceptionAsZError {
             val zQuerier = io.zenoh.jni.session.zSessionDeclareQuerier(
                 zSession,
-                io.zenoh.jni.keyexpr.zKeyexprClone(keyExpr.flat),
+                keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(),
                 options.target.toFlat(),
                 options.consolidationMode.toFlat(),
                 options.congestionControl.jni,
@@ -722,28 +722,25 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val zSession = zSession ?: throw sessionClosedException
         return wrapJNIExceptionAsZError {
             val sel = selector.into()
-            val enc = (options.encoding ?: Encoding.defaultEncoding()).toZEncoding()
-            try {
-                io.zenoh.jni.session.zSessionGet(
-                    zSession,
-                    sel.keyExpr.flat,
-                    sel.parameters?.toString(),
-                    options.timeout.toMillis(),
-                    options.target.toFlat(),
-                    options.consolidation.toFlat(),
-                    options.acceptReplies.toFlat(),
-                    options.qos.congestionControl.jni,
-                    options.qos.priority.jni,
-                    options.qos.express,
-                    options.payload?.into()?.toZZBytes(),
-                    enc,
-                    options.attachment?.into()?.toZZBytes(),
-                    replyCallbackOf { handler.handle(it) },
-                    io.zenoh.jni.callbacks.Callback { handler.onClose() }
-                )
-            } finally {
-                enc.close()
-            }
+            io.zenoh.jni.session.zSessionGet(
+                zSession,
+                sel.keyExpr.exprSel,
+                sel.keyExpr.exprStr,
+                sel.keyExpr.exprHandle,
+                sel.parameters?.toString(),
+                options.timeout.toMillis(),
+                options.target.toFlat(),
+                options.consolidation.toFlat(),
+                options.acceptReplies.toFlat(),
+                options.qos.congestionControl.jni,
+                options.qos.priority.jni,
+                options.qos.express,
+                options.payload?.into()?.bytes,
+                (options.encoding ?: Encoding.defaultEncoding()).repr,
+                options.attachment?.into()?.bytes,
+                replyCallbackOf { handler.handle(it) },
+                io.zenoh.jni.callbacks.Callback { handler.onClose() }
+            )
             handler.receiver()
         }
     }
@@ -757,28 +754,25 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val zSession = zSession ?: throw sessionClosedException
         wrapJNIExceptionAsZError {
             val sel = selector.into()
-            val enc = (options.encoding ?: Encoding.defaultEncoding()).toZEncoding()
-            try {
-                io.zenoh.jni.session.zSessionGet(
-                    zSession,
-                    sel.keyExpr.flat,
-                    sel.parameters?.toString(),
-                    options.timeout.toMillis(),
-                    options.target.toFlat(),
-                    options.consolidation.toFlat(),
-                    options.acceptReplies.toFlat(),
-                    options.qos.congestionControl.jni,
-                    options.qos.priority.jni,
-                    options.qos.express,
-                    options.payload?.into()?.toZZBytes(),
-                    enc,
-                    options.attachment?.into()?.toZZBytes(),
-                    replyCallbackOf { callback.run(it) },
-                    io.zenoh.jni.callbacks.Callback { }
-                )
-            } finally {
-                enc.close()
-            }
+            io.zenoh.jni.session.zSessionGet(
+                zSession,
+                sel.keyExpr.exprSel,
+                sel.keyExpr.exprStr,
+                sel.keyExpr.exprHandle,
+                sel.parameters?.toString(),
+                options.timeout.toMillis(),
+                options.target.toFlat(),
+                options.consolidation.toFlat(),
+                options.acceptReplies.toFlat(),
+                options.qos.congestionControl.jni,
+                options.qos.priority.jni,
+                options.qos.express,
+                options.payload?.into()?.bytes,
+                (options.encoding ?: Encoding.defaultEncoding()).repr,
+                options.attachment?.into()?.bytes,
+                replyCallbackOf { callback.run(it) },
+                io.zenoh.jni.callbacks.Callback { }
+            )
         }
     }
 
@@ -786,22 +780,19 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     internal fun resolvePut(keyExpr: KeyExpr, payload: IntoZBytes, putOptions: PutOptions) {
         val zSession = zSession ?: return
         wrapJNIExceptionAsZError {
-            val enc = (putOptions.encoding ?: Encoding.defaultEncoding()).toZEncoding()
-            try {
-                io.zenoh.jni.session.zSessionPut(
-                    zSession,
-                    keyExpr.flat,
-                    payload.into().toZZBytes(),
-                    enc,
-                    putOptions.congestionControl.jni,
-                    putOptions.priority.jni,
-                    putOptions.express,
-                    putOptions.attachment?.into()?.toZZBytes(),
-                    putOptions.reliability.jni
-                )
-            } finally {
-                enc.close()
-            }
+            io.zenoh.jni.session.zSessionPut(
+                zSession,
+                keyExpr.exprSel,
+                keyExpr.exprStr,
+                keyExpr.exprHandle,
+                payload.into().bytes,
+                (putOptions.encoding ?: Encoding.defaultEncoding()).repr,
+                putOptions.congestionControl.jni,
+                putOptions.priority.jni,
+                putOptions.express,
+                putOptions.attachment?.into()?.bytes,
+                putOptions.reliability.jni
+            )
         }
     }
 
@@ -811,11 +802,13 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         wrapJNIExceptionAsZError {
             io.zenoh.jni.session.zSessionDelete(
                 zSession,
-                keyExpr.flat,
+                keyExpr.exprSel,
+                keyExpr.exprStr,
+                keyExpr.exprHandle,
                 deleteOptions.congestionControl.jni,
                 deleteOptions.priority.jni,
                 deleteOptions.express,
-                deleteOptions.attachment?.into()?.toZZBytes(),
+                deleteOptions.attachment?.into()?.bytes,
                 deleteOptions.reliability.jni
             )
         }

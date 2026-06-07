@@ -103,29 +103,29 @@ internal object JNINative {
     external fun zHelloZid(h: Long, errorSink: Any): ByteArray
     external fun zKeyexprAutocanonize(s: String, errorSink: Any): Long
     external fun zKeyexprClone(ke: Long, errorSink: Any): Long
-    external fun zKeyexprConcat(a: Long, b: String, errorSink: Any): Long
-    external fun zKeyexprIncludes(a: Long, b: Long, errorSink: Any): Boolean
+    external fun zKeyexprConcat(aSel: Int, a0: String?, a1: Long, b: String, errorSink: Any): Long
+    external fun zKeyexprIncludes(aSel: Int, a0: String?, a1: Long, bSel: Int, b0: String?, b1: Long, errorSink: Any): Boolean
     external fun zKeyexprIntersects(aSel: Int, a0: String?, a1: Long, bSel: Int, b0: String?, b1: Long, errorSink: Any): Boolean
-    external fun zKeyexprJoin(a: Long, b: String, errorSink: Any): Long
-    external fun zKeyexprRelationTo(a: Long, b: Long, errorSink: Any): Int
+    external fun zKeyexprJoin(aSel: Int, a0: String?, a1: Long, b: String, errorSink: Any): Long
+    external fun zKeyexprRelationTo(aSel: Int, a0: String?, a1: Long, bSel: Int, b0: String?, b1: Long, errorSink: Any): Int
     external fun zKeyexprToString(ke: Long, errorSink: Any): String
     external fun zKeyexprTryFrom(s: String, errorSink: Any): Long
-    external fun zLivelinessDeclareSubscriber(session: Long, keyExpr: Long, history: Boolean, callback: ZSampleCallback, onClose: Callback, errorSink: Any): Long
-    external fun zLivelinessDeclareToken(session: Long, keyExpr: Long, errorSink: Any): Long
-    external fun zLivelinessGet(session: Long, keyExpr: Long, timeoutMs: Long, callback: ZReplyCallback, onClose: Callback, errorSink: Any)
+    external fun zLivelinessDeclareSubscriber(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, history: Boolean, callback: ZSampleCallback, onClose: Callback, errorSink: Any): Long
+    external fun zLivelinessDeclareToken(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, errorSink: Any): Long
+    external fun zLivelinessGet(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, timeoutMs: Long, callback: ZReplyCallback, onClose: Callback, errorSink: Any)
     external fun zOpen(config: Long, errorSink: Any): Long
-    external fun zPublisherDelete(publisher: Long, attachment: Long, errorSink: Any)
-    external fun zPublisherPut(publisher: Long, payload: Long, encoding: Long, attachment: Long, errorSink: Any)
-    external fun zQuerierGet(querier: Long, parameters: String?, payload: Long, encoding: Long, attachment: Long, callback: ZReplyCallback, onClose: Callback, errorSink: Any)
+    external fun zPublisherDelete(publisher: Long, attachment: ByteArray?, errorSink: Any)
+    external fun zPublisherPut(publisher: Long, payload: ByteArray, encoding: String?, attachment: ByteArray?, errorSink: Any)
+    external fun zQuerierGet(querier: Long, parameters: String?, payload: ByteArray?, encoding: String?, attachment: ByteArray?, callback: ZReplyCallback, onClose: Callback, errorSink: Any)
     external fun zQueryAcceptsReplies(q: Long, errorSink: Any): Int
     external fun zQueryAttachment(q: Long, errorSink: Any): Long
     external fun zQueryEncoding(q: Long, errorSink: Any): Long
     external fun zQueryKeyexpr(q: Long, errorSink: Any): Long
     external fun zQueryParameters(q: Long, errorSink: Any): String
     external fun zQueryPayload(q: Long, errorSink: Any): Long
-    external fun zQueryReplyDelete(query: Long, keyExpr: Long, timestampNtp64: Long?, attachment: Long, express: Boolean?, errorSink: Any)
-    external fun zQueryReplyError(query: Long, payload: Long, encoding: Long, errorSink: Any)
-    external fun zQueryReplySuccess(query: Long, keyExpr: Long, payload: Long, encoding: Long, timestampNtp64: Long?, attachment: Long, express: Boolean?, errorSink: Any)
+    external fun zQueryReplyDelete(query: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, timestampNtp64: Long?, attachment: ByteArray?, express: Boolean?, errorSink: Any)
+    external fun zQueryReplyError(query: Long, payload: ByteArray, encoding: String?, errorSink: Any)
+    external fun zQueryReplySuccess(query: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, payload: ByteArray, encoding: String?, timestampNtp64: Long?, attachment: ByteArray?, express: Boolean?, errorSink: Any)
     external fun zReplyErrorEncoding(r: Long, errorSink: Any): Long
     external fun zReplyErrorPayload(r: Long, errorSink: Any): Long
     external fun zReplyIsOk(r: Long, errorSink: Any): Boolean
@@ -143,14 +143,14 @@ internal object JNINative {
     external fun zSampleTimestamp(s: Long, errorSink: Any): Long
     external fun zScout(whatami: Int, config: Long, callback: ZHelloCallback, onClose: Callback, errorSink: Any): Long
     external fun zSessionDeclareKeyexpr(session: Long, keyExpr: String, errorSink: Any): Long
-    external fun zSessionDeclarePublisher(session: Long, keyExpr: Long, congestionControl: Int?, priority: Int?, express: Boolean?, reliability: Int?, errorSink: Any): Long
-    external fun zSessionDeclareQuerier(session: Long, keyExpr: Long, target: Int?, consolidation: Int?, congestionControl: Int?, priority: Int?, express: Boolean?, timeoutMs: Long?, acceptReplies: Int?, errorSink: Any): Long
-    external fun zSessionDeclareQueryable(session: Long, keyExpr: Long, complete: Boolean?, callback: ZQueryCallback, onClose: Callback, errorSink: Any): Long
-    external fun zSessionDeclareSubscriber(session: Long, keyExpr: Long, callback: ZSampleCallback, onClose: Callback, errorSink: Any): Long
-    external fun zSessionDelete(session: Long, keyExpr: Long, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: Long, reliability: Int?, errorSink: Any)
-    external fun zSessionGet(session: Long, keyExpr: Long, parameters: String?, timeoutMs: Long?, target: Int?, consolidation: Int?, acceptReplies: Int?, congestionControl: Int?, priority: Int?, express: Boolean?, payload: Long, encoding: Long, attachment: Long, callback: ZReplyCallback, onClose: Callback, errorSink: Any)
+    external fun zSessionDeclarePublisher(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, congestionControl: Int?, priority: Int?, express: Boolean?, reliability: Int?, errorSink: Any): Long
+    external fun zSessionDeclareQuerier(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, target: Int?, consolidation: Int?, congestionControl: Int?, priority: Int?, express: Boolean?, timeoutMs: Long?, acceptReplies: Int?, errorSink: Any): Long
+    external fun zSessionDeclareQueryable(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, complete: Boolean?, callback: ZQueryCallback, onClose: Callback, errorSink: Any): Long
+    external fun zSessionDeclareSubscriber(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, callback: ZSampleCallback, onClose: Callback, errorSink: Any): Long
+    external fun zSessionDelete(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: ByteArray?, reliability: Int?, errorSink: Any)
+    external fun zSessionGet(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, parameters: String?, timeoutMs: Long?, target: Int?, consolidation: Int?, acceptReplies: Int?, congestionControl: Int?, priority: Int?, express: Boolean?, payload: ByteArray?, encoding: String?, attachment: ByteArray?, callback: ZReplyCallback, onClose: Callback, errorSink: Any)
     external fun zSessionPeersZid(session: Long, errorSink: Any): List<ByteArray>
-    external fun zSessionPut(session: Long, keyExpr: Long, payload: Long, encoding: Long, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: Long, reliability: Int?, errorSink: Any)
+    external fun zSessionPut(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, payload: ByteArray, encoding: String?, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: ByteArray?, reliability: Int?, errorSink: Any)
     external fun zSessionRoutersZid(session: Long, errorSink: Any): List<ByteArray>
     external fun zSessionUndeclareKeyexpr(session: Long, keyExpr: Long, errorSink: Any)
     external fun zSessionZid(session: Long, errorSink: Any): ByteArray

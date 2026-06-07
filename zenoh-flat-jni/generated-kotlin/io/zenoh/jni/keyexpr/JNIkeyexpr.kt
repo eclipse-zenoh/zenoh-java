@@ -45,53 +45,71 @@ public fun zKeyexprIntersects(aSel: Int, a0: String?, a1: ZKeyExpr?, bSel: Int, 
     return __ret
 }
 
-public fun zKeyexprIncludes(a: ZKeyExpr, b: ZKeyExpr): Boolean {
+public fun zKeyexprIncludes(aSel: Int, a0: String?, a1: ZKeyExpr?, bSel: Int, b0: String?, b1: ZKeyExpr?): Boolean {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
-    val __ret = withSortedHandleLocks(a, b) {
-    val a_ptr = a.ptr
-    if (a_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val b_ptr = b.ptr
-    if (b_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    JNINative.zKeyexprIncludes(a_ptr, b_ptr, __sink)
+    val __ret = run {
+    val __locks = ArrayList<NativeHandle>()
+    a1?.let { __locks.add(it) }
+    b1?.let { __locks.add(it) }
+    withSortedHandleLocks(__locks) {
+    val a1_ptr = a1?.ptr ?: 0L
+    if (a1 != null && a1_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    val b1_ptr = b1?.ptr ?: 0L
+    if (b1 != null && b1_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    JNINative.zKeyexprIncludes(aSel, a0, a1_ptr, bSel, b0, b1_ptr, __sink)
+    }
     }
     __err.message?.let { throw ZException(it) }
     return __ret
 }
 
-public fun zKeyexprRelationTo(a: ZKeyExpr, b: ZKeyExpr): SetIntersectionLevel {
+public fun zKeyexprRelationTo(aSel: Int, a0: String?, a1: ZKeyExpr?, bSel: Int, b0: String?, b1: ZKeyExpr?): SetIntersectionLevel {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
-    val __ret = withSortedHandleLocks(a, b) {
-    val a_ptr = a.ptr
-    if (a_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val b_ptr = b.ptr
-    if (b_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    SetIntersectionLevel.fromInt(JNINative.zKeyexprRelationTo(a_ptr, b_ptr, __sink))
+    val __ret = run {
+    val __locks = ArrayList<NativeHandle>()
+    a1?.let { __locks.add(it) }
+    b1?.let { __locks.add(it) }
+    withSortedHandleLocks(__locks) {
+    val a1_ptr = a1?.ptr ?: 0L
+    if (a1 != null && a1_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    val b1_ptr = b1?.ptr ?: 0L
+    if (b1 != null && b1_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    SetIntersectionLevel.fromInt(JNINative.zKeyexprRelationTo(aSel, a0, a1_ptr, bSel, b0, b1_ptr, __sink))
+    }
     }
     __err.message?.let { throw ZException(it) }
     return __ret
 }
 
-public fun zKeyexprJoin(a: ZKeyExpr, b: String): ZKeyExpr {
+public fun zKeyexprJoin(aSel: Int, a0: String?, a1: ZKeyExpr?, b: String): ZKeyExpr {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
-    val __ret = withSortedHandleLocks(a) {
-    val a_ptr = a.ptr
-    if (a_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    ZKeyExpr(JNINative.zKeyexprJoin(a_ptr, b, __sink))
+    val __ret = run {
+    val __locks = ArrayList<NativeHandle>()
+    a1?.let { __locks.add(it) }
+    withSortedHandleLocks(__locks) {
+    val a1_ptr = a1?.ptr ?: 0L
+    if (a1 != null && a1_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    ZKeyExpr(JNINative.zKeyexprJoin(aSel, a0, a1_ptr, b, __sink))
+    }
     }
     __err.message?.let { throw ZException(it) }
     return __ret
 }
 
-public fun zKeyexprConcat(a: ZKeyExpr, b: String): ZKeyExpr {
+public fun zKeyexprConcat(aSel: Int, a0: String?, a1: ZKeyExpr?, b: String): ZKeyExpr {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
-    val __ret = withSortedHandleLocks(a) {
-    val a_ptr = a.ptr
-    if (a_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    ZKeyExpr(JNINative.zKeyexprConcat(a_ptr, b, __sink))
+    val __ret = run {
+    val __locks = ArrayList<NativeHandle>()
+    a1?.let { __locks.add(it) }
+    withSortedHandleLocks(__locks) {
+    val a1_ptr = a1?.ptr ?: 0L
+    if (a1 != null && a1_ptr == 0L) throw ZException("Operation on a closed native handle.")
+    ZKeyExpr(JNINative.zKeyexprConcat(aSel, a0, a1_ptr, b, __sink))
+    }
     }
     __err.message?.let { throw ZException(it) }
     return __ret

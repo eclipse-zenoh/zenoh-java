@@ -85,20 +85,17 @@ class Query internal constructor(
     @JvmOverloads
     fun reply(keyExpr: KeyExpr, payload: IntoZBytes, options: ReplyOptions = ReplyOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
-        val enc = options.encoding.toZEncoding()
-        try {
-            io.zenoh.jni.query.zQueryReplySuccess(
-                q,
-                keyExpr.flat,
-                payload.into().toZZBytes(),
-                enc,
-                options.timeStamp?.ntpValue(),
-                options.attachment?.into()?.toZZBytes(),
-                options.express
-            )
-        } finally {
-            enc.close()
-        }
+        io.zenoh.jni.query.zQueryReplySuccess(
+            q,
+            keyExpr.exprSel,
+            keyExpr.exprStr,
+            keyExpr.exprHandle,
+            payload.into().bytes,
+            options.encoding.repr,
+            options.timeStamp?.ntpValue(),
+            options.attachment?.into()?.bytes,
+            options.express
+        )
         zQuery = null
     }
 
@@ -127,9 +124,11 @@ class Query internal constructor(
         val q = zQuery ?: throw ZError("Query is invalid")
         io.zenoh.jni.query.zQueryReplyDelete(
             q,
-            keyExpr.flat,
+            keyExpr.exprSel,
+            keyExpr.exprStr,
+            keyExpr.exprHandle,
             options.timeStamp?.ntpValue(),
-            options.attachment?.into()?.toZZBytes(),
+            options.attachment?.into()?.bytes,
             options.express
         )
         zQuery = null
@@ -145,12 +144,7 @@ class Query internal constructor(
     @Throws(ZError::class)
     fun replyErr(message: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
-        val enc = options.encoding.toZEncoding()
-        try {
-            io.zenoh.jni.query.zQueryReplyError(q, message.into().toZZBytes(), enc)
-        } finally {
-            enc.close()
-        }
+        io.zenoh.jni.query.zQueryReplyError(q, message.into().bytes, options.encoding.repr)
         zQuery = null
     }
 

@@ -3,61 +3,29 @@ package io.zenoh.jni.pubsub
 
 import io.zenoh.jni.ErrorHolder
 import io.zenoh.jni.ErrorSink
-import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.ZException
-import io.zenoh.jni.bytes.ZEncoding
-import io.zenoh.jni.bytes.ZZBytes
 import io.zenoh.jni.pubsub.ZPublisher
 import io.zenoh.jni.withSortedHandleLocks
 import io.zenoh.jni.JNINative
 
-public fun zPublisherPut(publisher: ZPublisher, payload: ZZBytes, encoding: ZEncoding?, attachment: ZZBytes?) {
+public fun zPublisherPut(publisher: ZPublisher, payload: ByteArray, encoding: String?, attachment: ByteArray?) {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
-    run {
-    val __locks = ArrayList<NativeHandle>()
-    __locks.add(publisher)
-    __locks.add(payload)
-    encoding?.let { __locks.add(it) }
-    attachment?.let { __locks.add(it) }
-    withSortedHandleLocks(__locks) {
+    withSortedHandleLocks(publisher) {
     val publisher_ptr = publisher.ptr
     if (publisher_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val payload_ptr = payload.ptr
-    if (payload_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val encoding_ptr = encoding?.ptr ?: 0L
-    if (encoding != null && encoding_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val attachment_ptr = attachment?.ptr ?: 0L
-    if (attachment != null && attachment_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    try {
-    JNINative.zPublisherPut(publisher_ptr, payload_ptr, encoding_ptr, attachment_ptr, __sink)
-    } finally {
-    payload.ptr = 0L
-    attachment?.let { it.ptr = 0L }
-    }
-    }
+    JNINative.zPublisherPut(publisher_ptr, payload, encoding, attachment, __sink)
     }
     __err.message?.let { throw ZException(it) }
 }
 
-public fun zPublisherDelete(publisher: ZPublisher, attachment: ZZBytes?) {
+public fun zPublisherDelete(publisher: ZPublisher, attachment: ByteArray?) {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
-    run {
-    val __locks = ArrayList<NativeHandle>()
-    __locks.add(publisher)
-    attachment?.let { __locks.add(it) }
-    withSortedHandleLocks(__locks) {
+    withSortedHandleLocks(publisher) {
     val publisher_ptr = publisher.ptr
     if (publisher_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    val attachment_ptr = attachment?.ptr ?: 0L
-    if (attachment != null && attachment_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    try {
-    JNINative.zPublisherDelete(publisher_ptr, attachment_ptr, __sink)
-    } finally {
-    attachment?.let { it.ptr = 0L }
-    }
-    }
+    JNINative.zPublisherDelete(publisher_ptr, attachment, __sink)
     }
     __err.message?.let { throw ZException(it) }
 }
