@@ -48,3 +48,18 @@ internal inline fun <R> withSortedHandleLocks(
     if (x.ptr > y.ptr) { val t = x; x = y; y = t }
     return synchronized(x) { synchronized(y) { synchronized(z) { body() } } }
 }
+
+/** Error callback invoked by native code instead of throwing. */
+public fun interface ErrorSink {
+    public fun onError(message: String)
+}
+
+/** Mutable holder a default [ErrorSink] writes into; the wrapper
+ *  rethrows after the native call returns. */
+public class ErrorHolder {
+    @JvmField public var message: String? = null
+}
+
+/** Exception a generated wrapper raises when native code reported an
+ *  error via the [ErrorSink] channel. */
+public class ZException(message: String?) : Exception(message)

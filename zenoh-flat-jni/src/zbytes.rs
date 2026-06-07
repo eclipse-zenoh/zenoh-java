@@ -21,9 +21,14 @@ use prebindgen::lang::JniBindingError;
 use zenoh::bytes::ZBytes;
 use zenoh_ext::{VarInt, ZDeserializeError, ZDeserializer, ZSerializer};
 
-use crate::throw_JniBindingError;
-
 type JResult<T> = core::result::Result<T, JniBindingError>;
+
+/// Throw `io.zenoh.jni.ZException` with the error's message. This hand-written
+/// JNI surface (ZSerializer/ZDeserializer) throws directly — the generated
+/// code instead routes errors through the per-call `ErrorSink` callback.
+fn throw_jni_error(env: &mut JNIEnv, err: &impl core::fmt::Display) {
+    let _ = env.throw_new("io/zenoh/jni/ZException", err.to_string());
+}
 
 /// Helper function to convert a JByteArray into a Vec<u8>.
 fn decode_byte_array(env: &JNIEnv<'_>, payload: JByteArray) -> JResult<Vec<u8>> {
@@ -193,7 +198,7 @@ pub extern "C" fn Java_io_zenoh_jni_bytes_JNIBytes_serializeViaJNI(
         Ok(byte_array.as_raw())
     }()
     .unwrap_or_else(|err| {
-        throw_JniBindingError(&mut env, &err);
+        throw_jni_error(&mut env, &err);
         JObject::default().as_raw()
     })
 }
@@ -337,7 +342,7 @@ pub extern "C" fn Java_io_zenoh_jni_bytes_JNIBytes_deserializeViaJNI(
         Ok(obj)
     }()
     .unwrap_or_else(|err| {
-        throw_JniBindingError(&mut env, &err);
+        throw_jni_error(&mut env, &err);
         JObject::default().as_raw()
     })
 }

@@ -145,26 +145,38 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
 
     private fun resolveGetWithCallback(callback: Callback<Reply>, options: GetOptions) {
         val q = zQuerier ?: throw ZError("Querier is not valid.")
-        q.querierGet(
-            options.parameters?.toString(),
-            options.payload?.into()?.inner,
-            (options.encoding ?: Encoding.defaultEncoding()).toFlat(),
-            options.attachment?.into()?.inner,
-            replyCallbackOf { callback.run(it) },
-            io.zenoh.jni.callbacks.Callback { }
-        )
+        val enc = (options.encoding ?: Encoding.defaultEncoding()).toZEncoding()
+        try {
+            io.zenoh.jni.query.zQuerierGet(
+                q,
+                options.parameters?.toString(),
+                options.payload?.into()?.toZZBytes(),
+                enc,
+                options.attachment?.into()?.toZZBytes(),
+                replyCallbackOf { callback.run(it) },
+                io.zenoh.jni.callbacks.Callback { }
+            )
+        } finally {
+            enc.close()
+        }
     }
 
     private fun <R> resolveGetWithHandler(handler: Handler<Reply, R>, options: GetOptions): R {
         val q = zQuerier ?: throw ZError("Querier is not valid.")
-        q.querierGet(
-            options.parameters?.toString(),
-            options.payload?.into()?.inner,
-            (options.encoding ?: Encoding.defaultEncoding()).toFlat(),
-            options.attachment?.into()?.inner,
-            replyCallbackOf { handler.handle(it) },
-            io.zenoh.jni.callbacks.Callback { handler.onClose() }
-        )
+        val enc = (options.encoding ?: Encoding.defaultEncoding()).toZEncoding()
+        try {
+            io.zenoh.jni.query.zQuerierGet(
+                q,
+                options.parameters?.toString(),
+                options.payload?.into()?.toZZBytes(),
+                enc,
+                options.attachment?.into()?.toZZBytes(),
+                replyCallbackOf { handler.handle(it) },
+                io.zenoh.jni.callbacks.Callback { handler.onClose() }
+            )
+        } finally {
+            enc.close()
+        }
         return handler.receiver()
     }
 }

@@ -21,9 +21,7 @@ package io.zenoh.exceptions
 internal inline fun <T> wrapJNIExceptionAsZError(block: () -> T): T {
     return try {
         block()
-    } catch (e: io.zenoh.jni.Error) {
-        throw ZError(e.message)
-    } catch (e: io.zenoh.jni.JniBindingError) {
+    } catch (e: io.zenoh.jni.ZException) {
         throw ZError(e.message)
     }
 }

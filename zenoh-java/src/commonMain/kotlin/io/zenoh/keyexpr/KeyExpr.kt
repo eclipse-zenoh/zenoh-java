@@ -22,7 +22,14 @@ import io.zenoh.exceptions.wrapJNIExceptionAsZError
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.query.IntoSelector
 import io.zenoh.query.Selector
-import io.zenoh.jni.keyexpr.KeyExpr as JniKeyExpr
+import io.zenoh.jni.keyexpr.zKeyexprTryFrom
+import io.zenoh.jni.keyexpr.zKeyexprAutocanonize
+import io.zenoh.jni.keyexpr.zKeyexprIntersects
+import io.zenoh.jni.keyexpr.zKeyexprIncludes
+import io.zenoh.jni.keyexpr.zKeyexprRelationTo
+import io.zenoh.jni.keyexpr.zKeyexprJoin
+import io.zenoh.jni.keyexpr.zKeyexprConcat
+import io.zenoh.jni.keyexpr.zKeyexprToString
 
 /**
  * # Address space
@@ -62,34 +69,14 @@ import io.zenoh.jni.keyexpr.KeyExpr as JniKeyExpr
  * ensures that [close] is automatically called, safely managing the lifecycle of the [KeyExpr] instance.
  *
  */
-class KeyExpr private constructor(
-    private val eagerFlat: JniKeyExpr?,
-    private val leafString: String?,
-    private val leafPtr: Long,
+class KeyExpr internal constructor(
+    /** The owned native handle, passed (by reference) to raw `z_keyexpr_*` ops. */
+    internal val flat: ZKeyExpr,
+    private val keyExprString: String,
 ) : AutoCloseable, IntoSelector, SessionDeclaration {
 
-    /** Eager path: an already-built [JniKeyExpr] (tryFrom / autocanonize / declareKeyExpr). */
-    internal constructor(flat: JniKeyExpr) : this(flat, null, 0L)
-
-    /**
-     * Lazy leaf path (hot inbound callback): keep only the leaf wires; the
-     * [JniKeyExpr] is built on first `.flat` access (native ops only). An
-     * inbound-only key expression — received in a [io.zenoh.sample.Sample] the
-     * consumer never sends back — never allocates a `JniKeyExpr`, matching the
-     * string + lazy-native model and avoiding per-message allocation/GC.
-     */
-    internal constructor(keyExpr: String, ptr: Long = 0L) : this(null, keyExpr, ptr)
-
-    /** The native-facing flat form; builds the [JniKeyExpr] lazily for the leaf path. */
-    internal val flat: JniKeyExpr
-        get() = eagerFlat ?: lazyFlat
-    private val lazyFlat: JniKeyExpr by lazy {
-        JniKeyExpr(leafString!!, leafPtr.takeIf { it != 0L }?.let { ZKeyExpr(it) })
-    }
-
-    /** String form — read without forcing the lazy [JniKeyExpr] build. */
-    private val keyExprString: String
-        get() = eagerFlat?.keyExprString ?: leafString!!
+    /** Build from a handle, reading its canonical string form once. */
+    internal constructor(flat: ZKeyExpr) : this(flat, zKeyexprToString(flat))
 
     companion object {
         init {
@@ -111,7 +98,7 @@ class KeyExpr private constructor(
         @JvmStatic
         @Throws(ZError::class)
         fun tryFrom(keyExpr: String): KeyExpr = wrapJNIExceptionAsZError {
-            KeyExpr(JniKeyExpr.keyexprTryFrom(keyExpr))
+            KeyExpr(zKeyexprTryFrom(keyExpr))
         }
 
         /**
@@ -127,7 +114,7 @@ class KeyExpr private constructor(
         @JvmStatic
         @Throws(ZError::class)
         fun autocanonize(keyExpr: String): KeyExpr = wrapJNIExceptionAsZError {
-            KeyExpr(JniKeyExpr.keyexprAutocanonize(keyExpr))
+            KeyExpr(zKeyexprAutocanonize(keyExpr))
         }
     }
 
@@ -138,7 +125,7 @@ class KeyExpr private constructor(
      */
     @Throws(ZError::class)
     fun intersects(other: KeyExpr): Boolean = wrapJNIExceptionAsZError {
-        JniKeyExpr.keyexprIntersects(this.flat, other.flat)
+        zKeyexprIntersects(this.flat, other.flat)
     }
 
     /**
@@ -148,7 +135,7 @@ class KeyExpr private constructor(
      */
     @Throws(ZError::class)
     fun includes(other: KeyExpr): Boolean = wrapJNIExceptionAsZError {
-        JniKeyExpr.keyexprIncludes(this.flat, other.flat)
+        zKeyexprIncludes(this.flat, other.flat)
     }
 
     /**
@@ -158,7 +145,7 @@ class KeyExpr private constructor(
      */
     @Throws(ZError::class)
     fun relationTo(other: KeyExpr): SetIntersectionLevel = wrapJNIExceptionAsZError {
-        SetIntersectionLevel.fromJni(JniKeyExpr.keyexprRelationTo(this.flat, other.flat))
+        SetIntersectionLevel.fromJni(zKeyexprRelationTo(this.flat, other.flat))
     }
 
     /**
@@ -167,7 +154,7 @@ class KeyExpr private constructor(
      */
     @Throws(ZError::class)
     fun join(other: String): KeyExpr = wrapJNIExceptionAsZError {
-        KeyExpr(JniKeyExpr.keyexprJoin(this.flat, other))
+        KeyExpr(zKeyexprJoin(this.flat, other))
     }
 
     /**
@@ -176,7 +163,7 @@ class KeyExpr private constructor(
      */
     @Throws(ZError::class)
     fun concat(other: String): KeyExpr = wrapJNIExceptionAsZError {
-        KeyExpr(JniKeyExpr.keyexprConcat(this.flat, other))
+        KeyExpr(zKeyexprConcat(this.flat, other))
     }
 
     override fun toString(): String = keyExprString
@@ -196,13 +183,8 @@ class KeyExpr private constructor(
      * operations on it, but without the inner optimizations.
      */
     override fun undeclare() {
-        // Only free a native handle if one exists. An inbound string-only key
-        // expression (leaf path, no ptr) has nothing to close and must NOT
-        // force-build its lazy JniKeyExpr just to no-op.
-        when {
-            eagerFlat != null -> eagerFlat.close()
-            leafPtr != 0L -> flat.close()
-        }
+        // Frees the owned native key-expression handle.
+        flat.close()
     }
 
     override fun into(): Selector = Selector(this)

@@ -52,53 +52,31 @@ data class Sample(
     val priority = qos.priority
 
     internal companion object {
-        /** Repacks the flat [io.zenoh.jni.sample.Sample] decoded by zenoh-flat. */
-        fun from(flat: io.zenoh.jni.sample.Sample): Sample = Sample(
-            KeyExpr(flat.keyExpr),
-            ZBytes(flat.payload),
-            Encoding(flat.encoding),
-            flat.kind.toPublic(),
-            flat.timestamp?.let { TimeStamp(it.ntp64) },
-            QoS(
-                CongestionControl.fromJni(flat.congestionControl),
-                Priority.fromJni(flat.priority),
-                flat.express
-            ),
-            flat.attachment?.let { ZBytes(it) }
-        )
-
         /**
-         * Builds a [Sample] from the flattened leaf wires the JNI callback now
-         * delivers (the native side makes one `run(...)` crossing instead of
-         * building a `jni.Sample` and round-tripping it). The graph is
-         * reassembled in JVM bytecode via the generated `fromParts` factory.
+         * Decodes a native `ZSample` handle into an SDK [Sample] using the raw
+         * `z_sample_*` accessors. Owned sub-handles (keyExpr, payload, encoding,
+         * timestamp, attachment) are read and the transient ones freed; the
+         * key-expression handle is retained by the resulting [KeyExpr].
          */
-        fun fromFlat(
-            keyExprString: String,
-            keyExprNative: Long,
-            payload: ByteArray,
-            encodingId: Int,
-            encodingSchema: String?,
-            kind: Int,
-            timestampPresent: Boolean,
-            timestampNtp64: Long,
-            timestampId: ByteArray?,
-            express: Boolean,
-            priority: Int,
-            congestionControl: Int,
-            attachment: ByteArray?,
-        ): Sample = Sample(
-            KeyExpr(keyExprString, keyExprNative),
-            ZBytes.from(payload),
-            Encoding(encodingId, encodingSchema),
-            io.zenoh.jni.sample.SampleKind.fromInt(kind).toPublic(),
-            if (timestampPresent) TimeStamp(timestampNtp64) else null,
-            QoS(
-                CongestionControl.fromInt(congestionControl),
-                Priority.fromInt(priority),
-                express
-            ),
-            attachment?.let { ZBytes.from(it) }
-        )
+        fun from(zs: io.zenoh.jni.sample.ZSample): Sample {
+            val keyExpr = KeyExpr(io.zenoh.jni.sample.zSampleKeyExpr(zs))
+            val payload = ZBytes.fromHandle(io.zenoh.jni.sample.zSamplePayload(zs))
+            val encoding = Encoding.fromHandle(io.zenoh.jni.sample.zSampleEncoding(zs))
+            val kind = io.zenoh.jni.sample.zSampleKind(zs).toPublic()
+            val timestamp = io.zenoh.jni.sample.zSampleTimestamp(zs)?.let { ts ->
+                try {
+                    TimeStamp(io.zenoh.jni.time.zTimestampNtp64(ts))
+                } finally {
+                    ts.close()
+                }
+            }
+            val qos = QoS(
+                CongestionControl.fromJni(io.zenoh.jni.sample.zSampleCongestionControl(zs)),
+                Priority.fromJni(io.zenoh.jni.sample.zSamplePriority(zs)),
+                io.zenoh.jni.sample.zSampleExpress(zs)
+            )
+            val attachment = io.zenoh.jni.sample.zSampleAttachment(zs)?.let { ZBytes.fromHandle(it) }
+            return Sample(keyExpr, payload, encoding, kind, timestamp, qos, attachment)
+        }
     }
 }

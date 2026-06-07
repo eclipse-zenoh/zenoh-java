@@ -36,67 +36,28 @@ import org.apache.commons.net.ntp.TimeStamp
 sealed class Reply private constructor(val replierId: EntityGlobalId?) : ZenohType {
 
     internal companion object {
-        /** Repacks the flat [io.zenoh.jni.query.Reply] delivered by `querier_get`. */
-        fun from(flat: io.zenoh.jni.query.Reply): Reply {
-            val replierId = flat.replierZid?.let {
-                EntityGlobalId(ZenohId(it), flat.replierEid.toUInt())
-            }
-            val sample = flat.sample
-            return if (sample != null) {
-                Success(replierId, Sample.from(sample))
-            } else {
-                Error(replierId, ZBytes(flat.errorPayload!!), Encoding(flat.errorEncoding!!))
-            }
-        }
-
         /**
-         * Builds a [Reply] **directly** from the flattened leaf wires the JNI callback
-         * delivers — no intermediate `jni.Reply`/`jni.Sample` objects. The nested sample
-         * is reconstructed via [Sample.fromFlat] from its own (sample-prefixed) leaves.
+         * Decodes a native `ZReply` handle into an SDK [Reply] via the raw
+         * `z_reply_*` accessors. Transient sub-handles (sample, error payload /
+         * encoding) are read and freed.
          */
-        @Suppress("LongParameterList")
-        fun fromFlat(
-            replierZid: ByteArray?,
-            replierEid: Int,
-            samplePresent: Boolean,
-            sampleKeyExprString: String?,
-            sampleKeyExprNative: Long,
-            samplePayload: ByteArray?,
-            sampleEncodingId: Int,
-            sampleEncodingSchema: String?,
-            sampleKind: Int,
-            sampleTimestampPresent: Boolean,
-            sampleTimestampNtp64: Long,
-            sampleTimestampId: ByteArray?,
-            sampleExpress: Boolean,
-            samplePriority: Int,
-            sampleCongestionControl: Int,
-            sampleAttachment: ByteArray?,
-            errorPayload: ByteArray?,
-            errorEncodingPresent: Boolean,
-            errorEncodingId: Int,
-            errorEncodingSchema: String?,
-        ): Reply {
-            val replierId = replierZid?.let {
-                EntityGlobalId(ZenohId(io.zenoh.jni.config.ZenohId(it)), replierEid.toUInt())
+        fun from(zr: io.zenoh.jni.query.ZReply): Reply {
+            val replierId = io.zenoh.jni.query.zReplyReplierZid(zr)?.let {
+                EntityGlobalId(ZenohId(it), io.zenoh.jni.query.zReplyReplierEid(zr).toUInt())
             }
-            return if (samplePresent) {
-                Success(
-                    replierId,
-                    Sample.fromFlat(
-                        sampleKeyExprString!!, sampleKeyExprNative, samplePayload!!,
-                        sampleEncodingId, sampleEncodingSchema, sampleKind, sampleTimestampPresent,
-                        sampleTimestampNtp64, sampleTimestampId, sampleExpress, samplePriority,
-                        sampleCongestionControl, sampleAttachment
-                    )
-                )
+            return if (io.zenoh.jni.query.zReplyIsOk(zr)) {
+                val zs = io.zenoh.jni.query.zReplySample(zr)!!
+                try {
+                    Success(replierId, Sample.from(zs))
+                } finally {
+                    zs.close()
+                }
             } else {
-                Error(
-                    replierId,
-                    ZBytes.from(errorPayload!!),
-                    if (errorEncodingPresent) Encoding(errorEncodingId, errorEncodingSchema)
-                    else Encoding(0, null)
-                )
+                val payload = ZBytes.fromHandle(io.zenoh.jni.query.zReplyErrorPayload(zr)!!)
+                val encoding = io.zenoh.jni.query.zReplyErrorEncoding(zr)
+                    ?.let { Encoding.fromHandle(it) }
+                    ?: Encoding.defaultEncoding()
+                Error(replierId, payload, encoding)
             }
         }
     }

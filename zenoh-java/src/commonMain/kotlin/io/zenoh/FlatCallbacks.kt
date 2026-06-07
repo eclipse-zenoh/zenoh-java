@@ -22,67 +22,49 @@ import io.zenoh.sample.Sample
 import io.zenoh.scouting.Hello
 
 /**
- * Adapters from the *flattened* JNI callback fun-interfaces (the native side
- * delivers each `Sample`/`Query`/`Reply`/`Hello` as its leaf wires in a single
- * `run(...)` crossing — no intermediate `jni.<Struct>` object, no round-trip)
- * to a plain `(SdkType) -> Unit`. The leaf wires are reassembled into the
- * SDK object graph in JVM bytecode here, so call sites stay one-liners. The
- * long parameter lists (matching the generated `run`/`fromParts` order) live
- * here only.
+ * Adapters from the raw JNI callback fun-interfaces (each delivers a single
+ * opaque native handle — `ZSample`/`ZQuery`/`ZReply`/`ZHello`) to a plain
+ * `(SdkType) -> Unit`. The SDK object graph is reconstructed from the handle's
+ * `z_*` accessors; the delivered handle is closed afterwards, except `ZQuery`,
+ * which the resulting [Query] retains to reply through.
  */
 
-internal fun sampleCallbackOf(f: (Sample) -> Unit): io.zenoh.jni.callbacks.SampleCallback =
-    io.zenoh.jni.callbacks.SampleCallback {
-        keyExprString, keyExprNative, payload, encodingId, encodingSchema, kind,
-        timestampPresent, timestampNtp64, timestampId, express, priority, congestionControl,
-        attachment ->
-        f(
-            Sample.fromFlat(
-                keyExprString, keyExprNative, payload, encodingId, encodingSchema, kind,
-                timestampPresent, timestampNtp64, timestampId, express, priority,
-                congestionControl, attachment
-            )
-        )
+internal fun sampleCallbackOf(f: (Sample) -> Unit): io.zenoh.jni.callbacks.ZSampleCallback =
+    io.zenoh.jni.callbacks.ZSampleCallback { zs ->
+        try {
+            f(Sample.from(zs))
+        } finally {
+            zs.close()
+        }
     }
 
-internal fun queryCallbackOf(f: (Query) -> Unit): io.zenoh.jni.callbacks.QueryCallback =
-    io.zenoh.jni.callbacks.QueryCallback {
-        keyExprString, keyExprNative, parameters, payload, encodingPresent, encodingId,
-        encodingSchema, attachment, acceptsReplies, query ->
-        f(
-            Query.fromFlat(
-                keyExprString, keyExprNative, parameters, payload, encodingPresent, encodingId,
-                encodingSchema, attachment, acceptsReplies, query
-            )
-        )
+internal fun queryCallbackOf(f: (Query) -> Unit): io.zenoh.jni.callbacks.ZQueryCallback =
+    io.zenoh.jni.callbacks.ZQueryCallback { zq ->
+        // The [Query] retains `zq` (its reply methods consume it), so it is NOT
+        // closed here.
+        f(Query.from(zq))
     }
 
-internal fun replyCallbackOf(f: (Reply) -> Unit): io.zenoh.jni.callbacks.ReplyCallback =
-    io.zenoh.jni.callbacks.ReplyCallback {
-        replierZid, replierEid, samplePresent, sampleKeyExprString, sampleKeyExprNative,
-        samplePayload, sampleEncodingId, sampleEncodingSchema, sampleKind, sampleTimestampPresent,
-        sampleTimestampNtp64, sampleTimestampId, sampleExpress, samplePriority,
-        sampleCongestionControl, sampleAttachment, errorPayload, errorEncodingPresent,
-        errorEncodingId, errorEncodingSchema ->
-        f(
-            Reply.fromFlat(
-                replierZid, replierEid, samplePresent, sampleKeyExprString, sampleKeyExprNative,
-                samplePayload, sampleEncodingId, sampleEncodingSchema, sampleKind,
-                sampleTimestampPresent, sampleTimestampNtp64, sampleTimestampId, sampleExpress,
-                samplePriority, sampleCongestionControl, sampleAttachment, errorPayload,
-                errorEncodingPresent, errorEncodingId, errorEncodingSchema
-            )
-        )
+internal fun replyCallbackOf(f: (Reply) -> Unit): io.zenoh.jni.callbacks.ZReplyCallback =
+    io.zenoh.jni.callbacks.ZReplyCallback { zr ->
+        try {
+            f(Reply.from(zr))
+        } finally {
+            zr.close()
+        }
     }
 
-internal fun helloCallbackOf(f: (Hello) -> Unit): io.zenoh.jni.callbacks.HelloCallback =
-    io.zenoh.jni.callbacks.HelloCallback { whatami, zid, locators ->
-        // Build io.zenoh.Hello directly from the leaf wires — no jni.Hello object.
-        f(
-            Hello(
-                WhatAmI.fromJni(io.zenoh.jni.config.WhatAmI.fromInt(whatami)),
-                ZenohId(io.zenoh.jni.config.ZenohId(zid)),
-                locators
+internal fun helloCallbackOf(f: (Hello) -> Unit): io.zenoh.jni.callbacks.ZHelloCallback =
+    io.zenoh.jni.callbacks.ZHelloCallback { zh ->
+        try {
+            f(
+                Hello(
+                    WhatAmI.fromJni(io.zenoh.jni.scouting.zHelloWhatami(zh)),
+                    ZenohId(io.zenoh.jni.scouting.zHelloZid(zh)),
+                    io.zenoh.jni.scouting.zHelloLocators(zh)
+                )
             )
-        )
+        } finally {
+            zh.close()
+        }
     }

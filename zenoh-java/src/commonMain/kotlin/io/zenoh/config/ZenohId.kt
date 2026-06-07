@@ -19,10 +19,10 @@ import kotlin.math.absoluteValue
 /**
  * The global unique id of a Zenoh peer.
  */
-data class ZenohId internal constructor(internal val inner: io.zenoh.jni.config.ZenohId) {
+data class ZenohId internal constructor(internal val inner: io.zenoh.jni.config.ZZenohId) {
 
     override fun toString(): String {
-        return io.zenoh.jni.config.ZenohId.zenohIdToString(inner.bytes)
+        return io.zenoh.jni.config.zZenohIdToString(inner)
     }
 
     override fun equals(other: Any?): Boolean {

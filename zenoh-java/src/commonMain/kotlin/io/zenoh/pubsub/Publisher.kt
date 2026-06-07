@@ -105,7 +105,7 @@ class Publisher internal constructor(
     fun delete(options: DeleteOptions = DeleteOptions()) {
         val p = zPublisher ?: throw publisherNotValid
         wrapJNIExceptionAsZError {
-            p.publisherDelete(options.attachment?.into()?.inner)
+            io.zenoh.jni.pubsub.zPublisherDelete(p, options.attachment?.into()?.toZZBytes())
         }
     }
 
@@ -134,11 +134,17 @@ class Publisher internal constructor(
     private fun performPut(payload: IntoZBytes, encoding: Encoding, attachment: IntoZBytes?) {
         val p = zPublisher ?: throw publisherNotValid
         wrapJNIExceptionAsZError {
-            p.publisherPut(
-                payload.into().inner,
-                encoding.toFlat(),
-                attachment?.into()?.inner,
-            )
+            val enc = encoding.toZEncoding()
+            try {
+                io.zenoh.jni.pubsub.zPublisherPut(
+                    p,
+                    payload.into().toZZBytes(),
+                    enc,
+                    attachment?.into()?.toZZBytes(),
+                )
+            } finally {
+                enc.close()
+            }
         }
     }
 }

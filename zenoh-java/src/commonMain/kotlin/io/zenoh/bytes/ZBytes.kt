@@ -30,7 +30,7 @@ package io.zenoh.bytes
  * flatbuffers, etc.
  *
  */
-class ZBytes internal constructor(internal val inner: io.zenoh.jni.bytes.ZBytes) : IntoZBytes {
+class ZBytes internal constructor(internal val bytes: ByteArray) : IntoZBytes {
 
     companion object {
 
@@ -38,32 +38,52 @@ class ZBytes internal constructor(internal val inner: io.zenoh.jni.bytes.ZBytes)
          * Creates a [ZBytes] instance from a [String].
          */
         @JvmStatic
-        fun from(string: String) = ZBytes(io.zenoh.jni.bytes.ZBytes(string.encodeToByteArray()))
+        fun from(string: String) = ZBytes(string.encodeToByteArray())
 
         /**
          * Creates a [ZBytes] instance from a [ByteArray].
          */
         @JvmStatic
-        fun from(bytes: ByteArray) = ZBytes(io.zenoh.jni.bytes.ZBytes(bytes))
+        fun from(bytes: ByteArray) = ZBytes(bytes)
+
+        /**
+         * Decodes a native `ZZBytes` handle into a value [ZBytes] and frees the
+         * handle. Used when an accessor / callback hands back an owned buffer.
+         */
+        internal fun fromHandle(handle: io.zenoh.jni.bytes.ZZBytes): ZBytes {
+            try {
+                return ZBytes(io.zenoh.jni.bytes.zZbytesToBytes(handle))
+            } finally {
+                handle.close()
+            }
+        }
     }
 
+    /**
+     * Builds a fresh native `ZZBytes` handle from these bytes. The raw `z_*`
+     * payload/attachment parameters take it **by value** (Rust frees it), so
+     * the caller does not close it.
+     */
+    internal fun toZZBytes(): io.zenoh.jni.bytes.ZZBytes =
+        io.zenoh.jni.bytes.zZbytesFromVec(bytes)
+
     /** Returns the internal byte representation of the [ZBytes]. */
-    fun toBytes(): ByteArray = inner.bytes
+    fun toBytes(): ByteArray = bytes
 
     /** Attempts to decode the [ZBytes] into a string with UTF-8 encoding. */
     @Throws
     fun tryToString(): String =
-        inner.bytes.decodeToString(throwOnInvalidSequence = true)
+        bytes.decodeToString(throwOnInvalidSequence = true)
 
-    override fun toString(): String = inner.bytes.decodeToString()
+    override fun toString(): String = bytes.decodeToString()
 
     override fun into(): ZBytes = this
 
-    override fun equals(other: Any?) = other is ZBytes && inner.bytes.contentEquals(other.inner.bytes)
+    override fun equals(other: Any?) = other is ZBytes && bytes.contentEquals(other.bytes)
 
-    override fun hashCode() = inner.bytes.contentHashCode()
+    override fun hashCode() = bytes.contentHashCode()
 }
 
 internal fun ByteArray.into(): ZBytes {
-    return ZBytes(io.zenoh.jni.bytes.ZBytes(this))
+    return ZBytes(this)
 }

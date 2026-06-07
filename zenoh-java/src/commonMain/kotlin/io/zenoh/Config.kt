@@ -52,7 +52,7 @@ class Config internal constructor(internal val zConfig: ZConfig) {
          */
         @JvmStatic
         fun loadDefault(): Config = wrapJNIExceptionAsZError {
-            Config(ZConfig.zConfigDefault())
+            Config(io.zenoh.jni.config.zConfigDefault())
         }
 
         /**
@@ -76,7 +76,7 @@ class Config internal constructor(internal val zConfig: ZConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromFile(path: Path): Config = wrapJNIExceptionAsZError {
-            Config(ZConfig.zConfigFromFile(path.toString()))
+            Config(io.zenoh.jni.config.zConfigFromFile(path.toString()))
         }
 
         /**
@@ -91,7 +91,7 @@ class Config internal constructor(internal val zConfig: ZConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromJson(config: String): Config = wrapJNIExceptionAsZError {
-            Config(ZConfig.zConfigFromJson(config))
+            Config(io.zenoh.jni.config.zConfigFromJson(config))
         }
 
         /**
@@ -106,7 +106,7 @@ class Config internal constructor(internal val zConfig: ZConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromJson5(config: String): Config = wrapJNIExceptionAsZError {
-            Config(ZConfig.zConfigFromJson5(config))
+            Config(io.zenoh.jni.config.zConfigFromJson5(config))
         }
 
         /**
@@ -121,7 +121,7 @@ class Config internal constructor(internal val zConfig: ZConfig) {
         @JvmStatic
         @Throws(ZError::class)
         fun fromYaml(config: String): Config = wrapJNIExceptionAsZError {
-            Config(ZConfig.zConfigFromYaml(config))
+            Config(io.zenoh.jni.config.zConfigFromYaml(config))
         }
 
         /**
@@ -146,7 +146,7 @@ class Config internal constructor(internal val zConfig: ZConfig) {
      */
     @Throws(ZError::class)
     fun getJson(key: String): String = wrapJNIExceptionAsZError {
-        zConfig.zConfigGetJson(key)
+        io.zenoh.jni.config.zConfigGetJson(zConfig, key)
     }
 
     /**
@@ -154,6 +154,6 @@ class Config internal constructor(internal val zConfig: ZConfig) {
      */
     @Throws(ZError::class)
     fun insertJson5(key: String, value: String) = wrapJNIExceptionAsZError {
-        zConfig.zConfigInsertJson5(key, value)
+        io.zenoh.jni.config.zConfigInsertJson5(zConfig, key, value)
     }
 }

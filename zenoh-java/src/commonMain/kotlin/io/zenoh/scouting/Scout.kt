@@ -22,7 +22,6 @@ import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.wrapJNIExceptionAsZError
 import io.zenoh.handlers.Callback
 import io.zenoh.jni.scouting.ZScout
-import io.zenoh.jni.callbacks.HelloCallback
 
 /**
  * Scout for routers and/or peers.
@@ -108,7 +107,7 @@ sealed class Scout (
             val bitfield = whatAmI.map { it.jni.value }.reduce { acc, v -> acc or v }
             val helloCallback = io.zenoh.helloCallbackOf { callback.run(it) }
             val onCloseCallback = io.zenoh.jni.callbacks.Callback { onClose() }
-            return io.zenoh.jni.scouting.scout(bitfield, config?.zConfig, helloCallback, onCloseCallback)
+            return io.zenoh.jni.scouting.zScout(bitfield, config?.zConfig, helloCallback, onCloseCallback)
         }
     }
 

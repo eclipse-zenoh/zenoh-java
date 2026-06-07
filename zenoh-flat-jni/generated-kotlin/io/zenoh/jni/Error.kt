@@ -2,8 +2,8 @@
 package io.zenoh.jni
 
 public data class Error(
-    override val message: String,
-) : Exception(message) {
+    val message: String,
+) {
     public companion object {
         @JvmStatic
         public fun fromParts(
