@@ -36,6 +36,16 @@ fn main() {
         .combined_constructor(pq!(ZKeyExpr))
         .combined_variant(pq!(z_keyexpr_try_from))
         .combined_variant_id()
+        // Combined ACCESSOR for ZKeyExpr (output expansion): a function
+        // returning a key-expr handle (`.expand_output()`) is decomposed into
+        // BOTH the handle (identity record) and its borrowed string form
+        // (`z_keyexpr_as_str`, a zero-copy `&str → jstring`), delivered to a
+        // zenoh-java builder lambda in one JNI crossing. zenoh-java builds its
+        // `KeyExpr(flat, string)` directly and later sends the handle back (its
+        // `exprSel` selects the identity arm of the combined constructor above).
+        .combined_accessor(pq!(ZKeyExpr))
+        .combined_accessor_record_id()
+        .combined_accessor_record(pq!(z_keyexpr_as_str))
         .package_fun(pq!(z_keyexpr_intersects))
         .expand(pq!(a))
         .expand(pq!(b))
@@ -171,6 +181,7 @@ fn main() {
         .enum_class(pq!(SampleKind))
         .ptr_class(pq!(ZSample))
         .package_fun(pq!(z_sample_key_expr))
+        .expand_output() // &ZKeyExpr → builder (ZKeyExpr handle, String)
         .package_fun(pq!(z_sample_payload))
         .package_fun(pq!(z_sample_encoding))
         .package_fun(pq!(z_sample_kind))

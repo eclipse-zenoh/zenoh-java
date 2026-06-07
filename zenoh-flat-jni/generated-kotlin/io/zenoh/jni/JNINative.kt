@@ -136,7 +136,7 @@ internal object JNINative {
     external fun zSampleCongestionControl(s: Long, errorSink: Any): Int
     external fun zSampleEncoding(s: Long, errorSink: Any): Long
     external fun zSampleExpress(s: Long, errorSink: Any): Boolean
-    external fun zSampleKeyExpr(s: Long, errorSink: Any): Long
+    external fun zSampleKeyExpr(s: Long, build: Any, errorSink: Any): Any?
     external fun zSampleKind(s: Long, errorSink: Any): Int
     external fun zSamplePayload(s: Long, errorSink: Any): Long
     external fun zSamplePriority(s: Long, errorSink: Any): Int

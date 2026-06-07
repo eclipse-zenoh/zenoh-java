@@ -59,7 +59,10 @@ data class Sample(
          * key-expression handle is retained by the resulting [KeyExpr].
          */
         fun from(zs: io.zenoh.jni.sample.ZSample): Sample {
-            val keyExpr = KeyExpr(io.zenoh.jni.sample.zSampleKeyExpr(zs))
+            // Output expansion: the native layer decomposes the sample's
+            // key-expr into BOTH its handle and string form, delivered to this
+            // builder in one JNI crossing (no second `zKeyexprToString` call).
+            val keyExpr = io.zenoh.jni.sample.zSampleKeyExpr(zs) { flat, str -> KeyExpr(flat, str) }
             val payload = ZBytes.fromHandle(io.zenoh.jni.sample.zSamplePayload(zs))
             val encoding = Encoding.fromHandle(io.zenoh.jni.sample.zSampleEncoding(zs))
             val kind = io.zenoh.jni.sample.zSampleKind(zs).toPublic()
