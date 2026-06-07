@@ -34,6 +34,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(JUnit4.class)
@@ -124,6 +125,27 @@ public class SubscriberTest {
         assertEquals(testKeyExpr.toString(), recvKe.toString());
         // Handle leaf: native op over the delivered handle.
         assertTrue(recvKe.intersects(testKeyExpr));
+
+        subscriber.close();
+    }
+
+    /**
+     * Output (data) expansion, nullable path: a sample published without a
+     * timestamp / attachment exercises the `Option<&T>` "None ⇒ null result"
+     * branch of zSampleTimestamp / zSampleAttachment (builder skipped). The
+     * default session adds no timestamp, so both must come back null.
+     */
+    @Test
+    public void subscriber_sampleNullableFieldsAreNull() throws ZError {
+        var receivedSamples = new ArrayList<Sample>();
+        var subscriber = session.declareSubscriber(testKeyExpr, receivedSamples::add);
+
+        session.put(testKeyExpr, ZBytes.from("no-timestamp"));
+
+        assertEquals(1, receivedSamples.size());
+        Sample s = receivedSamples.get(0);
+        assertNull(s.getTimestamp());
+        assertNull(s.getAttachment());
 
         subscriber.close();
     }

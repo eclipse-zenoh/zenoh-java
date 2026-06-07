@@ -109,6 +109,13 @@ fn main() {
         // per-call `zZbytesFromVec` crossing. (No identity arm: the SDK never
         // holds a ZZBytes handle for these.)
         .constructor(pq!(z_zbytes_from_vec))
+        // Combined ACCESSOR for ZZBytes (output expansion): an `Option<&ZZBytes>`
+        // return (e.g. z_sample_attachment) is decomposed into its bytes
+        // (`z_zbytes_to_bytes` → ByteArray) and delivered to a builder lambda —
+        // no transient handle + `close()`. No identity record (the SDK ZBytes
+        // holds the ByteArray, not the native handle).
+        .combined_accessor(pq!(ZZBytes))
+        .combined_accessor_record(pq!(z_zbytes_to_bytes))
         .ptr_class(pq!(ZEncoding))
         .package_fun(pq!(z_encoding_id))
         .package_fun(pq!(z_encoding_schema))
@@ -177,6 +184,14 @@ fn main() {
         .ptr_class(pq!(ZTimestamp))
         .package_fun(pq!(z_timestamp_ntp64))
         .package_fun(pq!(z_timestamp_id))
+        // Combined ACCESSOR for ZTimestamp (output expansion): an
+        // `Option<&ZTimestamp>` return (z_sample_timestamp) is decomposed into
+        // its NTP64 value (`z_timestamp_ntp64` → i64 → boxed Long) and delivered
+        // to a builder lambda — no second `zTimestampNtp64` crossing, no
+        // transient handle. No identity record (zenoh-java's TimeStamp keeps the
+        // Long, not the native handle).
+        .combined_accessor(pq!(ZTimestamp))
+        .combined_accessor_record(pq!(z_timestamp_ntp64))
         .package("sample")
         .enum_class(pq!(SampleKind))
         .ptr_class(pq!(ZSample))
@@ -186,10 +201,12 @@ fn main() {
         .package_fun(pq!(z_sample_encoding))
         .package_fun(pq!(z_sample_kind))
         .package_fun(pq!(z_sample_timestamp))
+        .expand_output() // Option<&ZTimestamp> → builder (Long ntp64) → R?
         .package_fun(pq!(z_sample_express))
         .package_fun(pq!(z_sample_priority))
         .package_fun(pq!(z_sample_congestion_control))
         .package_fun(pq!(z_sample_attachment))
+        .expand_output() // Option<&ZZBytes> → builder (ByteArray) → R?
         .package("pubsub")
         .ptr_class(pq!(ZPublisher))
         .package_fun(pq!(z_publisher_put))
