@@ -105,7 +105,7 @@ internal object JNINative {
     external fun zKeyexprClone(ke: Long, errorSink: Any): Long
     external fun zKeyexprConcat(a: Long, b: String, errorSink: Any): Long
     external fun zKeyexprIncludes(a: Long, b: Long, errorSink: Any): Boolean
-    external fun zKeyexprIntersects(a: Long, b: Long, errorSink: Any): Boolean
+    external fun zKeyexprIntersects(aSel: Int, a0: String?, a1: Long, bSel: Int, b0: String?, b1: Long, errorSink: Any): Boolean
     external fun zKeyexprJoin(a: Long, b: String, errorSink: Any): Long
     external fun zKeyexprRelationTo(a: Long, b: Long, errorSink: Any): Int
     external fun zKeyexprToString(ke: Long, errorSink: Any): String

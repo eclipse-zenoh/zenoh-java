@@ -26,7 +26,17 @@ fn main() {
         .ptr_class(pq!(ZKeyExpr))
         .package_fun(pq!(z_keyexpr_try_from))
         .package_fun(pq!(z_keyexpr_autocanonize))
+        // Constructor expansion demo: a combined constructor for ZKeyExpr that
+        // builds it either from a String (z_keyexpr_try_from) or accepts an
+        // existing handle (identity). Expanding both params of
+        // z_keyexpr_intersects lets Kotlin intersect a string key-expr with an
+        // existing handle in a single JNI crossing instead of three.
+        .combined_constructor(pq!(ZKeyExpr))
+        .combined_variant(pq!(z_keyexpr_try_from))
+        .combined_variant_id()
         .package_fun(pq!(z_keyexpr_intersects))
+        .expand(pq!(a))
+        .expand(pq!(b))
         .package_fun(pq!(z_keyexpr_includes))
         .package_fun(pq!(z_keyexpr_relation_to))
         .package_fun(pq!(z_keyexpr_join))
