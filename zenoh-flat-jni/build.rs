@@ -37,28 +37,28 @@ fn main() {
         .constructor_variant(pq!(z_keyexpr_try_from))
         .constructor_variant_id()
         // Combined ACCESSOR for ZKeyExpr (output expansion): a function
-        // returning a key-expr handle (`.expand_output()`) is decomposed into
+        // returning a key-expr handle (`.deconstruct_output()`) is decomposed into
         // BOTH the handle (identity record) and its borrowed string form
         // (`z_keyexpr_as_str`, a zero-copy `&str → jstring`), delivered to a
         // zenoh-java builder lambda in one JNI crossing. zenoh-java builds its
         // `KeyExpr(flat, string)` directly and later sends the handle back (its
         // `exprSel` selects the identity arm of the combined constructor above).
-        .accessor(pq!(ZKeyExpr))
-        .accessor_record_id()
-        .accessor_record(pq!(z_keyexpr_as_str))
+        .deconstructor(pq!(ZKeyExpr))
+        .deconstructor_record_id()
+        .deconstructor_record(pq!(z_keyexpr_as_str))
         .package_fun(pq!(z_keyexpr_intersects))
-        .expand(pq!(a))
-        .expand(pq!(b))
+        .construct(pq!(a))
+        .construct(pq!(b))
         .package_fun(pq!(z_keyexpr_includes))
-        .expand(pq!(a))
-        .expand(pq!(b))
+        .construct(pq!(a))
+        .construct(pq!(b))
         .package_fun(pq!(z_keyexpr_relation_to))
-        .expand(pq!(a))
-        .expand(pq!(b))
+        .construct(pq!(a))
+        .construct(pq!(b))
         .package_fun(pq!(z_keyexpr_join)) // b is a String, only `a` is a key-expr
-        .expand(pq!(a))
+        .construct(pq!(a))
         .package_fun(pq!(z_keyexpr_concat)) // b is a String, only `a` is a key-expr
-        .expand(pq!(a))
+        .construct(pq!(a))
         .package_fun(pq!(z_keyexpr_clone))
         .package_fun(pq!(z_keyexpr_to_string))
         .enum_class(pq!(SetIntersectionLevel))
@@ -78,8 +78,8 @@ fn main() {
         // jlong handle. `Vec<ZZenohId>` (z_session_peers_zid/routers_zid) folds
         // each element WHOLE as the typed `ZZenohId` value class (Iterable,
         // no accessor). NOTE: the vector-of-*unfolded* machinery (decompose each
-        // element into e.g. `(String, ZZenohId)` via an `.accessor(ZZenohId)`
-        // with `.accessor_record_id()` — a `value_blob` identity delivered by
+        // element into e.g. `(String, ZZenohId)` via an `.deconstructor(ZZenohId)`
+        // with `.deconstructor_record_id()` — a `value_blob` identity delivered by
         // copy) is implemented and unit-tested (`iterable_decomposed_plan`); it's
         // simply not wired here because the SDK `ZenohId` stores the blob only
         // and computes its string lazily.
@@ -116,24 +116,22 @@ fn main() {
         // SDK never holds a ZZBytes handle for these.)
         .constructor(pq!(ZZBytes))
         .constructor_variant(pq!(z_zbytes_from_vec))
-        // Combined ACCESSOR for ZZBytes (output expansion): an `Option<&ZZBytes>`
-        // return (e.g. z_sample_attachment) is decomposed into its bytes
-        // (`z_zbytes_to_bytes` → ByteArray) and delivered to a builder lambda —
-        // no transient handle + `close()`. No identity record (the SDK ZBytes
-        // holds the ByteArray, not the native handle).
-        .accessor(pq!(ZZBytes))
-        .accessor_record(pq!(z_zbytes_to_bytes))
+        // CONVERTER for ZZBytes (single-value deconstructor): an `Option<&ZZBytes>`
+        // return (z_sample_attachment) is converted to its bytes
+        // (`z_zbytes_to_bytes` → ByteArray) and **returned** directly via
+        // `.convert_output()` (no callback). Also doubles as the nested record
+        // for the ZSample deconstructor's payload.
+        .converter(pq!(ZZBytes), pq!(z_zbytes_to_bytes))
         .ptr_class(pq!(ZEncoding))
         .package_fun(pq!(z_encoding_id))
         .package_fun(pq!(z_encoding_schema))
         .package_fun(pq!(z_encoding_to_string))
         .package_fun(pq!(z_encoding_clone))
         .package_fun(pq!(z_encoding_from_string))
-        // Combined ACCESSOR for ZEncoding (output expansion): decompose to its
-        // canonical string (`z_encoding_to_string`), nested by the ZSample
-        // combined accessor below to build the SDK `Encoding(string)`.
-        .accessor(pq!(ZEncoding))
-        .accessor_record(pq!(z_encoding_to_string))
+        // CONVERTER for ZEncoding: decompose to its canonical string
+        // (`z_encoding_to_string`), nested by the ZSample deconstructor below to
+        // build the SDK `Encoding(string)`.
+        .converter(pq!(ZEncoding), pq!(z_encoding_to_string))
         // Constructor for ZEncoding: encoding params accept a `String`
         // (built via z_encoding_from_string) directly — the SDK passes its
         // canonical `repr` String, no per-call `zEncodingFromString` + close.
@@ -197,76 +195,74 @@ fn main() {
         .ptr_class(pq!(ZTimestamp))
         .package_fun(pq!(z_timestamp_ntp64))
         .package_fun(pq!(z_timestamp_id))
-        // Combined ACCESSOR for ZTimestamp (output expansion): an
-        // `Option<&ZTimestamp>` return (z_sample_timestamp) is decomposed into
-        // its NTP64 value (`z_timestamp_ntp64` → i64 → boxed Long) and delivered
-        // to a builder lambda — no second `zTimestampNtp64` crossing, no
-        // transient handle. No identity record (zenoh-java's TimeStamp keeps the
-        // Long, not the native handle).
-        .accessor(pq!(ZTimestamp))
-        .accessor_record(pq!(z_timestamp_ntp64))
+        // CONVERTER for ZTimestamp (single-value): an `Option<&ZTimestamp>`
+        // return (z_sample_timestamp) is converted to its NTP64 value
+        // (`z_timestamp_ntp64` → i64) and **returned** as `Long?` via
+        // `.convert_output()` — no callback, fewer JNI crossings than a builder.
+        // Also the nested record for ZSample's timestamp.
+        .converter(pq!(ZTimestamp), pq!(z_timestamp_ntp64))
         .package("sample")
         .enum_class(pq!(SampleKind))
         .ptr_class(pq!(ZSample))
         .package_fun(pq!(z_sample_key_expr))
-        .expand_output() // &ZKeyExpr → builder (ZKeyExpr handle, String)
+        .deconstruct_output() // &ZKeyExpr → builder (ZKeyExpr handle, String)
         .package_fun(pq!(z_sample_payload))
         .package_fun(pq!(z_sample_encoding))
         .package_fun(pq!(z_sample_kind))
         .package_fun(pq!(z_sample_timestamp))
-        .expand_output() // Option<&ZTimestamp> → builder (Long ntp64) → R?
+        .convert_output() // Option<&ZTimestamp> → returns Long? (no callback)
         .package_fun(pq!(z_sample_express))
         .package_fun(pq!(z_sample_priority))
         .package_fun(pq!(z_sample_congestion_control))
         .package_fun(pq!(z_sample_attachment))
-        .expand_output() // Option<&ZZBytes> → builder (ByteArray) → R?
+        .convert_output() // Option<&ZZBytes> → returns ByteArray? (no callback)
         // Combined ACCESSOR for ZSample (output expansion, M3): the full sample
         // decomposed in ONE crossing — NESTS the ZKeyExpr (handle+string),
         // ZZBytes (payload bytes), ZEncoding (string) and ZTimestamp (ntp64,
         // nullable) combined accessors, plus enum leaves (kind/priority/
         // congestion → Int) and `express` (bool). Record order = builder arg
         // order. Used by `z_reply_sample` below to build a full SDK `Sample`.
-        .accessor(pq!(ZSample))
-        .accessor_record_nested(pq!(z_sample_key_expr)) // → (ZKeyExpr, String)
-        .accessor_record_nested(pq!(z_sample_payload)) // → ByteArray
-        .accessor_record_nested(pq!(z_sample_encoding)) // → String
-        .accessor_record(pq!(z_sample_kind)) // enum → Int
-        .accessor_record_nested(pq!(z_sample_timestamp)) // Option → Long?
-        .accessor_record(pq!(z_sample_express)) // bool → Boolean
-        .accessor_record(pq!(z_sample_priority)) // enum → Int
-        .accessor_record(pq!(z_sample_congestion_control)) // enum → Int
-        .accessor_record_nested(pq!(z_sample_attachment)) // Option → ByteArray?
+        .deconstructor(pq!(ZSample))
+        .deconstructor_record_nested(pq!(z_sample_key_expr)) // → (ZKeyExpr, String)
+        .deconstructor_record_nested(pq!(z_sample_payload)) // → ByteArray
+        .deconstructor_record_nested(pq!(z_sample_encoding)) // → String
+        .deconstructor_record(pq!(z_sample_kind)) // enum → Int
+        .deconstructor_record_nested(pq!(z_sample_timestamp)) // Option → Long?
+        .deconstructor_record(pq!(z_sample_express)) // bool → Boolean
+        .deconstructor_record(pq!(z_sample_priority)) // enum → Int
+        .deconstructor_record(pq!(z_sample_congestion_control)) // enum → Int
+        .deconstructor_record_nested(pq!(z_sample_attachment)) // Option → ByteArray?
         .package("pubsub")
         .ptr_class(pq!(ZPublisher))
         .package_fun(pq!(z_publisher_put))
-        .expand(pq!(payload)) // ZZBytes ← ByteArray
-        .expand(pq!(encoding)) // Option<&ZEncoding> ← String?
-        .expand(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
+        .construct(pq!(payload)) // ZZBytes ← ByteArray
+        .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
+        .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
         .package_fun(pq!(z_publisher_delete))
-        .expand(pq!(attachment))
+        .construct(pq!(attachment))
         .ptr_class(pq!(ZSubscriber))
         .package("query")
         .ptr_class(pq!(ZQueryable))
         .ptr_class(pq!(ZQuerier))
         .package_fun(pq!(z_querier_get))
-        .expand(pq!(payload)) // Option<ZZBytes> ← ByteArray?
-        .expand(pq!(encoding)) // Option<&ZEncoding> ← String?
-        .expand(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
+        .construct(pq!(payload)) // Option<ZZBytes> ← ByteArray?
+        .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
+        .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
         .enum_class(pq!(ReplyKeyExpr))
         .enum_class(pq!(QueryTarget))
         .enum_class(pq!(ConsolidationMode))
         .ptr_class(pq!(ZQuery))
         .package_fun(pq!(z_query_reply_success))
-        .expand(pq!(key_expr)) // &ZKeyExpr ← String | handle
-        .expand(pq!(payload)) // ZZBytes ← ByteArray
-        .expand(pq!(encoding)) // Option<&ZEncoding> ← String?
-        .expand(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
+        .construct(pq!(key_expr)) // &ZKeyExpr ← String | handle
+        .construct(pq!(payload)) // ZZBytes ← ByteArray
+        .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
+        .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
         .package_fun(pq!(z_query_reply_error))
-        .expand(pq!(payload)) // ZZBytes ← ByteArray
-        .expand(pq!(encoding)) // Option<&ZEncoding> ← String?
+        .construct(pq!(payload)) // ZZBytes ← ByteArray
+        .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
         .package_fun(pq!(z_query_reply_delete))
-        .expand(pq!(key_expr)) // &ZKeyExpr ← String | handle
-        .expand(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
+        .construct(pq!(key_expr)) // &ZKeyExpr ← String | handle
+        .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
         .package_fun(pq!(z_query_keyexpr))
         .package_fun(pq!(z_query_parameters))
         .package_fun(pq!(z_query_payload))
@@ -278,7 +274,7 @@ fn main() {
         .package_fun(pq!(z_reply_replier_eid))
         .package_fun(pq!(z_reply_is_ok))
         .package_fun(pq!(z_reply_sample))
-        .expand_output() // Option<&ZSample> → builder(full Sample leaves) → R?
+        .deconstruct_output() // Option<&ZSample> → builder(full Sample leaves) → R?
         .package_fun(pq!(z_reply_error_payload))
         .package_fun(pq!(z_reply_error_encoding))
         .package("liveliness")
@@ -287,45 +283,45 @@ fn main() {
         .ptr_class(pq!(ZSession))
         .package_fun(pq!(z_open))
         .package_fun(pq!(z_session_declare_publisher))
-        .expand(pq!(key_expr)) // ZKeyExpr (by-value) ← String | handle
+        .construct(pq!(key_expr)) // ZKeyExpr (by-value) ← String | handle
         .package_fun(pq!(z_session_put))
-        .expand(pq!(key_expr)) // &ZKeyExpr ← String | handle
-        .expand(pq!(payload)) // ZZBytes ← ByteArray
-        .expand(pq!(encoding)) // Option<&ZEncoding> ← String?
-        .expand(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
+        .construct(pq!(key_expr)) // &ZKeyExpr ← String | handle
+        .construct(pq!(payload)) // ZZBytes ← ByteArray
+        .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
+        .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
         .package_fun(pq!(z_session_delete))
-        .expand(pq!(key_expr)) // &ZKeyExpr ← String | handle
-        .expand(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
+        .construct(pq!(key_expr)) // &ZKeyExpr ← String | handle
+        .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
         .package_fun(pq!(z_session_declare_subscriber))
-        .expand(pq!(key_expr)) // ZKeyExpr (by-value) ← String | handle
+        .construct(pq!(key_expr)) // ZKeyExpr (by-value) ← String | handle
         .package_fun(pq!(z_session_declare_querier))
-        .expand(pq!(key_expr))
+        .construct(pq!(key_expr))
         .package_fun(pq!(z_session_declare_queryable))
-        .expand(pq!(key_expr))
+        .construct(pq!(key_expr))
         .package_fun(pq!(z_session_declare_keyexpr))
         // z_session_undeclare_keyexpr: NOT expanded — undeclaring requires a
         // declared handle, not a string. Stays handle-only.
         .package_fun(pq!(z_session_undeclare_keyexpr))
         .package_fun(pq!(z_session_get))
-        .expand(pq!(key_expr)) // &ZKeyExpr ← String | handle
-        .expand(pq!(payload)) // Option<ZZBytes> ← ByteArray?
-        .expand(pq!(encoding)) // Option<&ZEncoding> ← String?
-        .expand(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
+        .construct(pq!(key_expr)) // &ZKeyExpr ← String | handle
+        .construct(pq!(payload)) // Option<ZZBytes> ← ByteArray?
+        .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
+        .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
         .package_fun(pq!(z_session_zid))
         // Output expansion (M4, Iterable): Vec<ZZenohId> → fold, each ZZenohId
         // delivered WHOLE (its value_blob projection); caller owns the result
         // collection. No combined accessor — the element crosses as the typed
         // `ZZenohId` value class, matching the prior `List<ZZenohId>`.
         .package_fun(pq!(z_session_peers_zid))
-        .expand_output() // Vec<ZZenohId> → fun <A>(acc, fold: (A, ZZenohId) -> A): A
+        .deconstruct_output() // Vec<ZZenohId> → fun <A>(acc, fold: (A, ZZenohId) -> A): A
         .package_fun(pq!(z_session_routers_zid))
-        .expand_output()
+        .deconstruct_output()
         .package_fun(pq!(z_liveliness_declare_token))
-        .expand(pq!(key_expr)) // ZKeyExpr (by-value) ← String | handle
+        .construct(pq!(key_expr)) // ZKeyExpr (by-value) ← String | handle
         .package_fun(pq!(z_liveliness_get))
-        .expand(pq!(key_expr)) // &ZKeyExpr ← String | handle
+        .construct(pq!(key_expr)) // &ZKeyExpr ← String | handle
         .package_fun(pq!(z_liveliness_declare_subscriber))
-        .expand(pq!(key_expr)); // ZKeyExpr (by-value) ← String | handle
+        .construct(pq!(key_expr)); // ZKeyExpr (by-value) ← String | handle
 
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
     let mut registry = match Registry::from_items(source.items_all()) {

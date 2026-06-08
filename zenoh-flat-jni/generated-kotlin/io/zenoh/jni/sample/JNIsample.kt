@@ -63,14 +63,13 @@ public fun zSampleKind(s: ZSample): SampleKind {
     return __ret
 }
 
-@Suppress("UNCHECKED_CAST")
-public fun <R> zSampleTimestamp(s: ZSample, build: (Long) -> R): R? {
+public fun zSampleTimestamp(s: ZSample): Long? {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
     val __ret = withSortedHandleLocks(s) {
     val s_ptr = s.ptr
     if (s_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    (JNINative.zSampleTimestamp(s_ptr, build, __sink) as R?)
+    JNINative.zSampleTimestamp(s_ptr, __sink)
     }
     __err.message?.let { throw ZException(it) }
     return __ret
@@ -112,14 +111,13 @@ public fun zSampleCongestionControl(s: ZSample): CongestionControl {
     return __ret
 }
 
-@Suppress("UNCHECKED_CAST")
-public fun <R> zSampleAttachment(s: ZSample, build: (ByteArray) -> R): R? {
+public fun zSampleAttachment(s: ZSample): ByteArray? {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
     val __ret = withSortedHandleLocks(s) {
     val s_ptr = s.ptr
     if (s_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    (JNINative.zSampleAttachment(s_ptr, build, __sink) as R?)
+    JNINative.zSampleAttachment(s_ptr, __sink)
     }
     __err.message?.let { throw ZException(it) }
     return __ret

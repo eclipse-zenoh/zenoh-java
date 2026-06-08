@@ -53,7 +53,7 @@ public fun zEncodingId(e: ZEncoding): Int {
     return __ret
 }
 
-public fun zEncodingSchema(e: ZEncoding): String {
+public fun zEncodingSchema(e: ZEncoding): String? {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
     val __ret = withSortedHandleLocks(e) {

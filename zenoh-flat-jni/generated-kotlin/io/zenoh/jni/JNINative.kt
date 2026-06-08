@@ -70,7 +70,7 @@ internal object JNINative {
     external fun zEncodingImageJpeg(errorSink: Any): Long
     external fun zEncodingImagePng(errorSink: Any): Long
     external fun zEncodingImageWebp(errorSink: Any): Long
-    external fun zEncodingSchema(e: Long, errorSink: Any): String
+    external fun zEncodingSchema(e: Long, errorSink: Any): String?
     external fun zEncodingTextCss(errorSink: Any): Long
     external fun zEncodingTextCsv(errorSink: Any): Long
     external fun zEncodingTextHtml(errorSink: Any): Long
@@ -130,7 +130,7 @@ internal object JNINative {
     external fun zReplyReplierEid(r: Long, errorSink: Any): Int
     external fun zReplyReplierZid(r: Long, errorSink: Any): ByteArray?
     external fun zReplySample(r: Long, build: Any, errorSink: Any): Any?
-    external fun zSampleAttachment(s: Long, build: Any, errorSink: Any): Any?
+    external fun zSampleAttachment(s: Long, errorSink: Any): ByteArray?
     external fun zSampleCongestionControl(s: Long, errorSink: Any): Int
     external fun zSampleEncoding(s: Long, errorSink: Any): Long
     external fun zSampleExpress(s: Long, errorSink: Any): Boolean
@@ -138,7 +138,7 @@ internal object JNINative {
     external fun zSampleKind(s: Long, errorSink: Any): Int
     external fun zSamplePayload(s: Long, errorSink: Any): Long
     external fun zSamplePriority(s: Long, errorSink: Any): Int
-    external fun zSampleTimestamp(s: Long, build: Any, errorSink: Any): Any?
+    external fun zSampleTimestamp(s: Long, errorSink: Any): Long?
     external fun zScout(whatami: Int, config: Long, callback: ZHelloCallback, onClose: Callback, errorSink: Any): Long
     external fun zSessionDeclareKeyexpr(session: Long, keyExpr: String, errorSink: Any): Long
     external fun zSessionDeclarePublisher(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, congestionControl: Int?, priority: Int?, express: Boolean?, reliability: Int?, errorSink: Any): Long

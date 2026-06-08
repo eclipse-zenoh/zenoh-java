@@ -66,19 +66,18 @@ data class Sample(
             val payload = ZBytes.fromHandle(io.zenoh.jni.sample.zSamplePayload(zs))
             val encoding = Encoding.fromHandle(io.zenoh.jni.sample.zSampleEncoding(zs))
             val kind = io.zenoh.jni.sample.zSampleKind(zs).toPublic()
-            // Output expansion: the native layer extracts the timestamp's NTP64
-            // value and delivers it to this builder in one JNI crossing (no
-            // second `zTimestampNtp64` call, no transient handle to close).
-            // Returns null when the sample has no timestamp.
-            val timestamp = io.zenoh.jni.sample.zSampleTimestamp(zs) { ntp64 -> TimeStamp(ntp64) }
+            // convert_output: the native layer extracts the timestamp's NTP64
+            // value and **returns** it directly (Long?, no callback) — null when
+            // the sample has no timestamp.
+            val timestamp = io.zenoh.jni.sample.zSampleTimestamp(zs)?.let { TimeStamp(it) }
             val qos = QoS(
                 CongestionControl.fromJni(io.zenoh.jni.sample.zSampleCongestionControl(zs)),
                 Priority.fromJni(io.zenoh.jni.sample.zSamplePriority(zs)),
                 io.zenoh.jni.sample.zSampleExpress(zs)
             )
-            // Output expansion: the attachment bytes are delivered directly to
-            // this builder (no transient handle + `close()`); null when absent.
-            val attachment = io.zenoh.jni.sample.zSampleAttachment(zs) { bytes -> ZBytes(bytes) }
+            // convert_output: the attachment bytes are returned directly
+            // (ByteArray?, no callback); null when absent.
+            val attachment = io.zenoh.jni.sample.zSampleAttachment(zs)?.let { ZBytes(it) }
             return Sample(keyExpr, payload, encoding, kind, timestamp, qos, attachment)
         }
     }
