@@ -77,6 +77,16 @@ fn main() {
         // so it crosses as a raw byte-blob `ByteArray` rather than a closeable
         // jlong handle — this also lets `Vec<ZZenohId>` surface as
         // `List<ZZenohId>` (see z_session_peers_zid/routers_zid below).
+        // ZZenohId is a `Copy` value (zenoh::session::ZenohId, repr(transparent)),
+        // so it crosses as a raw byte-blob `ByteArray` rather than a closeable
+        // jlong handle. `Vec<ZZenohId>` (z_session_peers_zid/routers_zid) folds
+        // each element WHOLE as the typed `ZZenohId` value class (M4 Iterable,
+        // no combined accessor). NOTE: the M5 vector-of-*unfolded* machinery
+        // (decompose each element into e.g. `(String, ZZenohId)` via a combined
+        // accessor with `.combined_accessor_record_id()` — a `value_blob`
+        // identity delivered by copy) is implemented and unit-tested
+        // (`iterable_decomposed_plan`); it's simply not wired here because the
+        // SDK `ZenohId` stores the blob only and computes its string lazily.
         .value_blob(pq!(ZZenohId))
         .package_fun(pq!(z_zenoh_id_to_bytes))
         .package_fun(pq!(z_zenoh_id_to_string))

@@ -237,7 +237,7 @@ public fun <A> zSessionPeersZid(session: ZSession, acc: A, fold: (A, ZZenohId) -
     val __ret = withSortedHandleLocks(session) {
     val session_ptr = session.ptr
     if (session_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    (JNINative.zSessionPeersZid(session_ptr, acc, { __a: A, __raw: ByteArray -> fold(__a, ZZenohId(__raw)) }, __sink) as A)
+    (JNINative.zSessionPeersZid(session_ptr, acc, { __a: A, p0: ByteArray -> fold(__a, ZZenohId(p0)) }, __sink) as A)
     }
     __err.message?.let { throw ZException(it) }
     return __ret
@@ -250,7 +250,7 @@ public fun <A> zSessionRoutersZid(session: ZSession, acc: A, fold: (A, ZZenohId)
     val __ret = withSortedHandleLocks(session) {
     val session_ptr = session.ptr
     if (session_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    (JNINative.zSessionRoutersZid(session_ptr, acc, { __a: A, __raw: ByteArray -> fold(__a, ZZenohId(__raw)) }, __sink) as A)
+    (JNINative.zSessionRoutersZid(session_ptr, acc, { __a: A, p0: ByteArray -> fold(__a, ZZenohId(p0)) }, __sink) as A)
     }
     __err.message?.let { throw ZException(it) }
     return __ret
