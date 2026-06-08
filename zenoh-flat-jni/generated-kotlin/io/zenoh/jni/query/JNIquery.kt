@@ -82,6 +82,30 @@ public fun zQueryReplyDelete(query: ZQuery, keyExprSel: Int, keyExpr0: String?, 
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }
 
+public fun zQueryReplySample(query: ZQuery, sampleKeyExprSel: Int, sampleKeyExpr0: String?, sampleKeyExpr1: ZKeyExpr?, samplePayload: ByteArray, sampleEncoding: String, onError: (String?, String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }) {
+    if (query.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
+    if (sampleKeyExpr1 != null && sampleKeyExpr1.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
+    var __cap_failed = false
+    var __cap_je: String? = null
+    var __cap_ze0: String? = null
+    val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
+    run {
+    val __locks = ArrayList<NativeHandle>()
+    __locks.add(query)
+    sampleKeyExpr1?.let { __locks.add(it) }
+    withSortedHandleLocks(__locks) {
+    val query_ptr = query.ptr
+    val sampleKeyExpr1_ptr = sampleKeyExpr1?.ptr ?: 0L
+    try {
+    JNINative.zQueryReplySample(query_ptr, sampleKeyExprSel, sampleKeyExpr0, sampleKeyExpr1_ptr, samplePayload, sampleEncoding, __cap)
+    } finally {
+    sampleKeyExpr1?.let { it.ptr = 0L }
+    }
+    }
+    }
+    if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
+}
+
 public fun zQueryKeyexpr(q: ZQuery, onError: (String?) -> ZKeyExpr = { __de_je -> throw ZException(__de_je) }): ZKeyExpr {
     if (q.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false

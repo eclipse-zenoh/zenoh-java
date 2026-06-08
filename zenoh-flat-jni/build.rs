@@ -203,6 +203,12 @@ fn main() {
         .package("sample")
         .enum_class(pq!(SampleKind))
         .ptr_class(pq!(ZSample))
+        // Canonical INPUT: a ZSample is built from (key_expr, payload, encoding)
+        // via z_sample_new. Because those params are themselves ptr_class types
+        // with their own canonical inputs, a `ZSample` param expands RECURSIVELY:
+        // key_expr → (String|handle selector), payload → ByteArray, encoding →
+        // String — all flattened into the consuming fn's signature.
+        .ptr_class_input(pq!(z_sample_new))
         // Canonical output: the full sample decomposed in ONE crossing. Each
         // record is unwrapped per its return type's canonical output —
         // z_sample_key_expr → (ZKeyExpr handle, String); payload/attachment →
@@ -248,6 +254,9 @@ fn main() {
         .fun(pq!(z_query_reply_success))
         .fun(pq!(z_query_reply_error))
         .fun(pq!(z_query_reply_delete))
+        // Recursive-input demo: `sample: ZSample` expands via z_sample_new into
+        // (key_expr String|handle, payload ByteArray, encoding String).
+        .fun(pq!(z_query_reply_sample))
         .fun_accessor(pq!(z_query_keyexpr))
         .fun_accessor(pq!(z_query_parameters))
         .fun_accessor(pq!(z_query_payload))

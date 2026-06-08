@@ -126,6 +126,7 @@ internal object JNINative {
     external fun zQueryPayload(q: Long, errorSink: Any): Long
     external fun zQueryReplyDelete(query: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, timestampNtp64: Long?, attachment: ByteArray?, express: Boolean?, errorSink: Any)
     external fun zQueryReplyError(query: Long, payload: ByteArray, encoding: String?, errorSink: Any)
+    external fun zQueryReplySample(query: Long, sampleKeyExprSel: Int, sampleKeyExpr0: String?, sampleKeyExpr1: Long, samplePayload: ByteArray, sampleEncoding: String, errorSink: Any)
     external fun zQueryReplySuccess(query: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, payload: ByteArray, encoding: String?, timestampNtp64: Long?, attachment: ByteArray?, express: Boolean?, errorSink: Any)
     external fun zReplyErrorEncoding(r: Long, errorSink: Any): Long
     external fun zReplyErrorPayload(r: Long, errorSink: Any): Long
