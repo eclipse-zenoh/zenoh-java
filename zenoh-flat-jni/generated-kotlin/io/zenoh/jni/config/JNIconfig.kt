@@ -56,17 +56,16 @@ public fun zConfigFromYaml(s: String, onError: (String?, String) -> ZConfig = { 
     return __ret
 }
 
-public fun zConfigGetJson(c: ZConfig, key: String, onError: (String?, String) -> String = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): String {
-    if (c.ptr == 0L) return onError("Operation on a closed native handle.", "")
+public fun zConfigGetJson(c: ZConfig, key: String, onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
+    if (c.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
+    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(c) {
     val c_ptr = c.ptr
     JNINative.zConfigGetJson(c_ptr, key, __cap)
     }
-    if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 

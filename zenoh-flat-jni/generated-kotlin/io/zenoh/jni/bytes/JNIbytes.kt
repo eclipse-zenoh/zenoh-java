@@ -116,479 +116,479 @@ public fun zEncodingWithSchema(e: ZEncoding, schema: String, onError: (String?) 
     return __ret
 }
 
-public fun zEncodingZenohBytes(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingZenohBytes(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingZenohBytes(__cap))
+    val __ret = JNINative.zEncodingZenohBytes(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingZenohString(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingZenohString(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingZenohString(__cap))
+    val __ret = JNINative.zEncodingZenohString(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingZenohSerialized(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingZenohSerialized(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingZenohSerialized(__cap))
+    val __ret = JNINative.zEncodingZenohSerialized(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationOctetStream(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationOctetStream(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationOctetStream(__cap))
+    val __ret = JNINative.zEncodingApplicationOctetStream(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingTextPlain(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingTextPlain(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingTextPlain(__cap))
+    val __ret = JNINative.zEncodingTextPlain(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationJson(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationJson(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationJson(__cap))
+    val __ret = JNINative.zEncodingApplicationJson(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingTextJson(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingTextJson(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingTextJson(__cap))
+    val __ret = JNINative.zEncodingTextJson(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationCdr(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationCdr(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationCdr(__cap))
+    val __ret = JNINative.zEncodingApplicationCdr(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationCbor(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationCbor(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationCbor(__cap))
+    val __ret = JNINative.zEncodingApplicationCbor(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationYaml(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationYaml(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationYaml(__cap))
+    val __ret = JNINative.zEncodingApplicationYaml(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingTextYaml(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingTextYaml(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingTextYaml(__cap))
+    val __ret = JNINative.zEncodingTextYaml(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingTextJson5(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingTextJson5(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingTextJson5(__cap))
+    val __ret = JNINative.zEncodingTextJson5(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationPythonSerializedObject(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationPythonSerializedObject(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationPythonSerializedObject(__cap))
+    val __ret = JNINative.zEncodingApplicationPythonSerializedObject(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationProtobuf(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationProtobuf(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationProtobuf(__cap))
+    val __ret = JNINative.zEncodingApplicationProtobuf(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationJavaSerializedObject(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationJavaSerializedObject(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationJavaSerializedObject(__cap))
+    val __ret = JNINative.zEncodingApplicationJavaSerializedObject(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationOpenmetricsText(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationOpenmetricsText(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationOpenmetricsText(__cap))
+    val __ret = JNINative.zEncodingApplicationOpenmetricsText(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingImagePng(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingImagePng(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingImagePng(__cap))
+    val __ret = JNINative.zEncodingImagePng(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingImageJpeg(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingImageJpeg(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingImageJpeg(__cap))
+    val __ret = JNINative.zEncodingImageJpeg(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingImageGif(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingImageGif(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingImageGif(__cap))
+    val __ret = JNINative.zEncodingImageGif(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingImageBmp(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingImageBmp(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingImageBmp(__cap))
+    val __ret = JNINative.zEncodingImageBmp(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingImageWebp(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingImageWebp(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingImageWebp(__cap))
+    val __ret = JNINative.zEncodingImageWebp(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationXml(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationXml(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationXml(__cap))
+    val __ret = JNINative.zEncodingApplicationXml(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationXWwwFormUrlencoded(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationXWwwFormUrlencoded(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationXWwwFormUrlencoded(__cap))
+    val __ret = JNINative.zEncodingApplicationXWwwFormUrlencoded(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingTextHtml(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingTextHtml(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingTextHtml(__cap))
+    val __ret = JNINative.zEncodingTextHtml(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingTextXml(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingTextXml(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingTextXml(__cap))
+    val __ret = JNINative.zEncodingTextXml(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingTextCss(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingTextCss(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingTextCss(__cap))
+    val __ret = JNINative.zEncodingTextCss(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingTextJavascript(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingTextJavascript(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingTextJavascript(__cap))
+    val __ret = JNINative.zEncodingTextJavascript(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingTextMarkdown(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingTextMarkdown(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingTextMarkdown(__cap))
+    val __ret = JNINative.zEncodingTextMarkdown(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingTextCsv(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingTextCsv(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingTextCsv(__cap))
+    val __ret = JNINative.zEncodingTextCsv(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationSql(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationSql(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationSql(__cap))
+    val __ret = JNINative.zEncodingApplicationSql(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationCoapPayload(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationCoapPayload(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationCoapPayload(__cap))
+    val __ret = JNINative.zEncodingApplicationCoapPayload(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationJsonPatchJson(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationJsonPatchJson(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationJsonPatchJson(__cap))
+    val __ret = JNINative.zEncodingApplicationJsonPatchJson(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationJsonSeq(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationJsonSeq(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationJsonSeq(__cap))
+    val __ret = JNINative.zEncodingApplicationJsonSeq(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationJsonpath(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationJsonpath(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationJsonpath(__cap))
+    val __ret = JNINative.zEncodingApplicationJsonpath(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationJwt(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationJwt(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationJwt(__cap))
+    val __ret = JNINative.zEncodingApplicationJwt(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationMp4(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationMp4(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationMp4(__cap))
+    val __ret = JNINative.zEncodingApplicationMp4(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationSoapXml(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationSoapXml(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationSoapXml(__cap))
+    val __ret = JNINative.zEncodingApplicationSoapXml(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingApplicationYang(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingApplicationYang(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingApplicationYang(__cap))
+    val __ret = JNINative.zEncodingApplicationYang(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingAudioAac(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingAudioAac(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingAudioAac(__cap))
+    val __ret = JNINative.zEncodingAudioAac(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingAudioFlac(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingAudioFlac(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingAudioFlac(__cap))
+    val __ret = JNINative.zEncodingAudioFlac(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingAudioMp4(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingAudioMp4(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingAudioMp4(__cap))
+    val __ret = JNINative.zEncodingAudioMp4(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingAudioOgg(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingAudioOgg(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingAudioOgg(__cap))
+    val __ret = JNINative.zEncodingAudioOgg(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingAudioVorbis(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingAudioVorbis(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingAudioVorbis(__cap))
+    val __ret = JNINative.zEncodingAudioVorbis(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingVideoH261(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingVideoH261(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingVideoH261(__cap))
+    val __ret = JNINative.zEncodingVideoH261(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingVideoH263(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingVideoH263(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingVideoH263(__cap))
+    val __ret = JNINative.zEncodingVideoH263(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingVideoH264(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingVideoH264(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingVideoH264(__cap))
+    val __ret = JNINative.zEncodingVideoH264(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingVideoH265(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingVideoH265(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingVideoH265(__cap))
+    val __ret = JNINative.zEncodingVideoH265(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingVideoH266(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingVideoH266(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingVideoH266(__cap))
+    val __ret = JNINative.zEncodingVideoH266(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingVideoMp4(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingVideoMp4(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingVideoMp4(__cap))
+    val __ret = JNINative.zEncodingVideoMp4(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingVideoOgg(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingVideoOgg(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingVideoOgg(__cap))
+    val __ret = JNINative.zEncodingVideoOgg(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingVideoRaw(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingVideoRaw(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingVideoRaw(__cap))
+    val __ret = JNINative.zEncodingVideoRaw(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingVideoVp8(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingVideoVp8(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingVideoVp8(__cap))
+    val __ret = JNINative.zEncodingVideoVp8(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zEncodingVideoVp9(onError: (String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) }): ZEncoding {
+public fun zEncodingVideoVp9(onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = ZEncoding(JNINative.zEncodingVideoVp9(__cap))
+    val __ret = JNINative.zEncodingVideoVp9(__cap)
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }

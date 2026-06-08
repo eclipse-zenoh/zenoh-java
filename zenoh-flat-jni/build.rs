@@ -9,25 +9,24 @@ fn fail(context: &str, err: impl std::fmt::Display) -> ! {
 
 fn main() {
     // Flat tier only: every `#[prebindgen]` `z_*` function is declared as a
-    // free function (`.fun`) under its module namespace. Opaque handles
-    // stay typed Kotlin classes derived from `NativeHandle` (locked, closeable)
-    // via `ptr_class`, but functions are NOT represented as methods on them.
-    // Errors are signalled through the per-call `ErrorSink` callback (no
-    // Rust-side JVM exceptions); the generated wrappers install a default sink
-    // that rethrows as `ZException`. `Error` is the `Result<_, Error>` error
-    // type (a plain data class; no `.throwable()`). `ZZenohId` stays a
-    // `value_blob` (`@JvmInline value class ZZenohId(val bytes: ByteArray)`).
+    // free function (`.fun` / `.fun_accessor`) under its module namespace. Opaque
+    // handles stay typed Kotlin classes derived from `NativeHandle` (locked,
+    // closeable) via `ptr_class`. A type's CANONICAL representation — its input
+    // (`.ptr_class_input*`) and output (`.ptr_class_output*`) — is declared on the
+    // `ptr_class` and AUTO-APPLIES to every matching param / return; `.fun_accessor`
+    // fns and per-fn `.fun_input_direct`/`.fun_output_direct` opt out. Errors are
+    // delivered through the per-call `onError` callback (no Rust-side JVM throw).
+    // `ZZenohId` stays a `value_blob` (`@JvmInline value class`).
     let jni = JniGen::new()
         .handle_locks(true)              // Enable handle locks (default, thread-safe)
         .source_module(pq!(zenoh_flat)) // how to prefix prebindgen-marked items (functions, types
         .package_prefix("io.zenoh.jni") // the package of the generated JNI bindings
         // Error model: zenoh's native `ZError` is the `E` of every fallible
-        // `Result<_, ZError>`. A CONVERTER (`z_error_message -> String`) marked
-        // `.default()` auto-applies a `convert_error` to EVERY declared fn
-        // returning `Result<_, ZError>`, so the generated wrapper's `onError`
-        // callback receives the error string as its single `ze` param (after the
-        // fixed binding `je: String?`). No throw from zenoh-flat-jni; the caller's
-        // `onError` decides (zenoh-java throws `ZError`).
+        // `Result<_, ZError>`. Its canonical output (`z_error_message -> String`,
+        // declared below) auto-applies to the `E` position of every such Result,
+        // so the wrapper's `onError` callback receives the error string as its
+        // single `ze` param (after the fixed binding `je: String?`). No throw from
+        // zenoh-flat-jni; the caller's `onError` decides (zenoh-java throws `ZError`).
         //
         // `ptr_class(ZError)` makes `ZError` a regular opaque-handle type so the
         // rank-2 `Result<T, ZError>` resolver finds its input/output converters
@@ -37,53 +36,41 @@ fn main() {
         // idiomatic "ZError is FFI-representable" declaration (vs hand-written
         // dummy converters). `z_error_message` is the converter's accessor — it
         // must be declared `.fun_accessor` (which also exports it as `zErrorMessage`).
+        // Canonical type representation: input (constructor) + output
+        // (deconstructor) are declared on the `ptr_class` and AUTO-APPLY to every
+        // matching param / return. `.ptr_class_input/output(...)` must precede any
+        // `.fun`/`.fun_accessor` (those clear the ptr_class cursor).
         .package("errors")
         .ptr_class(pq!(ZError))
+        // Canonical output: a ZError becomes its message string (1 leaf). Applies
+        // to the `E` of every `Result<_, ZError>` (the `ze` error-callback arg).
+        .ptr_class_output(pq!(z_error_message))
         .fun_accessor(pq!(z_error_message))
-        .converter(pq!(ZError), pq!(z_error_message))
-        .default()
         .package("keyexpr")
         .ptr_class(pq!(ZKeyExpr))
+        // Canonical input: a key-expr param accepts EITHER a String (built via
+        // z_keyexpr_try_from) OR an existing handle (identity) — selector-
+        // dispatched. Auto-applies to every ZKeyExpr param.
+        .ptr_class_input(pq!(z_keyexpr_try_from))
+        .ptr_class_input_direct()
+        // Canonical output: a key-expr decomposes into BOTH its handle (identity)
+        // and its borrowed string form (`z_keyexpr_as_str`) — 2 leaves ⇒ builder
+        // callback. Auto-applies to every (non-Result) ZKeyExpr return.
+        .ptr_class_output_direct()
+        .ptr_class_output(pq!(z_keyexpr_as_str))
+        .fun_accessor(pq!(z_keyexpr_as_str))
+        // Fallible factories return `Result<ZKeyExpr, ZError>` (Result is not
+        // output-decomposed → handle return + error callback).
         .fun(pq!(z_keyexpr_try_from))
         .fun(pq!(z_keyexpr_autocanonize))
-        // Combined constructor for ZKeyExpr: a key-expr parameter accepts EITHER
-        // a String (built via z_keyexpr_try_from) OR an existing declared handle
-        // (identity). This is semantic, not just perf — a declared key-expr is a
-        // network-optimized resource distinct from a raw string. Every key-expr
-        // consumer below is `.expand`ed so callers pass a string or a handle in
-        // one JNI crossing. (Exception: z_session_undeclare_keyexpr stays
-        // handle-only — see the session package.)
-        .constructor(pq!(ZKeyExpr))
-        .constructor_variant(pq!(z_keyexpr_try_from))
-        .constructor_variant_id()
-        // `.default()`: auto-`construct` every `ZKeyExpr` param (`&`/`Option`/
-        // by-value) of every declared fn — so all the key-expr consumers below
-        // accept a String|handle in one crossing without per-fn `.construct(...)`.
-        // The read accessors (`z_keyexpr_clone`/`z_keyexpr_to_string`/
-        // `z_keyexpr_as_str`) are declared `.fun_accessor`, so the composer skips
-        // them automatically; only `z_session_undeclare_keyexpr` (a handle-only
-        // consumer) still needs an explicit `.skip_default_construct`.
-        .default()
-        // Combined ACCESSOR for ZKeyExpr (output expansion): a function
-        // returning a key-expr handle (`.deconstruct_output()`) is decomposed into
-        // BOTH the handle (identity record) and its borrowed string form
-        // (`z_keyexpr_as_str`, a zero-copy `&str → jstring`), delivered to a
-        // zenoh-java builder lambda in one JNI crossing. zenoh-java builds its
-        // `KeyExpr(flat, string)` directly and later sends the handle back (its
-        // `exprSel` selects the identity arm of the combined constructor above).
-        .fun_accessor(pq!(z_keyexpr_as_str)) // decomposer record (now also exported)
-        .deconstructor(pq!(ZKeyExpr))
-        .deconstructor_record_id()
-        .deconstructor_record(pq!(z_keyexpr_as_str))
-        // a/b (and key_expr below) are auto-constructed by the ZKeyExpr
-        // constructor `.default()` above — no per-fn `.construct(...)` needed.
-        // (z_keyexpr_join/concat's `b` is a String, untouched.)
+        // Consumers: a/b key-expr params auto-constructed by the canonical input.
         .fun(pq!(z_keyexpr_intersects))
         .fun(pq!(z_keyexpr_includes))
         .fun(pq!(z_keyexpr_relation_to))
         .fun(pq!(z_keyexpr_join))
         .fun(pq!(z_keyexpr_concat))
-        // Read accessors — `.fun_accessor` keeps `ke` handle-only (composer skips it).
+        // Read accessors — `.fun_accessor` keeps `ke` handle-only (canonical
+        // input/output composer skips fun_accessor fns).
         .fun_accessor(pq!(z_keyexpr_clone))
         .fun_accessor(pq!(z_keyexpr_to_string))
         .enum_class(pq!(SetIntersectionLevel))
@@ -128,45 +115,29 @@ fn main() {
         .enum_class(pq!(CongestionControl))
         .package("bytes")
         .ptr_class(pq!(ZZBytes))
-        // Read accessors — `.fun_accessor` keeps `z` handle-only (the ZZBytes
-        // constructor `.default()` below skips them; e.g. `zZbytesToBytes(handle)`).
+        // Canonical input: `payload`/`attachment` params accept a `ByteArray`
+        // (built via z_zbytes_from_vec). Canonical output: a ZZBytes is its bytes
+        // (1 leaf ⇒ return value). `z_zbytes_from_slice(&[u8])` has no JNI shape.
+        .ptr_class_input(pq!(z_zbytes_from_vec))
+        .ptr_class_output(pq!(z_zbytes_to_bytes))
         .fun_accessor(pq!(z_zbytes_to_bytes))
         .fun_accessor(pq!(z_zbytes_clone))
+        // Keep the factory exported with a raw-handle return (fun_output_direct
+        // opts out of the canonical ByteArray decomposition).
         .fun(pq!(z_zbytes_from_vec))
-        // NOTE: `z_zbytes_from_slice(&[u8])` is the C-pointer constructor shape
-        // (`const uint8_t* + size`); its JNI form is `z_zbytes_from_vec(Vec<u8>)`
-        // above (→ `ByteArray`). The `&[u8]` slice input has no JNI representation,
-        // so it's intentionally not exported here.
-        // Constructor for ZZBytes: payload/attachment params accept a
-        // `ByteArray` (built via z_zbytes_from_vec) directly — no handle, no
-        // per-call `zZbytesFromVec` crossing. (One variant, no identity arm: the
-        // SDK never holds a ZZBytes handle for these.) `.default()` auto-applies
-        // it to every `ZZBytes` param (`payload`/`attachment`, by-value or
-        // `Option`) of every declared fn (accessors opted out above).
-        .constructor(pq!(ZZBytes))
-        .constructor_variant(pq!(z_zbytes_from_vec))
-        .default()
-        // CONVERTER for ZZBytes (single-value deconstructor): an `Option<&ZZBytes>`
-        // return (z_sample_attachment) is converted to its bytes
-        // (`z_zbytes_to_bytes` → ByteArray) and **returned** directly via
-        // `.convert_output()` (no callback). Also doubles as the nested record
-        // for the ZSample deconstructor's payload.
-        .converter(pq!(ZZBytes), pq!(z_zbytes_to_bytes))
+        .fun_output_direct()
         .ptr_class(pq!(ZEncoding))
+        // Canonical input: encoding params accept a `String` (z_encoding_from_string).
+        // Canonical output: an encoding is its canonical string (1 leaf ⇒ return).
+        .ptr_class_input(pq!(z_encoding_from_string))
+        .ptr_class_output(pq!(z_encoding_to_string))
         .fun_accessor(pq!(z_encoding_id))
         .fun_accessor(pq!(z_encoding_schema))
         .fun_accessor(pq!(z_encoding_to_string))
         .fun_accessor(pq!(z_encoding_clone))
+        // Factory: keep the handle return (canonical output would make it String).
         .fun(pq!(z_encoding_from_string))
-        // CONVERTER for ZEncoding: decompose to its canonical string
-        // (`z_encoding_to_string`), nested by the ZSample deconstructor below to
-        // build the SDK `Encoding(string)`.
-        .converter(pq!(ZEncoding), pq!(z_encoding_to_string))
-        // Constructor for ZEncoding: encoding params accept a `String`
-        // (built via z_encoding_from_string) directly — the SDK passes its
-        // canonical `repr` String, no per-call `zEncodingFromString` + close.
-        .constructor(pq!(ZEncoding))
-        .constructor_variant(pq!(z_encoding_from_string))
+        .fun_output_direct()
         .fun_accessor(pq!(z_encoding_with_schema))
         .fun(pq!(z_encoding_zenoh_bytes))
         .fun(pq!(z_encoding_zenoh_string))
@@ -223,66 +194,59 @@ fn main() {
         .fun(pq!(z_encoding_video_vp9))
         .package("time")
         .ptr_class(pq!(ZTimestamp))
+        // Canonical output: a timestamp is its NTP64 value (`z_timestamp_ntp64`
+        // → i64 → Long, 1 leaf). When nested in ZSample it contributes the Long
+        // leaf; a `ZTimestamp`/`Option<&ZTimestamp>` return decomposes to `Long?`.
+        .ptr_class_output(pq!(z_timestamp_ntp64))
         .fun_accessor(pq!(z_timestamp_ntp64))
         .fun_accessor(pq!(z_timestamp_id))
-        // CONVERTER for ZTimestamp (single-value): an `Option<&ZTimestamp>`
-        // return (z_sample_timestamp) is converted to its NTP64 value
-        // (`z_timestamp_ntp64` → i64) and **returned** as `Long?` via
-        // `.convert_output()` — no callback, fewer JNI crossings than a builder.
-        // Also the nested record for ZSample's timestamp.
-        .converter(pq!(ZTimestamp), pq!(z_timestamp_ntp64))
         .package("sample")
         .enum_class(pq!(SampleKind))
         .ptr_class(pq!(ZSample))
+        // Canonical output: the full sample decomposed in ONE crossing. Each
+        // record is unwrapped per its return type's canonical output —
+        // z_sample_key_expr → (ZKeyExpr handle, String); payload/attachment →
+        // ByteArray (ZZBytes); encoding → String (ZEncoding); timestamp → Long?
+        // (ZTimestamp); kind/priority/congestion → Int (enum); express → Boolean.
+        // 9 records ⇒ many leaves ⇒ builder callback. Auto-applies to every
+        // (non-Result) ZSample return (e.g. z_reply_sample's `Option<&ZSample>`).
+        .ptr_class_output(pq!(z_sample_key_expr))
+        .ptr_class_output(pq!(z_sample_payload))
+        .ptr_class_output(pq!(z_sample_encoding))
+        .ptr_class_output(pq!(z_sample_kind))
+        .ptr_class_output(pq!(z_sample_timestamp))
+        .ptr_class_output(pq!(z_sample_express))
+        .ptr_class_output(pq!(z_sample_priority))
+        .ptr_class_output(pq!(z_sample_congestion_control))
+        .ptr_class_output(pq!(z_sample_attachment))
+        // All sample accessors are record sources (fun_accessor): standalone they
+        // stay handle/raw; decomposition happens via the canonical output above.
         .fun_accessor(pq!(z_sample_key_expr))
-        .deconstruct_output() // &ZKeyExpr → builder (ZKeyExpr handle, String)
         .fun_accessor(pq!(z_sample_payload))
         .fun_accessor(pq!(z_sample_encoding))
         .fun_accessor(pq!(z_sample_kind))
         .fun_accessor(pq!(z_sample_timestamp))
-        .convert_output() // Option<&ZTimestamp> → returns Long? (no callback)
         .fun_accessor(pq!(z_sample_express))
         .fun_accessor(pq!(z_sample_priority))
         .fun_accessor(pq!(z_sample_congestion_control))
         .fun_accessor(pq!(z_sample_attachment))
-        .convert_output() // Option<&ZZBytes> → returns ByteArray? (no callback)
-        // Combined ACCESSOR for ZSample (output expansion, M3): the full sample
-        // decomposed in ONE crossing — NESTS the ZKeyExpr (handle+string),
-        // ZZBytes (payload bytes), ZEncoding (string) and ZTimestamp (ntp64,
-        // nullable) combined accessors, plus enum leaves (kind/priority/
-        // congestion → Int) and `express` (bool). Record order = builder arg
-        // order. Used by `z_reply_sample` below to build a full SDK `Sample`.
-        .deconstructor(pq!(ZSample))
-        .deconstructor_record_nested(pq!(z_sample_key_expr)) // → (ZKeyExpr, String)
-        .deconstructor_record_nested(pq!(z_sample_payload)) // → ByteArray
-        .deconstructor_record_nested(pq!(z_sample_encoding)) // → String
-        .deconstructor_record(pq!(z_sample_kind)) // enum → Int
-        .deconstructor_record_nested(pq!(z_sample_timestamp)) // Option → Long?
-        .deconstructor_record(pq!(z_sample_express)) // bool → Boolean
-        .deconstructor_record(pq!(z_sample_priority)) // enum → Int
-        .deconstructor_record(pq!(z_sample_congestion_control)) // enum → Int
-        .deconstructor_record_nested(pq!(z_sample_attachment)) // Option → ByteArray?
+        // Below: key_expr / payload / attachment / encoding params are
+        // auto-constructed by their types' canonical inputs (no per-fn calls).
         .package("pubsub")
         .ptr_class(pq!(ZPublisher))
-        // payload/attachment auto-constructed by the ZZBytes `.default()`.
         .fun(pq!(z_publisher_put))
-        .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
         .fun(pq!(z_publisher_delete))
         .ptr_class(pq!(ZSubscriber))
         .package("query")
         .ptr_class(pq!(ZQueryable))
         .ptr_class(pq!(ZQuerier))
         .fun(pq!(z_querier_get))
-        .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
         .enum_class(pq!(ReplyKeyExpr))
         .enum_class(pq!(QueryTarget))
         .enum_class(pq!(ConsolidationMode))
         .ptr_class(pq!(ZQuery))
-        // key_expr + payload/attachment auto-constructed by their `.default()`s.
         .fun(pq!(z_query_reply_success))
-        .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
         .fun(pq!(z_query_reply_error))
-        .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
         .fun(pq!(z_query_reply_delete))
         .fun_accessor(pq!(z_query_keyexpr))
         .fun_accessor(pq!(z_query_parameters))
@@ -294,8 +258,9 @@ fn main() {
         .fun_accessor(pq!(z_reply_replier_zid))
         .fun_accessor(pq!(z_reply_replier_eid))
         .fun_accessor(pq!(z_reply_is_ok))
-        .fun_accessor(pq!(z_reply_sample))
-        .deconstruct_output() // Option<&ZSample> → builder(full Sample leaves) → R?
+        // z_reply_sample is a plain `.fun`: its `Option<&ZSample>` return is
+        // auto-decomposed by ZSample's canonical output (the full Sample builder).
+        .fun(pq!(z_reply_sample))
         .fun_accessor(pq!(z_reply_error_payload))
         .fun_accessor(pq!(z_reply_error_encoding))
         .package("liveliness")
@@ -303,31 +268,24 @@ fn main() {
         .package("session")
         .ptr_class(pq!(ZSession))
         .fun(pq!(z_open))
-        // key_expr params below are auto-constructed by the ZKeyExpr `.default()`.
         .fun(pq!(z_session_declare_publisher))
         .fun(pq!(z_session_put))
-        .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
         .fun(pq!(z_session_delete))
         .fun(pq!(z_session_declare_subscriber))
         .fun(pq!(z_session_declare_querier))
         .fun(pq!(z_session_declare_queryable))
         .fun(pq!(z_session_declare_keyexpr))
-        // z_session_undeclare_keyexpr: undeclaring requires the declared handle,
-        // not a string — opt out of the ZKeyExpr constructor default.
+        // z_session_undeclare_keyexpr: undeclaring needs the declared handle, not
+        // a string — opt its key_expr param out of the canonical input.
         .fun(pq!(z_session_undeclare_keyexpr))
-        .skip_default_construct(pq!(key_expr))
+        .fun_input_direct(pq!(key_expr))
         .fun(pq!(z_session_get))
-        .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
         .fun_accessor(pq!(z_session_zid))
-        // Output expansion (M4, Iterable): Vec<ZZenohId> → fold, each ZZenohId
-        // delivered WHOLE (its value_blob projection); caller owns the result
-        // collection. No combined accessor — the element crosses as the typed
-        // `ZZenohId` value class, matching the prior `List<ZZenohId>`.
-        .fun_accessor(pq!(z_session_peers_zid))
-        .deconstruct_output() // Vec<ZZenohId> → fun <A>(acc, fold: (A, ZZenohId) -> A): A
-        .fun_accessor(pq!(z_session_routers_zid))
-        .deconstruct_output()
-        // liveliness key_expr params auto-constructed by the ZKeyExpr `.default()`.
+        // Vec<ZZenohId>: ZZenohId is a value_blob (no canonical output), so these
+        // return `List<ZZenohId>` via the normal Vec converter.
+        .fun(pq!(z_session_peers_zid))
+        .fun(pq!(z_session_routers_zid))
+        // liveliness key_expr params auto-constructed by the canonical input.
         .fun(pq!(z_liveliness_declare_token))
         .fun(pq!(z_liveliness_get))
         .fun(pq!(z_liveliness_declare_subscriber));

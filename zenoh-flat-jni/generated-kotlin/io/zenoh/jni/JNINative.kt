@@ -24,6 +24,7 @@ import io.zenoh.jni.query.ZQueryable
 import io.zenoh.jni.sample.SampleKind
 import io.zenoh.jni.scouting.ZScout
 import io.zenoh.jni.session.ZSession
+import io.zenoh.jni.time.ZTimestamp
 
 internal object JNINative {
     external fun initAndroidLogs(filter: String, errorSink: Any)
@@ -37,65 +38,65 @@ internal object JNINative {
     external fun zConfigFromYaml(s: String, errorSink: Any): Long
     external fun zConfigGetJson(c: Long, key: String, errorSink: Any): String
     external fun zConfigInsertJson5(c: Long, key: String, value: String, errorSink: Any)
-    external fun zEncodingApplicationCbor(errorSink: Any): Long
-    external fun zEncodingApplicationCdr(errorSink: Any): Long
-    external fun zEncodingApplicationCoapPayload(errorSink: Any): Long
-    external fun zEncodingApplicationJavaSerializedObject(errorSink: Any): Long
-    external fun zEncodingApplicationJson(errorSink: Any): Long
-    external fun zEncodingApplicationJsonPatchJson(errorSink: Any): Long
-    external fun zEncodingApplicationJsonSeq(errorSink: Any): Long
-    external fun zEncodingApplicationJsonpath(errorSink: Any): Long
-    external fun zEncodingApplicationJwt(errorSink: Any): Long
-    external fun zEncodingApplicationMp4(errorSink: Any): Long
-    external fun zEncodingApplicationOctetStream(errorSink: Any): Long
-    external fun zEncodingApplicationOpenmetricsText(errorSink: Any): Long
-    external fun zEncodingApplicationProtobuf(errorSink: Any): Long
-    external fun zEncodingApplicationPythonSerializedObject(errorSink: Any): Long
-    external fun zEncodingApplicationSoapXml(errorSink: Any): Long
-    external fun zEncodingApplicationSql(errorSink: Any): Long
-    external fun zEncodingApplicationXWwwFormUrlencoded(errorSink: Any): Long
-    external fun zEncodingApplicationXml(errorSink: Any): Long
-    external fun zEncodingApplicationYaml(errorSink: Any): Long
-    external fun zEncodingApplicationYang(errorSink: Any): Long
-    external fun zEncodingAudioAac(errorSink: Any): Long
-    external fun zEncodingAudioFlac(errorSink: Any): Long
-    external fun zEncodingAudioMp4(errorSink: Any): Long
-    external fun zEncodingAudioOgg(errorSink: Any): Long
-    external fun zEncodingAudioVorbis(errorSink: Any): Long
+    external fun zEncodingApplicationCbor(errorSink: Any): String
+    external fun zEncodingApplicationCdr(errorSink: Any): String
+    external fun zEncodingApplicationCoapPayload(errorSink: Any): String
+    external fun zEncodingApplicationJavaSerializedObject(errorSink: Any): String
+    external fun zEncodingApplicationJson(errorSink: Any): String
+    external fun zEncodingApplicationJsonPatchJson(errorSink: Any): String
+    external fun zEncodingApplicationJsonSeq(errorSink: Any): String
+    external fun zEncodingApplicationJsonpath(errorSink: Any): String
+    external fun zEncodingApplicationJwt(errorSink: Any): String
+    external fun zEncodingApplicationMp4(errorSink: Any): String
+    external fun zEncodingApplicationOctetStream(errorSink: Any): String
+    external fun zEncodingApplicationOpenmetricsText(errorSink: Any): String
+    external fun zEncodingApplicationProtobuf(errorSink: Any): String
+    external fun zEncodingApplicationPythonSerializedObject(errorSink: Any): String
+    external fun zEncodingApplicationSoapXml(errorSink: Any): String
+    external fun zEncodingApplicationSql(errorSink: Any): String
+    external fun zEncodingApplicationXWwwFormUrlencoded(errorSink: Any): String
+    external fun zEncodingApplicationXml(errorSink: Any): String
+    external fun zEncodingApplicationYaml(errorSink: Any): String
+    external fun zEncodingApplicationYang(errorSink: Any): String
+    external fun zEncodingAudioAac(errorSink: Any): String
+    external fun zEncodingAudioFlac(errorSink: Any): String
+    external fun zEncodingAudioMp4(errorSink: Any): String
+    external fun zEncodingAudioOgg(errorSink: Any): String
+    external fun zEncodingAudioVorbis(errorSink: Any): String
     external fun zEncodingClone(e: Long, errorSink: Any): Long
     external fun zEncodingFromString(s: String, errorSink: Any): Long
     external fun zEncodingId(e: Long, errorSink: Any): Int
-    external fun zEncodingImageBmp(errorSink: Any): Long
-    external fun zEncodingImageGif(errorSink: Any): Long
-    external fun zEncodingImageJpeg(errorSink: Any): Long
-    external fun zEncodingImagePng(errorSink: Any): Long
-    external fun zEncodingImageWebp(errorSink: Any): Long
+    external fun zEncodingImageBmp(errorSink: Any): String
+    external fun zEncodingImageGif(errorSink: Any): String
+    external fun zEncodingImageJpeg(errorSink: Any): String
+    external fun zEncodingImagePng(errorSink: Any): String
+    external fun zEncodingImageWebp(errorSink: Any): String
     external fun zEncodingSchema(e: Long, errorSink: Any): String?
-    external fun zEncodingTextCss(errorSink: Any): Long
-    external fun zEncodingTextCsv(errorSink: Any): Long
-    external fun zEncodingTextHtml(errorSink: Any): Long
-    external fun zEncodingTextJavascript(errorSink: Any): Long
-    external fun zEncodingTextJson(errorSink: Any): Long
-    external fun zEncodingTextJson5(errorSink: Any): Long
-    external fun zEncodingTextMarkdown(errorSink: Any): Long
-    external fun zEncodingTextPlain(errorSink: Any): Long
-    external fun zEncodingTextXml(errorSink: Any): Long
-    external fun zEncodingTextYaml(errorSink: Any): Long
+    external fun zEncodingTextCss(errorSink: Any): String
+    external fun zEncodingTextCsv(errorSink: Any): String
+    external fun zEncodingTextHtml(errorSink: Any): String
+    external fun zEncodingTextJavascript(errorSink: Any): String
+    external fun zEncodingTextJson(errorSink: Any): String
+    external fun zEncodingTextJson5(errorSink: Any): String
+    external fun zEncodingTextMarkdown(errorSink: Any): String
+    external fun zEncodingTextPlain(errorSink: Any): String
+    external fun zEncodingTextXml(errorSink: Any): String
+    external fun zEncodingTextYaml(errorSink: Any): String
     external fun zEncodingToString(e: Long, errorSink: Any): String
-    external fun zEncodingVideoH261(errorSink: Any): Long
-    external fun zEncodingVideoH263(errorSink: Any): Long
-    external fun zEncodingVideoH264(errorSink: Any): Long
-    external fun zEncodingVideoH265(errorSink: Any): Long
-    external fun zEncodingVideoH266(errorSink: Any): Long
-    external fun zEncodingVideoMp4(errorSink: Any): Long
-    external fun zEncodingVideoOgg(errorSink: Any): Long
-    external fun zEncodingVideoRaw(errorSink: Any): Long
-    external fun zEncodingVideoVp8(errorSink: Any): Long
-    external fun zEncodingVideoVp9(errorSink: Any): Long
+    external fun zEncodingVideoH261(errorSink: Any): String
+    external fun zEncodingVideoH263(errorSink: Any): String
+    external fun zEncodingVideoH264(errorSink: Any): String
+    external fun zEncodingVideoH265(errorSink: Any): String
+    external fun zEncodingVideoH266(errorSink: Any): String
+    external fun zEncodingVideoMp4(errorSink: Any): String
+    external fun zEncodingVideoOgg(errorSink: Any): String
+    external fun zEncodingVideoRaw(errorSink: Any): String
+    external fun zEncodingVideoVp8(errorSink: Any): String
+    external fun zEncodingVideoVp9(errorSink: Any): String
     external fun zEncodingWithSchema(e: Long, schema: String, errorSink: Any): Long
-    external fun zEncodingZenohBytes(errorSink: Any): Long
-    external fun zEncodingZenohSerialized(errorSink: Any): Long
-    external fun zEncodingZenohString(errorSink: Any): Long
+    external fun zEncodingZenohBytes(errorSink: Any): String
+    external fun zEncodingZenohSerialized(errorSink: Any): String
+    external fun zEncodingZenohString(errorSink: Any): String
     external fun zErrorMessage(e: Long, errorSink: Any): String
     external fun zHelloLocators(h: Long, errorSink: Any): List<String>
     external fun zHelloWhatami(h: Long, errorSink: Any): Int
@@ -132,15 +133,15 @@ internal object JNINative {
     external fun zReplyReplierEid(r: Long, errorSink: Any): Int
     external fun zReplyReplierZid(r: Long, errorSink: Any): ByteArray?
     external fun zReplySample(r: Long, build: Any, errorSink: Any): Any?
-    external fun zSampleAttachment(s: Long, errorSink: Any): ByteArray?
+    external fun zSampleAttachment(s: Long, errorSink: Any): Long
     external fun zSampleCongestionControl(s: Long, errorSink: Any): Int
     external fun zSampleEncoding(s: Long, errorSink: Any): Long
     external fun zSampleExpress(s: Long, errorSink: Any): Boolean
-    external fun zSampleKeyExpr(s: Long, build: Any, errorSink: Any): Any?
+    external fun zSampleKeyExpr(s: Long, errorSink: Any): Long
     external fun zSampleKind(s: Long, errorSink: Any): Int
     external fun zSamplePayload(s: Long, errorSink: Any): Long
     external fun zSamplePriority(s: Long, errorSink: Any): Int
-    external fun zSampleTimestamp(s: Long, errorSink: Any): Long?
+    external fun zSampleTimestamp(s: Long, errorSink: Any): Long
     external fun zScout(whatami: Int, config: Long, callback: ZHelloCallback, onClose: Callback, errorSink: Any): Long
     external fun zSessionDeclareKeyexpr(session: Long, keyExpr: String, errorSink: Any): Long
     external fun zSessionDeclarePublisher(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, congestionControl: Int?, priority: Int?, express: Boolean?, reliability: Int?, errorSink: Any): Long
@@ -149,9 +150,9 @@ internal object JNINative {
     external fun zSessionDeclareSubscriber(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, callback: ZSampleCallback, onClose: Callback, errorSink: Any): Long
     external fun zSessionDelete(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: ByteArray?, reliability: Int?, errorSink: Any)
     external fun zSessionGet(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, parameters: String?, timeoutMs: Long?, target: Int?, consolidation: Int?, acceptReplies: Int?, congestionControl: Int?, priority: Int?, express: Boolean?, payload: ByteArray?, encoding: String?, attachment: ByteArray?, callback: ZReplyCallback, onClose: Callback, errorSink: Any)
-    external fun zSessionPeersZid(session: Long, acc: Any?, fold: Any, errorSink: Any): Any?
+    external fun zSessionPeersZid(session: Long, errorSink: Any): List<ByteArray>
     external fun zSessionPut(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, payload: ByteArray, encoding: String?, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: ByteArray?, reliability: Int?, errorSink: Any)
-    external fun zSessionRoutersZid(session: Long, acc: Any?, fold: Any, errorSink: Any): Any?
+    external fun zSessionRoutersZid(session: Long, errorSink: Any): List<ByteArray>
     external fun zSessionUndeclareKeyexpr(session: Long, keyExpr: Long, errorSink: Any)
     external fun zSessionZid(session: Long, errorSink: Any): ByteArray
     external fun zTimestampId(t: Long, errorSink: Any): ByteArray

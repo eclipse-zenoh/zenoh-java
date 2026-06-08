@@ -249,29 +249,27 @@ public fun zSessionZid(session: ZSession, onError: (String?) -> ZZenohId = { __d
     return __ret
 }
 
-@Suppress("UNCHECKED_CAST")
-public fun <A> zSessionPeersZid(session: ZSession, acc: A, onError: (String?) -> A = { __de_je -> throw ZException(__de_je) }, fold: (A, ZZenohId) -> A): A {
+public fun zSessionPeersZid(session: ZSession, onError: (String?) -> List<ZZenohId> = { __de_je -> throw ZException(__de_je) }): List<ZZenohId> {
     if (session.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(session) {
     val session_ptr = session.ptr
-    (JNINative.zSessionPeersZid(session_ptr, acc, { __a: A, p0: ByteArray -> fold(__a, ZZenohId(p0)) }, __cap) as A)
+    JNINative.zSessionPeersZid(session_ptr, __cap).map { ZZenohId(it) }
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-@Suppress("UNCHECKED_CAST")
-public fun <A> zSessionRoutersZid(session: ZSession, acc: A, onError: (String?) -> A = { __de_je -> throw ZException(__de_je) }, fold: (A, ZZenohId) -> A): A {
+public fun zSessionRoutersZid(session: ZSession, onError: (String?) -> List<ZZenohId> = { __de_je -> throw ZException(__de_je) }): List<ZZenohId> {
     if (session.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(session) {
     val session_ptr = session.ptr
-    (JNINative.zSessionRoutersZid(session_ptr, acc, { __a: A, p0: ByteArray -> fold(__a, ZZenohId(p0)) }, __cap) as A)
+    JNINative.zSessionRoutersZid(session_ptr, __cap).map { ZZenohId(it) }
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret

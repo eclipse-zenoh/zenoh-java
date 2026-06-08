@@ -8,6 +8,19 @@ import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.withSortedHandleLocks
 import io.zenoh.jni.JNINative
 
+public fun zKeyexprAsStr(ke: ZKeyExpr, onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
+    if (ke.ptr == 0L) return onError("Operation on a closed native handle.")
+    var __cap_failed = false
+    var __cap_je: String? = null
+    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __ret = withSortedHandleLocks(ke) {
+    val ke_ptr = ke.ptr
+    JNINative.zKeyexprAsStr(ke_ptr, __cap)
+    }
+    if (__cap_failed) return onError(__cap_je)
+    return __ret
+}
+
 public fun zKeyexprTryFrom(s: String, onError: (String?, String) -> ZKeyExpr = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZKeyExpr {
     var __cap_failed = false
     var __cap_je: String? = null
@@ -25,19 +38,6 @@ public fun zKeyexprAutocanonize(s: String, onError: (String?, String) -> ZKeyExp
     val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
     val __ret = ZKeyExpr(JNINative.zKeyexprAutocanonize(s, __cap))
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
-    return __ret
-}
-
-public fun zKeyexprAsStr(ke: ZKeyExpr, onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
-    if (ke.ptr == 0L) return onError("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = withSortedHandleLocks(ke) {
-    val ke_ptr = ke.ptr
-    JNINative.zKeyexprAsStr(ke_ptr, __cap)
-    }
-    if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 

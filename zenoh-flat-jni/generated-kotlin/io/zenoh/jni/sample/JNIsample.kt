@@ -9,18 +9,18 @@ import io.zenoh.jni.qos.CongestionControl
 import io.zenoh.jni.qos.Priority
 import io.zenoh.jni.sample.SampleKind
 import io.zenoh.jni.sample.ZSample
+import io.zenoh.jni.time.ZTimestamp
 import io.zenoh.jni.withSortedHandleLocks
 import io.zenoh.jni.JNINative
 
-@Suppress("UNCHECKED_CAST")
-public fun <R> zSampleKeyExpr(s: ZSample, onError: (String?) -> R = { __de_je -> throw ZException(__de_je) }, build: (ZKeyExpr, String) -> R): R {
+public fun zSampleKeyExpr(s: ZSample, onError: (String?) -> ZKeyExpr = { __de_je -> throw ZException(__de_je) }): ZKeyExpr {
     if (s.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(s) {
     val s_ptr = s.ptr
-    (JNINative.zSampleKeyExpr(s_ptr, build, __cap) as R)
+    ZKeyExpr(JNINative.zSampleKeyExpr(s_ptr, __cap))
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -65,14 +65,14 @@ public fun zSampleKind(s: ZSample, onError: (String?) -> SampleKind = { __de_je 
     return __ret
 }
 
-public fun zSampleTimestamp(s: ZSample, onError: (String?) -> Long? = { __de_je -> throw ZException(__de_je) }): Long? {
+public fun zSampleTimestamp(s: ZSample, onError: (String?) -> ZTimestamp? = { __de_je -> throw ZException(__de_je) }): ZTimestamp? {
     if (s.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(s) {
     val s_ptr = s.ptr
-    JNINative.zSampleTimestamp(s_ptr, __cap)
+    JNINative.zSampleTimestamp(s_ptr, __cap).let { if (it == 0L) null else ZTimestamp(it) }
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -117,14 +117,14 @@ public fun zSampleCongestionControl(s: ZSample, onError: (String?) -> Congestion
     return __ret
 }
 
-public fun zSampleAttachment(s: ZSample, onError: (String?) -> ByteArray? = { __de_je -> throw ZException(__de_je) }): ByteArray? {
+public fun zSampleAttachment(s: ZSample, onError: (String?) -> ZZBytes? = { __de_je -> throw ZException(__de_je) }): ZZBytes? {
     if (s.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(s) {
     val s_ptr = s.ptr
-    JNINative.zSampleAttachment(s_ptr, __cap)
+    JNINative.zSampleAttachment(s_ptr, __cap).let { if (it == 0L) null else ZZBytes(it) }
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
