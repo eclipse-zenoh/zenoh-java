@@ -49,17 +49,7 @@ internal inline fun <R> withSortedHandleLocks(
     return synchronized(x) { synchronized(y) { synchronized(z) { body() } } }
 }
 
-/** Error callback invoked by native code instead of throwing. */
-public fun interface ErrorSink {
-    public fun onError(message: String)
-}
-
-/** Mutable holder a default [ErrorSink] writes into; the wrapper
- *  rethrows after the native call returns. */
-public class ErrorHolder {
-    @JvmField public var message: String? = null
-}
-
-/** Exception a generated wrapper raises when native code reported an
- *  error via the [ErrorSink] channel. */
-public class ZException(message: String?) : Exception(message)
+/** Default error raised by a generated wrapper's `onError` when the
+ *  caller doesn't supply a handler. `message` is the binding error
+ *  (`je`) or the library error string (`ze`). */
+public class ZException(message: String?) : RuntimeException(message)

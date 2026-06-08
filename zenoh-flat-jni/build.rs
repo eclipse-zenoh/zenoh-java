@@ -21,7 +21,39 @@ fn main() {
         .handle_locks(true)              // Enable handle locks (default, thread-safe)
         .source_module(pq!(zenoh_flat)) // how to prefix prebindgen-marked items (functions, types
         .package_prefix("io.zenoh.jni") // the package of the generated JNI bindings
-        .data_class(pq!(Error)) // structured Kotlin data class for the Result error type
+        // Error model: zenoh's native `ZError` is the `E` of every fallible
+        // `Result<_, ZError>`. It never crosses as a value — a CONVERTER
+        // (`z_error_message -> String`) marked `.default()` auto-applies a
+        // `convert_error` to EVERY declared fn returning `Result<_, ZError>`, so
+        // the generated wrapper's `onError` callback receives the error string as
+        // its single `ze` param (after the fixed binding `je: String?`). No throw
+        // from zenoh-flat-jni; the caller's `onError` decides (zenoh-java throws
+        // `ZError`).
+        .converter(pq!(ZError), pq!(z_error_message))
+        .default()
+        // `ZError` has no value-crossing of its own — but the rank-2
+        // `Result<T, ZError>` resolver still requires an output converter for the
+        // `E` position. Register the same `→ String` lowering so `Result` types
+        // resolve; for fallible fns the error plan peels the `Result` in the
+        // extern, so this converter is resolved-but-unused (the error reaches the
+        // callback via `convert_error`). Harmless and semantically correct.
+        .output_wrapper(pq!(ZError), |_: &Registry<_>| {
+            Some((pq!(String), None, pq!(zenoh_flat::z_error_message(&v))))
+        })
+        // Symmetric input side: required by the resolver's propagation through
+        // the fallible constructors' `Result<_, ZError>` signatures, but **never
+        // actually crossed** (no fn takes `ZError` from the JVM). A terminal that
+        // ignores the wire and yields a dummy `ZError` satisfies resolution; it is
+        // dead code (no extern param has `ZError` input).
+        .input_wrapper(pq!(ZError), |_: &Registry<_>| {
+            Some((
+                pq!(ZError),
+                None,
+                pq!(<zenoh_flat::ZError as ::core::convert::From<::std::string::String>>::from(
+                    ::std::string::String::new()
+                )),
+            ))
+        })
         .package("keyexpr")
         .ptr_class(pq!(ZKeyExpr))
         .package_fun(pq!(z_keyexpr_try_from))
