@@ -33,9 +33,9 @@ fn main() {
         // consumer below is `.expand`ed so callers pass a string or a handle in
         // one JNI crossing. (Exception: z_session_undeclare_keyexpr stays
         // handle-only — see the session package.)
-        .combined_constructor(pq!(ZKeyExpr))
-        .combined_variant(pq!(z_keyexpr_try_from))
-        .combined_variant_id()
+        .constructor(pq!(ZKeyExpr))
+        .constructor_variant(pq!(z_keyexpr_try_from))
+        .constructor_variant_id()
         // Combined ACCESSOR for ZKeyExpr (output expansion): a function
         // returning a key-expr handle (`.expand_output()`) is decomposed into
         // BOTH the handle (identity record) and its borrowed string form
@@ -43,9 +43,9 @@ fn main() {
         // zenoh-java builder lambda in one JNI crossing. zenoh-java builds its
         // `KeyExpr(flat, string)` directly and later sends the handle back (its
         // `exprSel` selects the identity arm of the combined constructor above).
-        .combined_accessor(pq!(ZKeyExpr))
-        .combined_accessor_record_id()
-        .combined_accessor_record(pq!(z_keyexpr_as_str))
+        .accessor(pq!(ZKeyExpr))
+        .accessor_record_id()
+        .accessor_record(pq!(z_keyexpr_as_str))
         .package_fun(pq!(z_keyexpr_intersects))
         .expand(pq!(a))
         .expand(pq!(b))
@@ -75,18 +75,14 @@ fn main() {
         .enum_class(pq!(WhatAmI))
         // ZZenohId is a `Copy` value (zenoh::session::ZenohId, repr(transparent)),
         // so it crosses as a raw byte-blob `ByteArray` rather than a closeable
-        // jlong handle — this also lets `Vec<ZZenohId>` surface as
-        // `List<ZZenohId>` (see z_session_peers_zid/routers_zid below).
-        // ZZenohId is a `Copy` value (zenoh::session::ZenohId, repr(transparent)),
-        // so it crosses as a raw byte-blob `ByteArray` rather than a closeable
         // jlong handle. `Vec<ZZenohId>` (z_session_peers_zid/routers_zid) folds
-        // each element WHOLE as the typed `ZZenohId` value class (M4 Iterable,
-        // no combined accessor). NOTE: the M5 vector-of-*unfolded* machinery
-        // (decompose each element into e.g. `(String, ZZenohId)` via a combined
-        // accessor with `.combined_accessor_record_id()` — a `value_blob`
-        // identity delivered by copy) is implemented and unit-tested
-        // (`iterable_decomposed_plan`); it's simply not wired here because the
-        // SDK `ZenohId` stores the blob only and computes its string lazily.
+        // each element WHOLE as the typed `ZZenohId` value class (Iterable,
+        // no accessor). NOTE: the vector-of-*unfolded* machinery (decompose each
+        // element into e.g. `(String, ZZenohId)` via an `.accessor(ZZenohId)`
+        // with `.accessor_record_id()` — a `value_blob` identity delivered by
+        // copy) is implemented and unit-tested (`iterable_decomposed_plan`); it's
+        // simply not wired here because the SDK `ZenohId` stores the blob only
+        // and computes its string lazily.
         .value_blob(pq!(ZZenohId))
         .package_fun(pq!(z_zenoh_id_to_bytes))
         .package_fun(pq!(z_zenoh_id_to_string))
@@ -114,18 +110,19 @@ fn main() {
         // (`const uint8_t* + size`); its JNI form is `z_zbytes_from_vec(Vec<u8>)`
         // above (→ `ByteArray`). The `&[u8]` slice input has no JNI representation,
         // so it's intentionally not exported here.
-        // Single constructor for ZZBytes: payload/attachment params accept a
+        // Constructor for ZZBytes: payload/attachment params accept a
         // `ByteArray` (built via z_zbytes_from_vec) directly — no handle, no
-        // per-call `zZbytesFromVec` crossing. (No identity arm: the SDK never
-        // holds a ZZBytes handle for these.)
-        .constructor(pq!(z_zbytes_from_vec))
+        // per-call `zZbytesFromVec` crossing. (One variant, no identity arm: the
+        // SDK never holds a ZZBytes handle for these.)
+        .constructor(pq!(ZZBytes))
+        .constructor_variant(pq!(z_zbytes_from_vec))
         // Combined ACCESSOR for ZZBytes (output expansion): an `Option<&ZZBytes>`
         // return (e.g. z_sample_attachment) is decomposed into its bytes
         // (`z_zbytes_to_bytes` → ByteArray) and delivered to a builder lambda —
         // no transient handle + `close()`. No identity record (the SDK ZBytes
         // holds the ByteArray, not the native handle).
-        .combined_accessor(pq!(ZZBytes))
-        .combined_accessor_record(pq!(z_zbytes_to_bytes))
+        .accessor(pq!(ZZBytes))
+        .accessor_record(pq!(z_zbytes_to_bytes))
         .ptr_class(pq!(ZEncoding))
         .package_fun(pq!(z_encoding_id))
         .package_fun(pq!(z_encoding_schema))
@@ -135,12 +132,13 @@ fn main() {
         // Combined ACCESSOR for ZEncoding (output expansion): decompose to its
         // canonical string (`z_encoding_to_string`), nested by the ZSample
         // combined accessor below to build the SDK `Encoding(string)`.
-        .combined_accessor(pq!(ZEncoding))
-        .combined_accessor_record(pq!(z_encoding_to_string))
-        // Single constructor for ZEncoding: encoding params accept a `String`
+        .accessor(pq!(ZEncoding))
+        .accessor_record(pq!(z_encoding_to_string))
+        // Constructor for ZEncoding: encoding params accept a `String`
         // (built via z_encoding_from_string) directly — the SDK passes its
         // canonical `repr` String, no per-call `zEncodingFromString` + close.
-        .constructor(pq!(z_encoding_from_string))
+        .constructor(pq!(ZEncoding))
+        .constructor_variant(pq!(z_encoding_from_string))
         .package_fun(pq!(z_encoding_with_schema))
         .package_fun(pq!(z_encoding_zenoh_bytes))
         .package_fun(pq!(z_encoding_zenoh_string))
@@ -205,8 +203,8 @@ fn main() {
         // to a builder lambda — no second `zTimestampNtp64` crossing, no
         // transient handle. No identity record (zenoh-java's TimeStamp keeps the
         // Long, not the native handle).
-        .combined_accessor(pq!(ZTimestamp))
-        .combined_accessor_record(pq!(z_timestamp_ntp64))
+        .accessor(pq!(ZTimestamp))
+        .accessor_record(pq!(z_timestamp_ntp64))
         .package("sample")
         .enum_class(pq!(SampleKind))
         .ptr_class(pq!(ZSample))
@@ -228,16 +226,16 @@ fn main() {
         // nullable) combined accessors, plus enum leaves (kind/priority/
         // congestion → Int) and `express` (bool). Record order = builder arg
         // order. Used by `z_reply_sample` below to build a full SDK `Sample`.
-        .combined_accessor(pq!(ZSample))
-        .combined_accessor_record_nested(pq!(z_sample_key_expr)) // → (ZKeyExpr, String)
-        .combined_accessor_record_nested(pq!(z_sample_payload)) // → ByteArray
-        .combined_accessor_record_nested(pq!(z_sample_encoding)) // → String
-        .combined_accessor_record(pq!(z_sample_kind)) // enum → Int
-        .combined_accessor_record_nested(pq!(z_sample_timestamp)) // Option → Long?
-        .combined_accessor_record(pq!(z_sample_express)) // bool → Boolean
-        .combined_accessor_record(pq!(z_sample_priority)) // enum → Int
-        .combined_accessor_record(pq!(z_sample_congestion_control)) // enum → Int
-        .combined_accessor_record_nested(pq!(z_sample_attachment)) // Option → ByteArray?
+        .accessor(pq!(ZSample))
+        .accessor_record_nested(pq!(z_sample_key_expr)) // → (ZKeyExpr, String)
+        .accessor_record_nested(pq!(z_sample_payload)) // → ByteArray
+        .accessor_record_nested(pq!(z_sample_encoding)) // → String
+        .accessor_record(pq!(z_sample_kind)) // enum → Int
+        .accessor_record_nested(pq!(z_sample_timestamp)) // Option → Long?
+        .accessor_record(pq!(z_sample_express)) // bool → Boolean
+        .accessor_record(pq!(z_sample_priority)) // enum → Int
+        .accessor_record(pq!(z_sample_congestion_control)) // enum → Int
+        .accessor_record_nested(pq!(z_sample_attachment)) // Option → ByteArray?
         .package("pubsub")
         .ptr_class(pq!(ZPublisher))
         .package_fun(pq!(z_publisher_put))
