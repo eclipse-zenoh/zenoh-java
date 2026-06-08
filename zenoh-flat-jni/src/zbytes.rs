@@ -23,11 +23,14 @@ use zenoh_ext::{VarInt, ZDeserializeError, ZDeserializer, ZSerializer};
 
 type JResult<T> = core::result::Result<T, JniBindingError<()>>;
 
-/// Throw `io.zenoh.jni.ZException` with the error's message. This hand-written
-/// JNI surface (ZSerializer/ZDeserializer) throws directly — the generated
-/// code instead routes errors through the per-call `ErrorSink` callback.
+/// Throw the SDK's `io.zenoh.exceptions.ZError` with the error's message. This
+/// hand-written JNI surface (ZSerializer/ZDeserializer) throws directly —
+/// matching the canonical model where every error surfaces as `ZError` (the
+/// generated wrappers reach it via their `onError` callback; this hand-written
+/// path throws it straight, so callers no longer need an exception-bridge).
+/// `ZError(message: String?)` compiles to a `(Ljava/lang/String;)V` ctor.
 fn throw_jni_error(env: &mut JNIEnv, err: &impl core::fmt::Display) {
-    let _ = env.throw_new("io/zenoh/jni/ZException", err.to_string());
+    let _ = env.throw_new("io/zenoh/exceptions/ZError", err.to_string());
 }
 
 /// Helper function to convert a JByteArray into a Vec<u8>.

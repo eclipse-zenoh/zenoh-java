@@ -19,6 +19,7 @@ import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
+import io.zenoh.exceptions.throwZError
 import io.zenoh.jni.query.ZQuery
 import io.zenoh.keyexpr.KeyExpr
 
@@ -94,7 +95,8 @@ class Query internal constructor(
             options.encoding.repr,
             options.timeStamp?.ntpValue(),
             options.attachment?.into()?.bytes,
-            options.express
+            options.express,
+            throwZError
         )
         zQuery = null
     }
@@ -129,7 +131,8 @@ class Query internal constructor(
             keyExpr.exprHandle,
             options.timeStamp?.ntpValue(),
             options.attachment?.into()?.bytes,
-            options.express
+            options.express,
+            throwZError
         )
         zQuery = null
     }
@@ -144,7 +147,7 @@ class Query internal constructor(
     @Throws(ZError::class)
     fun replyErr(message: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
-        io.zenoh.jni.query.zQueryReplyError(q, message.into().bytes, options.encoding.repr)
+        io.zenoh.jni.query.zQueryReplyError(q, message.into().bytes, options.encoding.repr, throwZError)
         zQuery = null
     }
 

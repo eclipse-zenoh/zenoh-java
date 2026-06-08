@@ -18,7 +18,8 @@ import io.zenoh.Session
 import io.zenoh.ZenohLoad
 import io.zenoh.session.SessionDeclaration
 import io.zenoh.exceptions.ZError
-import io.zenoh.exceptions.wrapJNIExceptionAsZError
+import io.zenoh.exceptions.throwZError
+import io.zenoh.exceptions.throwZError0
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.query.IntoSelector
 import io.zenoh.query.Selector
@@ -97,9 +98,7 @@ class KeyExpr internal constructor(
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun tryFrom(keyExpr: String): KeyExpr = wrapJNIExceptionAsZError {
-            KeyExpr(zKeyexprTryFrom(keyExpr))
-        }
+        fun tryFrom(keyExpr: String): KeyExpr = KeyExpr(zKeyexprTryFrom(keyExpr, throwZError))
 
         /**
          * Autocanonize.
@@ -113,9 +112,7 @@ class KeyExpr internal constructor(
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun autocanonize(keyExpr: String): KeyExpr = wrapJNIExceptionAsZError {
-            KeyExpr(zKeyexprAutocanonize(keyExpr))
-        }
+        fun autocanonize(keyExpr: String): KeyExpr = KeyExpr(zKeyexprAutocanonize(keyExpr, throwZError))
     }
 
     /**
@@ -124,9 +121,8 @@ class KeyExpr internal constructor(
      * Will return false as well if the key expression is not valid anymore.
      */
     @Throws(ZError::class)
-    fun intersects(other: KeyExpr): Boolean = wrapJNIExceptionAsZError {
-        zKeyexprIntersects(this.exprSel, this.exprStr, this.exprHandle, other.exprSel, other.exprStr, other.exprHandle)
-    }
+    fun intersects(other: KeyExpr): Boolean =
+        zKeyexprIntersects(this.exprSel, this.exprStr, this.exprHandle, other.exprSel, other.exprStr, other.exprHandle, throwZError0)
 
     /**
      * Includes operation. This method returns `true` when all the keys defined by `other` also belong to the set
@@ -134,9 +130,8 @@ class KeyExpr internal constructor(
      * Will return false as well if the key expression is not valid anymore.
      */
     @Throws(ZError::class)
-    fun includes(other: KeyExpr): Boolean = wrapJNIExceptionAsZError {
-        zKeyexprIncludes(this.exprSel, this.exprStr, this.exprHandle, other.exprSel, other.exprStr, other.exprHandle)
-    }
+    fun includes(other: KeyExpr): Boolean =
+        zKeyexprIncludes(this.exprSel, this.exprStr, this.exprHandle, other.exprSel, other.exprStr, other.exprHandle, throwZError0)
 
     /**
      * Returns the relation between 'this' and other from 'this''s point of view ([SetIntersectionLevel.INCLUDES]
@@ -144,27 +139,24 @@ class KeyExpr internal constructor(
      * so you should favor these methods for most applications.
      */
     @Throws(ZError::class)
-    fun relationTo(other: KeyExpr): SetIntersectionLevel = wrapJNIExceptionAsZError {
-        SetIntersectionLevel.fromJni(zKeyexprRelationTo(this.exprSel, this.exprStr, this.exprHandle, other.exprSel, other.exprStr, other.exprHandle))
-    }
+    fun relationTo(other: KeyExpr): SetIntersectionLevel =
+        SetIntersectionLevel.fromJni(zKeyexprRelationTo(this.exprSel, this.exprStr, this.exprHandle, other.exprSel, other.exprStr, other.exprHandle, throwZError0))
 
     /**
      * Joins both sides, inserting a / in between them.
      * This should be your preferred method when concatenating path segments.
      */
     @Throws(ZError::class)
-    fun join(other: String): KeyExpr = wrapJNIExceptionAsZError {
-        KeyExpr(zKeyexprJoin(this.exprSel, this.exprStr, this.exprHandle, other))
-    }
+    fun join(other: String): KeyExpr =
+        KeyExpr(zKeyexprJoin(this.exprSel, this.exprStr, this.exprHandle, other, throwZError))
 
     /**
      * Performs string concatenation and returns the result as a KeyExpr if possible.
      * You should probably prefer [join] as Zenoh may then take advantage of the hierarchical separation it inserts.
      */
     @Throws(ZError::class)
-    fun concat(other: String): KeyExpr = wrapJNIExceptionAsZError {
-        KeyExpr(zKeyexprConcat(this.exprSel, this.exprStr, this.exprHandle, other))
-    }
+    fun concat(other: String): KeyExpr =
+        KeyExpr(zKeyexprConcat(this.exprSel, this.exprStr, this.exprHandle, other, throwZError))
 
     override fun toString(): String = keyExprString
 

@@ -59,25 +59,27 @@ data class Sample(
          * key-expression handle is retained by the resulting [KeyExpr].
          */
         fun from(zs: io.zenoh.jni.sample.ZSample): Sample {
-            // Output expansion: the native layer decomposes the sample's
-            // key-expr into BOTH its handle and string form, delivered to this
-            // builder in one JNI crossing (no second `zKeyexprToString` call).
-            val keyExpr = io.zenoh.jni.sample.zSampleKeyExpr(zs) { flat, str -> KeyExpr(flat, str) }
+            // Canonical model: each `z_sample_*` accessor returns the raw owned
+            // sub-handle (key-expr / payload / encoding / timestamp / attachment);
+            // the typed wrappers read + free them (`KeyExpr(flat)` retains its
+            // handle; `fromHandle` closes after reading).
+            val keyExpr = KeyExpr(io.zenoh.jni.sample.zSampleKeyExpr(zs))
             val payload = ZBytes.fromHandle(io.zenoh.jni.sample.zSamplePayload(zs))
             val encoding = Encoding.fromHandle(io.zenoh.jni.sample.zSampleEncoding(zs))
             val kind = io.zenoh.jni.sample.zSampleKind(zs).toPublic()
-            // convert_output: the native layer extracts the timestamp's NTP64
-            // value and **returns** it directly (Long?, no callback) — null when
-            // the sample has no timestamp.
-            val timestamp = io.zenoh.jni.sample.zSampleTimestamp(zs)?.let { TimeStamp(it) }
+            val timestamp = io.zenoh.jni.sample.zSampleTimestamp(zs)?.let { ts ->
+                try {
+                    TimeStamp(io.zenoh.jni.time.zTimestampNtp64(ts))
+                } finally {
+                    ts.close()
+                }
+            }
             val qos = QoS(
                 CongestionControl.fromJni(io.zenoh.jni.sample.zSampleCongestionControl(zs)),
                 Priority.fromJni(io.zenoh.jni.sample.zSamplePriority(zs)),
                 io.zenoh.jni.sample.zSampleExpress(zs)
             )
-            // convert_output: the attachment bytes are returned directly
-            // (ByteArray?, no callback); null when absent.
-            val attachment = io.zenoh.jni.sample.zSampleAttachment(zs)?.let { ZBytes(it) }
+            val attachment = io.zenoh.jni.sample.zSampleAttachment(zs)?.let { ZBytes.fromHandle(it) }
             return Sample(keyExpr, payload, encoding, kind, timestamp, qos, attachment)
         }
     }

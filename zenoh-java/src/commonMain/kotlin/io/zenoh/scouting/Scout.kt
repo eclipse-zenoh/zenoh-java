@@ -19,7 +19,7 @@ import io.zenoh.ZenohLoad
 import io.zenoh.config.WhatAmI
 import io.zenoh.config.ZenohId
 import io.zenoh.exceptions.ZError
-import io.zenoh.exceptions.wrapJNIExceptionAsZError
+import io.zenoh.exceptions.throwZError
 import io.zenoh.handlers.Callback
 import io.zenoh.jni.scouting.ZScout
 
@@ -85,18 +85,14 @@ sealed class Scout (
             onClose: () -> Unit,
             config: Config?,
             receiver: R,
-        ): HandlerScout<R> = wrapJNIExceptionAsZError {
-            HandlerScout(runScout(whatAmI, config, callback, onClose), receiver)
-        }
+        ): HandlerScout<R> = HandlerScout(runScout(whatAmI, config, callback, onClose), receiver)
 
         @Throws(ZError::class)
         internal fun scoutWithCallback(
             whatAmI: Set<WhatAmI>,
             callback: Callback<Hello>,
             config: Config?,
-        ): CallbackScout = wrapJNIExceptionAsZError {
-            CallbackScout(runScout(whatAmI, config, callback) {})
-        }
+        ): CallbackScout = CallbackScout(runScout(whatAmI, config, callback) {})
 
         private fun runScout(
             whatAmI: Set<WhatAmI>,
@@ -107,7 +103,7 @@ sealed class Scout (
             val bitfield = whatAmI.map { it.jni.value }.reduce { acc, v -> acc or v }
             val helloCallback = io.zenoh.helloCallbackOf { callback.run(it) }
             val onCloseCallback = io.zenoh.jni.callbacks.Callback { onClose() }
-            return io.zenoh.jni.scouting.zScout(bitfield, config?.zConfig, helloCallback, onCloseCallback)
+            return io.zenoh.jni.scouting.zScout(bitfield, config?.zConfig, helloCallback, onCloseCallback, throwZError)
         }
     }
 

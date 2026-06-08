@@ -15,7 +15,7 @@
 package io.zenoh
 
 import io.zenoh.exceptions.ZError
-import io.zenoh.exceptions.wrapJNIExceptionAsZError
+import io.zenoh.exceptions.throwZError0
 import io.zenoh.jni.logger.initAndroidLogs
 
 /** Logger class to redirect the Rust logs from Zenoh to the kotlin environment. */
@@ -33,7 +33,7 @@ internal class Logger {
          */
         @Throws(ZError::class)
         fun start(filter: String) {
-            wrapJNIExceptionAsZError { initAndroidLogs(filter) }
+            initAndroidLogs(filter, throwZError0)
         }
     }
 }
