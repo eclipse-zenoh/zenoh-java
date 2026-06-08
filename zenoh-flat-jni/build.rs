@@ -122,6 +122,11 @@ fn main() {
         .package_fun(pq!(z_encoding_to_string))
         .package_fun(pq!(z_encoding_clone))
         .package_fun(pq!(z_encoding_from_string))
+        // Combined ACCESSOR for ZEncoding (output expansion): decompose to its
+        // canonical string (`z_encoding_to_string`), nested by the ZSample
+        // combined accessor below to build the SDK `Encoding(string)`.
+        .combined_accessor(pq!(ZEncoding))
+        .combined_accessor_record(pq!(z_encoding_to_string))
         // Single constructor for ZEncoding: encoding params accept a `String`
         // (built via z_encoding_from_string) directly — the SDK passes its
         // canonical `repr` String, no per-call `zEncodingFromString` + close.
@@ -207,6 +212,22 @@ fn main() {
         .package_fun(pq!(z_sample_congestion_control))
         .package_fun(pq!(z_sample_attachment))
         .expand_output() // Option<&ZZBytes> → builder (ByteArray) → R?
+        // Combined ACCESSOR for ZSample (output expansion, M3): the full sample
+        // decomposed in ONE crossing — NESTS the ZKeyExpr (handle+string),
+        // ZZBytes (payload bytes), ZEncoding (string) and ZTimestamp (ntp64,
+        // nullable) combined accessors, plus enum leaves (kind/priority/
+        // congestion → Int) and `express` (bool). Record order = builder arg
+        // order. Used by `z_reply_sample` below to build a full SDK `Sample`.
+        .combined_accessor(pq!(ZSample))
+        .combined_accessor_record_nested(pq!(z_sample_key_expr)) // → (ZKeyExpr, String)
+        .combined_accessor_record_nested(pq!(z_sample_payload)) // → ByteArray
+        .combined_accessor_record_nested(pq!(z_sample_encoding)) // → String
+        .combined_accessor_record(pq!(z_sample_kind)) // enum → Int
+        .combined_accessor_record_nested(pq!(z_sample_timestamp)) // Option → Long?
+        .combined_accessor_record(pq!(z_sample_express)) // bool → Boolean
+        .combined_accessor_record(pq!(z_sample_priority)) // enum → Int
+        .combined_accessor_record(pq!(z_sample_congestion_control)) // enum → Int
+        .combined_accessor_record_nested(pq!(z_sample_attachment)) // Option → ByteArray?
         .package("pubsub")
         .ptr_class(pq!(ZPublisher))
         .package_fun(pq!(z_publisher_put))
@@ -249,6 +270,7 @@ fn main() {
         .package_fun(pq!(z_reply_replier_eid))
         .package_fun(pq!(z_reply_is_ok))
         .package_fun(pq!(z_reply_sample))
+        .expand_output() // Option<&ZSample> → builder(full Sample leaves) → R?
         .package_fun(pq!(z_reply_error_payload))
         .package_fun(pq!(z_reply_error_encoding))
         .package("liveliness")

@@ -15,7 +15,6 @@ import io.zenoh.jni.query.ReplyKeyExpr
 import io.zenoh.jni.query.ZQuerier
 import io.zenoh.jni.query.ZQuery
 import io.zenoh.jni.query.ZReply
-import io.zenoh.jni.sample.ZSample
 import io.zenoh.jni.withSortedHandleLocks
 import io.zenoh.jni.JNINative
 
@@ -185,13 +184,14 @@ public fun zReplyIsOk(r: ZReply): Boolean {
     return __ret
 }
 
-public fun zReplySample(r: ZReply): ZSample? {
+@Suppress("UNCHECKED_CAST")
+public fun <R> zReplySample(r: ZReply, build: (ZKeyExpr, String, ByteArray, String, Int, Long?, Boolean, Int, Int, ByteArray?) -> R): R? {
     val __err = ErrorHolder()
     val __sink = ErrorSink { __m -> __err.message = __m }
     val __ret = withSortedHandleLocks(r) {
     val r_ptr = r.ptr
     if (r_ptr == 0L) throw ZException("Operation on a closed native handle.")
-    JNINative.zReplySample(r_ptr, __sink).let { if (it == 0L) null else ZSample(it) }
+    (JNINative.zReplySample(r_ptr, build, __sink) as R?)
     }
     __err.message?.let { throw ZException(it) }
     return __ret
