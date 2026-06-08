@@ -823,13 +823,24 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     internal fun getPeersId(): List<ZenohId> {
         val zSession = zSession ?: throw sessionClosedException
-        return wrapJNIExceptionAsZError { io.zenoh.jni.session.zSessionPeersZid(zSession).map { ZenohId(it) } }
+        // Output expansion (M4): the native side folds each ZZenohId into this
+        // accumulator in one pass — the caller owns the list (no intermediate
+        // List<ZZenohId>). `zid` is the typed ZZenohId value class.
+        return wrapJNIExceptionAsZError {
+            io.zenoh.jni.session.zSessionPeersZid(zSession, ArrayList<ZenohId>()) { list, zid ->
+                list.add(ZenohId(zid)); list
+            }
+        }
     }
 
     @Throws(ZError::class)
     internal fun getRoutersId(): List<ZenohId> {
         val zSession = zSession ?: throw sessionClosedException
-        return wrapJNIExceptionAsZError { io.zenoh.jni.session.zSessionRoutersZid(zSession).map { ZenohId(it) } }
+        return wrapJNIExceptionAsZError {
+            io.zenoh.jni.session.zSessionRoutersZid(zSession, ArrayList<ZenohId>()) { list, zid ->
+                list.add(ZenohId(zid)); list
+            }
+        }
     }
 
     /** Launches the session, returning the [Session] on success. */

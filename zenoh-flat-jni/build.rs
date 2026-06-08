@@ -304,8 +304,14 @@ fn main() {
         .expand(pq!(encoding)) // Option<&ZEncoding> ← String?
         .expand(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
         .package_fun(pq!(z_session_zid))
+        // Output expansion (M4, Iterable): Vec<ZZenohId> → fold, each ZZenohId
+        // delivered WHOLE (its value_blob projection); caller owns the result
+        // collection. No combined accessor — the element crosses as the typed
+        // `ZZenohId` value class, matching the prior `List<ZZenohId>`.
         .package_fun(pq!(z_session_peers_zid))
+        .expand_output() // Vec<ZZenohId> → fun <A>(acc, fold: (A, ZZenohId) -> A): A
         .package_fun(pq!(z_session_routers_zid))
+        .expand_output()
         .package_fun(pq!(z_liveliness_declare_token))
         .expand(pq!(key_expr)) // ZKeyExpr (by-value) ← String | handle
         .package_fun(pq!(z_liveliness_get))

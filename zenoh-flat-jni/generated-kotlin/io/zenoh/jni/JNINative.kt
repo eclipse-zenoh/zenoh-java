@@ -147,9 +147,9 @@ internal object JNINative {
     external fun zSessionDeclareSubscriber(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, callback: ZSampleCallback, onClose: Callback, errorSink: Any): Long
     external fun zSessionDelete(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: ByteArray?, reliability: Int?, errorSink: Any)
     external fun zSessionGet(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, parameters: String?, timeoutMs: Long?, target: Int?, consolidation: Int?, acceptReplies: Int?, congestionControl: Int?, priority: Int?, express: Boolean?, payload: ByteArray?, encoding: String?, attachment: ByteArray?, callback: ZReplyCallback, onClose: Callback, errorSink: Any)
-    external fun zSessionPeersZid(session: Long, errorSink: Any): List<ByteArray>
+    external fun zSessionPeersZid(session: Long, acc: Any?, fold: Any, errorSink: Any): Any?
     external fun zSessionPut(session: Long, keyExprSel: Int, keyExpr0: String?, keyExpr1: Long, payload: ByteArray, encoding: String?, congestionControl: Int?, priority: Int?, express: Boolean?, attachment: ByteArray?, reliability: Int?, errorSink: Any)
-    external fun zSessionRoutersZid(session: Long, errorSink: Any): List<ByteArray>
+    external fun zSessionRoutersZid(session: Long, acc: Any?, fold: Any, errorSink: Any): Any?
     external fun zSessionUndeclareKeyexpr(session: Long, keyExpr: Long, errorSink: Any)
     external fun zSessionZid(session: Long, errorSink: Any): ByteArray
     external fun zTimestampId(t: Long, errorSink: Any): ByteArray
