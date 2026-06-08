@@ -9,7 +9,7 @@ fn fail(context: &str, err: impl std::fmt::Display) -> ! {
 
 fn main() {
     // Flat tier only: every `#[prebindgen]` `z_*` function is declared as a
-    // free function (`package_fun`) under its module namespace. Opaque handles
+    // free function (`.fun`) under its module namespace. Opaque handles
     // stay typed Kotlin classes derived from `NativeHandle` (locked, closeable)
     // via `ptr_class`, but functions are NOT represented as methods on them.
     // Errors are signalled through the per-call `ErrorSink` callback (no
@@ -35,14 +35,17 @@ fn main() {
         // `Result` and delivers the error via `convert_error` — so the generated
         // `ZError` handle class + destructor are dead code, but this is the
         // idiomatic "ZError is FFI-representable" declaration (vs hand-written
-        // dummy converters).
+        // dummy converters). `z_error_message` is the converter's accessor — it
+        // must be declared `.fun_accessor` (which also exports it as `zErrorMessage`).
+        .package("errors")
         .ptr_class(pq!(ZError))
+        .fun_accessor(pq!(z_error_message))
         .converter(pq!(ZError), pq!(z_error_message))
         .default()
         .package("keyexpr")
         .ptr_class(pq!(ZKeyExpr))
-        .package_fun(pq!(z_keyexpr_try_from))
-        .package_fun(pq!(z_keyexpr_autocanonize))
+        .fun(pq!(z_keyexpr_try_from))
+        .fun(pq!(z_keyexpr_autocanonize))
         // Combined constructor for ZKeyExpr: a key-expr parameter accepts EITHER
         // a String (built via z_keyexpr_try_from) OR an existing declared handle
         // (identity). This is semantic, not just perf — a declared key-expr is a
@@ -56,11 +59,10 @@ fn main() {
         // `.default()`: auto-`construct` every `ZKeyExpr` param (`&`/`Option`/
         // by-value) of every declared fn — so all the key-expr consumers below
         // accept a String|handle in one crossing without per-fn `.construct(...)`.
-        // Opt-outs (`.skip_default_construct`): functions that must stay
-        // handle-only — `z_session_undeclare_keyexpr` (undeclaring needs the
-        // declared handle, not a string) and the accessors `z_keyexpr_clone` /
-        // `z_keyexpr_to_string` (a String input would round-trip pointlessly and
-        // change their SDK signature).
+        // The read accessors (`z_keyexpr_clone`/`z_keyexpr_to_string`/
+        // `z_keyexpr_as_str`) are declared `.fun_accessor`, so the composer skips
+        // them automatically; only `z_session_undeclare_keyexpr` (a handle-only
+        // consumer) still needs an explicit `.skip_default_construct`.
         .default()
         // Combined ACCESSOR for ZKeyExpr (output expansion): a function
         // returning a key-expr handle (`.deconstruct_output()`) is decomposed into
@@ -69,33 +71,32 @@ fn main() {
         // zenoh-java builder lambda in one JNI crossing. zenoh-java builds its
         // `KeyExpr(flat, string)` directly and later sends the handle back (its
         // `exprSel` selects the identity arm of the combined constructor above).
+        .fun_accessor(pq!(z_keyexpr_as_str)) // decomposer record (now also exported)
         .deconstructor(pq!(ZKeyExpr))
         .deconstructor_record_id()
         .deconstructor_record(pq!(z_keyexpr_as_str))
         // a/b (and key_expr below) are auto-constructed by the ZKeyExpr
         // constructor `.default()` above — no per-fn `.construct(...)` needed.
         // (z_keyexpr_join/concat's `b` is a String, untouched.)
-        .package_fun(pq!(z_keyexpr_intersects))
-        .package_fun(pq!(z_keyexpr_includes))
-        .package_fun(pq!(z_keyexpr_relation_to))
-        .package_fun(pq!(z_keyexpr_join))
-        .package_fun(pq!(z_keyexpr_concat))
-        // Accessors: opt out of the default — keep `ke` handle-only.
-        .package_fun(pq!(z_keyexpr_clone))
-        .skip_default_construct(pq!(ke))
-        .package_fun(pq!(z_keyexpr_to_string))
-        .skip_default_construct(pq!(ke))
+        .fun(pq!(z_keyexpr_intersects))
+        .fun(pq!(z_keyexpr_includes))
+        .fun(pq!(z_keyexpr_relation_to))
+        .fun(pq!(z_keyexpr_join))
+        .fun(pq!(z_keyexpr_concat))
+        // Read accessors — `.fun_accessor` keeps `ke` handle-only (composer skips it).
+        .fun_accessor(pq!(z_keyexpr_clone))
+        .fun_accessor(pq!(z_keyexpr_to_string))
         .enum_class(pq!(SetIntersectionLevel))
         .package("config")
         .ptr_class(pq!(ZConfig))
-        .package_fun(pq!(z_config_default))
-        .package_fun(pq!(z_config_from_file))
-        .package_fun(pq!(z_config_from_json))
-        .package_fun(pq!(z_config_from_json5))
-        .package_fun(pq!(z_config_from_yaml))
-        .package_fun(pq!(z_config_get_json))
-        .package_fun(pq!(z_config_insert_json5))
-        .package_fun(pq!(z_config_clone))
+        .fun(pq!(z_config_default))
+        .fun(pq!(z_config_from_file))
+        .fun(pq!(z_config_from_json))
+        .fun(pq!(z_config_from_json5))
+        .fun(pq!(z_config_from_yaml))
+        .fun_accessor(pq!(z_config_get_json))
+        .fun(pq!(z_config_insert_json5))
+        .fun_accessor(pq!(z_config_clone))
         .enum_class(pq!(WhatAmI))
         // ZZenohId is a `Copy` value (zenoh::session::ZenohId, repr(transparent)),
         // so it crosses as a raw byte-blob `ByteArray` rather than a closeable
@@ -108,28 +109,30 @@ fn main() {
         // simply not wired here because the SDK `ZenohId` stores the blob only
         // and computes its string lazily.
         .value_blob(pq!(ZZenohId))
-        .package_fun(pq!(z_zenoh_id_to_bytes))
-        .package_fun(pq!(z_zenoh_id_to_string))
+        .fun_accessor(pq!(z_zenoh_id_to_bytes))
+        .fun_accessor(pq!(z_zenoh_id_to_string))
         .package("scouting")
         .ptr_class(pq!(ZHello))
-        .package_fun(pq!(z_hello_whatami))
-        .package_fun(pq!(z_hello_zid))
-        .package_fun(pq!(z_hello_locators))
+        .fun_accessor(pq!(z_hello_whatami))
+        .fun_accessor(pq!(z_hello_zid))
+        .fun_accessor(pq!(z_hello_locators))
         .ptr_class(pq!(ZScout))
-        .package_fun(pq!(z_scout))
+        .fun(pq!(z_scout))
         .package("logger")
-        .package_fun(pq!(init_android_logs))
-        .package_fun(pq!(try_init_zenoh_logs_from_env))
-        .package_fun(pq!(init_zenoh_logs_from_env_or))
+        .fun(pq!(init_android_logs))
+        .fun(pq!(try_init_zenoh_logs_from_env))
+        .fun(pq!(init_zenoh_logs_from_env_or))
         .package("qos")
         .enum_class(pq!(Reliability))
         .enum_class(pq!(Priority))
         .enum_class(pq!(CongestionControl))
         .package("bytes")
         .ptr_class(pq!(ZZBytes))
-        .package_fun(pq!(z_zbytes_to_bytes))
-        .package_fun(pq!(z_zbytes_clone))
-        .package_fun(pq!(z_zbytes_from_vec))
+        // Read accessors — `.fun_accessor` keeps `z` handle-only (the ZZBytes
+        // constructor `.default()` below skips them; e.g. `zZbytesToBytes(handle)`).
+        .fun_accessor(pq!(z_zbytes_to_bytes))
+        .fun_accessor(pq!(z_zbytes_clone))
+        .fun(pq!(z_zbytes_from_vec))
         // NOTE: `z_zbytes_from_slice(&[u8])` is the C-pointer constructor shape
         // (`const uint8_t* + size`); its JNI form is `z_zbytes_from_vec(Vec<u8>)`
         // above (→ `ByteArray`). The `&[u8]` slice input has no JNI representation,
@@ -137,9 +140,12 @@ fn main() {
         // Constructor for ZZBytes: payload/attachment params accept a
         // `ByteArray` (built via z_zbytes_from_vec) directly — no handle, no
         // per-call `zZbytesFromVec` crossing. (One variant, no identity arm: the
-        // SDK never holds a ZZBytes handle for these.)
+        // SDK never holds a ZZBytes handle for these.) `.default()` auto-applies
+        // it to every `ZZBytes` param (`payload`/`attachment`, by-value or
+        // `Option`) of every declared fn (accessors opted out above).
         .constructor(pq!(ZZBytes))
         .constructor_variant(pq!(z_zbytes_from_vec))
+        .default()
         // CONVERTER for ZZBytes (single-value deconstructor): an `Option<&ZZBytes>`
         // return (z_sample_attachment) is converted to its bytes
         // (`z_zbytes_to_bytes` → ByteArray) and **returned** directly via
@@ -147,11 +153,11 @@ fn main() {
         // for the ZSample deconstructor's payload.
         .converter(pq!(ZZBytes), pq!(z_zbytes_to_bytes))
         .ptr_class(pq!(ZEncoding))
-        .package_fun(pq!(z_encoding_id))
-        .package_fun(pq!(z_encoding_schema))
-        .package_fun(pq!(z_encoding_to_string))
-        .package_fun(pq!(z_encoding_clone))
-        .package_fun(pq!(z_encoding_from_string))
+        .fun_accessor(pq!(z_encoding_id))
+        .fun_accessor(pq!(z_encoding_schema))
+        .fun_accessor(pq!(z_encoding_to_string))
+        .fun_accessor(pq!(z_encoding_clone))
+        .fun(pq!(z_encoding_from_string))
         // CONVERTER for ZEncoding: decompose to its canonical string
         // (`z_encoding_to_string`), nested by the ZSample deconstructor below to
         // build the SDK `Encoding(string)`.
@@ -161,64 +167,64 @@ fn main() {
         // canonical `repr` String, no per-call `zEncodingFromString` + close.
         .constructor(pq!(ZEncoding))
         .constructor_variant(pq!(z_encoding_from_string))
-        .package_fun(pq!(z_encoding_with_schema))
-        .package_fun(pq!(z_encoding_zenoh_bytes))
-        .package_fun(pq!(z_encoding_zenoh_string))
-        .package_fun(pq!(z_encoding_zenoh_serialized))
-        .package_fun(pq!(z_encoding_application_octet_stream))
-        .package_fun(pq!(z_encoding_text_plain))
-        .package_fun(pq!(z_encoding_application_json))
-        .package_fun(pq!(z_encoding_text_json))
-        .package_fun(pq!(z_encoding_application_cdr))
-        .package_fun(pq!(z_encoding_application_cbor))
-        .package_fun(pq!(z_encoding_application_yaml))
-        .package_fun(pq!(z_encoding_text_yaml))
-        .package_fun(pq!(z_encoding_text_json5))
-        .package_fun(pq!(z_encoding_application_python_serialized_object))
-        .package_fun(pq!(z_encoding_application_protobuf))
-        .package_fun(pq!(z_encoding_application_java_serialized_object))
-        .package_fun(pq!(z_encoding_application_openmetrics_text))
-        .package_fun(pq!(z_encoding_image_png))
-        .package_fun(pq!(z_encoding_image_jpeg))
-        .package_fun(pq!(z_encoding_image_gif))
-        .package_fun(pq!(z_encoding_image_bmp))
-        .package_fun(pq!(z_encoding_image_webp))
-        .package_fun(pq!(z_encoding_application_xml))
-        .package_fun(pq!(z_encoding_application_x_www_form_urlencoded))
-        .package_fun(pq!(z_encoding_text_html))
-        .package_fun(pq!(z_encoding_text_xml))
-        .package_fun(pq!(z_encoding_text_css))
-        .package_fun(pq!(z_encoding_text_javascript))
-        .package_fun(pq!(z_encoding_text_markdown))
-        .package_fun(pq!(z_encoding_text_csv))
-        .package_fun(pq!(z_encoding_application_sql))
-        .package_fun(pq!(z_encoding_application_coap_payload))
-        .package_fun(pq!(z_encoding_application_json_patch_json))
-        .package_fun(pq!(z_encoding_application_json_seq))
-        .package_fun(pq!(z_encoding_application_jsonpath))
-        .package_fun(pq!(z_encoding_application_jwt))
-        .package_fun(pq!(z_encoding_application_mp4))
-        .package_fun(pq!(z_encoding_application_soap_xml))
-        .package_fun(pq!(z_encoding_application_yang))
-        .package_fun(pq!(z_encoding_audio_aac))
-        .package_fun(pq!(z_encoding_audio_flac))
-        .package_fun(pq!(z_encoding_audio_mp4))
-        .package_fun(pq!(z_encoding_audio_ogg))
-        .package_fun(pq!(z_encoding_audio_vorbis))
-        .package_fun(pq!(z_encoding_video_h261))
-        .package_fun(pq!(z_encoding_video_h263))
-        .package_fun(pq!(z_encoding_video_h264))
-        .package_fun(pq!(z_encoding_video_h265))
-        .package_fun(pq!(z_encoding_video_h266))
-        .package_fun(pq!(z_encoding_video_mp4))
-        .package_fun(pq!(z_encoding_video_ogg))
-        .package_fun(pq!(z_encoding_video_raw))
-        .package_fun(pq!(z_encoding_video_vp8))
-        .package_fun(pq!(z_encoding_video_vp9))
+        .fun_accessor(pq!(z_encoding_with_schema))
+        .fun(pq!(z_encoding_zenoh_bytes))
+        .fun(pq!(z_encoding_zenoh_string))
+        .fun(pq!(z_encoding_zenoh_serialized))
+        .fun(pq!(z_encoding_application_octet_stream))
+        .fun(pq!(z_encoding_text_plain))
+        .fun(pq!(z_encoding_application_json))
+        .fun(pq!(z_encoding_text_json))
+        .fun(pq!(z_encoding_application_cdr))
+        .fun(pq!(z_encoding_application_cbor))
+        .fun(pq!(z_encoding_application_yaml))
+        .fun(pq!(z_encoding_text_yaml))
+        .fun(pq!(z_encoding_text_json5))
+        .fun(pq!(z_encoding_application_python_serialized_object))
+        .fun(pq!(z_encoding_application_protobuf))
+        .fun(pq!(z_encoding_application_java_serialized_object))
+        .fun(pq!(z_encoding_application_openmetrics_text))
+        .fun(pq!(z_encoding_image_png))
+        .fun(pq!(z_encoding_image_jpeg))
+        .fun(pq!(z_encoding_image_gif))
+        .fun(pq!(z_encoding_image_bmp))
+        .fun(pq!(z_encoding_image_webp))
+        .fun(pq!(z_encoding_application_xml))
+        .fun(pq!(z_encoding_application_x_www_form_urlencoded))
+        .fun(pq!(z_encoding_text_html))
+        .fun(pq!(z_encoding_text_xml))
+        .fun(pq!(z_encoding_text_css))
+        .fun(pq!(z_encoding_text_javascript))
+        .fun(pq!(z_encoding_text_markdown))
+        .fun(pq!(z_encoding_text_csv))
+        .fun(pq!(z_encoding_application_sql))
+        .fun(pq!(z_encoding_application_coap_payload))
+        .fun(pq!(z_encoding_application_json_patch_json))
+        .fun(pq!(z_encoding_application_json_seq))
+        .fun(pq!(z_encoding_application_jsonpath))
+        .fun(pq!(z_encoding_application_jwt))
+        .fun(pq!(z_encoding_application_mp4))
+        .fun(pq!(z_encoding_application_soap_xml))
+        .fun(pq!(z_encoding_application_yang))
+        .fun(pq!(z_encoding_audio_aac))
+        .fun(pq!(z_encoding_audio_flac))
+        .fun(pq!(z_encoding_audio_mp4))
+        .fun(pq!(z_encoding_audio_ogg))
+        .fun(pq!(z_encoding_audio_vorbis))
+        .fun(pq!(z_encoding_video_h261))
+        .fun(pq!(z_encoding_video_h263))
+        .fun(pq!(z_encoding_video_h264))
+        .fun(pq!(z_encoding_video_h265))
+        .fun(pq!(z_encoding_video_h266))
+        .fun(pq!(z_encoding_video_mp4))
+        .fun(pq!(z_encoding_video_ogg))
+        .fun(pq!(z_encoding_video_raw))
+        .fun(pq!(z_encoding_video_vp8))
+        .fun(pq!(z_encoding_video_vp9))
         .package("time")
         .ptr_class(pq!(ZTimestamp))
-        .package_fun(pq!(z_timestamp_ntp64))
-        .package_fun(pq!(z_timestamp_id))
+        .fun_accessor(pq!(z_timestamp_ntp64))
+        .fun_accessor(pq!(z_timestamp_id))
         // CONVERTER for ZTimestamp (single-value): an `Option<&ZTimestamp>`
         // return (z_sample_timestamp) is converted to its NTP64 value
         // (`z_timestamp_ntp64` → i64) and **returned** as `Long?` via
@@ -228,17 +234,17 @@ fn main() {
         .package("sample")
         .enum_class(pq!(SampleKind))
         .ptr_class(pq!(ZSample))
-        .package_fun(pq!(z_sample_key_expr))
+        .fun_accessor(pq!(z_sample_key_expr))
         .deconstruct_output() // &ZKeyExpr → builder (ZKeyExpr handle, String)
-        .package_fun(pq!(z_sample_payload))
-        .package_fun(pq!(z_sample_encoding))
-        .package_fun(pq!(z_sample_kind))
-        .package_fun(pq!(z_sample_timestamp))
+        .fun_accessor(pq!(z_sample_payload))
+        .fun_accessor(pq!(z_sample_encoding))
+        .fun_accessor(pq!(z_sample_kind))
+        .fun_accessor(pq!(z_sample_timestamp))
         .convert_output() // Option<&ZTimestamp> → returns Long? (no callback)
-        .package_fun(pq!(z_sample_express))
-        .package_fun(pq!(z_sample_priority))
-        .package_fun(pq!(z_sample_congestion_control))
-        .package_fun(pq!(z_sample_attachment))
+        .fun_accessor(pq!(z_sample_express))
+        .fun_accessor(pq!(z_sample_priority))
+        .fun_accessor(pq!(z_sample_congestion_control))
+        .fun_accessor(pq!(z_sample_attachment))
         .convert_output() // Option<&ZZBytes> → returns ByteArray? (no callback)
         // Combined ACCESSOR for ZSample (output expansion, M3): the full sample
         // decomposed in ONE crossing — NESTS the ZKeyExpr (handle+string),
@@ -258,86 +264,73 @@ fn main() {
         .deconstructor_record_nested(pq!(z_sample_attachment)) // Option → ByteArray?
         .package("pubsub")
         .ptr_class(pq!(ZPublisher))
-        .package_fun(pq!(z_publisher_put))
-        .construct(pq!(payload)) // ZZBytes ← ByteArray
+        // payload/attachment auto-constructed by the ZZBytes `.default()`.
+        .fun(pq!(z_publisher_put))
         .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
-        .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
-        .package_fun(pq!(z_publisher_delete))
-        .construct(pq!(attachment))
+        .fun(pq!(z_publisher_delete))
         .ptr_class(pq!(ZSubscriber))
         .package("query")
         .ptr_class(pq!(ZQueryable))
         .ptr_class(pq!(ZQuerier))
-        .package_fun(pq!(z_querier_get))
-        .construct(pq!(payload)) // Option<ZZBytes> ← ByteArray?
+        .fun(pq!(z_querier_get))
         .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
-        .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
         .enum_class(pq!(ReplyKeyExpr))
         .enum_class(pq!(QueryTarget))
         .enum_class(pq!(ConsolidationMode))
         .ptr_class(pq!(ZQuery))
-        .package_fun(pq!(z_query_reply_success))
-        // key_expr auto-constructed by the ZKeyExpr `.default()`.
-        .construct(pq!(payload)) // ZZBytes ← ByteArray
+        // key_expr + payload/attachment auto-constructed by their `.default()`s.
+        .fun(pq!(z_query_reply_success))
         .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
-        .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
-        .package_fun(pq!(z_query_reply_error))
-        .construct(pq!(payload)) // ZZBytes ← ByteArray
+        .fun(pq!(z_query_reply_error))
         .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
-        .package_fun(pq!(z_query_reply_delete))
-        .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?  (key_expr via default)
-        .package_fun(pq!(z_query_keyexpr))
-        .package_fun(pq!(z_query_parameters))
-        .package_fun(pq!(z_query_payload))
-        .package_fun(pq!(z_query_encoding))
-        .package_fun(pq!(z_query_attachment))
-        .package_fun(pq!(z_query_accepts_replies))
+        .fun(pq!(z_query_reply_delete))
+        .fun_accessor(pq!(z_query_keyexpr))
+        .fun_accessor(pq!(z_query_parameters))
+        .fun_accessor(pq!(z_query_payload))
+        .fun_accessor(pq!(z_query_encoding))
+        .fun_accessor(pq!(z_query_attachment))
+        .fun_accessor(pq!(z_query_accepts_replies))
         .ptr_class(pq!(ZReply))
-        .package_fun(pq!(z_reply_replier_zid))
-        .package_fun(pq!(z_reply_replier_eid))
-        .package_fun(pq!(z_reply_is_ok))
-        .package_fun(pq!(z_reply_sample))
+        .fun_accessor(pq!(z_reply_replier_zid))
+        .fun_accessor(pq!(z_reply_replier_eid))
+        .fun_accessor(pq!(z_reply_is_ok))
+        .fun_accessor(pq!(z_reply_sample))
         .deconstruct_output() // Option<&ZSample> → builder(full Sample leaves) → R?
-        .package_fun(pq!(z_reply_error_payload))
-        .package_fun(pq!(z_reply_error_encoding))
+        .fun_accessor(pq!(z_reply_error_payload))
+        .fun_accessor(pq!(z_reply_error_encoding))
         .package("liveliness")
         .ptr_class(pq!(ZLivelinessToken))
         .package("session")
         .ptr_class(pq!(ZSession))
-        .package_fun(pq!(z_open))
+        .fun(pq!(z_open))
         // key_expr params below are auto-constructed by the ZKeyExpr `.default()`.
-        .package_fun(pq!(z_session_declare_publisher))
-        .package_fun(pq!(z_session_put))
-        .construct(pq!(payload)) // ZZBytes ← ByteArray
+        .fun(pq!(z_session_declare_publisher))
+        .fun(pq!(z_session_put))
         .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
-        .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
-        .package_fun(pq!(z_session_delete))
-        .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
-        .package_fun(pq!(z_session_declare_subscriber))
-        .package_fun(pq!(z_session_declare_querier))
-        .package_fun(pq!(z_session_declare_queryable))
-        .package_fun(pq!(z_session_declare_keyexpr))
+        .fun(pq!(z_session_delete))
+        .fun(pq!(z_session_declare_subscriber))
+        .fun(pq!(z_session_declare_querier))
+        .fun(pq!(z_session_declare_queryable))
+        .fun(pq!(z_session_declare_keyexpr))
         // z_session_undeclare_keyexpr: undeclaring requires the declared handle,
         // not a string — opt out of the ZKeyExpr constructor default.
-        .package_fun(pq!(z_session_undeclare_keyexpr))
+        .fun(pq!(z_session_undeclare_keyexpr))
         .skip_default_construct(pq!(key_expr))
-        .package_fun(pq!(z_session_get))
-        .construct(pq!(payload)) // Option<ZZBytes> ← ByteArray?
+        .fun(pq!(z_session_get))
         .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
-        .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
-        .package_fun(pq!(z_session_zid))
+        .fun_accessor(pq!(z_session_zid))
         // Output expansion (M4, Iterable): Vec<ZZenohId> → fold, each ZZenohId
         // delivered WHOLE (its value_blob projection); caller owns the result
         // collection. No combined accessor — the element crosses as the typed
         // `ZZenohId` value class, matching the prior `List<ZZenohId>`.
-        .package_fun(pq!(z_session_peers_zid))
+        .fun_accessor(pq!(z_session_peers_zid))
         .deconstruct_output() // Vec<ZZenohId> → fun <A>(acc, fold: (A, ZZenohId) -> A): A
-        .package_fun(pq!(z_session_routers_zid))
+        .fun_accessor(pq!(z_session_routers_zid))
         .deconstruct_output()
         // liveliness key_expr params auto-constructed by the ZKeyExpr `.default()`.
-        .package_fun(pq!(z_liveliness_declare_token))
-        .package_fun(pq!(z_liveliness_get))
-        .package_fun(pq!(z_liveliness_declare_subscriber));
+        .fun(pq!(z_liveliness_declare_token))
+        .fun(pq!(z_liveliness_get))
+        .fun(pq!(z_liveliness_declare_subscriber));
 
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
     let mut registry = match Registry::from_items(source.items_all()) {

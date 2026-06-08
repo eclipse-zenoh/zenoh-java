@@ -28,6 +28,19 @@ public fun zKeyexprAutocanonize(s: String, onError: (String?, String) -> ZKeyExp
     return __ret
 }
 
+public fun zKeyexprAsStr(ke: ZKeyExpr, onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
+    if (ke.ptr == 0L) return onError("Operation on a closed native handle.")
+    var __cap_failed = false
+    var __cap_je: String? = null
+    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __ret = withSortedHandleLocks(ke) {
+    val ke_ptr = ke.ptr
+    JNINative.zKeyexprAsStr(ke_ptr, __cap)
+    }
+    if (__cap_failed) return onError(__cap_je)
+    return __ret
+}
+
 public fun zKeyexprIntersects(aSel: Int, a0: String?, a1: ZKeyExpr?, bSel: Int, b0: String?, b1: ZKeyExpr?, onError: (String?) -> Boolean = { __de_je -> throw ZException(__de_je) }): Boolean {
     if (a1 != null && a1.ptr == 0L) return onError("Operation on a closed native handle.")
     if (b1 != null && b1.ptr == 0L) return onError("Operation on a closed native handle.")

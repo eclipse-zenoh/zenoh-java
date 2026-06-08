@@ -96,9 +96,11 @@ internal object JNINative {
     external fun zEncodingZenohBytes(errorSink: Any): Long
     external fun zEncodingZenohSerialized(errorSink: Any): Long
     external fun zEncodingZenohString(errorSink: Any): Long
+    external fun zErrorMessage(e: Long, errorSink: Any): String
     external fun zHelloLocators(h: Long, errorSink: Any): List<String>
     external fun zHelloWhatami(h: Long, errorSink: Any): Int
     external fun zHelloZid(h: Long, errorSink: Any): ByteArray
+    external fun zKeyexprAsStr(ke: Long, errorSink: Any): String
     external fun zKeyexprAutocanonize(s: String, errorSink: Any): Long
     external fun zKeyexprClone(ke: Long, errorSink: Any): Long
     external fun zKeyexprConcat(aSel: Int, a0: String?, a1: Long, b: String, errorSink: Any): Long
