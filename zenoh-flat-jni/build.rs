@@ -53,6 +53,15 @@ fn main() {
         .constructor(pq!(ZKeyExpr))
         .constructor_variant(pq!(z_keyexpr_try_from))
         .constructor_variant_id()
+        // `.default()`: auto-`construct` every `ZKeyExpr` param (`&`/`Option`/
+        // by-value) of every declared fn — so all the key-expr consumers below
+        // accept a String|handle in one crossing without per-fn `.construct(...)`.
+        // Opt-outs (`.skip_default_construct`): functions that must stay
+        // handle-only — `z_session_undeclare_keyexpr` (undeclaring needs the
+        // declared handle, not a string) and the accessors `z_keyexpr_clone` /
+        // `z_keyexpr_to_string` (a String input would round-trip pointlessly and
+        // change their SDK signature).
+        .default()
         // Combined ACCESSOR for ZKeyExpr (output expansion): a function
         // returning a key-expr handle (`.deconstruct_output()`) is decomposed into
         // BOTH the handle (identity record) and its borrowed string form
@@ -63,21 +72,19 @@ fn main() {
         .deconstructor(pq!(ZKeyExpr))
         .deconstructor_record_id()
         .deconstructor_record(pq!(z_keyexpr_as_str))
+        // a/b (and key_expr below) are auto-constructed by the ZKeyExpr
+        // constructor `.default()` above — no per-fn `.construct(...)` needed.
+        // (z_keyexpr_join/concat's `b` is a String, untouched.)
         .package_fun(pq!(z_keyexpr_intersects))
-        .construct(pq!(a))
-        .construct(pq!(b))
         .package_fun(pq!(z_keyexpr_includes))
-        .construct(pq!(a))
-        .construct(pq!(b))
         .package_fun(pq!(z_keyexpr_relation_to))
-        .construct(pq!(a))
-        .construct(pq!(b))
-        .package_fun(pq!(z_keyexpr_join)) // b is a String, only `a` is a key-expr
-        .construct(pq!(a))
-        .package_fun(pq!(z_keyexpr_concat)) // b is a String, only `a` is a key-expr
-        .construct(pq!(a))
+        .package_fun(pq!(z_keyexpr_join))
+        .package_fun(pq!(z_keyexpr_concat))
+        // Accessors: opt out of the default — keep `ke` handle-only.
         .package_fun(pq!(z_keyexpr_clone))
+        .skip_default_construct(pq!(ke))
         .package_fun(pq!(z_keyexpr_to_string))
+        .skip_default_construct(pq!(ke))
         .enum_class(pq!(SetIntersectionLevel))
         .package("config")
         .ptr_class(pq!(ZConfig))
@@ -270,7 +277,7 @@ fn main() {
         .enum_class(pq!(ConsolidationMode))
         .ptr_class(pq!(ZQuery))
         .package_fun(pq!(z_query_reply_success))
-        .construct(pq!(key_expr)) // &ZKeyExpr ← String | handle
+        // key_expr auto-constructed by the ZKeyExpr `.default()`.
         .construct(pq!(payload)) // ZZBytes ← ByteArray
         .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
         .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
@@ -278,8 +285,7 @@ fn main() {
         .construct(pq!(payload)) // ZZBytes ← ByteArray
         .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
         .package_fun(pq!(z_query_reply_delete))
-        .construct(pq!(key_expr)) // &ZKeyExpr ← String | handle
-        .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
+        .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?  (key_expr via default)
         .package_fun(pq!(z_query_keyexpr))
         .package_fun(pq!(z_query_parameters))
         .package_fun(pq!(z_query_payload))
@@ -299,28 +305,23 @@ fn main() {
         .package("session")
         .ptr_class(pq!(ZSession))
         .package_fun(pq!(z_open))
+        // key_expr params below are auto-constructed by the ZKeyExpr `.default()`.
         .package_fun(pq!(z_session_declare_publisher))
-        .construct(pq!(key_expr)) // ZKeyExpr (by-value) ← String | handle
         .package_fun(pq!(z_session_put))
-        .construct(pq!(key_expr)) // &ZKeyExpr ← String | handle
         .construct(pq!(payload)) // ZZBytes ← ByteArray
         .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
         .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
         .package_fun(pq!(z_session_delete))
-        .construct(pq!(key_expr)) // &ZKeyExpr ← String | handle
         .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
         .package_fun(pq!(z_session_declare_subscriber))
-        .construct(pq!(key_expr)) // ZKeyExpr (by-value) ← String | handle
         .package_fun(pq!(z_session_declare_querier))
-        .construct(pq!(key_expr))
         .package_fun(pq!(z_session_declare_queryable))
-        .construct(pq!(key_expr))
         .package_fun(pq!(z_session_declare_keyexpr))
-        // z_session_undeclare_keyexpr: NOT expanded — undeclaring requires a
-        // declared handle, not a string. Stays handle-only.
+        // z_session_undeclare_keyexpr: undeclaring requires the declared handle,
+        // not a string — opt out of the ZKeyExpr constructor default.
         .package_fun(pq!(z_session_undeclare_keyexpr))
+        .skip_default_construct(pq!(key_expr))
         .package_fun(pq!(z_session_get))
-        .construct(pq!(key_expr)) // &ZKeyExpr ← String | handle
         .construct(pq!(payload)) // Option<ZZBytes> ← ByteArray?
         .construct(pq!(encoding)) // Option<&ZEncoding> ← String?
         .construct(pq!(attachment)) // Option<ZZBytes> ← ByteArray?
@@ -333,12 +334,10 @@ fn main() {
         .deconstruct_output() // Vec<ZZenohId> → fun <A>(acc, fold: (A, ZZenohId) -> A): A
         .package_fun(pq!(z_session_routers_zid))
         .deconstruct_output()
+        // liveliness key_expr params auto-constructed by the ZKeyExpr `.default()`.
         .package_fun(pq!(z_liveliness_declare_token))
-        .construct(pq!(key_expr)) // ZKeyExpr (by-value) ← String | handle
         .package_fun(pq!(z_liveliness_get))
-        .construct(pq!(key_expr)) // &ZKeyExpr ← String | handle
-        .package_fun(pq!(z_liveliness_declare_subscriber))
-        .construct(pq!(key_expr)); // ZKeyExpr (by-value) ← String | handle
+        .package_fun(pq!(z_liveliness_declare_subscriber));
 
     let source = prebindgen::Source::new(zenoh_flat::PREBINDGEN_OUT_DIR);
     let mut registry = match Registry::from_items(source.items_all()) {
