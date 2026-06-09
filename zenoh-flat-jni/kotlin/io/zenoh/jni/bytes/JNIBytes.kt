@@ -24,6 +24,9 @@ import java.lang.reflect.Type
 // class <clinit> runs before either external fn below is invoked.
 private val ensureLoaded = ZenohLoad
 
-internal external fun serializeViaJNI(any: Any, type: Type): ByteArray
+// `onError` mirrors the generated wrappers' error callback: on a serialization
+// failure the native side invokes it with the message (the binding-error `je`
+// arity), and the handler throws — no direct throw from native code.
+internal external fun serializeViaJNI(any: Any, type: Type, onError: (String?) -> ByteArray): ByteArray
 
-internal external fun deserializeViaJNI(bytes: ByteArray, type: Type): Any
+internal external fun deserializeViaJNI(bytes: ByteArray, type: Type, onError: (String?) -> Any): Any

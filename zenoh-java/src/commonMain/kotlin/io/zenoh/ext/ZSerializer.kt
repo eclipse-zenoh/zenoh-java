@@ -16,6 +16,7 @@ package io.zenoh.ext
 
 import com.google.common.reflect.TypeToken
 import io.zenoh.bytes.ZBytes
+import io.zenoh.exceptions.throwZError0
 import io.zenoh.jni.bytes.serializeViaJNI
 
 /**
@@ -104,6 +105,6 @@ abstract class ZSerializer<T>: TypeToken<T>() {
      * Serialize [t] into a [ZBytes].
      */
     fun serialize(t: T): ZBytes {
-        return ZBytes.from(serializeViaJNI(t as Any, this.type))
+        return ZBytes.from(serializeViaJNI(t as Any, this.type, throwZError0))
     }
 }

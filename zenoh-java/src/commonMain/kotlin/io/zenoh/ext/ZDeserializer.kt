@@ -17,6 +17,7 @@ package io.zenoh.ext
 import com.google.common.reflect.TypeToken
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
+import io.zenoh.exceptions.throwZError0
 import io.zenoh.jni.bytes.deserializeViaJNI
 
 /**
@@ -106,6 +107,6 @@ abstract class ZDeserializer<T>: TypeToken<T>() {
      */
     fun deserialize(zbytes: IntoZBytes): T {
         @Suppress("UNCHECKED_CAST")
-        return deserializeViaJNI(zbytes.into().bytes, this.type) as T
+        return deserializeViaJNI(zbytes.into().bytes, this.type, throwZError0) as T
     }
 }

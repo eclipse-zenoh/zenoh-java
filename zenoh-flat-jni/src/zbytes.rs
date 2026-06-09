@@ -23,14 +23,32 @@ use zenoh_ext::{VarInt, ZDeserializeError, ZDeserializer, ZSerializer};
 
 type JResult<T> = core::result::Result<T, JniBindingError<()>>;
 
-/// Throw the SDK's `io.zenoh.exceptions.ZError` with the error's message. This
-/// hand-written JNI surface (ZSerializer/ZDeserializer) throws directly —
-/// matching the canonical model where every error surfaces as `ZError` (the
-/// generated wrappers reach it via their `onError` callback; this hand-written
-/// path throws it straight, so callers no longer need an exception-bridge).
-/// `ZError(message: String?)` compiles to a `(Ljava/lang/String;)V` ctor.
-fn throw_jni_error(env: &mut JNIEnv, err: &impl core::fmt::Display) {
-    let _ = env.throw_new("io/zenoh/exceptions/ZError", err.to_string());
+/// Deliver an error to the foreign `onError` callback — the SAME model the
+/// generated wrappers use (no direct `throw` from native). `on_error` is a
+/// Kotlin `(je: String?) -> R` function (the binding-error arity); we invoke it
+/// with the message via the erased `invoke`. The handler throws `ZError`, so a
+/// JVM exception is pending when we return the sentinel. (This hand-written
+/// surface holds no native handle locks, so invoking the throwing callback
+/// straight from the upcall is safe — no lock is held across the throw.)
+fn signal_error(env: &mut JNIEnv, on_error: &JObject, err: &impl core::fmt::Display) {
+    // If a JVM exception is already pending (a Java upcall threw), let it
+    // propagate untouched — do NOT invoke the callback over it (and do not
+    // clear it): the pending exception surfaces when we return the sentinel.
+    if env.exception_check().unwrap_or(false) {
+        return;
+    }
+    let je: JObject = match env.new_string(err.to_string()) {
+        Ok(s) => s.into(),
+        Err(_) => JObject::null(),
+    };
+    // The callback throws `ZError`, leaving a pending exception; we ignore the
+    // `Err` and return so it propagates.
+    let _ = env.call_method(
+        on_error,
+        "invoke",
+        "(Ljava/lang/Object;)Ljava/lang/Object;",
+        &[JValue::Object(&je)],
+    );
 }
 
 /// Helper function to convert a JByteArray into a Vec<u8>.
@@ -190,6 +208,7 @@ pub extern "C" fn Java_io_zenoh_jni_bytes_JNIBytes_serializeViaJNI(
     _class: JClass,
     any: JObject,
     token_type: JObject,
+    on_error: JObject,
 ) -> jobject {
     || -> JResult<jobject> {
         let mut serializer = ZSerializer::new();
@@ -201,7 +220,7 @@ pub extern "C" fn Java_io_zenoh_jni_bytes_JNIBytes_serializeViaJNI(
         Ok(byte_array.as_raw())
     }()
     .unwrap_or_else(|err| {
-        throw_jni_error(&mut env, &err);
+        signal_error(&mut env, &on_error, &err);
         JObject::default().as_raw()
     })
 }
@@ -332,6 +351,7 @@ pub extern "C" fn Java_io_zenoh_jni_bytes_JNIBytes_deserializeViaJNI(
     _class: JClass,
     bytes: JByteArray,
     jtype: JObject,
+    on_error: JObject,
 ) -> jobject {
     || -> JResult<jobject> {
         let decoded_bytes: Vec<u8> = decode_byte_array(&env, bytes)?;
@@ -345,7 +365,7 @@ pub extern "C" fn Java_io_zenoh_jni_bytes_JNIBytes_deserializeViaJNI(
         Ok(obj)
     }()
     .unwrap_or_else(|err| {
-        throw_jni_error(&mut env, &err);
+        signal_error(&mut env, &on_error, &err);
         JObject::default().as_raw()
     })
 }
