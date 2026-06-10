@@ -302,8 +302,8 @@ fn serialize(
             serializer.serialize(bytes);
         }
         JavaType::List(kotlin_type) => {
-            let jlist: JList<'_, '_, '_> =
-                JList::from_env(env, &any).map_err(|err| JniBindingError::<()>::JniError(err.to_string()))?;
+            let jlist: JList<'_, '_, '_> = JList::from_env(env, &any)
+                .map_err(|err| JniBindingError::<()>::JniError(err.to_string()))?;
             let mut iterator = jlist
                 .iter(env)
                 .map_err(|err| JniBindingError::<()>::JniError(err.to_string()))?;
@@ -319,7 +319,8 @@ fn serialize(
             }
         }
         JavaType::Map(key_type, value_type) => {
-            let jmap = JMap::from_env(env, &any).map_err(|err| JniBindingError::<()>::JniError(err.to_string()))?;
+            let jmap = JMap::from_env(env, &any)
+                .map_err(|err| JniBindingError::<()>::JniError(err.to_string()))?;
 
             let map_size = env
                 .call_method(&jmap, "size", "()I", &[])
@@ -360,7 +361,9 @@ pub extern "C" fn Java_io_zenoh_jni_bytes_JNIBytes_deserializeViaJNI(
         let jtype = decode_token_type(&mut env, jtype)?;
         let obj = deserialize(&mut env, &mut deserializer, &jtype)?;
         if !deserializer.done() {
-            return Err(JniBindingError::<()>::JniError(ZDeserializeError.to_string()));
+            return Err(JniBindingError::<()>::JniError(
+                ZDeserializeError.to_string(),
+            ));
         }
         Ok(obj)
     }()
@@ -466,8 +469,8 @@ fn deserialize(
             let array_list = env
                 .new_object("java/util/ArrayList", "()V", &[])
                 .map_err(|err| JniBindingError::<()>::JniError(err.to_string()))?;
-            let jlist =
-                JList::from_env(env, &array_list).map_err(|err| JniBindingError::<()>::JniError(err.to_string()))?;
+            let jlist = JList::from_env(env, &array_list)
+                .map_err(|err| JniBindingError::<()>::JniError(err.to_string()))?;
 
             for _ in 0..list_size {
                 let item = deserialize(env, deserializer, kotlin_type)?;
@@ -486,7 +489,8 @@ fn deserialize(
             let map = env
                 .new_object("java/util/HashMap", "()V", &[])
                 .map_err(|err| JniBindingError::<()>::JniError(err.to_string()))?;
-            let jmap = JMap::from_env(env, &map).map_err(|err| JniBindingError::<()>::JniError(err.to_string()))?;
+            let jmap = JMap::from_env(env, &map)
+                .map_err(|err| JniBindingError::<()>::JniError(err.to_string()))?;
 
             for _ in 0..map_size {
                 let key = deserialize(env, deserializer, key_type)?;

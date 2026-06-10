@@ -18,7 +18,7 @@ fn main() {
     // delivered through the per-call `onError` callback (no Rust-side JVM throw).
     // `ZZenohId` stays a `value_blob` (`@JvmInline value class`).
     let jni = JniGen::new()
-        .handle_locks(true)              // Enable handle locks (default, thread-safe)
+        .handle_locks(true) // Enable handle locks (default, thread-safe)
         .source_module(pq!(zenoh_flat)) // how to prefix prebindgen-marked items (functions, types
         .package_prefix("io.zenoh.jni") // the package of the generated JNI bindings
         // Error model: zenoh's native `ZError` is the `E` of every fallible
