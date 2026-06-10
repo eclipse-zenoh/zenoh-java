@@ -3,9 +3,9 @@ package io.zenoh.jni.scouting
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.NativeHandle
-import io.zenoh.jni.ZException
 import io.zenoh.jni.config.WhatAmI
 import io.zenoh.jni.config.ZConfig
+import io.zenoh.jni.ZException
 import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.withSortedHandleLocks
 
@@ -63,8 +63,8 @@ public fun zHelloWhatami(h: ZHello, onError: (je: String?) -> WhatAmI = { __de_j
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(h) {
-    val h_ptr = h.ptr
-    WhatAmI.fromInt(JNINative.zHelloWhatami(h_ptr, __cap))
+        val h_ptr = h.ptr
+        WhatAmI.fromInt(JNINative.zHelloWhatami(h_ptr, __cap))
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -76,8 +76,8 @@ public fun zHelloZid(h: ZHello, onError: (je: String?) -> ZZenohId = { __de_je -
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(h) {
-    val h_ptr = h.ptr
-    ZZenohId(JNINative.zHelloZid(h_ptr, __cap))
+        val h_ptr = h.ptr
+        ZZenohId(JNINative.zHelloZid(h_ptr, __cap))
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -89,8 +89,8 @@ public fun zHelloLocators(h: ZHello, onError: (je: String?) -> List<String> = { 
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(h) {
-    val h_ptr = h.ptr
-    JNINative.zHelloLocators(h_ptr, __cap)
+        val h_ptr = h.ptr
+        JNINative.zHelloLocators(h_ptr, __cap)
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -103,12 +103,12 @@ public fun zScout(whatami: Int, config: ZConfig?, callback: (zHello: ZHello) -> 
     var __cap_ze0: String? = null
     val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
     val __ret = run {
-    val __locks = ArrayList<NativeHandle>()
-    config?.let { __locks.add(it) }
-    withSortedHandleLocks(__locks) {
-    val config_ptr = config?.ptr ?: 0L
-    ZScout(JNINative.zScout(whatami, config_ptr, callback, onClose, __cap))
-    }
+        val __locks = ArrayList<NativeHandle>()
+        config?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+            val config_ptr = config?.ptr ?: 0L
+            ZScout(JNINative.zScout(whatami, config_ptr, callback, onClose, __cap))
+        }
     }
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
     return __ret

@@ -60,8 +60,8 @@ public fun zZbytesToBytes(z: ZZBytes, onError: (je: String?) -> ByteArray = { __
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(z) {
-    val z_ptr = z.ptr
-    JNINative.zZbytesToBytes(z_ptr, __cap)
+        val z_ptr = z.ptr
+        JNINative.zZbytesToBytes(z_ptr, __cap)
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -73,8 +73,8 @@ public fun zZbytesClone(z: ZZBytes, onError: (je: String?) -> ZZBytes = { __de_j
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(z) {
-    val z_ptr = z.ptr
-    ZZBytes(JNINative.zZbytesClone(z_ptr, __cap))
+        val z_ptr = z.ptr
+        ZZBytes(JNINative.zZbytesClone(z_ptr, __cap))
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -95,8 +95,8 @@ public fun zEncodingId(e: ZEncoding, onError: (je: String?) -> Int = { __de_je -
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(e) {
-    val e_ptr = e.ptr
-    JNINative.zEncodingId(e_ptr, __cap)
+        val e_ptr = e.ptr
+        JNINative.zEncodingId(e_ptr, __cap)
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -108,8 +108,8 @@ public fun zEncodingSchema(e: ZEncoding, onError: (je: String?) -> String? = { _
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(e) {
-    val e_ptr = e.ptr
-    JNINative.zEncodingSchema(e_ptr, __cap)
+        val e_ptr = e.ptr
+        JNINative.zEncodingSchema(e_ptr, __cap)
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -121,8 +121,8 @@ public fun zEncodingToString(e: ZEncoding, onError: (je: String?) -> String = { 
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(e) {
-    val e_ptr = e.ptr
-    JNINative.zEncodingToString(e_ptr, __cap)
+        val e_ptr = e.ptr
+        JNINative.zEncodingToString(e_ptr, __cap)
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -134,8 +134,8 @@ public fun zEncodingClone(e: ZEncoding, onError: (je: String?) -> ZEncoding = { 
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(e) {
-    val e_ptr = e.ptr
-    ZEncoding(JNINative.zEncodingClone(e_ptr, __cap))
+        val e_ptr = e.ptr
+        ZEncoding(JNINative.zEncodingClone(e_ptr, __cap))
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -156,8 +156,8 @@ public fun zEncodingWithSchema(e: ZEncoding, schema: String, onError: (je: Strin
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(e) {
-    val e_ptr = e.ptr
-    ZEncoding(JNINative.zEncodingWithSchema(e_ptr, schema, __cap))
+        val e_ptr = e.ptr
+        ZEncoding(JNINative.zEncodingWithSchema(e_ptr, schema, __cap))
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret

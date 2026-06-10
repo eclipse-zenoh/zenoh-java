@@ -61,8 +61,8 @@ public fun zPublisherPut(publisher: ZPublisher, payload: ByteArray, encoding: St
     var __cap_ze0: String? = null
     val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
     withSortedHandleLocks(publisher) {
-    val publisher_ptr = publisher.ptr
-    JNINative.zPublisherPut(publisher_ptr, payload, encoding, attachment, __cap)
+        val publisher_ptr = publisher.ptr
+        JNINative.zPublisherPut(publisher_ptr, payload, encoding, attachment, __cap)
     }
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }
@@ -74,8 +74,8 @@ public fun zPublisherDelete(publisher: ZPublisher, attachment: ByteArray?, onErr
     var __cap_ze0: String? = null
     val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
     withSortedHandleLocks(publisher) {
-    val publisher_ptr = publisher.ptr
-    JNINative.zPublisherDelete(publisher_ptr, attachment, __cap)
+        val publisher_ptr = publisher.ptr
+        JNINative.zPublisherDelete(publisher_ptr, attachment, __cap)
     }
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }

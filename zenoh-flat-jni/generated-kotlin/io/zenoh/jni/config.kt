@@ -18,8 +18,10 @@ public enum class WhatAmI(public val value: Int) {
     }
 }
 
-/** Typed by-value wrapper for the native Rust `ZZenohId` (a `Copy` blob carried
- *  as its raw bytes; `@JvmInline`-erased to `ByteArray` at the JNI boundary). */
+/**
+ * Typed by-value wrapper for the native Rust `ZZenohId` (a `Copy` blob carried
+ * as its raw bytes; `@JvmInline`-erased to `ByteArray` at the JNI boundary).
+ */
 @JvmInline
 public value class ZZenohId(public val bytes: ByteArray)
 
@@ -102,8 +104,8 @@ public fun zConfigGetJson(c: ZConfig, key: String, onError: (je: String?) -> Str
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(c) {
-    val c_ptr = c.ptr
-    JNINative.zConfigGetJson(c_ptr, key, __cap)
+        val c_ptr = c.ptr
+        JNINative.zConfigGetJson(c_ptr, key, __cap)
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -116,8 +118,8 @@ public fun zConfigInsertJson5(c: ZConfig, key: String, value: String, onError: (
     var __cap_ze0: String? = null
     val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
     withSortedHandleLocks(c) {
-    val c_ptr = c.ptr
-    JNINative.zConfigInsertJson5(c_ptr, key, value, __cap)
+        val c_ptr = c.ptr
+        JNINative.zConfigInsertJson5(c_ptr, key, value, __cap)
     }
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }
@@ -128,8 +130,8 @@ public fun zConfigClone(c: ZConfig, onError: (je: String?) -> ZConfig = { __de_j
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(c) {
-    val c_ptr = c.ptr
-    ZConfig(JNINative.zConfigClone(c_ptr, __cap))
+        val c_ptr = c.ptr
+        ZConfig(JNINative.zConfigClone(c_ptr, __cap))
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret

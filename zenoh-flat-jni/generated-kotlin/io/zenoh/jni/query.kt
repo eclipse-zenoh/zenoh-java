@@ -3,11 +3,11 @@ package io.zenoh.jni.query
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.NativeHandle
-import io.zenoh.jni.ZException
 import io.zenoh.jni.bytes.ZEncoding
+import io.zenoh.jni.ZException
+import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.bytes.ZZBytes
 import io.zenoh.jni.config.ZZenohId
-import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.withSortedHandleLocks
 
 /** JVM-side surface for the native Rust `ConsolidationMode` enum. */
@@ -149,8 +149,8 @@ public fun zQuerierGet(querier: ZQuerier, parameters: String?, payload: ByteArra
     var __cap_ze0: String? = null
     val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
     withSortedHandleLocks(querier) {
-    val querier_ptr = querier.ptr
-    JNINative.zQuerierGet(querier_ptr, parameters, payload, encoding, attachment, callback, onClose, __cap)
+        val querier_ptr = querier.ptr
+        JNINative.zQuerierGet(querier_ptr, parameters, payload, encoding, attachment, callback, onClose, __cap)
     }
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }
@@ -163,14 +163,14 @@ public fun zQueryReplySuccess(query: ZQuery, keyExprSel: Int, keyExpr0: String?,
     var __cap_ze0: String? = null
     val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
     run {
-    val __locks = ArrayList<NativeHandle>()
-    __locks.add(query)
-    keyExpr1?.let { __locks.add(it) }
-    withSortedHandleLocks(__locks) {
-    val query_ptr = query.ptr
-    val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
-    JNINative.zQueryReplySuccess(query_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, payload, encoding, timestampNtp64, attachment, express, __cap)
-    }
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(query)
+        keyExpr1?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+            val query_ptr = query.ptr
+            val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
+            JNINative.zQueryReplySuccess(query_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, payload, encoding, timestampNtp64, attachment, express, __cap)
+        }
     }
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }
@@ -182,8 +182,8 @@ public fun zQueryReplyError(query: ZQuery, payload: ByteArray, encoding: String?
     var __cap_ze0: String? = null
     val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
     withSortedHandleLocks(query) {
-    val query_ptr = query.ptr
-    JNINative.zQueryReplyError(query_ptr, payload, encoding, __cap)
+        val query_ptr = query.ptr
+        JNINative.zQueryReplyError(query_ptr, payload, encoding, __cap)
     }
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }
@@ -196,14 +196,14 @@ public fun zQueryReplyDelete(query: ZQuery, keyExprSel: Int, keyExpr0: String?, 
     var __cap_ze0: String? = null
     val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
     run {
-    val __locks = ArrayList<NativeHandle>()
-    __locks.add(query)
-    keyExpr1?.let { __locks.add(it) }
-    withSortedHandleLocks(__locks) {
-    val query_ptr = query.ptr
-    val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
-    JNINative.zQueryReplyDelete(query_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, timestampNtp64, attachment, express, __cap)
-    }
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(query)
+        keyExpr1?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+            val query_ptr = query.ptr
+            val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
+            JNINative.zQueryReplyDelete(query_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, timestampNtp64, attachment, express, __cap)
+        }
     }
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }
@@ -216,18 +216,18 @@ public fun zQueryReplySample(query: ZQuery, sampleKeyExprSel: Int, sampleKeyExpr
     var __cap_ze0: String? = null
     val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
     run {
-    val __locks = ArrayList<NativeHandle>()
-    __locks.add(query)
-    sampleKeyExpr1?.let { __locks.add(it) }
-    withSortedHandleLocks(__locks) {
-    val query_ptr = query.ptr
-    val sampleKeyExpr1_ptr = sampleKeyExpr1?.ptr ?: 0L
-    try {
-    JNINative.zQueryReplySample(query_ptr, sampleKeyExprSel, sampleKeyExpr0, sampleKeyExpr1_ptr, samplePayload, sampleEncoding, __cap)
-    } finally {
-    sampleKeyExpr1?.let { it.ptr = 0L }
-    }
-    }
+        val __locks = ArrayList<NativeHandle>()
+        __locks.add(query)
+        sampleKeyExpr1?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+            val query_ptr = query.ptr
+            val sampleKeyExpr1_ptr = sampleKeyExpr1?.ptr ?: 0L
+            try {
+                JNINative.zQueryReplySample(query_ptr, sampleKeyExprSel, sampleKeyExpr0, sampleKeyExpr1_ptr, samplePayload, sampleEncoding, __cap)
+            } finally {
+                sampleKeyExpr1?.let { it.ptr = 0L }
+            }
+        }
     }
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }
@@ -238,8 +238,8 @@ public fun zQueryKeyexpr(q: ZQuery, onError: (je: String?) -> ZKeyExpr = { __de_
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(q) {
-    val q_ptr = q.ptr
-    ZKeyExpr(JNINative.zQueryKeyexpr(q_ptr, __cap))
+        val q_ptr = q.ptr
+        ZKeyExpr(JNINative.zQueryKeyexpr(q_ptr, __cap))
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -251,8 +251,8 @@ public fun zQueryParameters(q: ZQuery, onError: (je: String?) -> String = { __de
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(q) {
-    val q_ptr = q.ptr
-    JNINative.zQueryParameters(q_ptr, __cap)
+        val q_ptr = q.ptr
+        JNINative.zQueryParameters(q_ptr, __cap)
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -264,8 +264,8 @@ public fun zQueryPayload(q: ZQuery, onError: (je: String?) -> ZZBytes? = { __de_
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(q) {
-    val q_ptr = q.ptr
-    JNINative.zQueryPayload(q_ptr, __cap).let { if (it == 0L) null else ZZBytes(it) }
+        val q_ptr = q.ptr
+        JNINative.zQueryPayload(q_ptr, __cap).let { if (it == 0L) null else ZZBytes(it) }
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -277,8 +277,8 @@ public fun zQueryEncoding(q: ZQuery, onError: (je: String?) -> ZEncoding? = { __
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(q) {
-    val q_ptr = q.ptr
-    JNINative.zQueryEncoding(q_ptr, __cap).let { if (it == 0L) null else ZEncoding(it) }
+        val q_ptr = q.ptr
+        JNINative.zQueryEncoding(q_ptr, __cap).let { if (it == 0L) null else ZEncoding(it) }
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -290,8 +290,8 @@ public fun zQueryAttachment(q: ZQuery, onError: (je: String?) -> ZZBytes? = { __
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(q) {
-    val q_ptr = q.ptr
-    JNINative.zQueryAttachment(q_ptr, __cap).let { if (it == 0L) null else ZZBytes(it) }
+        val q_ptr = q.ptr
+        JNINative.zQueryAttachment(q_ptr, __cap).let { if (it == 0L) null else ZZBytes(it) }
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -303,8 +303,8 @@ public fun zQueryAcceptsReplies(q: ZQuery, onError: (je: String?) -> ReplyKeyExp
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(q) {
-    val q_ptr = q.ptr
-    ReplyKeyExpr.fromInt(JNINative.zQueryAcceptsReplies(q_ptr, __cap))
+        val q_ptr = q.ptr
+        ReplyKeyExpr.fromInt(JNINative.zQueryAcceptsReplies(q_ptr, __cap))
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -316,8 +316,8 @@ public fun zReplyReplierZid(r: ZReply, onError: (je: String?) -> ZZenohId? = { _
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(r) {
-    val r_ptr = r.ptr
-    JNINative.zReplyReplierZid(r_ptr, __cap)?.let { ZZenohId(it) }
+        val r_ptr = r.ptr
+        JNINative.zReplyReplierZid(r_ptr, __cap)?.let { ZZenohId(it) }
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -329,8 +329,8 @@ public fun zReplyReplierEid(r: ZReply, onError: (je: String?) -> Int = { __de_je
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(r) {
-    val r_ptr = r.ptr
-    JNINative.zReplyReplierEid(r_ptr, __cap)
+        val r_ptr = r.ptr
+        JNINative.zReplyReplierEid(r_ptr, __cap)
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -342,8 +342,8 @@ public fun zReplyIsOk(r: ZReply, onError: (je: String?) -> Boolean = { __de_je -
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(r) {
-    val r_ptr = r.ptr
-    JNINative.zReplyIsOk(r_ptr, __cap)
+        val r_ptr = r.ptr
+        JNINative.zReplyIsOk(r_ptr, __cap)
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -356,8 +356,8 @@ public fun <R> zReplySample(r: ZReply, onError: (je: String?) -> R? = { __de_je 
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(r) {
-    val r_ptr = r.ptr
-    (JNINative.zReplySample(r_ptr, build, __cap) as R?)
+        val r_ptr = r.ptr
+        (JNINative.zReplySample(r_ptr, build, __cap) as R?)
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -369,8 +369,8 @@ public fun zReplyErrorPayload(r: ZReply, onError: (je: String?) -> ZZBytes? = { 
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(r) {
-    val r_ptr = r.ptr
-    JNINative.zReplyErrorPayload(r_ptr, __cap).let { if (it == 0L) null else ZZBytes(it) }
+        val r_ptr = r.ptr
+        JNINative.zReplyErrorPayload(r_ptr, __cap).let { if (it == 0L) null else ZZBytes(it) }
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -382,8 +382,8 @@ public fun zReplyErrorEncoding(r: ZReply, onError: (je: String?) -> ZEncoding? =
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(r) {
-    val r_ptr = r.ptr
-    JNINative.zReplyErrorEncoding(r_ptr, __cap).let { if (it == 0L) null else ZEncoding(it) }
+        val r_ptr = r.ptr
+        JNINative.zReplyErrorEncoding(r_ptr, __cap).let { if (it == 0L) null else ZEncoding(it) }
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret

@@ -49,8 +49,8 @@ public fun zKeyexprAsStr(ke: ZKeyExpr, onError: (je: String?) -> String = { __de
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(ke) {
-    val ke_ptr = ke.ptr
-    JNINative.zKeyexprAsStr(ke_ptr, __cap)
+        val ke_ptr = ke.ptr
+        JNINative.zKeyexprAsStr(ke_ptr, __cap)
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -83,14 +83,14 @@ public fun zKeyexprIntersects(aSel: Int, a0: String?, a1: ZKeyExpr?, bSel: Int, 
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = run {
-    val __locks = ArrayList<NativeHandle>()
-    a1?.let { __locks.add(it) }
-    b1?.let { __locks.add(it) }
-    withSortedHandleLocks(__locks) {
-    val a1_ptr = a1?.ptr ?: 0L
-    val b1_ptr = b1?.ptr ?: 0L
-    JNINative.zKeyexprIntersects(aSel, a0, a1_ptr, bSel, b0, b1_ptr, __cap)
-    }
+        val __locks = ArrayList<NativeHandle>()
+        a1?.let { __locks.add(it) }
+        b1?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+            val a1_ptr = a1?.ptr ?: 0L
+            val b1_ptr = b1?.ptr ?: 0L
+            JNINative.zKeyexprIntersects(aSel, a0, a1_ptr, bSel, b0, b1_ptr, __cap)
+        }
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -103,14 +103,14 @@ public fun zKeyexprIncludes(aSel: Int, a0: String?, a1: ZKeyExpr?, bSel: Int, b0
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = run {
-    val __locks = ArrayList<NativeHandle>()
-    a1?.let { __locks.add(it) }
-    b1?.let { __locks.add(it) }
-    withSortedHandleLocks(__locks) {
-    val a1_ptr = a1?.ptr ?: 0L
-    val b1_ptr = b1?.ptr ?: 0L
-    JNINative.zKeyexprIncludes(aSel, a0, a1_ptr, bSel, b0, b1_ptr, __cap)
-    }
+        val __locks = ArrayList<NativeHandle>()
+        a1?.let { __locks.add(it) }
+        b1?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+            val a1_ptr = a1?.ptr ?: 0L
+            val b1_ptr = b1?.ptr ?: 0L
+            JNINative.zKeyexprIncludes(aSel, a0, a1_ptr, bSel, b0, b1_ptr, __cap)
+        }
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -123,14 +123,14 @@ public fun zKeyexprRelationTo(aSel: Int, a0: String?, a1: ZKeyExpr?, bSel: Int, 
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = run {
-    val __locks = ArrayList<NativeHandle>()
-    a1?.let { __locks.add(it) }
-    b1?.let { __locks.add(it) }
-    withSortedHandleLocks(__locks) {
-    val a1_ptr = a1?.ptr ?: 0L
-    val b1_ptr = b1?.ptr ?: 0L
-    SetIntersectionLevel.fromInt(JNINative.zKeyexprRelationTo(aSel, a0, a1_ptr, bSel, b0, b1_ptr, __cap))
-    }
+        val __locks = ArrayList<NativeHandle>()
+        a1?.let { __locks.add(it) }
+        b1?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+            val a1_ptr = a1?.ptr ?: 0L
+            val b1_ptr = b1?.ptr ?: 0L
+            SetIntersectionLevel.fromInt(JNINative.zKeyexprRelationTo(aSel, a0, a1_ptr, bSel, b0, b1_ptr, __cap))
+        }
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -143,12 +143,12 @@ public fun zKeyexprJoin(aSel: Int, a0: String?, a1: ZKeyExpr?, b: String, onErro
     var __cap_ze0: String? = null
     val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
     val __ret = run {
-    val __locks = ArrayList<NativeHandle>()
-    a1?.let { __locks.add(it) }
-    withSortedHandleLocks(__locks) {
-    val a1_ptr = a1?.ptr ?: 0L
-    ZKeyExpr(JNINative.zKeyexprJoin(aSel, a0, a1_ptr, b, __cap))
-    }
+        val __locks = ArrayList<NativeHandle>()
+        a1?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+            val a1_ptr = a1?.ptr ?: 0L
+            ZKeyExpr(JNINative.zKeyexprJoin(aSel, a0, a1_ptr, b, __cap))
+        }
     }
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
     return __ret
@@ -161,12 +161,12 @@ public fun zKeyexprConcat(aSel: Int, a0: String?, a1: ZKeyExpr?, b: String, onEr
     var __cap_ze0: String? = null
     val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
     val __ret = run {
-    val __locks = ArrayList<NativeHandle>()
-    a1?.let { __locks.add(it) }
-    withSortedHandleLocks(__locks) {
-    val a1_ptr = a1?.ptr ?: 0L
-    ZKeyExpr(JNINative.zKeyexprConcat(aSel, a0, a1_ptr, b, __cap))
-    }
+        val __locks = ArrayList<NativeHandle>()
+        a1?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+            val a1_ptr = a1?.ptr ?: 0L
+            ZKeyExpr(JNINative.zKeyexprConcat(aSel, a0, a1_ptr, b, __cap))
+        }
     }
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
     return __ret
@@ -178,8 +178,8 @@ public fun zKeyexprClone(ke: ZKeyExpr, onError: (je: String?) -> ZKeyExpr = { __
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(ke) {
-    val ke_ptr = ke.ptr
-    ZKeyExpr(JNINative.zKeyexprClone(ke_ptr, __cap))
+        val ke_ptr = ke.ptr
+        ZKeyExpr(JNINative.zKeyexprClone(ke_ptr, __cap))
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
@@ -191,8 +191,8 @@ public fun zKeyexprToString(ke: ZKeyExpr, onError: (je: String?) -> String = { _
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(ke) {
-    val ke_ptr = ke.ptr
-    JNINative.zKeyexprToString(ke_ptr, __cap)
+        val ke_ptr = ke.ptr
+        JNINative.zKeyexprToString(ke_ptr, __cap)
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
