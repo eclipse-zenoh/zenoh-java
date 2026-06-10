@@ -4,7 +4,7 @@ package io.zenoh.jni.logger
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.ZException
 
-public fun initAndroidLogs(filter: String, onError: (String?) -> Unit = { __de_je -> throw ZException(__de_je) }) {
+public fun initAndroidLogs(filter: String, onError: (je: String?) -> Unit = { __de_je -> throw ZException(__de_je) }) {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -12,7 +12,7 @@ public fun initAndroidLogs(filter: String, onError: (String?) -> Unit = { __de_j
     if (__cap_failed) return onError(__cap_je)
 }
 
-public fun tryInitZenohLogsFromEnv(onError: (String?) -> Unit = { __de_je -> throw ZException(__de_je) }) {
+public fun tryInitZenohLogsFromEnv(onError: (je: String?) -> Unit = { __de_je -> throw ZException(__de_je) }) {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -20,7 +20,7 @@ public fun tryInitZenohLogsFromEnv(onError: (String?) -> Unit = { __de_je -> thr
     if (__cap_failed) return onError(__cap_je)
 }
 
-public fun initZenohLogsFromEnvOr(fallbackFilter: String, onError: (String?) -> Unit = { __de_je -> throw ZException(__de_je) }) {
+public fun initZenohLogsFromEnvOr(fallbackFilter: String, onError: (je: String?) -> Unit = { __de_je -> throw ZException(__de_je) }) {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }

@@ -47,7 +47,7 @@ public class ZConfig(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun zConfigDefault(onError: (String?) -> ZConfig = { __de_je -> throw ZException(__de_je) }): ZConfig {
+public fun zConfigDefault(onError: (je: String?) -> ZConfig = { __de_je -> throw ZException(__de_je) }): ZConfig {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -56,7 +56,7 @@ public fun zConfigDefault(onError: (String?) -> ZConfig = { __de_je -> throw ZEx
     return __ret
 }
 
-public fun zConfigFromFile(path: String, onError: (String?, String) -> ZConfig = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZConfig {
+public fun zConfigFromFile(path: String, onError: (je: String?, message: String) -> ZConfig = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZConfig {
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
@@ -66,7 +66,7 @@ public fun zConfigFromFile(path: String, onError: (String?, String) -> ZConfig =
     return __ret
 }
 
-public fun zConfigFromJson(s: String, onError: (String?, String) -> ZConfig = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZConfig {
+public fun zConfigFromJson(s: String, onError: (je: String?, message: String) -> ZConfig = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZConfig {
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
@@ -76,7 +76,7 @@ public fun zConfigFromJson(s: String, onError: (String?, String) -> ZConfig = { 
     return __ret
 }
 
-public fun zConfigFromJson5(s: String, onError: (String?, String) -> ZConfig = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZConfig {
+public fun zConfigFromJson5(s: String, onError: (je: String?, message: String) -> ZConfig = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZConfig {
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
@@ -86,7 +86,7 @@ public fun zConfigFromJson5(s: String, onError: (String?, String) -> ZConfig = {
     return __ret
 }
 
-public fun zConfigFromYaml(s: String, onError: (String?, String) -> ZConfig = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZConfig {
+public fun zConfigFromYaml(s: String, onError: (je: String?, message: String) -> ZConfig = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZConfig {
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
@@ -96,7 +96,7 @@ public fun zConfigFromYaml(s: String, onError: (String?, String) -> ZConfig = { 
     return __ret
 }
 
-public fun zConfigGetJson(c: ZConfig, key: String, onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
+public fun zConfigGetJson(c: ZConfig, key: String, onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     if (c.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -109,7 +109,7 @@ public fun zConfigGetJson(c: ZConfig, key: String, onError: (String?) -> String 
     return __ret
 }
 
-public fun zConfigInsertJson5(c: ZConfig, key: String, value: String, onError: (String?, String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }) {
+public fun zConfigInsertJson5(c: ZConfig, key: String, value: String, onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }) {
     if (c.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     var __cap_failed = false
     var __cap_je: String? = null
@@ -122,7 +122,7 @@ public fun zConfigInsertJson5(c: ZConfig, key: String, value: String, onError: (
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }
 
-public fun zConfigClone(c: ZConfig, onError: (String?) -> ZConfig = { __de_je -> throw ZException(__de_je) }): ZConfig {
+public fun zConfigClone(c: ZConfig, onError: (je: String?) -> ZConfig = { __de_je -> throw ZException(__de_je) }): ZConfig {
     if (c.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -135,7 +135,7 @@ public fun zConfigClone(c: ZConfig, onError: (String?) -> ZConfig = { __de_je ->
     return __ret
 }
 
-public fun zZenohIdToBytes(z: ZZenohId, onError: (String?) -> ByteArray = { __de_je -> throw ZException(__de_je) }): ByteArray {
+public fun zZenohIdToBytes(z: ZZenohId, onError: (je: String?) -> ByteArray = { __de_je -> throw ZException(__de_je) }): ByteArray {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -144,7 +144,7 @@ public fun zZenohIdToBytes(z: ZZenohId, onError: (String?) -> ByteArray = { __de
     return __ret
 }
 
-public fun zZenohIdToString(z: ZZenohId, onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
+public fun zZenohIdToString(z: ZZenohId, onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }

@@ -30,7 +30,7 @@ public class ZError(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun zErrorMessage(e: ZError, onError: (String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
+public fun zErrorMessage(e: ZError, onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) }): String {
     if (e.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
