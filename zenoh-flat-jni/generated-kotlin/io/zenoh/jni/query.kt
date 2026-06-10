@@ -4,7 +4,6 @@ package io.zenoh.jni.query
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.bytes.ZEncoding
-import io.zenoh.jni.ZException
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.bytes.ZZBytes
 import io.zenoh.jni.config.ZZenohId
@@ -150,7 +149,7 @@ public fun zQuerierGet(
     attachment: ByteArray?,
     callback: (zReply: ZReply) -> Unit,
     onClose: () -> Unit,
-    onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> Unit,
 ) {
     if (querier.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     var __cap_failed = false
@@ -174,7 +173,7 @@ public fun zQueryReplySuccess(
     timestampNtp64: Long?,
     attachment: ByteArray?,
     express: Boolean?,
-    onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> Unit,
 ) {
     if (query.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     if (keyExpr1 != null && keyExpr1.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
@@ -199,7 +198,7 @@ public fun zQueryReplyError(
     query: ZQuery,
     payload: ByteArray,
     encoding: String?,
-    onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> Unit,
 ) {
     if (query.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     var __cap_failed = false
@@ -221,7 +220,7 @@ public fun zQueryReplyDelete(
     timestampNtp64: Long?,
     attachment: ByteArray?,
     express: Boolean?,
-    onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> Unit,
 ) {
     if (query.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     if (keyExpr1 != null && keyExpr1.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
@@ -249,7 +248,7 @@ public fun zQueryReplySample(
     sampleKeyExpr1: ZKeyExpr?,
     samplePayload: ByteArray,
     sampleEncoding: String,
-    onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> Unit,
 ) {
     if (query.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     if (sampleKeyExpr1 != null && sampleKeyExpr1.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
@@ -274,10 +273,7 @@ public fun zQueryReplySample(
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }
 
-public fun zQueryKeyexpr(
-    q: ZQuery,
-    onError: (je: String?) -> ZKeyExpr = { __de_je -> throw ZException(__de_je) },
-): ZKeyExpr {
+public fun zQueryKeyexpr(q: ZQuery, onError: (je: String?) -> ZKeyExpr): ZKeyExpr {
     if (q.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -290,10 +286,7 @@ public fun zQueryKeyexpr(
     return __ret
 }
 
-public fun zQueryParameters(
-    q: ZQuery,
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zQueryParameters(q: ZQuery, onError: (je: String?) -> String): String {
     if (q.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -306,10 +299,7 @@ public fun zQueryParameters(
     return __ret
 }
 
-public fun zQueryPayload(
-    q: ZQuery,
-    onError: (je: String?) -> ZZBytes? = { __de_je -> throw ZException(__de_je) },
-): ZZBytes? {
+public fun zQueryPayload(q: ZQuery, onError: (je: String?) -> ZZBytes?): ZZBytes? {
     if (q.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -322,10 +312,7 @@ public fun zQueryPayload(
     return __ret
 }
 
-public fun zQueryEncoding(
-    q: ZQuery,
-    onError: (je: String?) -> ZEncoding? = { __de_je -> throw ZException(__de_je) },
-): ZEncoding? {
+public fun zQueryEncoding(q: ZQuery, onError: (je: String?) -> ZEncoding?): ZEncoding? {
     if (q.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -338,10 +325,7 @@ public fun zQueryEncoding(
     return __ret
 }
 
-public fun zQueryAttachment(
-    q: ZQuery,
-    onError: (je: String?) -> ZZBytes? = { __de_je -> throw ZException(__de_je) },
-): ZZBytes? {
+public fun zQueryAttachment(q: ZQuery, onError: (je: String?) -> ZZBytes?): ZZBytes? {
     if (q.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -354,10 +338,7 @@ public fun zQueryAttachment(
     return __ret
 }
 
-public fun zQueryAcceptsReplies(
-    q: ZQuery,
-    onError: (je: String?) -> ReplyKeyExpr = { __de_je -> throw ZException(__de_je) },
-): ReplyKeyExpr {
+public fun zQueryAcceptsReplies(q: ZQuery, onError: (je: String?) -> ReplyKeyExpr): ReplyKeyExpr {
     if (q.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -370,10 +351,7 @@ public fun zQueryAcceptsReplies(
     return __ret
 }
 
-public fun zReplyReplierZid(
-    r: ZReply,
-    onError: (je: String?) -> ZZenohId? = { __de_je -> throw ZException(__de_je) },
-): ZZenohId? {
+public fun zReplyReplierZid(r: ZReply, onError: (je: String?) -> ZZenohId?): ZZenohId? {
     if (r.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -386,10 +364,7 @@ public fun zReplyReplierZid(
     return __ret
 }
 
-public fun zReplyReplierEid(
-    r: ZReply,
-    onError: (je: String?) -> Int = { __de_je -> throw ZException(__de_je) },
-): Int {
+public fun zReplyReplierEid(r: ZReply, onError: (je: String?) -> Int): Int {
     if (r.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -402,10 +377,7 @@ public fun zReplyReplierEid(
     return __ret
 }
 
-public fun zReplyIsOk(
-    r: ZReply,
-    onError: (je: String?) -> Boolean = { __de_je -> throw ZException(__de_je) },
-): Boolean {
+public fun zReplyIsOk(r: ZReply, onError: (je: String?) -> Boolean): Boolean {
     if (r.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -421,7 +393,7 @@ public fun zReplyIsOk(
 @Suppress("UNCHECKED_CAST")
 public fun <R> zReplySample(
     r: ZReply,
-    onError: (je: String?) -> R? = { __de_je -> throw ZException(__de_je) },
+    onError: (je: String?) -> R?,
     build: (
         keyExpr: ZKeyExpr,
         keyExprAsStr: String,
@@ -447,10 +419,7 @@ public fun <R> zReplySample(
     return __ret
 }
 
-public fun zReplyErrorPayload(
-    r: ZReply,
-    onError: (je: String?) -> ZZBytes? = { __de_je -> throw ZException(__de_je) },
-): ZZBytes? {
+public fun zReplyErrorPayload(r: ZReply, onError: (je: String?) -> ZZBytes?): ZZBytes? {
     if (r.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -463,10 +432,7 @@ public fun zReplyErrorPayload(
     return __ret
 }
 
-public fun zReplyErrorEncoding(
-    r: ZReply,
-    onError: (je: String?) -> ZEncoding? = { __de_je -> throw ZException(__de_je) },
-): ZEncoding? {
+public fun zReplyErrorEncoding(r: ZReply, onError: (je: String?) -> ZEncoding?): ZEncoding? {
     if (r.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null

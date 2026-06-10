@@ -20,6 +20,7 @@ import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError
+import io.zenoh.exceptions.throwZError0
 import io.zenoh.jni.query.ZQuery
 import io.zenoh.keyexpr.KeyExpr
 
@@ -55,20 +56,20 @@ class Query internal constructor(
          * reply methods consume it); transient field handles are read and freed.
          */
         fun from(zq: ZQuery): Query {
-            val ke = KeyExpr(io.zenoh.jni.query.zQueryKeyexpr(zq))
-            val parameters = io.zenoh.jni.query.zQueryParameters(zq)
+            val ke = KeyExpr(io.zenoh.jni.query.zQueryKeyexpr(zq, throwZError0))
+            val parameters = io.zenoh.jni.query.zQueryParameters(zq, throwZError0)
             val selector = if (parameters.isEmpty()) Selector(ke)
                            else Selector(ke, Parameters.from(parameters))
-            val payload = io.zenoh.jni.query.zQueryPayload(zq)?.let { ZBytes.fromHandle(it) }
-            val encoding = io.zenoh.jni.query.zQueryEncoding(zq)?.let { Encoding.fromHandle(it) }
-            val attachment = io.zenoh.jni.query.zQueryAttachment(zq)?.let { ZBytes.fromHandle(it) }
+            val payload = io.zenoh.jni.query.zQueryPayload(zq, throwZError0)?.let { ZBytes.fromHandle(it) }
+            val encoding = io.zenoh.jni.query.zQueryEncoding(zq, throwZError0)?.let { Encoding.fromHandle(it) }
+            val attachment = io.zenoh.jni.query.zQueryAttachment(zq, throwZError0)?.let { ZBytes.fromHandle(it) }
             return Query(
                 ke,
                 selector,
                 payload,
                 encoding,
                 attachment,
-                io.zenoh.jni.query.zQueryAcceptsReplies(zq).toPublic(),
+                io.zenoh.jni.query.zQueryAcceptsReplies(zq, throwZError0).toPublic(),
                 zq
             )
         }

@@ -20,6 +20,7 @@ import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.config.EntityGlobalId
 import io.zenoh.config.ZenohId
+import io.zenoh.exceptions.throwZError0
 import io.zenoh.sample.Sample
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
@@ -42,20 +43,20 @@ sealed class Reply private constructor(val replierId: EntityGlobalId?) : ZenohTy
          * encoding) are read and freed.
          */
         fun from(zr: io.zenoh.jni.query.ZReply): Reply {
-            val replierId = io.zenoh.jni.query.zReplyReplierZid(zr)?.let {
-                EntityGlobalId(ZenohId(it), io.zenoh.jni.query.zReplyReplierEid(zr).toUInt())
+            val replierId = io.zenoh.jni.query.zReplyReplierZid(zr, throwZError0)?.let {
+                EntityGlobalId(ZenohId(it), io.zenoh.jni.query.zReplyReplierEid(zr, throwZError0).toUInt())
             }
-            return if (io.zenoh.jni.query.zReplyIsOk(zr)) {
+            return if (io.zenoh.jni.query.zReplyIsOk(zr, throwZError0)) {
                 // Output expansion (M3): the full sample is decomposed into its
                 // leaves and built here in ONE JNI crossing — no per-field
                 // `z_sample_*` calls, no transient ZSample handle to close. The
                 // ZSample combined accessor nests the ZKeyExpr / ZZBytes /
                 // ZEncoding / ZTimestamp accessors; enums cross as `Int`.
-                val sample = io.zenoh.jni.query.zReplySample(zr, build = Sample.Companion::fromParts)!!
+                val sample = io.zenoh.jni.query.zReplySample(zr, throwZError0, build = Sample.Companion::fromParts)!!
                 Success(replierId, sample)
             } else {
-                val payload = ZBytes.fromHandle(io.zenoh.jni.query.zReplyErrorPayload(zr)!!)
-                val encoding = io.zenoh.jni.query.zReplyErrorEncoding(zr)
+                val payload = ZBytes.fromHandle(io.zenoh.jni.query.zReplyErrorPayload(zr, throwZError0)!!)
+                val encoding = io.zenoh.jni.query.zReplyErrorEncoding(zr, throwZError0)
                     ?.let { Encoding.fromHandle(it) }
                     ?: Encoding.defaultEncoding()
                 Error(replierId, payload, encoding)

@@ -10,7 +10,6 @@ import io.zenoh.jni.query.QueryTarget
 import io.zenoh.jni.qos.Reliability
 import io.zenoh.jni.query.ReplyKeyExpr
 import io.zenoh.jni.config.ZConfig
-import io.zenoh.jni.ZException
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.liveliness.ZLivelinessToken
 import io.zenoh.jni.pubsub.ZPublisher
@@ -46,10 +45,7 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun zOpen(
-    config: ZConfig,
-    onError: (je: String?, message: String) -> ZSession = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
-): ZSession {
+public fun zOpen(config: ZConfig, onError: (je: String?, message: String) -> ZSession): ZSession {
     if (config.ptr == 0L) return onError("Operation on a closed native handle.", "")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -76,7 +72,7 @@ public fun zSessionDeclarePublisher(
     priority: Priority?,
     express: Boolean?,
     reliability: Reliability?,
-    onError: (je: String?, message: String) -> ZPublisher = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> ZPublisher,
 ): ZPublisher {
     if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
     if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError("Operation on a closed native handle.", "")
@@ -114,7 +110,7 @@ public fun zSessionPut(
     express: Boolean?,
     attachment: ByteArray?,
     reliability: Reliability?,
-    onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> Unit,
 ) {
     if (session.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     if (keyExpr1 != null && keyExpr1.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
@@ -145,7 +141,7 @@ public fun zSessionDelete(
     express: Boolean?,
     attachment: ByteArray?,
     reliability: Reliability?,
-    onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> Unit,
 ) {
     if (session.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     if (keyExpr1 != null && keyExpr1.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
@@ -184,7 +180,7 @@ public fun zSessionDeclareSubscriber(
         attachmentToBytes: ByteArray?,
     ) -> Unit,
     onClose: () -> Unit,
-    onError: (je: String?, message: String) -> ZSubscriber = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> ZSubscriber,
 ): ZSubscriber {
     if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
     if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError("Operation on a closed native handle.", "")
@@ -222,7 +218,7 @@ public fun zSessionDeclareQuerier(
     express: Boolean?,
     timeoutMs: Long?,
     acceptReplies: ReplyKeyExpr?,
-    onError: (je: String?, message: String) -> ZQuerier = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> ZQuerier,
 ): ZQuerier {
     if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
     if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError("Operation on a closed native handle.", "")
@@ -256,7 +252,7 @@ public fun zSessionDeclareQueryable(
     complete: Boolean?,
     callback: (zQuery: ZQuery) -> Unit,
     onClose: () -> Unit,
-    onError: (je: String?, message: String) -> ZQueryable = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> ZQueryable,
 ): ZQueryable {
     if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
     if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError("Operation on a closed native handle.", "")
@@ -285,7 +281,7 @@ public fun zSessionDeclareQueryable(
 public fun zSessionDeclareKeyexpr(
     session: ZSession,
     keyExpr: String,
-    onError: (je: String?, message: String) -> ZKeyExpr = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> ZKeyExpr,
 ): ZKeyExpr {
     if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
     var __cap_failed = false
@@ -303,7 +299,7 @@ public fun zSessionDeclareKeyexpr(
 public fun zSessionUndeclareKeyexpr(
     session: ZSession,
     keyExpr: ZKeyExpr,
-    onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> Unit,
 ) {
     if (session.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     if (keyExpr.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
@@ -341,7 +337,7 @@ public fun zSessionGet(
     attachment: ByteArray?,
     callback: (zReply: ZReply) -> Unit,
     onClose: () -> Unit,
-    onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> Unit,
 ) {
     if (session.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     if (keyExpr1 != null && keyExpr1.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
@@ -362,10 +358,7 @@ public fun zSessionGet(
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }
 
-public fun zSessionZid(
-    session: ZSession,
-    onError: (je: String?) -> ZZenohId = { __de_je -> throw ZException(__de_je) },
-): ZZenohId {
+public fun zSessionZid(session: ZSession, onError: (je: String?) -> ZZenohId): ZZenohId {
     if (session.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -380,7 +373,7 @@ public fun zSessionZid(
 
 public fun zSessionPeersZid(
     session: ZSession,
-    onError: (je: String?) -> List<ZZenohId> = { __de_je -> throw ZException(__de_je) },
+    onError: (je: String?) -> List<ZZenohId>,
 ): List<ZZenohId> {
     if (session.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
@@ -396,7 +389,7 @@ public fun zSessionPeersZid(
 
 public fun zSessionRoutersZid(
     session: ZSession,
-    onError: (je: String?) -> List<ZZenohId> = { __de_je -> throw ZException(__de_je) },
+    onError: (je: String?) -> List<ZZenohId>,
 ): List<ZZenohId> {
     if (session.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
@@ -415,7 +408,7 @@ public fun zLivelinessDeclareToken(
     keyExprSel: Int,
     keyExpr0: String?,
     keyExpr1: ZKeyExpr?,
-    onError: (je: String?, message: String) -> ZLivelinessToken = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> ZLivelinessToken,
 ): ZLivelinessToken {
     if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
     if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError("Operation on a closed native handle.", "")
@@ -449,7 +442,7 @@ public fun zLivelinessGet(
     timeoutMs: Long,
     callback: (zReply: ZReply) -> Unit,
     onClose: () -> Unit,
-    onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> Unit,
 ) {
     if (session.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     if (keyExpr1 != null && keyExpr1.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
@@ -489,7 +482,7 @@ public fun zLivelinessDeclareSubscriber(
         attachmentToBytes: ByteArray?,
     ) -> Unit,
     onClose: () -> Unit,
-    onError: (je: String?, message: String) -> ZSubscriber = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> ZSubscriber,
 ): ZSubscriber {
     if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
     if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError("Operation on a closed native handle.", "")

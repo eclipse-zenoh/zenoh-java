@@ -14,6 +14,8 @@
 
 package io.zenoh.bytes
 
+import io.zenoh.exceptions.throwZError0
+
 /**
  * ZBytes contains the serialized bytes of user data.
  *
@@ -52,7 +54,7 @@ class ZBytes internal constructor(internal val bytes: ByteArray) : IntoZBytes {
          */
         internal fun fromHandle(handle: io.zenoh.jni.bytes.ZZBytes): ZBytes {
             try {
-                return ZBytes(io.zenoh.jni.bytes.zZbytesToBytes(handle))
+                return ZBytes(io.zenoh.jni.bytes.zZbytesToBytes(handle, throwZError0))
             } finally {
                 handle.close()
             }
@@ -65,7 +67,7 @@ class ZBytes internal constructor(internal val bytes: ByteArray) : IntoZBytes {
      * the caller does not close it.
      */
     internal fun toZZBytes(): io.zenoh.jni.bytes.ZZBytes =
-        io.zenoh.jni.bytes.zZbytesFromVec(bytes)
+        io.zenoh.jni.bytes.zZbytesFromVec(bytes, throwZError0)
 
     /** Returns the internal byte representation of the [ZBytes]. */
     fun toBytes(): ByteArray = bytes

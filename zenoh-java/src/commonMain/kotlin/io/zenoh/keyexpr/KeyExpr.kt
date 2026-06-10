@@ -77,7 +77,7 @@ class KeyExpr internal constructor(
 ) : AutoCloseable, IntoSelector, SessionDeclaration {
 
     /** Build from a handle, reading its canonical string form once. */
-    internal constructor(flat: ZKeyExpr) : this(flat, zKeyexprToString(flat))
+    internal constructor(flat: ZKeyExpr) : this(flat, zKeyexprToString(flat, throwZError0))
 
     companion object {
         init {
@@ -194,7 +194,7 @@ class KeyExpr internal constructor(
     /** Borrowed handle arm — Rust clones it; this KeyExpr stays valid. */
     internal val exprHandle: ZKeyExpr get() = flat
     /** Owned handle arm for by-value consumers — a clone the wrapper consumes. */
-    internal fun exprHandleOwned(): ZKeyExpr = io.zenoh.jni.keyexpr.zKeyexprClone(flat)
+    internal fun exprHandleOwned(): ZKeyExpr = io.zenoh.jni.keyexpr.zKeyexprClone(flat, throwZError0)
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

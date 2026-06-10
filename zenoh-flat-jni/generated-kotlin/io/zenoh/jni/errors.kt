@@ -3,7 +3,6 @@ package io.zenoh.jni.errors
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.NativeHandle
-import io.zenoh.jni.ZException
 import io.zenoh.jni.withSortedHandleLocks
 
 /** Typed handle for a native Zenoh `ZError`. */
@@ -30,10 +29,7 @@ public class ZError(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun zErrorMessage(
-    e: ZError,
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zErrorMessage(e: ZError, onError: (je: String?) -> String): String {
     if (e.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null

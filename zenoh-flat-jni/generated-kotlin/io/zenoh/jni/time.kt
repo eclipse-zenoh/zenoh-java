@@ -3,7 +3,6 @@ package io.zenoh.jni.time
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.NativeHandle
-import io.zenoh.jni.ZException
 import io.zenoh.jni.withSortedHandleLocks
 
 /** Typed handle for a native Zenoh `ZTimestamp`. */
@@ -30,10 +29,7 @@ public class ZTimestamp(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun zTimestampNtp64(
-    t: ZTimestamp,
-    onError: (je: String?) -> Long = { __de_je -> throw ZException(__de_je) },
-): Long {
+public fun zTimestampNtp64(t: ZTimestamp, onError: (je: String?) -> Long): Long {
     if (t.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -46,10 +42,7 @@ public fun zTimestampNtp64(
     return __ret
 }
 
-public fun zTimestampId(
-    t: ZTimestamp,
-    onError: (je: String?) -> ByteArray = { __de_je -> throw ZException(__de_je) },
-): ByteArray {
+public fun zTimestampId(t: ZTimestamp, onError: (je: String?) -> ByteArray): ByteArray {
     if (t.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null

@@ -73,13 +73,6 @@ internal inline fun <R> withSortedHandleLocks(
     return synchronized(x) { synchronized(y) { synchronized(z) { body() } } }
 }
 
-/**
- * Default error raised by a generated wrapper's `onError` when the
- * caller doesn't supply a handler. `message` is the binding error
- * (`je`) or the library error string (`ze`).
- */
-public class ZException(message: String?) : RuntimeException(message)
-
 internal object JNINative {
     external fun initAndroidLogs(filter: String, errorSink: Any)
     external fun initZenohLogsFromEnvOr(fallbackFilter: String, errorSink: Any)

@@ -3,7 +3,6 @@ package io.zenoh.jni.bytes
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.NativeHandle
-import io.zenoh.jni.ZException
 import io.zenoh.jni.withSortedHandleLocks
 
 /** Typed handle for a native Zenoh `ZEncoding`. */
@@ -54,10 +53,7 @@ public class ZZBytes(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun zZbytesToBytes(
-    z: ZZBytes,
-    onError: (je: String?) -> ByteArray = { __de_je -> throw ZException(__de_je) },
-): ByteArray {
+public fun zZbytesToBytes(z: ZZBytes, onError: (je: String?) -> ByteArray): ByteArray {
     if (z.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -70,10 +66,7 @@ public fun zZbytesToBytes(
     return __ret
 }
 
-public fun zZbytesClone(
-    z: ZZBytes,
-    onError: (je: String?) -> ZZBytes = { __de_je -> throw ZException(__de_je) },
-): ZZBytes {
+public fun zZbytesClone(z: ZZBytes, onError: (je: String?) -> ZZBytes): ZZBytes {
     if (z.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -86,10 +79,7 @@ public fun zZbytesClone(
     return __ret
 }
 
-public fun zZbytesFromVec(
-    bytes: ByteArray,
-    onError: (je: String?) -> ZZBytes = { __de_je -> throw ZException(__de_je) },
-): ZZBytes {
+public fun zZbytesFromVec(bytes: ByteArray, onError: (je: String?) -> ZZBytes): ZZBytes {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -98,10 +88,7 @@ public fun zZbytesFromVec(
     return __ret
 }
 
-public fun zEncodingId(
-    e: ZEncoding,
-    onError: (je: String?) -> Int = { __de_je -> throw ZException(__de_je) },
-): Int {
+public fun zEncodingId(e: ZEncoding, onError: (je: String?) -> Int): Int {
     if (e.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -114,10 +101,7 @@ public fun zEncodingId(
     return __ret
 }
 
-public fun zEncodingSchema(
-    e: ZEncoding,
-    onError: (je: String?) -> String? = { __de_je -> throw ZException(__de_je) },
-): String? {
+public fun zEncodingSchema(e: ZEncoding, onError: (je: String?) -> String?): String? {
     if (e.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -130,10 +114,7 @@ public fun zEncodingSchema(
     return __ret
 }
 
-public fun zEncodingToString(
-    e: ZEncoding,
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingToString(e: ZEncoding, onError: (je: String?) -> String): String {
     if (e.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -146,10 +127,7 @@ public fun zEncodingToString(
     return __ret
 }
 
-public fun zEncodingClone(
-    e: ZEncoding,
-    onError: (je: String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) },
-): ZEncoding {
+public fun zEncodingClone(e: ZEncoding, onError: (je: String?) -> ZEncoding): ZEncoding {
     if (e.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -162,10 +140,7 @@ public fun zEncodingClone(
     return __ret
 }
 
-public fun zEncodingFromString(
-    s: String,
-    onError: (je: String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) },
-): ZEncoding {
+public fun zEncodingFromString(s: String, onError: (je: String?) -> ZEncoding): ZEncoding {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -177,7 +152,7 @@ public fun zEncodingFromString(
 public fun zEncodingWithSchema(
     e: ZEncoding,
     schema: String,
-    onError: (je: String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) },
+    onError: (je: String?) -> ZEncoding,
 ): ZEncoding {
     if (e.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
@@ -191,9 +166,7 @@ public fun zEncodingWithSchema(
     return __ret
 }
 
-public fun zEncodingZenohBytes(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingZenohBytes(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -202,9 +175,7 @@ public fun zEncodingZenohBytes(
     return __ret
 }
 
-public fun zEncodingZenohString(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingZenohString(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -213,9 +184,7 @@ public fun zEncodingZenohString(
     return __ret
 }
 
-public fun zEncodingZenohSerialized(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingZenohSerialized(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -224,9 +193,7 @@ public fun zEncodingZenohSerialized(
     return __ret
 }
 
-public fun zEncodingApplicationOctetStream(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationOctetStream(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -235,9 +202,7 @@ public fun zEncodingApplicationOctetStream(
     return __ret
 }
 
-public fun zEncodingTextPlain(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingTextPlain(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -246,9 +211,7 @@ public fun zEncodingTextPlain(
     return __ret
 }
 
-public fun zEncodingApplicationJson(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationJson(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -257,9 +220,7 @@ public fun zEncodingApplicationJson(
     return __ret
 }
 
-public fun zEncodingTextJson(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingTextJson(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -268,9 +229,7 @@ public fun zEncodingTextJson(
     return __ret
 }
 
-public fun zEncodingApplicationCdr(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationCdr(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -279,9 +238,7 @@ public fun zEncodingApplicationCdr(
     return __ret
 }
 
-public fun zEncodingApplicationCbor(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationCbor(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -290,9 +247,7 @@ public fun zEncodingApplicationCbor(
     return __ret
 }
 
-public fun zEncodingApplicationYaml(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationYaml(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -301,9 +256,7 @@ public fun zEncodingApplicationYaml(
     return __ret
 }
 
-public fun zEncodingTextYaml(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingTextYaml(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -312,9 +265,7 @@ public fun zEncodingTextYaml(
     return __ret
 }
 
-public fun zEncodingTextJson5(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingTextJson5(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -323,9 +274,7 @@ public fun zEncodingTextJson5(
     return __ret
 }
 
-public fun zEncodingApplicationPythonSerializedObject(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationPythonSerializedObject(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -334,9 +283,7 @@ public fun zEncodingApplicationPythonSerializedObject(
     return __ret
 }
 
-public fun zEncodingApplicationProtobuf(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationProtobuf(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -345,9 +292,7 @@ public fun zEncodingApplicationProtobuf(
     return __ret
 }
 
-public fun zEncodingApplicationJavaSerializedObject(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationJavaSerializedObject(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -356,9 +301,7 @@ public fun zEncodingApplicationJavaSerializedObject(
     return __ret
 }
 
-public fun zEncodingApplicationOpenmetricsText(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationOpenmetricsText(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -367,9 +310,7 @@ public fun zEncodingApplicationOpenmetricsText(
     return __ret
 }
 
-public fun zEncodingImagePng(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingImagePng(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -378,9 +319,7 @@ public fun zEncodingImagePng(
     return __ret
 }
 
-public fun zEncodingImageJpeg(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingImageJpeg(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -389,9 +328,7 @@ public fun zEncodingImageJpeg(
     return __ret
 }
 
-public fun zEncodingImageGif(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingImageGif(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -400,9 +337,7 @@ public fun zEncodingImageGif(
     return __ret
 }
 
-public fun zEncodingImageBmp(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingImageBmp(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -411,9 +346,7 @@ public fun zEncodingImageBmp(
     return __ret
 }
 
-public fun zEncodingImageWebp(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingImageWebp(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -422,9 +355,7 @@ public fun zEncodingImageWebp(
     return __ret
 }
 
-public fun zEncodingApplicationXml(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationXml(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -433,9 +364,7 @@ public fun zEncodingApplicationXml(
     return __ret
 }
 
-public fun zEncodingApplicationXWwwFormUrlencoded(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationXWwwFormUrlencoded(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -444,9 +373,7 @@ public fun zEncodingApplicationXWwwFormUrlencoded(
     return __ret
 }
 
-public fun zEncodingTextHtml(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingTextHtml(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -455,9 +382,7 @@ public fun zEncodingTextHtml(
     return __ret
 }
 
-public fun zEncodingTextXml(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingTextXml(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -466,9 +391,7 @@ public fun zEncodingTextXml(
     return __ret
 }
 
-public fun zEncodingTextCss(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingTextCss(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -477,9 +400,7 @@ public fun zEncodingTextCss(
     return __ret
 }
 
-public fun zEncodingTextJavascript(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingTextJavascript(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -488,9 +409,7 @@ public fun zEncodingTextJavascript(
     return __ret
 }
 
-public fun zEncodingTextMarkdown(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingTextMarkdown(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -499,9 +418,7 @@ public fun zEncodingTextMarkdown(
     return __ret
 }
 
-public fun zEncodingTextCsv(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingTextCsv(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -510,9 +427,7 @@ public fun zEncodingTextCsv(
     return __ret
 }
 
-public fun zEncodingApplicationSql(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationSql(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -521,9 +436,7 @@ public fun zEncodingApplicationSql(
     return __ret
 }
 
-public fun zEncodingApplicationCoapPayload(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationCoapPayload(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -532,9 +445,7 @@ public fun zEncodingApplicationCoapPayload(
     return __ret
 }
 
-public fun zEncodingApplicationJsonPatchJson(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationJsonPatchJson(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -543,9 +454,7 @@ public fun zEncodingApplicationJsonPatchJson(
     return __ret
 }
 
-public fun zEncodingApplicationJsonSeq(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationJsonSeq(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -554,9 +463,7 @@ public fun zEncodingApplicationJsonSeq(
     return __ret
 }
 
-public fun zEncodingApplicationJsonpath(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationJsonpath(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -565,9 +472,7 @@ public fun zEncodingApplicationJsonpath(
     return __ret
 }
 
-public fun zEncodingApplicationJwt(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationJwt(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -576,9 +481,7 @@ public fun zEncodingApplicationJwt(
     return __ret
 }
 
-public fun zEncodingApplicationMp4(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationMp4(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -587,9 +490,7 @@ public fun zEncodingApplicationMp4(
     return __ret
 }
 
-public fun zEncodingApplicationSoapXml(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationSoapXml(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -598,9 +499,7 @@ public fun zEncodingApplicationSoapXml(
     return __ret
 }
 
-public fun zEncodingApplicationYang(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingApplicationYang(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -609,9 +508,7 @@ public fun zEncodingApplicationYang(
     return __ret
 }
 
-public fun zEncodingAudioAac(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingAudioAac(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -620,9 +517,7 @@ public fun zEncodingAudioAac(
     return __ret
 }
 
-public fun zEncodingAudioFlac(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingAudioFlac(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -631,9 +526,7 @@ public fun zEncodingAudioFlac(
     return __ret
 }
 
-public fun zEncodingAudioMp4(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingAudioMp4(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -642,9 +535,7 @@ public fun zEncodingAudioMp4(
     return __ret
 }
 
-public fun zEncodingAudioOgg(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingAudioOgg(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -653,9 +544,7 @@ public fun zEncodingAudioOgg(
     return __ret
 }
 
-public fun zEncodingAudioVorbis(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingAudioVorbis(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -664,9 +553,7 @@ public fun zEncodingAudioVorbis(
     return __ret
 }
 
-public fun zEncodingVideoH261(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingVideoH261(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -675,9 +562,7 @@ public fun zEncodingVideoH261(
     return __ret
 }
 
-public fun zEncodingVideoH263(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingVideoH263(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -686,9 +571,7 @@ public fun zEncodingVideoH263(
     return __ret
 }
 
-public fun zEncodingVideoH264(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingVideoH264(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -697,9 +580,7 @@ public fun zEncodingVideoH264(
     return __ret
 }
 
-public fun zEncodingVideoH265(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingVideoH265(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -708,9 +589,7 @@ public fun zEncodingVideoH265(
     return __ret
 }
 
-public fun zEncodingVideoH266(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingVideoH266(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -719,9 +598,7 @@ public fun zEncodingVideoH266(
     return __ret
 }
 
-public fun zEncodingVideoMp4(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingVideoMp4(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -730,9 +607,7 @@ public fun zEncodingVideoMp4(
     return __ret
 }
 
-public fun zEncodingVideoOgg(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingVideoOgg(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -741,9 +616,7 @@ public fun zEncodingVideoOgg(
     return __ret
 }
 
-public fun zEncodingVideoRaw(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingVideoRaw(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -752,9 +625,7 @@ public fun zEncodingVideoRaw(
     return __ret
 }
 
-public fun zEncodingVideoVp8(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingVideoVp8(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
@@ -763,9 +634,7 @@ public fun zEncodingVideoVp8(
     return __ret
 }
 
-public fun zEncodingVideoVp9(
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zEncodingVideoVp9(onError: (je: String?) -> String): String {
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }

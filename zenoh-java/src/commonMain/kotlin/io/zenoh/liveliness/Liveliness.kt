@@ -18,6 +18,7 @@ import io.zenoh.Session
 import io.zenoh.replyCallbackOf
 import io.zenoh.sampleCallbackOf
 import io.zenoh.exceptions.ZError
+import io.zenoh.exceptions.throwZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
@@ -50,7 +51,7 @@ class Liveliness internal constructor(private val session: Session) {
     @Throws(ZError::class)
     fun declareToken(keyExpr: KeyExpr): LivelinessToken {
         val zSession = session.zSession ?: throw Session.sessionClosedException
-        return LivelinessToken(io.zenoh.jni.session.zLivelinessDeclareToken(zSession, keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned()))
+        return LivelinessToken(io.zenoh.jni.session.zLivelinessDeclareToken(zSession, keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(), throwZError))
     }
 
     /**
@@ -72,7 +73,8 @@ class Liveliness internal constructor(private val session: Session) {
             keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandle,
             timeout.toMillis(),
             replyCallbackOf { handler.handle(it) },
-            { handler.onClose() }
+            { handler.onClose() },
+            throwZError
         )
         return handler.receiver()
     }
@@ -95,7 +97,8 @@ class Liveliness internal constructor(private val session: Session) {
             keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandle,
             timeout.toMillis(),
             replyCallbackOf { callback.run(it) },
-            { }
+            { },
+            throwZError
         )
     }
 
@@ -118,7 +121,8 @@ class Liveliness internal constructor(private val session: Session) {
             keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandle,
             timeout.toMillis(),
             replyCallbackOf { handler.handle(it) },
-            { handler.onClose() }
+            { handler.onClose() },
+            throwZError
         )
         return handler.receiver()
     }
@@ -142,7 +146,8 @@ class Liveliness internal constructor(private val session: Session) {
             keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(),
             options.history,
             sampleCallbackOf { handler.handle(it) },
-            { handler.onClose() }
+            { handler.onClose() },
+            throwZError
         )
         return HandlerSubscriber(keyExpr, zSubscriber, handler.receiver())
     }
@@ -167,7 +172,8 @@ class Liveliness internal constructor(private val session: Session) {
             keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(),
             options.history,
             sampleCallbackOf { callback.run(it) },
-            { }
+            { },
+            throwZError
         )
         return CallbackSubscriber(keyExpr, zSubscriber)
     }
@@ -193,7 +199,8 @@ class Liveliness internal constructor(private val session: Session) {
             keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(),
             options.history,
             sampleCallbackOf { handler.handle(it) },
-            { handler.onClose() }
+            { handler.onClose() },
+            throwZError
         )
         return HandlerSubscriber(keyExpr, zSubscriber, handler.receiver())
     }

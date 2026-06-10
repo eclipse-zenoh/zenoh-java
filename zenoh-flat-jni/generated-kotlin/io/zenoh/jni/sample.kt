@@ -6,7 +6,6 @@ import io.zenoh.jni.JNINative
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.qos.Priority
 import io.zenoh.jni.bytes.ZEncoding
-import io.zenoh.jni.ZException
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.time.ZTimestamp
 import io.zenoh.jni.bytes.ZZBytes
@@ -47,10 +46,7 @@ public class ZSample(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun zSampleKeyExpr(
-    s: ZSample,
-    onError: (je: String?) -> ZKeyExpr = { __de_je -> throw ZException(__de_je) },
-): ZKeyExpr {
+public fun zSampleKeyExpr(s: ZSample, onError: (je: String?) -> ZKeyExpr): ZKeyExpr {
     if (s.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -63,10 +59,7 @@ public fun zSampleKeyExpr(
     return __ret
 }
 
-public fun zSamplePayload(
-    s: ZSample,
-    onError: (je: String?) -> ZZBytes = { __de_je -> throw ZException(__de_je) },
-): ZZBytes {
+public fun zSamplePayload(s: ZSample, onError: (je: String?) -> ZZBytes): ZZBytes {
     if (s.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -79,10 +72,7 @@ public fun zSamplePayload(
     return __ret
 }
 
-public fun zSampleEncoding(
-    s: ZSample,
-    onError: (je: String?) -> ZEncoding = { __de_je -> throw ZException(__de_je) },
-): ZEncoding {
+public fun zSampleEncoding(s: ZSample, onError: (je: String?) -> ZEncoding): ZEncoding {
     if (s.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -95,10 +85,7 @@ public fun zSampleEncoding(
     return __ret
 }
 
-public fun zSampleKind(
-    s: ZSample,
-    onError: (je: String?) -> SampleKind = { __de_je -> throw ZException(__de_je) },
-): SampleKind {
+public fun zSampleKind(s: ZSample, onError: (je: String?) -> SampleKind): SampleKind {
     if (s.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -111,10 +98,7 @@ public fun zSampleKind(
     return __ret
 }
 
-public fun zSampleTimestamp(
-    s: ZSample,
-    onError: (je: String?) -> ZTimestamp? = { __de_je -> throw ZException(__de_je) },
-): ZTimestamp? {
+public fun zSampleTimestamp(s: ZSample, onError: (je: String?) -> ZTimestamp?): ZTimestamp? {
     if (s.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -127,10 +111,7 @@ public fun zSampleTimestamp(
     return __ret
 }
 
-public fun zSampleExpress(
-    s: ZSample,
-    onError: (je: String?) -> Boolean = { __de_je -> throw ZException(__de_je) },
-): Boolean {
+public fun zSampleExpress(s: ZSample, onError: (je: String?) -> Boolean): Boolean {
     if (s.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -143,10 +124,7 @@ public fun zSampleExpress(
     return __ret
 }
 
-public fun zSamplePriority(
-    s: ZSample,
-    onError: (je: String?) -> Priority = { __de_je -> throw ZException(__de_je) },
-): Priority {
+public fun zSamplePriority(s: ZSample, onError: (je: String?) -> Priority): Priority {
     if (s.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -161,7 +139,7 @@ public fun zSamplePriority(
 
 public fun zSampleCongestionControl(
     s: ZSample,
-    onError: (je: String?) -> CongestionControl = { __de_je -> throw ZException(__de_je) },
+    onError: (je: String?) -> CongestionControl,
 ): CongestionControl {
     if (s.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
@@ -175,10 +153,7 @@ public fun zSampleCongestionControl(
     return __ret
 }
 
-public fun zSampleAttachment(
-    s: ZSample,
-    onError: (je: String?) -> ZZBytes? = { __de_je -> throw ZException(__de_je) },
-): ZZBytes? {
+public fun zSampleAttachment(s: ZSample, onError: (je: String?) -> ZZBytes?): ZZBytes? {
     if (s.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null

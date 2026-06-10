@@ -14,6 +14,7 @@
 
 package io.zenoh.config
 
+import io.zenoh.exceptions.throwZError0
 import kotlin.math.absoluteValue
 
 /**
@@ -22,7 +23,7 @@ import kotlin.math.absoluteValue
 data class ZenohId internal constructor(internal val inner: io.zenoh.jni.config.ZZenohId) {
 
     override fun toString(): String {
-        return io.zenoh.jni.config.zZenohIdToString(inner)
+        return io.zenoh.jni.config.zZenohIdToString(inner, throwZError0)
     }
 
     override fun equals(other: Any?): Boolean {

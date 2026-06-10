@@ -3,7 +3,6 @@ package io.zenoh.jni.pubsub
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.NativeHandle
-import io.zenoh.jni.ZException
 import io.zenoh.jni.withSortedHandleLocks
 
 /** Typed handle for a native Zenoh `ZPublisher`. */
@@ -59,7 +58,7 @@ public fun zPublisherPut(
     payload: ByteArray,
     encoding: String?,
     attachment: ByteArray?,
-    onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> Unit,
 ) {
     if (publisher.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     var __cap_failed = false
@@ -76,7 +75,7 @@ public fun zPublisherPut(
 public fun zPublisherDelete(
     publisher: ZPublisher,
     attachment: ByteArray?,
-    onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> Unit,
 ) {
     if (publisher.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     var __cap_failed = false

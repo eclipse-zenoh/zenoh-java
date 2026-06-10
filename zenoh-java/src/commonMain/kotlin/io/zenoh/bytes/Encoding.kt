@@ -14,6 +14,8 @@
 
 package io.zenoh.bytes
 
+import io.zenoh.exceptions.throwZError0
+
 /**
  * Default encoding values used by Zenoh.
  *
@@ -102,7 +104,7 @@ class Encoding internal constructor(internal val repr: String) {
          */
         internal fun fromHandle(handle: io.zenoh.jni.bytes.ZEncoding): Encoding {
             try {
-                return Encoding(io.zenoh.jni.bytes.zEncodingToString(handle))
+                return Encoding(io.zenoh.jni.bytes.zEncodingToString(handle, throwZError0))
             } finally {
                 handle.close()
             }
@@ -115,7 +117,7 @@ class Encoding internal constructor(internal val repr: String) {
      * caller MUST close the returned handle after the native call.
      */
     internal fun toZEncoding(): io.zenoh.jni.bytes.ZEncoding =
-        io.zenoh.jni.bytes.zEncodingFromString(repr)
+        io.zenoh.jni.bytes.zEncodingFromString(repr, throwZError0)
 
     /**
      * Set a schema to this encoding. Zenoh does not define what a schema is and its semantics is left to the implementer.
@@ -123,10 +125,10 @@ class Encoding internal constructor(internal val repr: String) {
      */
     fun withSchema(schema: String): Encoding {
         val base = toZEncoding()
-        val withSchema = io.zenoh.jni.bytes.zEncodingWithSchema(base, schema)
+        val withSchema = io.zenoh.jni.bytes.zEncodingWithSchema(base, schema, throwZError0)
         base.close()
         try {
-            return Encoding(io.zenoh.jni.bytes.zEncodingToString(withSchema))
+            return Encoding(io.zenoh.jni.bytes.zEncodingToString(withSchema, throwZError0))
         } finally {
             withSchema.close()
         }

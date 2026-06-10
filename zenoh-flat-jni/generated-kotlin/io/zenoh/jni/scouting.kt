@@ -5,7 +5,6 @@ import io.zenoh.jni.JNINative
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.config.WhatAmI
 import io.zenoh.jni.config.ZConfig
-import io.zenoh.jni.ZException
 import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.withSortedHandleLocks
 
@@ -57,10 +56,7 @@ public class ZScout(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun zHelloWhatami(
-    h: ZHello,
-    onError: (je: String?) -> WhatAmI = { __de_je -> throw ZException(__de_je) },
-): WhatAmI {
+public fun zHelloWhatami(h: ZHello, onError: (je: String?) -> WhatAmI): WhatAmI {
     if (h.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -73,10 +69,7 @@ public fun zHelloWhatami(
     return __ret
 }
 
-public fun zHelloZid(
-    h: ZHello,
-    onError: (je: String?) -> ZZenohId = { __de_je -> throw ZException(__de_je) },
-): ZZenohId {
+public fun zHelloZid(h: ZHello, onError: (je: String?) -> ZZenohId): ZZenohId {
     if (h.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -89,10 +82,7 @@ public fun zHelloZid(
     return __ret
 }
 
-public fun zHelloLocators(
-    h: ZHello,
-    onError: (je: String?) -> List<String> = { __de_je -> throw ZException(__de_je) },
-): List<String> {
+public fun zHelloLocators(h: ZHello, onError: (je: String?) -> List<String>): List<String> {
     if (h.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -110,7 +100,7 @@ public fun zScout(
     config: ZConfig?,
     callback: (zHello: ZHello) -> Unit,
     onClose: () -> Unit,
-    onError: (je: String?, message: String) -> ZScout = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> ZScout,
 ): ZScout {
     if (config != null && config.ptr == 0L) return onError("Operation on a closed native handle.", "")
     var __cap_failed = false

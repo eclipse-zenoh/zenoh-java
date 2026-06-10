@@ -16,6 +16,7 @@ package io.zenoh
 
 import io.zenoh.config.WhatAmI
 import io.zenoh.config.ZenohId
+import io.zenoh.exceptions.throwZError0
 import io.zenoh.query.Query
 import io.zenoh.query.Reply
 import io.zenoh.sample.Sample
@@ -60,9 +61,9 @@ internal fun helloCallbackOf(f: (Hello) -> Unit): (io.zenoh.jni.scouting.ZHello)
         try {
             f(
                 Hello(
-                    WhatAmI.fromJni(io.zenoh.jni.scouting.zHelloWhatami(zh)),
-                    ZenohId(io.zenoh.jni.scouting.zHelloZid(zh)),
-                    io.zenoh.jni.scouting.zHelloLocators(zh)
+                    WhatAmI.fromJni(io.zenoh.jni.scouting.zHelloWhatami(zh, throwZError0)),
+                    ZenohId(io.zenoh.jni.scouting.zHelloZid(zh, throwZError0)),
+                    io.zenoh.jni.scouting.zHelloLocators(zh, throwZError0)
                 )
             )
         } finally {

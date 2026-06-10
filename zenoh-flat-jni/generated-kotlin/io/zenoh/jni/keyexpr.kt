@@ -3,7 +3,6 @@ package io.zenoh.jni.keyexpr
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.NativeHandle
-import io.zenoh.jni.ZException
 import io.zenoh.jni.withSortedHandleLocks
 
 /** JVM-side surface for the native Rust `SetIntersectionLevel` enum. */
@@ -43,10 +42,7 @@ public class ZKeyExpr(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun zKeyexprAsStr(
-    ke: ZKeyExpr,
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zKeyexprAsStr(ke: ZKeyExpr, onError: (je: String?) -> String): String {
     if (ke.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -59,10 +55,7 @@ public fun zKeyexprAsStr(
     return __ret
 }
 
-public fun zKeyexprTryFrom(
-    s: String,
-    onError: (je: String?, message: String) -> ZKeyExpr = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
-): ZKeyExpr {
+public fun zKeyexprTryFrom(s: String, onError: (je: String?, message: String) -> ZKeyExpr): ZKeyExpr {
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
@@ -74,7 +67,7 @@ public fun zKeyexprTryFrom(
 
 public fun zKeyexprAutocanonize(
     s: String,
-    onError: (je: String?, message: String) -> ZKeyExpr = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> ZKeyExpr,
 ): ZKeyExpr {
     var __cap_failed = false
     var __cap_je: String? = null
@@ -92,7 +85,7 @@ public fun zKeyexprIntersects(
     bSel: Int,
     b0: String?,
     b1: ZKeyExpr?,
-    onError: (je: String?) -> Boolean = { __de_je -> throw ZException(__de_je) },
+    onError: (je: String?) -> Boolean,
 ): Boolean {
     if (a1 != null && a1.ptr == 0L) return onError("Operation on a closed native handle.")
     if (b1 != null && b1.ptr == 0L) return onError("Operation on a closed native handle.")
@@ -120,7 +113,7 @@ public fun zKeyexprIncludes(
     bSel: Int,
     b0: String?,
     b1: ZKeyExpr?,
-    onError: (je: String?) -> Boolean = { __de_je -> throw ZException(__de_je) },
+    onError: (je: String?) -> Boolean,
 ): Boolean {
     if (a1 != null && a1.ptr == 0L) return onError("Operation on a closed native handle.")
     if (b1 != null && b1.ptr == 0L) return onError("Operation on a closed native handle.")
@@ -148,7 +141,7 @@ public fun zKeyexprRelationTo(
     bSel: Int,
     b0: String?,
     b1: ZKeyExpr?,
-    onError: (je: String?) -> SetIntersectionLevel = { __de_je -> throw ZException(__de_je) },
+    onError: (je: String?) -> SetIntersectionLevel,
 ): SetIntersectionLevel {
     if (a1 != null && a1.ptr == 0L) return onError("Operation on a closed native handle.")
     if (b1 != null && b1.ptr == 0L) return onError("Operation on a closed native handle.")
@@ -174,7 +167,7 @@ public fun zKeyexprJoin(
     a0: String?,
     a1: ZKeyExpr?,
     b: String,
-    onError: (je: String?, message: String) -> ZKeyExpr = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> ZKeyExpr,
 ): ZKeyExpr {
     if (a1 != null && a1.ptr == 0L) return onError("Operation on a closed native handle.", "")
     var __cap_failed = false
@@ -198,7 +191,7 @@ public fun zKeyexprConcat(
     a0: String?,
     a1: ZKeyExpr?,
     b: String,
-    onError: (je: String?, message: String) -> ZKeyExpr = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+    onError: (je: String?, message: String) -> ZKeyExpr,
 ): ZKeyExpr {
     if (a1 != null && a1.ptr == 0L) return onError("Operation on a closed native handle.", "")
     var __cap_failed = false
@@ -217,10 +210,7 @@ public fun zKeyexprConcat(
     return __ret
 }
 
-public fun zKeyexprClone(
-    ke: ZKeyExpr,
-    onError: (je: String?) -> ZKeyExpr = { __de_je -> throw ZException(__de_je) },
-): ZKeyExpr {
+public fun zKeyexprClone(ke: ZKeyExpr, onError: (je: String?) -> ZKeyExpr): ZKeyExpr {
     if (ke.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -233,10 +223,7 @@ public fun zKeyexprClone(
     return __ret
 }
 
-public fun zKeyexprToString(
-    ke: ZKeyExpr,
-    onError: (je: String?) -> String = { __de_je -> throw ZException(__de_je) },
-): String {
+public fun zKeyexprToString(ke: ZKeyExpr, onError: (je: String?) -> String): String {
     if (ke.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
