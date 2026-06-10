@@ -422,7 +422,18 @@ public fun zReplyIsOk(
 public fun <R> zReplySample(
     r: ZReply,
     onError: (je: String?) -> R? = { __de_je -> throw ZException(__de_je) },
-    build: (keyExpr: ZKeyExpr, keyExprAsStr: String, payloadToBytes: ByteArray, encodingToString: String, kind: Int, timestampNtp64: Long?, express: Boolean, priority: Int, congestionControl: Int, attachmentToBytes: ByteArray?) -> R,
+    build: (
+        keyExpr: ZKeyExpr,
+        keyExprAsStr: String,
+        payloadToBytes: ByteArray,
+        encodingToString: String,
+        kind: Int,
+        timestampNtp64: Long?,
+        express: Boolean,
+        priority: Int,
+        congestionControl: Int,
+        attachmentToBytes: ByteArray?,
+    ) -> R,
 ): R? {
     if (r.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
