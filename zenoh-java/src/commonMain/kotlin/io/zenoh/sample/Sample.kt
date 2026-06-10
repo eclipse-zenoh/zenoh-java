@@ -53,34 +53,35 @@ data class Sample(
 
     internal companion object {
         /**
-         * Decodes a native `ZSample` handle into an SDK [Sample] using the raw
-         * `z_sample_*` accessors. Owned sub-handles (keyExpr, payload, encoding,
-         * timestamp, attachment) are read and the transient ones freed; the
-         * key-expression handle is retained by the resulting [KeyExpr].
+         * Builds an SDK [Sample] from the 10 leaves of the ZSample canonical
+         * output — the lambda parameter list every decomposed sample delivery
+         * uses (the `zReplySample` builder and the subscriber/liveliness
+         * callbacks), in record order. The whole graph arrives in ONE JNI
+         * crossing; the [KeyExpr] retains the delivered handle leaf.
          */
-        fun from(zs: io.zenoh.jni.sample.ZSample): Sample {
-            // Canonical model: each `z_sample_*` accessor returns the raw owned
-            // sub-handle (key-expr / payload / encoding / timestamp / attachment);
-            // the typed wrappers read + free them (`KeyExpr(flat)` retains its
-            // handle; `fromHandle` closes after reading).
-            val keyExpr = KeyExpr(io.zenoh.jni.sample.zSampleKeyExpr(zs))
-            val payload = ZBytes.fromHandle(io.zenoh.jni.sample.zSamplePayload(zs))
-            val encoding = Encoding.fromHandle(io.zenoh.jni.sample.zSampleEncoding(zs))
-            val kind = io.zenoh.jni.sample.zSampleKind(zs).toPublic()
-            val timestamp = io.zenoh.jni.sample.zSampleTimestamp(zs)?.let { ts ->
-                try {
-                    TimeStamp(io.zenoh.jni.time.zTimestampNtp64(ts))
-                } finally {
-                    ts.close()
-                }
-            }
-            val qos = QoS(
-                CongestionControl.fromJni(io.zenoh.jni.sample.zSampleCongestionControl(zs)),
-                Priority.fromJni(io.zenoh.jni.sample.zSamplePriority(zs)),
-                io.zenoh.jni.sample.zSampleExpress(zs)
-            )
-            val attachment = io.zenoh.jni.sample.zSampleAttachment(zs)?.let { ZBytes.fromHandle(it) }
-            return Sample(keyExpr, payload, encoding, kind, timestamp, qos, attachment)
-        }
+        fun fromParts(
+            keH: io.zenoh.jni.keyexpr.ZKeyExpr,
+            keStr: String,
+            payload: ByteArray,
+            encStr: String,
+            kindInt: Int,
+            ntp64: Long?,
+            express: Boolean,
+            prioInt: Int,
+            ccInt: Int,
+            attach: ByteArray?,
+        ): Sample = Sample(
+            KeyExpr(keH, keStr),
+            ZBytes(payload),
+            Encoding(encStr),
+            io.zenoh.jni.sample.SampleKind.fromInt(kindInt).toPublic(),
+            ntp64?.let { TimeStamp(it) },
+            QoS(
+                CongestionControl.fromJni(io.zenoh.jni.qos.CongestionControl.fromInt(ccInt)),
+                Priority.fromJni(io.zenoh.jni.qos.Priority.fromInt(prioInt)),
+                express
+            ),
+            attach?.let { ZBytes(it) }
+        )
     }
 }

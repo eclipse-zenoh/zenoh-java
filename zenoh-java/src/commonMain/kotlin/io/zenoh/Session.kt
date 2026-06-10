@@ -619,7 +619,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 zSession,
                 keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(),
                 sampleCallbackOf { handler.handle(it) },
-                io.zenoh.jni.callbacks.Callback { handler.onClose() },
+                { handler.onClose() },
                 throwZError
             )
             HandlerSubscriber(keyExpr, zSubscriber, handler.receiver())
@@ -638,7 +638,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 zSession,
                 keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(),
                 sampleCallbackOf { callback.run(it) },
-                io.zenoh.jni.callbacks.Callback { },
+                { },
                 throwZError
             )
             CallbackSubscriber(keyExpr, zSubscriber)
@@ -658,7 +658,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(),
                 options.complete,
                 queryCallbackOf { handler.handle(it) },
-                io.zenoh.jni.callbacks.Callback { handler.onClose() },
+                { handler.onClose() },
                 throwZError
             )
             HandlerQueryable(keyExpr, zQueryable, handler.receiver())
@@ -678,7 +678,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(),
                 options.complete,
                 queryCallbackOf { callback.run(it) },
-                io.zenoh.jni.callbacks.Callback { },
+                { },
                 throwZError
             )
             CallbackQueryable(keyExpr, zQueryable)
@@ -746,7 +746,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 (options.encoding ?: Encoding.defaultEncoding()).repr,
                 options.attachment?.into()?.bytes,
                 replyCallbackOf { handler.handle(it) },
-                io.zenoh.jni.callbacks.Callback { handler.onClose() },
+                { handler.onClose() },
                 throwZError
             )
             handler.receiver()
@@ -779,7 +779,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 (options.encoding ?: Encoding.defaultEncoding()).repr,
                 options.attachment?.into()?.bytes,
                 replyCallbackOf { callback.run(it) },
-                io.zenoh.jni.callbacks.Callback { },
+                { },
                 throwZError
             )
         }

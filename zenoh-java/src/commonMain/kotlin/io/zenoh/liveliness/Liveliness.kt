@@ -72,7 +72,7 @@ class Liveliness internal constructor(private val session: Session) {
             keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandle,
             timeout.toMillis(),
             replyCallbackOf { handler.handle(it) },
-            io.zenoh.jni.callbacks.Callback { handler.onClose() }
+            { handler.onClose() }
         )
         return handler.receiver()
     }
@@ -95,7 +95,7 @@ class Liveliness internal constructor(private val session: Session) {
             keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandle,
             timeout.toMillis(),
             replyCallbackOf { callback.run(it) },
-            io.zenoh.jni.callbacks.Callback { }
+            { }
         )
     }
 
@@ -118,7 +118,7 @@ class Liveliness internal constructor(private val session: Session) {
             keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandle,
             timeout.toMillis(),
             replyCallbackOf { handler.handle(it) },
-            io.zenoh.jni.callbacks.Callback { handler.onClose() }
+            { handler.onClose() }
         )
         return handler.receiver()
     }
@@ -142,7 +142,7 @@ class Liveliness internal constructor(private val session: Session) {
             keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(),
             options.history,
             sampleCallbackOf { handler.handle(it) },
-            io.zenoh.jni.callbacks.Callback { handler.onClose() }
+            { handler.onClose() }
         )
         return HandlerSubscriber(keyExpr, zSubscriber, handler.receiver())
     }
@@ -167,7 +167,7 @@ class Liveliness internal constructor(private val session: Session) {
             keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(),
             options.history,
             sampleCallbackOf { callback.run(it) },
-            io.zenoh.jni.callbacks.Callback { }
+            { }
         )
         return CallbackSubscriber(keyExpr, zSubscriber)
     }
@@ -193,7 +193,7 @@ class Liveliness internal constructor(private val session: Session) {
             keyExpr.exprSel, keyExpr.exprStr, keyExpr.exprHandleOwned(),
             options.history,
             sampleCallbackOf { handler.handle(it) },
-            io.zenoh.jni.callbacks.Callback { handler.onClose() }
+            { handler.onClose() }
         )
         return HandlerSubscriber(keyExpr, zSubscriber, handler.receiver())
     }

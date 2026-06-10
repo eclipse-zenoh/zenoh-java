@@ -22,31 +22,32 @@ import io.zenoh.sample.Sample
 import io.zenoh.scouting.Hello
 
 /**
- * Adapters from the raw JNI callback fun-interfaces (each delivers a single
- * opaque native handle — `ZSample`/`ZQuery`/`ZReply`/`ZHello`) to a plain
- * `(SdkType) -> Unit`. The SDK object graph is reconstructed from the handle's
- * `z_*` accessors; the delivered handle is closed afterwards, except `ZQuery`,
- * which the resulting [Query] retains to reply through.
+ * Adapters from the generated JNI callback lambdas to a plain
+ * `(SdkType) -> Unit`. A callback argument whose type has a canonical output
+ * is decomposed natively — `ZSample` arrives as its 10 leaves in ONE JNI
+ * crossing (no transient handle, no per-field accessor calls) and the SDK
+ * object graph is built from them via [Sample.fromParts]. Plan-less argument
+ * types (`ZQuery`/`ZReply`/`ZHello`) still arrive as a whole opaque handle;
+ * native closes it after the lambda returns (a no-op when the handle was
+ * consumed — [Query]'s reply methods consume `zq`, so replying keeps working).
  */
 
-internal fun sampleCallbackOf(f: (Sample) -> Unit): io.zenoh.jni.callbacks.ZSampleCallback =
-    io.zenoh.jni.callbacks.ZSampleCallback { zs ->
-        try {
-            f(Sample.from(zs))
-        } finally {
-            zs.close()
-        }
+internal fun sampleCallbackOf(
+    f: (Sample) -> Unit
+): (io.zenoh.jni.keyexpr.ZKeyExpr, String, ByteArray, String, Int, Long?, Boolean, Int, Int, ByteArray?) -> Unit =
+    { keH, keStr, payload, encStr, kindInt, ntp64, express, prioInt, ccInt, attach ->
+        f(Sample.fromParts(keH, keStr, payload, encStr, kindInt, ntp64, express, prioInt, ccInt, attach))
     }
 
-internal fun queryCallbackOf(f: (Query) -> Unit): io.zenoh.jni.callbacks.ZQueryCallback =
-    io.zenoh.jni.callbacks.ZQueryCallback { zq ->
-        // The [Query] retains `zq` (its reply methods consume it), so it is NOT
-        // closed here.
+internal fun queryCallbackOf(f: (Query) -> Unit): (io.zenoh.jni.query.ZQuery) -> Unit =
+    { zq ->
+        // The [Query] retains `zq` (its reply methods consume it); the native
+        // post-invoke close is a no-op once a reply consumed the handle.
         f(Query.from(zq))
     }
 
-internal fun replyCallbackOf(f: (Reply) -> Unit): io.zenoh.jni.callbacks.ZReplyCallback =
-    io.zenoh.jni.callbacks.ZReplyCallback { zr ->
+internal fun replyCallbackOf(f: (Reply) -> Unit): (io.zenoh.jni.query.ZReply) -> Unit =
+    { zr ->
         try {
             f(Reply.from(zr))
         } finally {
@@ -54,8 +55,8 @@ internal fun replyCallbackOf(f: (Reply) -> Unit): io.zenoh.jni.callbacks.ZReplyC
         }
     }
 
-internal fun helloCallbackOf(f: (Hello) -> Unit): io.zenoh.jni.callbacks.ZHelloCallback =
-    io.zenoh.jni.callbacks.ZHelloCallback { zh ->
+internal fun helloCallbackOf(f: (Hello) -> Unit): (io.zenoh.jni.scouting.ZHello) -> Unit =
+    { zh ->
         try {
             f(
                 Hello(

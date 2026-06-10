@@ -152,7 +152,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
             (options.encoding ?: Encoding.defaultEncoding()).repr,
             options.attachment?.into()?.bytes,
             replyCallbackOf { callback.run(it) },
-            io.zenoh.jni.callbacks.Callback { }
+            { }
         )
     }
 
@@ -165,7 +165,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
             (options.encoding ?: Encoding.defaultEncoding()).repr,
             options.attachment?.into()?.bytes,
             replyCallbackOf { handler.handle(it) },
-            io.zenoh.jni.callbacks.Callback { handler.onClose() }
+            { handler.onClose() }
         )
         return handler.receiver()
     }

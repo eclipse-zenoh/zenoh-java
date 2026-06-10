@@ -3,8 +3,6 @@ package io.zenoh.jni.scouting
 
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.ZException
-import io.zenoh.jni.callbacks.Callback
-import io.zenoh.jni.callbacks.ZHelloCallback
 import io.zenoh.jni.config.WhatAmI
 import io.zenoh.jni.config.ZConfig
 import io.zenoh.jni.config.ZZenohId
@@ -52,7 +50,7 @@ public fun zHelloLocators(h: ZHello, onError: (String?) -> List<String> = { __de
     return __ret
 }
 
-public fun zScout(whatami: Int, config: ZConfig?, callback: ZHelloCallback, onClose: Callback, onError: (String?, String) -> ZScout = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZScout {
+public fun zScout(whatami: Int, config: ZConfig?, callback: (ZHello) -> Unit, onClose: () -> Unit, onError: (String?, String) -> ZScout = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZScout {
     if (config != null && config.ptr == 0L) return onError("Operation on a closed native handle.", "")
     var __cap_failed = false
     var __cap_je: String? = null

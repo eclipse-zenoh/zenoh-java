@@ -20,9 +20,7 @@ import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.config.EntityGlobalId
 import io.zenoh.config.ZenohId
-import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.sample.Sample
-import io.zenoh.sample.toPublic
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
@@ -53,22 +51,7 @@ sealed class Reply private constructor(val replierId: EntityGlobalId?) : ZenohTy
                 // `z_sample_*` calls, no transient ZSample handle to close. The
                 // ZSample combined accessor nests the ZKeyExpr / ZZBytes /
                 // ZEncoding / ZTimestamp accessors; enums cross as `Int`.
-                val sample = io.zenoh.jni.query.zReplySample(zr) {
-                        keH, keStr, payload, encStr, kindInt, ntp64, express, prioInt, ccInt, attach ->
-                    Sample(
-                        KeyExpr(keH, keStr),
-                        ZBytes(payload),
-                        Encoding(encStr),
-                        io.zenoh.jni.sample.SampleKind.fromInt(kindInt).toPublic(),
-                        ntp64?.let { TimeStamp(it) },
-                        QoS(
-                            CongestionControl.fromJni(io.zenoh.jni.qos.CongestionControl.fromInt(ccInt)),
-                            Priority.fromJni(io.zenoh.jni.qos.Priority.fromInt(prioInt)),
-                            express
-                        ),
-                        attach?.let { ZBytes(it) }
-                    )
-                }!!
+                val sample = io.zenoh.jni.query.zReplySample(zr, build = Sample.Companion::fromParts)!!
                 Success(replierId, sample)
             } else {
                 val payload = ZBytes.fromHandle(io.zenoh.jni.query.zReplyErrorPayload(zr)!!)

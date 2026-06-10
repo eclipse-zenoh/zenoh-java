@@ -3,10 +3,6 @@ package io.zenoh.jni.session
 
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.ZException
-import io.zenoh.jni.callbacks.Callback
-import io.zenoh.jni.callbacks.ZQueryCallback
-import io.zenoh.jni.callbacks.ZReplyCallback
-import io.zenoh.jni.callbacks.ZSampleCallback
 import io.zenoh.jni.config.ZConfig
 import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.keyexpr.ZKeyExpr
@@ -20,7 +16,9 @@ import io.zenoh.jni.query.ConsolidationMode
 import io.zenoh.jni.query.QueryTarget
 import io.zenoh.jni.query.ReplyKeyExpr
 import io.zenoh.jni.query.ZQuerier
+import io.zenoh.jni.query.ZQuery
 import io.zenoh.jni.query.ZQueryable
+import io.zenoh.jni.query.ZReply
 import io.zenoh.jni.session.ZSession
 import io.zenoh.jni.withSortedHandleLocks
 import io.zenoh.jni.JNINative
@@ -108,7 +106,7 @@ public fun zSessionDelete(session: ZSession, keyExprSel: Int, keyExpr0: String?,
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }
 
-public fun zSessionDeclareSubscriber(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, callback: ZSampleCallback, onClose: Callback, onError: (String?, String) -> ZSubscriber = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZSubscriber {
+public fun zSessionDeclareSubscriber(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, callback: (ZKeyExpr, String, ByteArray, String, Int, Long?, Boolean, Int, Int, ByteArray?) -> Unit, onClose: () -> Unit, onError: (String?, String) -> ZSubscriber = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZSubscriber {
     if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
     if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError("Operation on a closed native handle.", "")
     var __cap_failed = false
@@ -158,7 +156,7 @@ public fun zSessionDeclareQuerier(session: ZSession, keyExprSel: Int, keyExpr0: 
     return __ret
 }
 
-public fun zSessionDeclareQueryable(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, complete: Boolean?, callback: ZQueryCallback, onClose: Callback, onError: (String?, String) -> ZQueryable = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZQueryable {
+public fun zSessionDeclareQueryable(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, complete: Boolean?, callback: (ZQuery) -> Unit, onClose: () -> Unit, onError: (String?, String) -> ZQueryable = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZQueryable {
     if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
     if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError("Operation on a closed native handle.", "")
     var __cap_failed = false
@@ -216,7 +214,7 @@ public fun zSessionUndeclareKeyexpr(session: ZSession, keyExpr: ZKeyExpr, onErro
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }
 
-public fun zSessionGet(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, parameters: String?, timeoutMs: Long?, target: QueryTarget?, consolidation: ConsolidationMode?, acceptReplies: ReplyKeyExpr?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, payload: ByteArray?, encoding: String?, attachment: ByteArray?, callback: ZReplyCallback, onClose: Callback, onError: (String?, String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }) {
+public fun zSessionGet(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, parameters: String?, timeoutMs: Long?, target: QueryTarget?, consolidation: ConsolidationMode?, acceptReplies: ReplyKeyExpr?, congestionControl: CongestionControl?, priority: Priority?, express: Boolean?, payload: ByteArray?, encoding: String?, attachment: ByteArray?, callback: (ZReply) -> Unit, onClose: () -> Unit, onError: (String?, String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }) {
     if (session.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     if (keyExpr1 != null && keyExpr1.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     var __cap_failed = false
@@ -300,7 +298,7 @@ public fun zLivelinessDeclareToken(session: ZSession, keyExprSel: Int, keyExpr0:
     return __ret
 }
 
-public fun zLivelinessGet(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, timeoutMs: Long, callback: ZReplyCallback, onClose: Callback, onError: (String?, String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }) {
+public fun zLivelinessGet(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, timeoutMs: Long, callback: (ZReply) -> Unit, onClose: () -> Unit, onError: (String?, String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }) {
     if (session.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     if (keyExpr1 != null && keyExpr1.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     var __cap_failed = false
@@ -320,7 +318,7 @@ public fun zLivelinessGet(session: ZSession, keyExprSel: Int, keyExpr0: String?,
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }
 
-public fun zLivelinessDeclareSubscriber(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, history: Boolean, callback: ZSampleCallback, onClose: Callback, onError: (String?, String) -> ZSubscriber = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZSubscriber {
+public fun zLivelinessDeclareSubscriber(session: ZSession, keyExprSel: Int, keyExpr0: String?, keyExpr1: ZKeyExpr?, history: Boolean, callback: (ZKeyExpr, String, ByteArray, String, Int, Long?, Boolean, Int, Int, ByteArray?) -> Unit, onClose: () -> Unit, onError: (String?, String) -> ZSubscriber = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZSubscriber {
     if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
     if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError("Operation on a closed native handle.", "")
     var __cap_failed = false

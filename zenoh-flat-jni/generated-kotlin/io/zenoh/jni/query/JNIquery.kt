@@ -5,8 +5,6 @@ import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.ZException
 import io.zenoh.jni.bytes.ZEncoding
 import io.zenoh.jni.bytes.ZZBytes
-import io.zenoh.jni.callbacks.Callback
-import io.zenoh.jni.callbacks.ZReplyCallback
 import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.query.ReplyKeyExpr
@@ -16,7 +14,7 @@ import io.zenoh.jni.query.ZReply
 import io.zenoh.jni.withSortedHandleLocks
 import io.zenoh.jni.JNINative
 
-public fun zQuerierGet(querier: ZQuerier, parameters: String?, payload: ByteArray?, encoding: String?, attachment: ByteArray?, callback: ZReplyCallback, onClose: Callback, onError: (String?, String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }) {
+public fun zQuerierGet(querier: ZQuerier, parameters: String?, payload: ByteArray?, encoding: String?, attachment: ByteArray?, callback: (ZReply) -> Unit, onClose: () -> Unit, onError: (String?, String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }) {
     if (querier.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     var __cap_failed = false
     var __cap_je: String? = null
