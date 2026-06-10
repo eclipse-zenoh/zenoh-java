@@ -54,7 +54,13 @@ public class ZSubscriber(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun zPublisherPut(publisher: ZPublisher, payload: ByteArray, encoding: String?, attachment: ByteArray?, onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }) {
+public fun zPublisherPut(
+    publisher: ZPublisher,
+    payload: ByteArray,
+    encoding: String?,
+    attachment: ByteArray?,
+    onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+) {
     if (publisher.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     var __cap_failed = false
     var __cap_je: String? = null
@@ -67,7 +73,11 @@ public fun zPublisherPut(publisher: ZPublisher, payload: ByteArray, encoding: St
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }
 
-public fun zPublisherDelete(publisher: ZPublisher, attachment: ByteArray?, onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }) {
+public fun zPublisherDelete(
+    publisher: ZPublisher,
+    attachment: ByteArray?,
+    onError: (je: String?, message: String) -> Unit = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+) {
     if (publisher.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
     var __cap_failed = false
     var __cap_je: String? = null

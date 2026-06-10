@@ -57,7 +57,10 @@ public class ZScout(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun zHelloWhatami(h: ZHello, onError: (je: String?) -> WhatAmI = { __de_je -> throw ZException(__de_je) }): WhatAmI {
+public fun zHelloWhatami(
+    h: ZHello,
+    onError: (je: String?) -> WhatAmI = { __de_je -> throw ZException(__de_je) },
+): WhatAmI {
     if (h.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -70,7 +73,10 @@ public fun zHelloWhatami(h: ZHello, onError: (je: String?) -> WhatAmI = { __de_j
     return __ret
 }
 
-public fun zHelloZid(h: ZHello, onError: (je: String?) -> ZZenohId = { __de_je -> throw ZException(__de_je) }): ZZenohId {
+public fun zHelloZid(
+    h: ZHello,
+    onError: (je: String?) -> ZZenohId = { __de_je -> throw ZException(__de_je) },
+): ZZenohId {
     if (h.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -83,7 +89,10 @@ public fun zHelloZid(h: ZHello, onError: (je: String?) -> ZZenohId = { __de_je -
     return __ret
 }
 
-public fun zHelloLocators(h: ZHello, onError: (je: String?) -> List<String> = { __de_je -> throw ZException(__de_je) }): List<String> {
+public fun zHelloLocators(
+    h: ZHello,
+    onError: (je: String?) -> List<String> = { __de_je -> throw ZException(__de_je) },
+): List<String> {
     if (h.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -96,7 +105,13 @@ public fun zHelloLocators(h: ZHello, onError: (je: String?) -> List<String> = { 
     return __ret
 }
 
-public fun zScout(whatami: Int, config: ZConfig?, callback: (zHello: ZHello) -> Unit, onClose: () -> Unit, onError: (je: String?, message: String) -> ZScout = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) }): ZScout {
+public fun zScout(
+    whatami: Int,
+    config: ZConfig?,
+    callback: (zHello: ZHello) -> Unit,
+    onClose: () -> Unit,
+    onError: (je: String?, message: String) -> ZScout = { __de_je, __de_z0 -> throw ZException(__de_je ?: __de_z0) },
+): ZScout {
     if (config != null && config.ptr == 0L) return onError("Operation on a closed native handle.", "")
     var __cap_failed = false
     var __cap_je: String? = null

@@ -30,7 +30,10 @@ public class ZTimestamp(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun zTimestampNtp64(t: ZTimestamp, onError: (je: String?) -> Long = { __de_je -> throw ZException(__de_je) }): Long {
+public fun zTimestampNtp64(
+    t: ZTimestamp,
+    onError: (je: String?) -> Long = { __de_je -> throw ZException(__de_je) },
+): Long {
     if (t.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
@@ -43,7 +46,10 @@ public fun zTimestampNtp64(t: ZTimestamp, onError: (je: String?) -> Long = { __d
     return __ret
 }
 
-public fun zTimestampId(t: ZTimestamp, onError: (je: String?) -> ByteArray = { __de_je -> throw ZException(__de_je) }): ByteArray {
+public fun zTimestampId(
+    t: ZTimestamp,
+    onError: (je: String?) -> ByteArray = { __de_je -> throw ZException(__de_je) },
+): ByteArray {
     if (t.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
