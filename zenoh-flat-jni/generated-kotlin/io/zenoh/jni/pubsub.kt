@@ -64,7 +64,12 @@ public fun zPublisherPut(
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
+    val __cap = {
+        __je: String?,
+        __ze0: String?,
+        ->
+        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
+    }
     withSortedHandleLocks(publisher) {
         val publisher_ptr = publisher.ptr
         JNINative.zPublisherPut(publisher_ptr, payload, encoding, attachment, __cap)
@@ -81,7 +86,12 @@ public fun zPublisherDelete(
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
+    val __cap = {
+        __je: String?,
+        __ze0: String?,
+        ->
+        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
+    }
     withSortedHandleLocks(publisher) {
         val publisher_ptr = publisher.ptr
         JNINative.zPublisherDelete(publisher_ptr, attachment, __cap)

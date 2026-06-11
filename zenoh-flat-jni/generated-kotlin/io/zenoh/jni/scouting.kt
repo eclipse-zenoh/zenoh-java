@@ -106,13 +106,32 @@ public fun zScout(
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
+    val __cap = {
+        __je: String?,
+        __ze0: String?,
+        ->
+        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
+    }
     val __ret = run {
         val __locks = ArrayList<NativeHandle>()
         config?.let { __locks.add(it) }
         withSortedHandleLocks(__locks) {
             val config_ptr = config?.ptr ?: 0L
-            ZScout(JNINative.zScout(whatami, config_ptr, { whatami: Int, zid: ByteArray, locators: List<String> -> callback(whatami, ZZenohId(zid), locators) }, onClose, __cap))
+            ZScout(
+                JNINative.zScout(
+                    whatami,
+                    config_ptr,
+                    {
+                        whatami: Int,
+                        zid: ByteArray,
+                        locators: List<String>,
+                        ->
+                        callback(whatami, ZZenohId(zid), locators)
+                    },
+                    onClose,
+                    __cap,
+                ),
+            )
         }
     }
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))

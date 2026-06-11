@@ -59,7 +59,12 @@ public fun zKeyexprTryFrom(s: String, onError: (je: String?, message: String) ->
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
+    val __cap = {
+        __je: String?,
+        __ze0: String?,
+        ->
+        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
+    }
     val __ret = ZKeyExpr(JNINative.zKeyexprTryFrom(s, __cap))
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
     return __ret
@@ -72,7 +77,12 @@ public fun zKeyexprAutocanonize(
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
+    val __cap = {
+        __je: String?,
+        __ze0: String?,
+        ->
+        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
+    }
     val __ret = ZKeyExpr(JNINative.zKeyexprAutocanonize(s, __cap))
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
     return __ret
@@ -155,7 +165,9 @@ public fun zKeyexprRelationTo(
         withSortedHandleLocks(__locks) {
             val a1_ptr = a1?.ptr ?: 0L
             val b1_ptr = b1?.ptr ?: 0L
-            SetIntersectionLevel.fromInt(JNINative.zKeyexprRelationTo(aSel, a0, a1_ptr, bSel, b0, b1_ptr, __cap))
+            SetIntersectionLevel.fromInt(
+                JNINative.zKeyexprRelationTo(aSel, a0, a1_ptr, bSel, b0, b1_ptr, __cap),
+            )
         }
     }
     if (__cap_failed) return onError(__cap_je)
@@ -173,7 +185,12 @@ public fun zKeyexprJoin(
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
+    val __cap = {
+        __je: String?,
+        __ze0: String?,
+        ->
+        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
+    }
     val __ret = run {
         val __locks = ArrayList<NativeHandle>()
         a1?.let { __locks.add(it) }
@@ -197,7 +214,12 @@ public fun zKeyexprConcat(
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
+    val __cap = {
+        __je: String?,
+        __ze0: String?,
+        ->
+        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
+    }
     val __ret = run {
         val __locks = ArrayList<NativeHandle>()
         a1?.let { __locks.add(it) }
