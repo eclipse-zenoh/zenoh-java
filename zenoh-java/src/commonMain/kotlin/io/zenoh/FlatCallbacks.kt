@@ -14,6 +14,9 @@
 
 package io.zenoh
 
+import io.zenoh.bytes.Encoding
+import io.zenoh.bytes.ZBytes
+import io.zenoh.config.EntityGlobalId
 import io.zenoh.config.WhatAmI
 import io.zenoh.config.ZenohId
 import io.zenoh.query.Query
@@ -24,13 +27,13 @@ import io.zenoh.scouting.Hello
 /**
  * Adapters from the generated JNI callback lambdas to a plain
  * `(SdkType) -> Unit`. A callback argument whose type has a canonical output
- * is decomposed natively — `ZSample`, `ZQuery` and `ZHello` arrive as their
- * leaves in ONE JNI crossing (no per-field accessor calls) and the SDK object
- * graph is built from them via [Sample.fromParts] / [Query.fromParts] / the
- * [Hello] constructor. `ZQuery` additionally delivers its owned handle as the
- * final leaf so the [Query] can reply. `ZReply` has no canonical output yet, so
- * it still arrives as a whole opaque handle that native closes after the lambda
- * returns.
+ * is decomposed natively — `ZSample`, `ZQuery`, `ZHello` and `ZReply` arrive
+ * as their leaves in ONE JNI crossing (no per-field accessor calls) and the
+ * SDK object graph is built from them via [Sample.fromParts] /
+ * [Query.fromParts] / the [Hello] constructor. `ZQuery` additionally delivers
+ * its owned handle as the final leaf so the [Query] can reply. `ZReply` is a
+ * sum type decomposed as a product: both arms' leaves are always in the
+ * signature and the not-taken arm's are null — `isOk` discriminates.
  */
 
 internal fun sampleCallbackOf(
@@ -54,13 +57,25 @@ internal fun queryCallbackOf(
         f(Query.fromParts(keH, keStr, parameters, payload, encStr, attach, acceptsReplies, zq))
     }
 
-internal fun replyCallbackOf(f: (Reply) -> Unit): (io.zenoh.jni.query.ZReply) -> Unit =
-    { zr ->
-        try {
-            f(Reply.from(zr))
-        } finally {
-            zr.close()
-        }
+internal fun replyCallbackOf(
+    f: (Reply) -> Unit
+): (io.zenoh.jni.config.ZZenohId?, Int, Boolean, io.zenoh.jni.keyexpr.ZKeyExpr?, String?, ByteArray?, String?, Int?, Long?, Boolean?, Int?, Int?, ByteArray?, ByteArray?, String?) -> Unit =
+    { zid, eid, isOk, keH, keStr, payload, encStr, kindInt, ntp64, express, prioInt, ccInt, attach, errPayload, errEncStr ->
+        val replierId = zid?.let { EntityGlobalId(ZenohId(it), eid.toUInt()) }
+        f(
+            if (isOk) {
+                Reply.Success(
+                    replierId,
+                    Sample.fromParts(keH!!, keStr!!, payload!!, encStr!!, kindInt!!, ntp64, express!!, prioInt!!, ccInt!!, attach)
+                )
+            } else {
+                Reply.Error(
+                    replierId,
+                    ZBytes(errPayload!!),
+                    errEncStr?.let { Encoding(it) } ?: Encoding.defaultEncoding()
+                )
+            }
+        )
     }
 
 internal fun helloCallbackOf(

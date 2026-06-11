@@ -292,15 +292,36 @@ fn main() {
         .fun_accessor(pq!(z_query_encoding))
         .fun_accessor(pq!(z_query_attachment))
         .fun_accessor(pq!(z_query_accepts_replies))
+        .ptr_class(pq!(ZReplyError))
+        // Canonical output: a failed reply's error decomposed in one crossing —
+        // payload → ByteArray (ZZBytes), encoding → String (ZEncoding).
+        .ptr_class_output(pq!(z_reply_error_payload))
+        .ptr_class_output(pq!(z_reply_error_encoding))
+        .fun_accessor(pq!(z_reply_error_payload))
+        .fun_accessor(pq!(z_reply_error_encoding))
         .ptr_class(pq!(ZReply))
+        // Canonical output: the whole reply decomposed in ONE crossing, in the
+        // current PRODUCT model — both arms' leaves are always in the
+        // signature, the not-taken arm's are null. replier zid/eid + the
+        // is_ok discriminator, then the `Option<&ZSample>` ok arm splices the
+        // full sample (10 nullable leaves) and the `Option<&ZReplyError>` err
+        // arm splices payload/encoding (2 nullable leaves) — 15 leaves total.
+        // Auto-applies to the `Fn(ZReply)` reply callbacks of z_session_get /
+        // z_querier_get / liveliness get; no identity record, so no ZReply
+        // handle crosses (nothing for the consumer to close).
+        .ptr_class_output(pq!(z_reply_replier_zid))
+        .ptr_class_output(pq!(z_reply_replier_eid))
+        .ptr_class_output(pq!(z_reply_is_ok))
+        .ptr_class_output(pq!(z_reply_sample))
+        .ptr_class_output(pq!(z_reply_err))
         .fun_accessor(pq!(z_reply_replier_zid))
         .fun_accessor(pq!(z_reply_replier_eid))
         .fun_accessor(pq!(z_reply_is_ok))
-        // z_reply_sample is a plain `.fun`: its `Option<&ZSample>` return is
-        // auto-decomposed by ZSample's canonical output (the full Sample builder).
-        .fun(pq!(z_reply_sample))
-        .fun_accessor(pq!(z_reply_error_payload))
-        .fun_accessor(pq!(z_reply_error_encoding))
+        // Record sources must be fun_accessor — z_reply_sample's standalone
+        // export is therefore the cloned-handle form (no longer the
+        // Sample-builder form; the decomposition above replaces it).
+        .fun_accessor(pq!(z_reply_sample))
+        .fun_accessor(pq!(z_reply_err))
         .package("liveliness")
         .ptr_class(pq!(ZLivelinessToken))
         .package("session")

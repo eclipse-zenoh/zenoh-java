@@ -16,7 +16,6 @@ import io.zenoh.jni.pubsub.ZPublisher
 import io.zenoh.jni.query.ZQuerier
 import io.zenoh.jni.query.ZQuery
 import io.zenoh.jni.query.ZQueryable
-import io.zenoh.jni.query.ZReply
 import io.zenoh.jni.pubsub.ZSubscriber
 import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.withSortedHandleLocks
@@ -344,7 +343,23 @@ public fun zSessionGet(
     payload: ByteArray?,
     encoding: String?,
     attachment: ByteArray?,
-    callback: (zReply: ZReply) -> Unit,
+    callback: (
+        replierZid: ZZenohId?,
+        replierEid: Int,
+        isOk: Boolean,
+        sampleKeyExpr: ZKeyExpr?,
+        sampleKeyExprAsStr: String?,
+        samplePayloadToBytes: ByteArray?,
+        sampleEncodingToString: String?,
+        sampleKind: Int?,
+        sampleTimestampNtp64: Long?,
+        sampleExpress: Boolean?,
+        samplePriority: Int?,
+        sampleCongestionControl: Int?,
+        sampleAttachmentToBytes: ByteArray?,
+        errPayloadToBytes: ByteArray?,
+        errEncodingToString: String?,
+    ) -> Unit,
     onClose: () -> Unit,
     onError: (je: String?, message: String) -> Unit,
 ) {
@@ -361,7 +376,7 @@ public fun zSessionGet(
         withSortedHandleLocks(__locks) {
             val session_ptr = session.ptr
             val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
-            JNINative.zSessionGet(session_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, parameters, timeoutMs, target?.value, consolidation?.value, acceptReplies?.value, congestionControl?.value, priority?.value, express, payload, encoding, attachment, callback, onClose, __cap)
+            JNINative.zSessionGet(session_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, parameters, timeoutMs, target?.value, consolidation?.value, acceptReplies?.value, congestionControl?.value, priority?.value, express, payload, encoding, attachment, { replierZid: ByteArray?, replierEid: Int, isOk: Boolean, sampleKeyExpr: ZKeyExpr?, sampleKeyExprAsStr: String?, samplePayloadToBytes: ByteArray?, sampleEncodingToString: String?, sampleKind: Int?, sampleTimestampNtp64: Long?, sampleExpress: Boolean?, samplePriority: Int?, sampleCongestionControl: Int?, sampleAttachmentToBytes: ByteArray?, errPayloadToBytes: ByteArray?, errEncodingToString: String? -> callback(replierZid?.let { ZZenohId(it) }, replierEid, isOk, sampleKeyExpr, sampleKeyExprAsStr, samplePayloadToBytes, sampleEncodingToString, sampleKind, sampleTimestampNtp64, sampleExpress, samplePriority, sampleCongestionControl, sampleAttachmentToBytes, errPayloadToBytes, errEncodingToString) }, onClose, __cap)
         }
     }
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
@@ -449,7 +464,23 @@ public fun zLivelinessGet(
     keyExpr0: String?,
     keyExpr1: ZKeyExpr?,
     timeoutMs: Long,
-    callback: (zReply: ZReply) -> Unit,
+    callback: (
+        replierZid: ZZenohId?,
+        replierEid: Int,
+        isOk: Boolean,
+        sampleKeyExpr: ZKeyExpr?,
+        sampleKeyExprAsStr: String?,
+        samplePayloadToBytes: ByteArray?,
+        sampleEncodingToString: String?,
+        sampleKind: Int?,
+        sampleTimestampNtp64: Long?,
+        sampleExpress: Boolean?,
+        samplePriority: Int?,
+        sampleCongestionControl: Int?,
+        sampleAttachmentToBytes: ByteArray?,
+        errPayloadToBytes: ByteArray?,
+        errEncodingToString: String?,
+    ) -> Unit,
     onClose: () -> Unit,
     onError: (je: String?, message: String) -> Unit,
 ) {
@@ -466,7 +497,7 @@ public fun zLivelinessGet(
         withSortedHandleLocks(__locks) {
             val session_ptr = session.ptr
             val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
-            JNINative.zLivelinessGet(session_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, timeoutMs, callback, onClose, __cap)
+            JNINative.zLivelinessGet(session_ptr, keyExprSel, keyExpr0, keyExpr1_ptr, timeoutMs, { replierZid: ByteArray?, replierEid: Int, isOk: Boolean, sampleKeyExpr: ZKeyExpr?, sampleKeyExprAsStr: String?, samplePayloadToBytes: ByteArray?, sampleEncodingToString: String?, sampleKind: Int?, sampleTimestampNtp64: Long?, sampleExpress: Boolean?, samplePriority: Int?, sampleCongestionControl: Int?, sampleAttachmentToBytes: ByteArray?, errPayloadToBytes: ByteArray?, errEncodingToString: String? -> callback(replierZid?.let { ZZenohId(it) }, replierEid, isOk, sampleKeyExpr, sampleKeyExprAsStr, samplePayloadToBytes, sampleEncodingToString, sampleKind, sampleTimestampNtp64, sampleExpress, samplePriority, sampleCongestionControl, sampleAttachmentToBytes, errPayloadToBytes, errEncodingToString) }, onClose, __cap)
         }
     }
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))

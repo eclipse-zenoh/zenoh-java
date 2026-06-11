@@ -14,6 +14,8 @@ import io.zenoh.jni.liveliness.ZLivelinessToken
 import io.zenoh.jni.pubsub.ZPublisher
 import io.zenoh.jni.query.ZQuerier
 import io.zenoh.jni.query.ZQueryable
+import io.zenoh.jni.query.ZReplyError
+import io.zenoh.jni.sample.ZSample
 import io.zenoh.jni.scouting.ZScout
 import io.zenoh.jni.session.ZSession
 import io.zenoh.jni.pubsub.ZSubscriber
@@ -271,12 +273,13 @@ internal object JNINative {
         express: Boolean?,
         errorSink: Any,
     )
-    external fun zReplyErrorEncoding(r: Long, errorSink: Any): Long
-    external fun zReplyErrorPayload(r: Long, errorSink: Any): Long
+    external fun zReplyErr(r: Long, errorSink: Any): Long
+    external fun zReplyErrorEncoding(e: Long, errorSink: Any): Long
+    external fun zReplyErrorPayload(e: Long, errorSink: Any): Long
     external fun zReplyIsOk(r: Long, errorSink: Any): Boolean
     external fun zReplyReplierEid(r: Long, errorSink: Any): Int
     external fun zReplyReplierZid(r: Long, errorSink: Any): ByteArray?
-    external fun zReplySample(r: Long, build: Any, errorSink: Any): Any?
+    external fun zReplySample(r: Long, errorSink: Any): Long
     external fun zSampleAttachment(s: Long, errorSink: Any): Long
     external fun zSampleCongestionControl(s: Long, errorSink: Any): Int
     external fun zSampleEncoding(s: Long, errorSink: Any): Long

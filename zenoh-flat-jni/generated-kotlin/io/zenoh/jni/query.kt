@@ -5,6 +5,7 @@ import io.zenoh.jni.JNINative
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.bytes.ZEncoding
 import io.zenoh.jni.keyexpr.ZKeyExpr
+import io.zenoh.jni.sample.ZSample
 import io.zenoh.jni.bytes.ZZBytes
 import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.withSortedHandleLocks
@@ -141,13 +142,53 @@ public class ZReply(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
+/** Typed handle for a native Zenoh `ZReplyError`. */
+public class ZReplyError(initialPtr: Long) : NativeHandle(initialPtr) {
+    @Synchronized
+    override fun close() {
+        val p = ptr
+        if (p != 0L) {
+            ptr = 0L
+            freePtr(p)
+        }
+    }
+
+    @Synchronized
+    public fun take(): ZReplyError {
+        val p = ptr
+        ptr = 0L
+        return ZReplyError(p)
+    }
+
+    public companion object {
+        @JvmStatic
+        external fun freePtr(ptr: Long)
+    }
+}
+
 public fun zQuerierGet(
     querier: ZQuerier,
     parameters: String?,
     payload: ByteArray?,
     encoding: String?,
     attachment: ByteArray?,
-    callback: (zReply: ZReply) -> Unit,
+    callback: (
+        replierZid: ZZenohId?,
+        replierEid: Int,
+        isOk: Boolean,
+        sampleKeyExpr: ZKeyExpr?,
+        sampleKeyExprAsStr: String?,
+        samplePayloadToBytes: ByteArray?,
+        sampleEncodingToString: String?,
+        sampleKind: Int?,
+        sampleTimestampNtp64: Long?,
+        sampleExpress: Boolean?,
+        samplePriority: Int?,
+        sampleCongestionControl: Int?,
+        sampleAttachmentToBytes: ByteArray?,
+        errPayloadToBytes: ByteArray?,
+        errEncodingToString: String?,
+    ) -> Unit,
     onClose: () -> Unit,
     onError: (je: String?, message: String) -> Unit,
 ) {
@@ -158,7 +199,7 @@ public fun zQuerierGet(
     val __cap = { __je: String?, __ze0: String? -> __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0 }
     withSortedHandleLocks(querier) {
         val querier_ptr = querier.ptr
-        JNINative.zQuerierGet(querier_ptr, parameters, payload, encoding, attachment, callback, onClose, __cap)
+        JNINative.zQuerierGet(querier_ptr, parameters, payload, encoding, attachment, { replierZid: ByteArray?, replierEid: Int, isOk: Boolean, sampleKeyExpr: ZKeyExpr?, sampleKeyExprAsStr: String?, samplePayloadToBytes: ByteArray?, sampleEncodingToString: String?, sampleKind: Int?, sampleTimestampNtp64: Long?, sampleExpress: Boolean?, samplePriority: Int?, sampleCongestionControl: Int?, sampleAttachmentToBytes: ByteArray?, errPayloadToBytes: ByteArray?, errEncodingToString: String? -> callback(replierZid?.let { ZZenohId(it) }, replierEid, isOk, sampleKeyExpr, sampleKeyExprAsStr, samplePayloadToBytes, sampleEncodingToString, sampleKind, sampleTimestampNtp64, sampleExpress, samplePriority, sampleCongestionControl, sampleAttachmentToBytes, errPayloadToBytes, errEncodingToString) }, onClose, __cap)
     }
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
 }
@@ -351,6 +392,32 @@ public fun zQueryAcceptsReplies(q: ZQuery, onError: (je: String?) -> ReplyKeyExp
     return __ret
 }
 
+public fun zReplyErrorPayload(e: ZReplyError, onError: (je: String?) -> ZZBytes): ZZBytes {
+    if (e.ptr == 0L) return onError("Operation on a closed native handle.")
+    var __cap_failed = false
+    var __cap_je: String? = null
+    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __ret = withSortedHandleLocks(e) {
+        val e_ptr = e.ptr
+        ZZBytes(JNINative.zReplyErrorPayload(e_ptr, __cap))
+    }
+    if (__cap_failed) return onError(__cap_je)
+    return __ret
+}
+
+public fun zReplyErrorEncoding(e: ZReplyError, onError: (je: String?) -> ZEncoding): ZEncoding {
+    if (e.ptr == 0L) return onError("Operation on a closed native handle.")
+    var __cap_failed = false
+    var __cap_je: String? = null
+    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __ret = withSortedHandleLocks(e) {
+        val e_ptr = e.ptr
+        ZEncoding(JNINative.zReplyErrorEncoding(e_ptr, __cap))
+    }
+    if (__cap_failed) return onError(__cap_je)
+    return __ret
+}
+
 public fun zReplyReplierZid(r: ZReply, onError: (je: String?) -> ZZenohId?): ZZenohId? {
     if (r.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
@@ -390,56 +457,27 @@ public fun zReplyIsOk(r: ZReply, onError: (je: String?) -> Boolean): Boolean {
     return __ret
 }
 
-@Suppress("UNCHECKED_CAST")
-public fun <R> zReplySample(
-    r: ZReply,
-    onError: (je: String?) -> R?,
-    build: (
-        keyExpr: ZKeyExpr,
-        keyExprAsStr: String,
-        payloadToBytes: ByteArray,
-        encodingToString: String,
-        kind: Int,
-        timestampNtp64: Long?,
-        express: Boolean,
-        priority: Int,
-        congestionControl: Int,
-        attachmentToBytes: ByteArray?,
-    ) -> R,
-): R? {
+public fun zReplySample(r: ZReply, onError: (je: String?) -> ZSample?): ZSample? {
     if (r.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(r) {
         val r_ptr = r.ptr
-        (JNINative.zReplySample(r_ptr, build, __cap) as R?)
+        JNINative.zReplySample(r_ptr, __cap).let { if (it == 0L) null else ZSample(it) }
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
 }
 
-public fun zReplyErrorPayload(r: ZReply, onError: (je: String?) -> ZZBytes?): ZZBytes? {
+public fun zReplyErr(r: ZReply, onError: (je: String?) -> ZReplyError?): ZReplyError? {
     if (r.ptr == 0L) return onError("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
     val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(r) {
         val r_ptr = r.ptr
-        JNINative.zReplyErrorPayload(r_ptr, __cap).let { if (it == 0L) null else ZZBytes(it) }
-    }
-    if (__cap_failed) return onError(__cap_je)
-    return __ret
-}
-
-public fun zReplyErrorEncoding(r: ZReply, onError: (je: String?) -> ZEncoding?): ZEncoding? {
-    if (r.ptr == 0L) return onError("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
-    val __ret = withSortedHandleLocks(r) {
-        val r_ptr = r.ptr
-        JNINative.zReplyErrorEncoding(r_ptr, __cap).let { if (it == 0L) null else ZEncoding(it) }
+        JNINative.zReplyErr(r_ptr, __cap).let { if (it == 0L) null else ZReplyError(it) }
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret
