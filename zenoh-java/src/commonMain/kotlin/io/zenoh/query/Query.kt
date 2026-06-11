@@ -20,7 +20,6 @@ import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError
-import io.zenoh.exceptions.throwZError0
 import io.zenoh.jni.query.ZQuery
 import io.zenoh.keyexpr.KeyExpr
 
@@ -51,25 +50,33 @@ class Query internal constructor(
 
     internal companion object {
         /**
-         * Decodes a queryable-callback `ZQuery` handle into an SDK [Query] via
-         * the raw `z_query_*` accessors. The `ZQuery` handle is **retained** (the
-         * reply methods consume it); transient field handles are read and freed.
+         * Builds an SDK [Query] from a queryable callback's natively-decomposed
+         * leaves (delivered in ONE JNI crossing — no per-field `z_query_*`
+         * accessor calls). `keH`/`keStr` are the key expression's cloned handle
+         * and string; `zq` is the owned query handle, **retained** because the
+         * reply methods consume it (replying keeps working after the callback
+         * returns).
          */
-        fun from(zq: ZQuery): Query {
-            val ke = KeyExpr(io.zenoh.jni.query.zQueryKeyexpr(zq, throwZError0))
-            val parameters = io.zenoh.jni.query.zQueryParameters(zq, throwZError0)
+        fun fromParts(
+            keH: io.zenoh.jni.keyexpr.ZKeyExpr,
+            keStr: String,
+            parameters: String,
+            payload: ByteArray?,
+            encStr: String?,
+            attach: ByteArray?,
+            acceptsRepliesInt: Int,
+            zq: ZQuery,
+        ): Query {
+            val ke = KeyExpr(keH, keStr)
             val selector = if (parameters.isEmpty()) Selector(ke)
                            else Selector(ke, Parameters.from(parameters))
-            val payload = io.zenoh.jni.query.zQueryPayload(zq, throwZError0)?.let { ZBytes.fromHandle(it) }
-            val encoding = io.zenoh.jni.query.zQueryEncoding(zq, throwZError0)?.let { Encoding.fromHandle(it) }
-            val attachment = io.zenoh.jni.query.zQueryAttachment(zq, throwZError0)?.let { ZBytes.fromHandle(it) }
             return Query(
                 ke,
                 selector,
-                payload,
-                encoding,
-                attachment,
-                io.zenoh.jni.query.zQueryAcceptsReplies(zq, throwZError0).toPublic(),
+                payload?.let { ZBytes(it) },
+                encStr?.let { Encoding(it) },
+                attach?.let { ZBytes(it) },
+                io.zenoh.jni.query.ReplyKeyExpr.fromInt(acceptsRepliesInt).toPublic(),
                 zq
             )
         }
