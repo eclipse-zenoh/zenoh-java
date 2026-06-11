@@ -3,6 +3,7 @@ package io.zenoh.jni
 
 import io.zenoh.jni.qos.CongestionControl
 import io.zenoh.jni.qos.Priority
+import io.zenoh.jni.qos.Reliability
 import io.zenoh.jni.query.ReplyKeyExpr
 import io.zenoh.jni.sample.SampleKind
 import io.zenoh.jni.keyexpr.SetIntersectionLevel
@@ -252,15 +253,7 @@ internal object JNINative {
         encoding: String?,
         errorSink: Any,
     )
-    external fun zQueryReplySample(
-        query: Long,
-        sampleKeyExprSel: Int,
-        sampleKeyExpr0: String?,
-        sampleKeyExpr1: Long,
-        samplePayload: ByteArray,
-        sampleEncoding: String,
-        errorSink: Any,
-    )
+    external fun zQueryReplySample(query: Long, sampleSel: Int, sample0: Long, errorSink: Any)
     external fun zQueryReplySuccess(
         query: Long,
         keyExprSel: Int,
@@ -282,12 +275,44 @@ internal object JNINative {
     external fun zReplySample(r: Long, errorSink: Any): Long
     external fun zSampleAttachment(s: Long, errorSink: Any): Long
     external fun zSampleCongestionControl(s: Long, errorSink: Any): Int
+    external fun zSampleDelete(
+        keyExprSel: Int,
+        keyExpr0: String?,
+        keyExpr1: Long,
+        timestampNtp64: Long?,
+        attachment: ByteArray?,
+        congestionControl: Int?,
+        priority: Int?,
+        express: Boolean?,
+        reliability: Int?,
+        build: Any,
+        errorSink: Any,
+    ): Any?
     external fun zSampleEncoding(s: Long, errorSink: Any): Long
     external fun zSampleExpress(s: Long, errorSink: Any): Boolean
     external fun zSampleKeyExpr(s: Long, errorSink: Any): Long
     external fun zSampleKind(s: Long, errorSink: Any): Int
     external fun zSamplePayload(s: Long, errorSink: Any): Long
     external fun zSamplePriority(s: Long, errorSink: Any): Int
+    external fun zSamplePut(
+        keyExprSel: Int,
+        keyExpr0: String?,
+        keyExpr1: Long,
+        payload: ByteArray,
+        encoding: String?,
+        timestampNtp64: Long?,
+        attachment: ByteArray?,
+        congestionControl: Int?,
+        priority: Int?,
+        express: Boolean?,
+        reliability: Int?,
+        build: Any,
+        errorSink: Any,
+    ): Any?
+    external fun zSampleReliability(s: Long, errorSink: Any): Int
+    external fun zSampleSourceEid(s: Long, errorSink: Any): Int
+    external fun zSampleSourceSn(s: Long, errorSink: Any): Long
+    external fun zSampleSourceZid(s: Long, errorSink: Any): ByteArray?
     external fun zSampleTimestamp(s: Long, errorSink: Any): Long
     external fun zScout(
         whatami: Int,

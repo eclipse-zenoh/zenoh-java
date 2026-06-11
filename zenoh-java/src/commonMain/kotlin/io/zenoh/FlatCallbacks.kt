@@ -38,9 +38,9 @@ import io.zenoh.scouting.Hello
 
 internal fun sampleCallbackOf(
     f: (Sample) -> Unit
-): (io.zenoh.jni.keyexpr.ZKeyExpr, String, ByteArray, String, Int, Long?, Boolean, Int, Int, ByteArray?) -> Unit =
-    { keH, keStr, payload, encStr, kindInt, ntp64, express, prioInt, ccInt, attach ->
-        f(Sample.fromParts(keH, keStr, payload, encStr, kindInt, ntp64, express, prioInt, ccInt, attach))
+): (io.zenoh.jni.keyexpr.ZKeyExpr, String, ByteArray, String, Int, Long?, Boolean, Int, Int, ByteArray?, Int, io.zenoh.jni.config.ZZenohId?, Int, Long) -> Unit =
+    { keH, keStr, payload, encStr, kindInt, ntp64, express, prioInt, ccInt, attach, reliabilityInt, sourceZid, sourceEid, sourceSn ->
+        f(Sample.fromParts(keH, keStr, payload, encStr, kindInt, ntp64, express, prioInt, ccInt, attach, reliabilityInt, sourceZid, sourceEid, sourceSn))
     }
 
 internal fun queryCallbackOf(
@@ -59,14 +59,14 @@ internal fun queryCallbackOf(
 
 internal fun replyCallbackOf(
     f: (Reply) -> Unit
-): (io.zenoh.jni.config.ZZenohId?, Int, Boolean, io.zenoh.jni.keyexpr.ZKeyExpr?, String?, ByteArray?, String?, Int?, Long?, Boolean?, Int?, Int?, ByteArray?, ByteArray?, String?) -> Unit =
-    { zid, eid, isOk, keH, keStr, payload, encStr, kindInt, ntp64, express, prioInt, ccInt, attach, errPayload, errEncStr ->
+): (io.zenoh.jni.config.ZZenohId?, Int, Boolean, io.zenoh.jni.keyexpr.ZKeyExpr?, String?, ByteArray?, String?, Int?, Long?, Boolean?, Int?, Int?, ByteArray?, Int?, io.zenoh.jni.config.ZZenohId?, Int?, Long?, ByteArray?, String?) -> Unit =
+    { zid, eid, isOk, keH, keStr, payload, encStr, kindInt, ntp64, express, prioInt, ccInt, attach, reliabilityInt, sourceZid, sourceEid, sourceSn, errPayload, errEncStr ->
         val replierId = zid?.let { EntityGlobalId(ZenohId(it), eid.toUInt()) }
         f(
             if (isOk) {
                 Reply.Success(
                     replierId,
-                    Sample.fromParts(keH!!, keStr!!, payload!!, encStr!!, kindInt!!, ntp64, express!!, prioInt!!, ccInt!!, attach)
+                    Sample.fromParts(keH!!, keStr!!, payload!!, encStr!!, kindInt!!, ntp64, express!!, prioInt!!, ccInt!!, attach, reliabilityInt!!, sourceZid, sourceEid!!, sourceSn!!)
                 )
             } else {
                 Reply.Error(

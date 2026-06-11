@@ -5,10 +5,12 @@ import io.zenoh.jni.qos.CongestionControl
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.qos.Priority
+import io.zenoh.jni.qos.Reliability
 import io.zenoh.jni.bytes.ZEncoding
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.time.ZTimestamp
 import io.zenoh.jni.bytes.ZZBytes
+import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.withSortedHandleLocks
 
 /** JVM-side surface for the native Rust `SampleKind` enum. */
@@ -161,6 +163,158 @@ public fun zSampleAttachment(s: ZSample, onError: (je: String?) -> ZZBytes?): ZZ
     val __ret = withSortedHandleLocks(s) {
         val s_ptr = s.ptr
         JNINative.zSampleAttachment(s_ptr, __cap).let { if (it == 0L) null else ZZBytes(it) }
+    }
+    if (__cap_failed) return onError(__cap_je)
+    return __ret
+}
+
+public fun zSampleReliability(s: ZSample, onError: (je: String?) -> Reliability): Reliability {
+    if (s.ptr == 0L) return onError("Operation on a closed native handle.")
+    var __cap_failed = false
+    var __cap_je: String? = null
+    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __ret = withSortedHandleLocks(s) {
+        val s_ptr = s.ptr
+        Reliability.fromInt(JNINative.zSampleReliability(s_ptr, __cap))
+    }
+    if (__cap_failed) return onError(__cap_je)
+    return __ret
+}
+
+public fun zSampleSourceZid(s: ZSample, onError: (je: String?) -> ZZenohId?): ZZenohId? {
+    if (s.ptr == 0L) return onError("Operation on a closed native handle.")
+    var __cap_failed = false
+    var __cap_je: String? = null
+    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __ret = withSortedHandleLocks(s) {
+        val s_ptr = s.ptr
+        JNINative.zSampleSourceZid(s_ptr, __cap)?.let { ZZenohId(it) }
+    }
+    if (__cap_failed) return onError(__cap_je)
+    return __ret
+}
+
+public fun zSampleSourceEid(s: ZSample, onError: (je: String?) -> Int): Int {
+    if (s.ptr == 0L) return onError("Operation on a closed native handle.")
+    var __cap_failed = false
+    var __cap_je: String? = null
+    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __ret = withSortedHandleLocks(s) {
+        val s_ptr = s.ptr
+        JNINative.zSampleSourceEid(s_ptr, __cap)
+    }
+    if (__cap_failed) return onError(__cap_je)
+    return __ret
+}
+
+public fun zSampleSourceSn(s: ZSample, onError: (je: String?) -> Long): Long {
+    if (s.ptr == 0L) return onError("Operation on a closed native handle.")
+    var __cap_failed = false
+    var __cap_je: String? = null
+    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __ret = withSortedHandleLocks(s) {
+        val s_ptr = s.ptr
+        JNINative.zSampleSourceSn(s_ptr, __cap)
+    }
+    if (__cap_failed) return onError(__cap_je)
+    return __ret
+}
+
+@Suppress("UNCHECKED_CAST")
+public fun <R> zSamplePut(
+    keyExprSel: Int,
+    keyExpr0: String?,
+    keyExpr1: ZKeyExpr?,
+    payload: ByteArray,
+    encoding: String?,
+    timestampNtp64: Long?,
+    attachment: ByteArray?,
+    congestionControl: CongestionControl?,
+    priority: Priority?,
+    express: Boolean?,
+    reliability: Reliability?,
+    onError: (je: String?) -> R,
+    build: (
+        keyExpr: ZKeyExpr,
+        keyExprAsStr: String,
+        payloadToBytes: ByteArray,
+        encodingToString: String,
+        kind: Int,
+        timestampNtp64: Long?,
+        express: Boolean,
+        priority: Int,
+        congestionControl: Int,
+        attachmentToBytes: ByteArray?,
+        reliability: Int,
+        sourceZid: ZZenohId?,
+        sourceEid: Int,
+        sourceSn: Long,
+    ) -> R,
+): R {
+    if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError("Operation on a closed native handle.")
+    var __cap_failed = false
+    var __cap_je: String? = null
+    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __ret = run {
+        val __locks = ArrayList<NativeHandle>()
+        keyExpr1?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+            val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
+            try {
+                (JNINative.zSamplePut(keyExprSel, keyExpr0, keyExpr1_ptr, payload, encoding, timestampNtp64, attachment, congestionControl?.value, priority?.value, express, reliability?.value, { keyExpr: ZKeyExpr, keyExprAsStr: String, payloadToBytes: ByteArray, encodingToString: String, kind: Int, timestampNtp64: Long?, express: Boolean, priority: Int, congestionControl: Int, attachmentToBytes: ByteArray?, reliability: Int, sourceZid: ByteArray?, sourceEid: Int, sourceSn: Long -> build(keyExpr, keyExprAsStr, payloadToBytes, encodingToString, kind, timestampNtp64, express, priority, congestionControl, attachmentToBytes, reliability, sourceZid?.let { ZZenohId(it) }, sourceEid, sourceSn) }, __cap) as R)
+            } finally {
+                keyExpr1?.let { it.ptr = 0L }
+            }
+        }
+    }
+    if (__cap_failed) return onError(__cap_je)
+    return __ret
+}
+
+@Suppress("UNCHECKED_CAST")
+public fun <R> zSampleDelete(
+    keyExprSel: Int,
+    keyExpr0: String?,
+    keyExpr1: ZKeyExpr?,
+    timestampNtp64: Long?,
+    attachment: ByteArray?,
+    congestionControl: CongestionControl?,
+    priority: Priority?,
+    express: Boolean?,
+    reliability: Reliability?,
+    onError: (je: String?) -> R,
+    build: (
+        keyExpr: ZKeyExpr,
+        keyExprAsStr: String,
+        payloadToBytes: ByteArray,
+        encodingToString: String,
+        kind: Int,
+        timestampNtp64: Long?,
+        express: Boolean,
+        priority: Int,
+        congestionControl: Int,
+        attachmentToBytes: ByteArray?,
+        reliability: Int,
+        sourceZid: ZZenohId?,
+        sourceEid: Int,
+        sourceSn: Long,
+    ) -> R,
+): R {
+    if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError("Operation on a closed native handle.")
+    var __cap_failed = false
+    var __cap_je: String? = null
+    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __ret = run {
+        val __locks = ArrayList<NativeHandle>()
+        keyExpr1?.let { __locks.add(it) }
+        withSortedHandleLocks(__locks) {
+            val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
+            try {
+                (JNINative.zSampleDelete(keyExprSel, keyExpr0, keyExpr1_ptr, timestampNtp64, attachment, congestionControl?.value, priority?.value, express, reliability?.value, { keyExpr: ZKeyExpr, keyExprAsStr: String, payloadToBytes: ByteArray, encodingToString: String, kind: Int, timestampNtp64: Long?, express: Boolean, priority: Int, congestionControl: Int, attachmentToBytes: ByteArray?, reliability: Int, sourceZid: ByteArray?, sourceEid: Int, sourceSn: Long -> build(keyExpr, keyExprAsStr, payloadToBytes, encodingToString, kind, timestampNtp64, express, priority, congestionControl, attachmentToBytes, reliability, sourceZid?.let { ZZenohId(it) }, sourceEid, sourceSn) }, __cap) as R)
+            } finally {
+                keyExpr1?.let { it.ptr = 0L }
+            }
+        }
     }
     if (__cap_failed) return onError(__cap_je)
     return __ret

@@ -186,6 +186,10 @@ public fun zQuerierGet(
         samplePriority: Int?,
         sampleCongestionControl: Int?,
         sampleAttachmentToBytes: ByteArray?,
+        sampleReliability: Int?,
+        sampleSourceZid: ZZenohId?,
+        sampleSourceEid: Int?,
+        sampleSourceSn: Long?,
         errPayloadToBytes: ByteArray?,
         errEncodingToString: String?,
     ) -> Unit,
@@ -224,6 +228,10 @@ public fun zQuerierGet(
                 samplePriority: Int?,
                 sampleCongestionControl: Int?,
                 sampleAttachmentToBytes: ByteArray?,
+                sampleReliability: Int?,
+                sampleSourceZid: ByteArray??,
+                sampleSourceEid: Int?,
+                sampleSourceSn: Long?,
                 errPayloadToBytes: ByteArray?,
                 errEncodingToString: String?,
                 ->
@@ -241,6 +249,10 @@ public fun zQuerierGet(
                     samplePriority,
                     sampleCongestionControl,
                     sampleAttachmentToBytes,
+                    sampleReliability,
+                    sampleSourceZid?.let { ZZenohId(it) },
+                    sampleSourceEid,
+                    sampleSourceSn,
                     errPayloadToBytes,
                     errEncodingToString,
                 )
@@ -371,15 +383,12 @@ public fun zQueryReplyDelete(
 
 public fun zQueryReplySample(
     query: ZQuery,
-    sampleKeyExprSel: Int,
-    sampleKeyExpr0: String?,
-    sampleKeyExpr1: ZKeyExpr?,
-    samplePayload: ByteArray,
-    sampleEncoding: String,
+    sampleSel: Int,
+    sample0: ZSample?,
     onError: (je: String?, message: String) -> Unit,
 ) {
     if (query.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
-    if (sampleKeyExpr1 != null && sampleKeyExpr1.ptr == 0L) {
+    if (sample0 != null && sample0.ptr == 0L) {
         onError("Operation on a closed native handle.", ""); return
     }
     var __cap_failed = false
@@ -394,22 +403,14 @@ public fun zQueryReplySample(
     run {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(query)
-        sampleKeyExpr1?.let { __locks.add(it) }
+        sample0?.let { __locks.add(it) }
         withSortedHandleLocks(__locks) {
             val query_ptr = query.ptr
-            val sampleKeyExpr1_ptr = sampleKeyExpr1?.ptr ?: 0L
+            val sample0_ptr = sample0?.ptr ?: 0L
             try {
-                JNINative.zQueryReplySample(
-                    query_ptr,
-                    sampleKeyExprSel,
-                    sampleKeyExpr0,
-                    sampleKeyExpr1_ptr,
-                    samplePayload,
-                    sampleEncoding,
-                    __cap,
-                )
+                JNINative.zQueryReplySample(query_ptr, sampleSel, sample0_ptr, __cap)
             } finally {
-                sampleKeyExpr1?.let { it.ptr = 0L }
+                sample0?.let { it.ptr = 0L }
             }
         }
     }

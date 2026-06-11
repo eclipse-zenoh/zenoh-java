@@ -53,12 +53,15 @@ data class Sample(
 
     internal companion object {
         /**
-         * Builds an SDK [Sample] from the 10 leaves of the ZSample canonical
+         * Builds an SDK [Sample] from the 14 leaves of the ZSample canonical
          * output — the lambda parameter list every decomposed sample delivery
          * uses (the `zReplySample` builder and the subscriber/liveliness
          * callbacks), in record order. The whole graph arrives in ONE JNI
-         * crossing; the [KeyExpr] retains the delivered handle leaf.
+         * crossing; the [KeyExpr] retains the delivered handle leaf. The
+         * trailing `reliability` / `source*` leaves are part of the generated
+         * decomposition but are not surfaced on the public [Sample] type.
          */
+        @Suppress("UNUSED_PARAMETER")
         fun fromParts(
             keH: io.zenoh.jni.keyexpr.ZKeyExpr,
             keStr: String,
@@ -70,6 +73,10 @@ data class Sample(
             prioInt: Int,
             ccInt: Int,
             attach: ByteArray?,
+            reliabilityInt: Int,
+            sourceZid: io.zenoh.jni.config.ZZenohId?,
+            sourceEid: Int,
+            sourceSn: Long,
         ): Sample = Sample(
             KeyExpr(keH, keStr),
             ZBytes(payload),

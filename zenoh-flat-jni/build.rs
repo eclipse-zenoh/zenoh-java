@@ -209,19 +209,22 @@ fn main() {
         .package("sample")
         .enum_class(pq!(SampleKind))
         .ptr_class(pq!(ZSample))
-        // Canonical INPUT: a ZSample is built from (key_expr, payload, encoding)
-        // via z_sample_new. Because those params are themselves ptr_class types
-        // with their own canonical inputs, a `ZSample` param expands RECURSIVELY:
-        // key_expr → (String|handle selector), payload → ByteArray, encoding →
-        // String — all flattened into the consuming fn's signature.
-        .ptr_class_input(pq!(z_sample_new))
+        // Canonical INPUT: identity only — a `ZSample` parameter takes the owned
+        // handle directly. (The full-options constructors z_sample_put /
+        // z_sample_delete carry `Option<ptr_class>` params — encoding/attachment —
+        // which the recursive-input fold can't build through, so ZSample is not a
+        // build-from-leaves input; it is constructed via the standalone `.fun`
+        // constructors below and consumed by handle.)
+        .ptr_class_input_direct()
         // Canonical output: the full sample decomposed in ONE crossing. Each
         // record is unwrapped per its return type's canonical output —
         // z_sample_key_expr → (ZKeyExpr handle, String); payload/attachment →
         // ByteArray (ZZBytes); encoding → String (ZEncoding); timestamp → Long?
-        // (ZTimestamp); kind/priority/congestion → Int (enum); express → Boolean.
-        // 9 records ⇒ many leaves ⇒ builder callback. Auto-applies to every
-        // (non-Result) ZSample return (e.g. z_reply_sample's `Option<&ZSample>`).
+        // (ZTimestamp); kind/priority/congestion/reliability → Int (enum);
+        // express → Boolean; source_zid → ByteArray? (ZZenohId value_blob);
+        // source_eid → Int; source_sn → Long. 13 records ⇒ many leaves ⇒ builder
+        // callback. Auto-applies to every (non-Result) ZSample return (e.g.
+        // z_reply_sample's `Option<&ZSample>`).
         .ptr_class_output(pq!(z_sample_key_expr))
         .ptr_class_output(pq!(z_sample_payload))
         .ptr_class_output(pq!(z_sample_encoding))
@@ -231,6 +234,10 @@ fn main() {
         .ptr_class_output(pq!(z_sample_priority))
         .ptr_class_output(pq!(z_sample_congestion_control))
         .ptr_class_output(pq!(z_sample_attachment))
+        .ptr_class_output(pq!(z_sample_reliability))
+        .ptr_class_output(pq!(z_sample_source_zid))
+        .ptr_class_output(pq!(z_sample_source_eid))
+        .ptr_class_output(pq!(z_sample_source_sn))
         // All sample accessors are record sources (fun_accessor): standalone they
         // stay handle/raw; decomposition happens via the canonical output above.
         .fun_accessor(pq!(z_sample_key_expr))
@@ -242,6 +249,15 @@ fn main() {
         .fun_accessor(pq!(z_sample_priority))
         .fun_accessor(pq!(z_sample_congestion_control))
         .fun_accessor(pq!(z_sample_attachment))
+        .fun_accessor(pq!(z_sample_reliability))
+        .fun_accessor(pq!(z_sample_source_zid))
+        .fun_accessor(pq!(z_sample_source_eid))
+        .fun_accessor(pq!(z_sample_source_sn))
+        // Standalone sample constructors (callable from Kotlin). z_sample_put is
+        // also the canonical input above (precedent: z_keyexpr_try_from is both
+        // ptr_class_input and fun); z_sample_delete builds a Delete-kind sample.
+        .fun(pq!(z_sample_put))
+        .fun(pq!(z_sample_delete))
         // Below: key_expr / payload / attachment / encoding params are
         // auto-constructed by their types' canonical inputs (no per-fn calls).
         .package("pubsub")
@@ -283,8 +299,8 @@ fn main() {
         .fun(pq!(z_query_reply_success))
         .fun(pq!(z_query_reply_error))
         .fun(pq!(z_query_reply_delete))
-        // Recursive-input demo: `sample: ZSample` expands via z_sample_new into
-        // (key_expr String|handle, payload ByteArray, encoding String).
+        // z_query_reply_sample takes the sample by owned handle (ZSample's
+        // canonical input is identity — see the sample package above).
         .fun(pq!(z_query_reply_sample))
         .fun_accessor(pq!(z_query_keyexpr))
         .fun_accessor(pq!(z_query_parameters))
@@ -304,8 +320,8 @@ fn main() {
         // current PRODUCT model — both arms' leaves are always in the
         // signature, the not-taken arm's are null. replier zid/eid + the
         // is_ok discriminator, then the `Option<&ZSample>` ok arm splices the
-        // full sample (10 nullable leaves) and the `Option<&ZReplyError>` err
-        // arm splices payload/encoding (2 nullable leaves) — 15 leaves total.
+        // full sample (14 nullable leaves) and the `Option<&ZReplyError>` err
+        // arm splices payload/encoding (2 nullable leaves) — 19 leaves total.
         // Auto-applies to the `Fn(ZReply)` reply callbacks of z_session_get /
         // z_querier_get / liveliness get; no identity record, so no ZReply
         // handle crosses (nothing for the consumer to close).
