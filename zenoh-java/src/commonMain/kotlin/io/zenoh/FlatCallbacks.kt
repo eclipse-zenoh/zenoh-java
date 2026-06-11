@@ -44,17 +44,14 @@ internal fun queryCallbackOf(
     f: (Query) -> Unit
 ): (io.zenoh.jni.keyexpr.ZKeyExpr, String, String, ByteArray?, String?, ByteArray?, Int, io.zenoh.jni.query.ZQuery) -> Unit =
     { keH, keStr, parameters, payload, encStr, attach, acceptsReplies, zq ->
-        // The decomposed leaves — including the cloned `keH` key-expr handle —
-        // are folded into the SDK object graph. `zq` (the owned query handle) is
-        // delivered for replying; the reply methods only *borrow* it, so we drop
-        // it once the callback returns (mirrors the pre-decomposition native
-        // post-callback close). Dropping the native query finalizes the reply
-        // stream — without it the querier's get never completes.
-        try {
-            f(Query.fromParts(keH, keStr, parameters, payload, encStr, attach, acceptsReplies, zq))
-        } finally {
-            zq.close()
-        }
+        // The decomposed leaves — including the cloned `keH` key-expr handle and
+        // the owned `zq` query handle — are folded into the SDK [Query]. Unlike
+        // the decomposed read-only types (Sample/Hello), the query OWNS `zq` and
+        // is NOT closed here: it may be retained beyond this callback (e.g. put
+        // on a channel by a queue handler) and replied to later. The native query
+        // is dropped when it is replied to (see [Query.reply]) or when [Query] is
+        // closed — that drop is what finalizes the querier's get.
+        f(Query.fromParts(keH, keStr, parameters, payload, encStr, attach, acceptsReplies, zq))
     }
 
 internal fun replyCallbackOf(f: (Reply) -> Unit): (io.zenoh.jni.query.ZReply) -> Unit =

@@ -106,6 +106,10 @@ class Query internal constructor(
             options.express,
             throwZError
         )
+        // Single-reply model: dropping the native query finalizes the reply
+        // stream so the querier's get completes. Safe whether the query came
+        // straight from the callback or was carried across a channel.
+        q.close()
         zQuery = null
     }
 
@@ -142,6 +146,7 @@ class Query internal constructor(
             options.express,
             throwZError
         )
+        q.close()
         zQuery = null
     }
 
@@ -156,6 +161,7 @@ class Query internal constructor(
     fun replyErr(message: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
         io.zenoh.jni.query.zQueryReplyError(q, message.into().bytes, options.encoding.repr, throwZError)
+        q.close()
         zQuery = null
     }
 
