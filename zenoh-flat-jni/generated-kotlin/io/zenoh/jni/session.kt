@@ -250,7 +250,16 @@ public fun zSessionDeclareQueryable(
     keyExpr0: String?,
     keyExpr1: ZKeyExpr?,
     complete: Boolean?,
-    callback: (zQuery: ZQuery) -> Unit,
+    callback: (
+        keyexpr: ZKeyExpr,
+        keyexprAsStr: String,
+        parameters: String,
+        payloadToBytes: ByteArray?,
+        encodingToString: String?,
+        attachmentToBytes: ByteArray?,
+        acceptsReplies: Int,
+        handle: ZQuery,
+    ) -> Unit,
     onClose: () -> Unit,
     onError: (je: String?, message: String) -> ZQueryable,
 ): ZQueryable {

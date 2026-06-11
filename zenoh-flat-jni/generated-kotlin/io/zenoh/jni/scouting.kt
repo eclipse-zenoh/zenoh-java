@@ -98,7 +98,7 @@ public fun zHelloLocators(h: ZHello, onError: (je: String?) -> List<String>): Li
 public fun zScout(
     whatami: Int,
     config: ZConfig?,
-    callback: (zHello: ZHello) -> Unit,
+    callback: (whatami: Int, zid: ZZenohId, locators: List<String>) -> Unit,
     onClose: () -> Unit,
     onError: (je: String?, message: String) -> ZScout,
 ): ZScout {
@@ -112,7 +112,7 @@ public fun zScout(
         config?.let { __locks.add(it) }
         withSortedHandleLocks(__locks) {
             val config_ptr = config?.ptr ?: 0L
-            ZScout(JNINative.zScout(whatami, config_ptr, callback, onClose, __cap))
+            ZScout(JNINative.zScout(whatami, config_ptr, { whatami: Int, zid: ByteArray, locators: List<String> -> callback(whatami, ZZenohId(zid), locators) }, onClose, __cap))
         }
     }
     if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))

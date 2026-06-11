@@ -100,6 +100,12 @@ fn main() {
         .fun_accessor(pq!(z_zenoh_id_to_string))
         .package("scouting")
         .ptr_class(pq!(ZHello))
+        // Canonical output: the scout callback decomposes a ZHello into its
+        // three read fields in ONE crossing (no handle — read-only). Mirrors
+        // ZSample's output expansion. Auto-applies to z_scout's `Fn(ZHello)`.
+        .ptr_class_output(pq!(z_hello_whatami)) // WhatAmI enum -> Int
+        .ptr_class_output(pq!(z_hello_zid)) // ZZenohId value_blob -> ByteArray
+        .ptr_class_output(pq!(z_hello_locators)) // Vec<String> -> List<String>
         .fun_accessor(pq!(z_hello_whatami))
         .fun_accessor(pq!(z_hello_zid))
         .fun_accessor(pq!(z_hello_locators))
@@ -251,6 +257,29 @@ fn main() {
         .enum_class(pq!(QueryTarget))
         .enum_class(pq!(ConsolidationMode))
         .ptr_class(pq!(ZQuery))
+        // Canonical output: the queryable callback decomposes a ZQuery into BOTH
+        // its read fields AND the owned handle (identity), in ONE crossing. Like
+        // ZSample's output expansion, but with `.ptr_class_output_direct()` so the
+        // consumer keeps the handle to reply (`z_query_reply_*`) after the
+        // callback returns — a Query must outlive the callback to be answered.
+        // key_expr -> (ZKeyExpr handle + String); payload/attachment -> ByteArray?
+        // (ZZBytes); encoding -> String? (ZEncoding); parameters -> String;
+        // accepts_replies -> Int (enum). Auto-applies to z_session_declare_queryable's
+        // `Fn(ZQuery)`. The `&ZQuery` INPUT of z_query_reply_* is unaffected.
+        //
+        // ORDER MATTERS: `.ptr_class_output_direct()` MUST be LAST. The root
+        // identity moves the owned query (`Box::into_raw(Box::new(query))`) while
+        // the nested ZKeyExpr identity (from z_query_keyexpr) clones from a borrow
+        // of the same query; the emitter emits identity leaves in declaration
+        // order, so the root move must follow the nested borrow to avoid a
+        // "use of moved value" error.
+        .ptr_class_output(pq!(z_query_keyexpr))
+        .ptr_class_output(pq!(z_query_parameters))
+        .ptr_class_output(pq!(z_query_payload))
+        .ptr_class_output(pq!(z_query_encoding))
+        .ptr_class_output(pq!(z_query_attachment))
+        .ptr_class_output(pq!(z_query_accepts_replies))
+        .ptr_class_output_direct()
         .fun(pq!(z_query_reply_success))
         .fun(pq!(z_query_reply_error))
         .fun(pq!(z_query_reply_delete))
