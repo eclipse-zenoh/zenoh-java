@@ -130,6 +130,6 @@ public fun zScout(
             ZScout(JNINative.zScout(whatami, config_ptr, callback, onClose, __cap))
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }

@@ -70,7 +70,7 @@ public fun zConfigFromFile(path: String, onError: ZErrorHandler<ZConfig>): ZConf
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
     val __ret = ZConfig(JNINative.zConfigFromFile(path, __cap))
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }
 
@@ -85,7 +85,7 @@ public fun zConfigFromJson(s: String, onError: ZErrorHandler<ZConfig>): ZConfig 
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
     val __ret = ZConfig(JNINative.zConfigFromJson(s, __cap))
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }
 
@@ -100,7 +100,7 @@ public fun zConfigFromJson5(s: String, onError: ZErrorHandler<ZConfig>): ZConfig
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
     val __ret = ZConfig(JNINative.zConfigFromJson5(s, __cap))
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }
 
@@ -115,7 +115,7 @@ public fun zConfigFromYaml(s: String, onError: ZErrorHandler<ZConfig>): ZConfig 
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
     val __ret = ZConfig(JNINative.zConfigFromYaml(s, __cap))
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }
 
@@ -147,7 +147,7 @@ public fun zConfigInsertJson5(c: ZConfig, key: String, value: String, onError: Z
         val c_ptr = c.ptr
         JNINative.zConfigInsertJson5(c_ptr, key, value, __cap)
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
 }
 
 public fun zConfigClone(c: ZConfig, onError: JniErrorHandler<ZConfig>): ZConfig {

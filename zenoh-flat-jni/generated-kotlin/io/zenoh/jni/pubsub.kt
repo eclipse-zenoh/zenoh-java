@@ -75,7 +75,7 @@ public fun zPublisherPut(
         val publisher_ptr = publisher.ptr
         JNINative.zPublisherPut(publisher_ptr, payload, encoding, attachment, __cap)
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
 }
 
 public fun zPublisherDelete(
@@ -97,5 +97,5 @@ public fun zPublisherDelete(
         val publisher_ptr = publisher.ptr
         JNINative.zPublisherDelete(publisher_ptr, attachment, __cap)
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
 }

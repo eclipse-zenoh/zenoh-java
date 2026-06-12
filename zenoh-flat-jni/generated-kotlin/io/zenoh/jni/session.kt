@@ -68,7 +68,7 @@ public fun zOpen(config: ZConfig, onError: ZErrorHandler<ZSession>): ZSession {
             config.ptr = 0L
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }
 
@@ -123,7 +123,7 @@ public fun zSessionDeclarePublisher(
             }
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }
 
@@ -177,7 +177,7 @@ public fun zSessionPut(
             )
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
 }
 
 public fun zSessionDelete(
@@ -226,7 +226,7 @@ public fun zSessionDelete(
             )
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
 }
 
 public fun zSessionDeclareSubscriber(
@@ -276,7 +276,7 @@ public fun zSessionDeclareSubscriber(
             }
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }
 
@@ -337,7 +337,7 @@ public fun zSessionDeclareQuerier(
             }
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }
 
@@ -390,7 +390,7 @@ public fun zSessionDeclareQueryable(
             }
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }
 
@@ -413,7 +413,7 @@ public fun zSessionDeclareKeyexpr(
         val session_ptr = session.ptr
         ZKeyExpr(JNINative.zSessionDeclareKeyexpr(session_ptr, keyExpr, __cap))
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }
 
@@ -442,7 +442,7 @@ public fun zSessionUndeclareKeyexpr(
             keyExpr.ptr = 0L
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
 }
 
 public fun zSessionGet(
@@ -507,7 +507,7 @@ public fun zSessionGet(
             )
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
 }
 
 public fun zSessionZid(session: ZSession, onError: JniErrorHandler<ZZenohId>): ZZenohId {
@@ -598,7 +598,7 @@ public fun zLivelinessDeclareToken(
             }
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }
 
@@ -644,7 +644,7 @@ public fun zLivelinessGet(
             )
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
 }
 
 public fun zLivelinessDeclareSubscriber(
@@ -696,6 +696,6 @@ public fun zLivelinessDeclareSubscriber(
             }
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }

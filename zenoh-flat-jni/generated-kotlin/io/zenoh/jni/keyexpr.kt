@@ -68,7 +68,7 @@ public fun zKeyexprTryFrom(s: String, onError: ZErrorHandler<ZKeyExpr>): ZKeyExp
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
     val __ret = ZKeyExpr(JNINative.zKeyexprTryFrom(s, __cap))
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }
 
@@ -83,7 +83,7 @@ public fun zKeyexprAutocanonize(s: String, onError: ZErrorHandler<ZKeyExpr>): ZK
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
     val __ret = ZKeyExpr(JNINative.zKeyexprAutocanonize(s, __cap))
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }
 
@@ -198,7 +198,7 @@ public fun zKeyexprJoin(
             ZKeyExpr(JNINative.zKeyexprJoin(aSel, a0, a1_ptr, b, __cap))
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }
 
@@ -227,7 +227,7 @@ public fun zKeyexprConcat(
             ZKeyExpr(JNINative.zKeyexprConcat(aSel, a0, a1_ptr, b, __cap))
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
     return __ret
 }
 

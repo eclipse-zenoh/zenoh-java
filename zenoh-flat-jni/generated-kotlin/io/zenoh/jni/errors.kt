@@ -31,7 +31,7 @@ public class ZError(initialPtr: Long) : NativeHandle(initialPtr) {
 }
 
 public fun interface ZErrorHandler<out R> {
-    public fun run(je: String?, message: String?): R
+    public fun run(je: String?, message: String): R
 }
 
 public fun zErrorMessage(e: ZError, onError: JniErrorHandler<String>): String {

@@ -239,7 +239,7 @@ public fun zQuerierGet(
             __cap,
         )
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
 }
 
 public fun zQueryReplySuccess(
@@ -288,7 +288,7 @@ public fun zQueryReplySuccess(
             )
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
 }
 
 public fun zQueryReplyError(
@@ -311,7 +311,7 @@ public fun zQueryReplyError(
         val query_ptr = query.ptr
         JNINative.zQueryReplyError(query_ptr, payload, encoding, __cap)
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
 }
 
 public fun zQueryReplyDelete(
@@ -356,7 +356,7 @@ public fun zQueryReplyDelete(
             )
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
 }
 
 public fun zQueryReplySample(
@@ -392,7 +392,7 @@ public fun zQueryReplySample(
             }
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
 }
 
 public fun zQueryKeyexpr(q: ZQuery, onError: JniErrorHandler<ZKeyExpr>): ZKeyExpr {
