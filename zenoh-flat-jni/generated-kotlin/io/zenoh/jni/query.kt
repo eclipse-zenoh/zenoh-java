@@ -169,6 +169,19 @@ public class ZReplyError(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
+public fun interface ZQueryCallback {
+    public fun run(
+        keyexpr: ZKeyExpr,
+        keyexprAsStr: String,
+        parameters: String,
+        payloadToBytes: ByteArray?,
+        encodingToString: String?,
+        attachmentToBytes: ByteArray?,
+        acceptsReplies: Int,
+        handle: ZQuery,
+    )
+}
+
 public fun interface ZReplyCallback {
     public fun run(
         replierZid: ByteArray?,
@@ -190,19 +203,6 @@ public fun interface ZReplyCallback {
         sampleSourceSn: Long?,
         errPayloadToBytes: ByteArray?,
         errEncodingToString: String?,
-    )
-}
-
-public fun interface ZQueryCallback {
-    public fun run(
-        keyexpr: ZKeyExpr,
-        keyexprAsStr: String,
-        parameters: String,
-        payloadToBytes: ByteArray?,
-        encodingToString: String?,
-        attachmentToBytes: ByteArray?,
-        acceptsReplies: Int,
-        handle: ZQuery,
     )
 }
 

@@ -76,12 +76,12 @@ internal inline fun <R> withSortedHandleLocks(
     return synchronized(x) { synchronized(y) { synchronized(z) { body() } } }
 }
 
-public fun interface JniErrorHandler<out R> {
-    public fun run(je: String?): R
-}
-
 public fun interface VoidCallback {
     public fun run()
+}
+
+public fun interface JniErrorHandler<out R> {
+    public fun run(je: String?): R
 }
 
 internal object JNINative {

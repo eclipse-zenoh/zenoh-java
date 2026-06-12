@@ -49,25 +49,6 @@ public class ZSample(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun interface ZSampleBuilder<out R> {
-    public fun run(
-        keyExpr: ZKeyExpr,
-        keyExprAsStr: String,
-        payloadToBytes: ByteArray,
-        encodingToString: String,
-        kind: Int,
-        timestampNtp64: Long?,
-        express: Boolean,
-        priority: Int,
-        congestionControl: Int,
-        attachmentToBytes: ByteArray?,
-        reliability: Int,
-        sourceZid: ByteArray?,
-        sourceEid: Int,
-        sourceSn: Long,
-    ): R
-}
-
 public fun interface ZSampleCallback {
     public fun run(
         keyExpr: ZKeyExpr,
@@ -85,6 +66,25 @@ public fun interface ZSampleCallback {
         sourceEid: Int,
         sourceSn: Long,
     )
+}
+
+public fun interface ZSampleBuilder<out R> {
+    public fun run(
+        keyExpr: ZKeyExpr,
+        keyExprAsStr: String,
+        payloadToBytes: ByteArray,
+        encodingToString: String,
+        kind: Int,
+        timestampNtp64: Long?,
+        express: Boolean,
+        priority: Int,
+        congestionControl: Int,
+        attachmentToBytes: ByteArray?,
+        reliability: Int,
+        sourceZid: ByteArray?,
+        sourceEid: Int,
+        sourceSn: Long,
+    ): R
 }
 
 public fun zSampleKeyExpr(s: ZSample, onError: JniErrorHandler<ZKeyExpr>): ZKeyExpr {
