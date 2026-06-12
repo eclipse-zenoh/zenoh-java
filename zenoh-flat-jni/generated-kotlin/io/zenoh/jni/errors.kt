@@ -2,6 +2,7 @@
 package io.zenoh.jni.errors
 
 import io.zenoh.jni.JNINative
+import io.zenoh.jni.JniErrorHandler
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.withSortedHandleLocks
 
@@ -29,15 +30,19 @@ public class ZError(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun zErrorMessage(e: ZError, onError: (je: String?) -> String): String {
-    if (e.ptr == 0L) return onError("Operation on a closed native handle.")
+public fun interface ZErrorHandler<out R> {
+    public fun run(je: String?, message: String?): R
+}
+
+public fun zErrorMessage(e: ZError, onError: JniErrorHandler<String>): String {
+    if (e.ptr == 0L) return onError.run("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
-    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(e) {
         val e_ptr = e.ptr
         JNINative.zErrorMessage(e_ptr, __cap)
     }
-    if (__cap_failed) return onError(__cap_je)
+    if (__cap_failed) return onError.run(__cap_je)
     return __ret
 }

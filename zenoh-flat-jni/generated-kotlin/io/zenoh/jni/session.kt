@@ -4,18 +4,23 @@ package io.zenoh.jni.session
 import io.zenoh.jni.qos.CongestionControl
 import io.zenoh.jni.query.ConsolidationMode
 import io.zenoh.jni.JNINative
+import io.zenoh.jni.JniErrorHandler
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.qos.Priority
 import io.zenoh.jni.query.QueryTarget
 import io.zenoh.jni.qos.Reliability
 import io.zenoh.jni.query.ReplyKeyExpr
+import io.zenoh.jni.VoidCallback
 import io.zenoh.jni.config.ZConfig
+import io.zenoh.jni.errors.ZErrorHandler
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.liveliness.ZLivelinessToken
 import io.zenoh.jni.pubsub.ZPublisher
 import io.zenoh.jni.query.ZQuerier
-import io.zenoh.jni.query.ZQuery
+import io.zenoh.jni.query.ZQueryCallback
 import io.zenoh.jni.query.ZQueryable
+import io.zenoh.jni.query.ZReplyCallback
+import io.zenoh.jni.sample.ZSampleCallback
 import io.zenoh.jni.pubsub.ZSubscriber
 import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.withSortedHandleLocks
@@ -44,14 +49,14 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun zOpen(config: ZConfig, onError: (je: String?, message: String) -> ZSession): ZSession {
-    if (config.ptr == 0L) return onError("Operation on a closed native handle.", "")
+public fun zOpen(config: ZConfig, onError: ZErrorHandler<ZSession>): ZSession {
+    if (config.ptr == 0L) return onError.run("Operation on a closed native handle.", "")
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = {
-        __je: String?,
-        __ze0: String?,
+    val __cap = ZErrorHandler<Unit> {
+        __je,
+        __ze0,
         ->
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
@@ -63,7 +68,7 @@ public fun zOpen(config: ZConfig, onError: (je: String?, message: String) -> ZSe
             config.ptr = 0L
         }
     }
-    if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
     return __ret
 }
 
@@ -76,19 +81,19 @@ public fun zSessionDeclarePublisher(
     priority: Priority?,
     express: Boolean?,
     reliability: Reliability?,
-    onError: (je: String?, message: String) -> ZPublisher,
+    onError: ZErrorHandler<ZPublisher>,
 ): ZPublisher {
-    if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
-    if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError(
+    if (session.ptr == 0L) return onError.run("Operation on a closed native handle.", "")
+    if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError.run(
         "Operation on a closed native handle.",
         "",
     )
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = {
-        __je: String?,
-        __ze0: String?,
+    val __cap = ZErrorHandler<Unit> {
+        __je,
+        __ze0,
         ->
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
@@ -118,7 +123,7 @@ public fun zSessionDeclarePublisher(
             }
         }
     }
-    if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
     return __ret
 }
 
@@ -134,18 +139,18 @@ public fun zSessionPut(
     express: Boolean?,
     attachment: ByteArray?,
     reliability: Reliability?,
-    onError: (je: String?, message: String) -> Unit,
+    onError: ZErrorHandler<Unit>,
 ) {
-    if (session.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
+    if (session.ptr == 0L) { onError.run("Operation on a closed native handle.", ""); return }
     if (keyExpr1 != null && keyExpr1.ptr == 0L) {
-        onError("Operation on a closed native handle.", ""); return
+        onError.run("Operation on a closed native handle.", ""); return
     }
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = {
-        __je: String?,
-        __ze0: String?,
+    val __cap = ZErrorHandler<Unit> {
+        __je,
+        __ze0,
         ->
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
@@ -172,7 +177,7 @@ public fun zSessionPut(
             )
         }
     }
-    if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
 }
 
 public fun zSessionDelete(
@@ -185,18 +190,18 @@ public fun zSessionDelete(
     express: Boolean?,
     attachment: ByteArray?,
     reliability: Reliability?,
-    onError: (je: String?, message: String) -> Unit,
+    onError: ZErrorHandler<Unit>,
 ) {
-    if (session.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
+    if (session.ptr == 0L) { onError.run("Operation on a closed native handle.", ""); return }
     if (keyExpr1 != null && keyExpr1.ptr == 0L) {
-        onError("Operation on a closed native handle.", ""); return
+        onError.run("Operation on a closed native handle.", ""); return
     }
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = {
-        __je: String?,
-        __ze0: String?,
+    val __cap = ZErrorHandler<Unit> {
+        __je,
+        __ze0,
         ->
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
@@ -221,7 +226,7 @@ public fun zSessionDelete(
             )
         }
     }
-    if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
 }
 
 public fun zSessionDeclareSubscriber(
@@ -229,36 +234,21 @@ public fun zSessionDeclareSubscriber(
     keyExprSel: Int,
     keyExpr0: String?,
     keyExpr1: ZKeyExpr?,
-    callback: (
-        keyExpr: ZKeyExpr,
-        keyExprAsStr: String,
-        payloadToBytes: ByteArray,
-        encodingToString: String,
-        kind: Int,
-        timestampNtp64: Long?,
-        express: Boolean,
-        priority: Int,
-        congestionControl: Int,
-        attachmentToBytes: ByteArray?,
-        reliability: Int,
-        sourceZid: ZZenohId?,
-        sourceEid: Int,
-        sourceSn: Long,
-    ) -> Unit,
-    onClose: () -> Unit,
-    onError: (je: String?, message: String) -> ZSubscriber,
+    callback: ZSampleCallback,
+    onClose: VoidCallback,
+    onError: ZErrorHandler<ZSubscriber>,
 ): ZSubscriber {
-    if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
-    if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError(
+    if (session.ptr == 0L) return onError.run("Operation on a closed native handle.", "")
+    if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError.run(
         "Operation on a closed native handle.",
         "",
     )
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = {
-        __je: String?,
-        __ze0: String?,
+    val __cap = ZErrorHandler<Unit> {
+        __je,
+        __ze0,
         ->
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
@@ -276,39 +266,7 @@ public fun zSessionDeclareSubscriber(
                         keyExprSel,
                         keyExpr0,
                         keyExpr1_ptr,
-                        {
-                            keyExpr: ZKeyExpr,
-                            keyExprAsStr: String,
-                            payloadToBytes: ByteArray,
-                            encodingToString: String,
-                            kind: Int,
-                            timestampNtp64: Long?,
-                            express: Boolean,
-                            priority: Int,
-                            congestionControl: Int,
-                            attachmentToBytes: ByteArray?,
-                            reliability: Int,
-                            sourceZid: ByteArray?,
-                            sourceEid: Int,
-                            sourceSn: Long,
-                            ->
-                            callback(
-                                keyExpr,
-                                keyExprAsStr,
-                                payloadToBytes,
-                                encodingToString,
-                                kind,
-                                timestampNtp64,
-                                express,
-                                priority,
-                                congestionControl,
-                                attachmentToBytes,
-                                reliability,
-                                sourceZid?.let { ZZenohId(it) },
-                                sourceEid,
-                                sourceSn,
-                            )
-                        },
+                        callback,
                         onClose,
                         __cap,
                     ),
@@ -318,7 +276,7 @@ public fun zSessionDeclareSubscriber(
             }
         }
     }
-    if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
     return __ret
 }
 
@@ -334,19 +292,19 @@ public fun zSessionDeclareQuerier(
     express: Boolean?,
     timeoutMs: Long?,
     acceptReplies: ReplyKeyExpr?,
-    onError: (je: String?, message: String) -> ZQuerier,
+    onError: ZErrorHandler<ZQuerier>,
 ): ZQuerier {
-    if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
-    if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError(
+    if (session.ptr == 0L) return onError.run("Operation on a closed native handle.", "")
+    if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError.run(
         "Operation on a closed native handle.",
         "",
     )
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = {
-        __je: String?,
-        __ze0: String?,
+    val __cap = ZErrorHandler<Unit> {
+        __je,
+        __ze0,
         ->
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
@@ -379,7 +337,7 @@ public fun zSessionDeclareQuerier(
             }
         }
     }
-    if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
     return __ret
 }
 
@@ -389,30 +347,21 @@ public fun zSessionDeclareQueryable(
     keyExpr0: String?,
     keyExpr1: ZKeyExpr?,
     complete: Boolean?,
-    callback: (
-        keyexpr: ZKeyExpr,
-        keyexprAsStr: String,
-        parameters: String,
-        payloadToBytes: ByteArray?,
-        encodingToString: String?,
-        attachmentToBytes: ByteArray?,
-        acceptsReplies: Int,
-        handle: ZQuery,
-    ) -> Unit,
-    onClose: () -> Unit,
-    onError: (je: String?, message: String) -> ZQueryable,
+    callback: ZQueryCallback,
+    onClose: VoidCallback,
+    onError: ZErrorHandler<ZQueryable>,
 ): ZQueryable {
-    if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
-    if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError(
+    if (session.ptr == 0L) return onError.run("Operation on a closed native handle.", "")
+    if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError.run(
         "Operation on a closed native handle.",
         "",
     )
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = {
-        __je: String?,
-        __ze0: String?,
+    val __cap = ZErrorHandler<Unit> {
+        __je,
+        __ze0,
         ->
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
@@ -441,22 +390,22 @@ public fun zSessionDeclareQueryable(
             }
         }
     }
-    if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
     return __ret
 }
 
 public fun zSessionDeclareKeyexpr(
     session: ZSession,
     keyExpr: String,
-    onError: (je: String?, message: String) -> ZKeyExpr,
+    onError: ZErrorHandler<ZKeyExpr>,
 ): ZKeyExpr {
-    if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
+    if (session.ptr == 0L) return onError.run("Operation on a closed native handle.", "")
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = {
-        __je: String?,
-        __ze0: String?,
+    val __cap = ZErrorHandler<Unit> {
+        __je,
+        __ze0,
         ->
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
@@ -464,23 +413,23 @@ public fun zSessionDeclareKeyexpr(
         val session_ptr = session.ptr
         ZKeyExpr(JNINative.zSessionDeclareKeyexpr(session_ptr, keyExpr, __cap))
     }
-    if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
     return __ret
 }
 
 public fun zSessionUndeclareKeyexpr(
     session: ZSession,
     keyExpr: ZKeyExpr,
-    onError: (je: String?, message: String) -> Unit,
+    onError: ZErrorHandler<Unit>,
 ) {
-    if (session.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
-    if (keyExpr.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
+    if (session.ptr == 0L) { onError.run("Operation on a closed native handle.", ""); return }
+    if (keyExpr.ptr == 0L) { onError.run("Operation on a closed native handle.", ""); return }
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = {
-        __je: String?,
-        __ze0: String?,
+    val __cap = ZErrorHandler<Unit> {
+        __je,
+        __ze0,
         ->
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
@@ -493,7 +442,7 @@ public fun zSessionUndeclareKeyexpr(
             keyExpr.ptr = 0L
         }
     }
-    if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
 }
 
 public fun zSessionGet(
@@ -512,40 +461,20 @@ public fun zSessionGet(
     payload: ByteArray?,
     encoding: String?,
     attachment: ByteArray?,
-    callback: (
-        replierZid: ZZenohId?,
-        replierEid: Int,
-        isOk: Boolean,
-        sampleKeyExpr: ZKeyExpr?,
-        sampleKeyExprAsStr: String?,
-        samplePayloadToBytes: ByteArray?,
-        sampleEncodingToString: String?,
-        sampleKind: Int?,
-        sampleTimestampNtp64: Long?,
-        sampleExpress: Boolean?,
-        samplePriority: Int?,
-        sampleCongestionControl: Int?,
-        sampleAttachmentToBytes: ByteArray?,
-        sampleReliability: Int?,
-        sampleSourceZid: ZZenohId?,
-        sampleSourceEid: Int?,
-        sampleSourceSn: Long?,
-        errPayloadToBytes: ByteArray?,
-        errEncodingToString: String?,
-    ) -> Unit,
-    onClose: () -> Unit,
-    onError: (je: String?, message: String) -> Unit,
+    callback: ZReplyCallback,
+    onClose: VoidCallback,
+    onError: ZErrorHandler<Unit>,
 ) {
-    if (session.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
+    if (session.ptr == 0L) { onError.run("Operation on a closed native handle.", ""); return }
     if (keyExpr1 != null && keyExpr1.ptr == 0L) {
-        onError("Operation on a closed native handle.", ""); return
+        onError.run("Operation on a closed native handle.", ""); return
     }
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = {
-        __je: String?,
-        __ze0: String?,
+    val __cap = ZErrorHandler<Unit> {
+        __je,
+        __ze0,
         ->
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
@@ -572,99 +501,57 @@ public fun zSessionGet(
                 payload,
                 encoding,
                 attachment,
-                {
-                    replierZid: ByteArray?,
-                    replierEid: Int,
-                    isOk: Boolean,
-                    sampleKeyExpr: ZKeyExpr?,
-                    sampleKeyExprAsStr: String?,
-                    samplePayloadToBytes: ByteArray?,
-                    sampleEncodingToString: String?,
-                    sampleKind: Int?,
-                    sampleTimestampNtp64: Long?,
-                    sampleExpress: Boolean?,
-                    samplePriority: Int?,
-                    sampleCongestionControl: Int?,
-                    sampleAttachmentToBytes: ByteArray?,
-                    sampleReliability: Int?,
-                    sampleSourceZid: ByteArray??,
-                    sampleSourceEid: Int?,
-                    sampleSourceSn: Long?,
-                    errPayloadToBytes: ByteArray?,
-                    errEncodingToString: String?,
-                    ->
-                    callback(
-                        replierZid?.let { ZZenohId(it) },
-                        replierEid,
-                        isOk,
-                        sampleKeyExpr,
-                        sampleKeyExprAsStr,
-                        samplePayloadToBytes,
-                        sampleEncodingToString,
-                        sampleKind,
-                        sampleTimestampNtp64,
-                        sampleExpress,
-                        samplePriority,
-                        sampleCongestionControl,
-                        sampleAttachmentToBytes,
-                        sampleReliability,
-                        sampleSourceZid?.let { ZZenohId(it) },
-                        sampleSourceEid,
-                        sampleSourceSn,
-                        errPayloadToBytes,
-                        errEncodingToString,
-                    )
-                },
+                callback,
                 onClose,
                 __cap,
             )
         }
     }
-    if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
 }
 
-public fun zSessionZid(session: ZSession, onError: (je: String?) -> ZZenohId): ZZenohId {
-    if (session.ptr == 0L) return onError("Operation on a closed native handle.")
+public fun zSessionZid(session: ZSession, onError: JniErrorHandler<ZZenohId>): ZZenohId {
+    if (session.ptr == 0L) return onError.run("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
-    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(session) {
         val session_ptr = session.ptr
         ZZenohId(JNINative.zSessionZid(session_ptr, __cap))
     }
-    if (__cap_failed) return onError(__cap_je)
+    if (__cap_failed) return onError.run(__cap_je)
     return __ret
 }
 
 public fun zSessionPeersZid(
     session: ZSession,
-    onError: (je: String?) -> List<ZZenohId>,
+    onError: JniErrorHandler<List<ZZenohId>>,
 ): List<ZZenohId> {
-    if (session.ptr == 0L) return onError("Operation on a closed native handle.")
+    if (session.ptr == 0L) return onError.run("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
-    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(session) {
         val session_ptr = session.ptr
         JNINative.zSessionPeersZid(session_ptr, __cap).map { ZZenohId(it) }
     }
-    if (__cap_failed) return onError(__cap_je)
+    if (__cap_failed) return onError.run(__cap_je)
     return __ret
 }
 
 public fun zSessionRoutersZid(
     session: ZSession,
-    onError: (je: String?) -> List<ZZenohId>,
+    onError: JniErrorHandler<List<ZZenohId>>,
 ): List<ZZenohId> {
-    if (session.ptr == 0L) return onError("Operation on a closed native handle.")
+    if (session.ptr == 0L) return onError.run("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
-    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(session) {
         val session_ptr = session.ptr
         JNINative.zSessionRoutersZid(session_ptr, __cap).map { ZZenohId(it) }
     }
-    if (__cap_failed) return onError(__cap_je)
+    if (__cap_failed) return onError.run(__cap_je)
     return __ret
 }
 
@@ -673,19 +560,19 @@ public fun zLivelinessDeclareToken(
     keyExprSel: Int,
     keyExpr0: String?,
     keyExpr1: ZKeyExpr?,
-    onError: (je: String?, message: String) -> ZLivelinessToken,
+    onError: ZErrorHandler<ZLivelinessToken>,
 ): ZLivelinessToken {
-    if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
-    if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError(
+    if (session.ptr == 0L) return onError.run("Operation on a closed native handle.", "")
+    if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError.run(
         "Operation on a closed native handle.",
         "",
     )
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = {
-        __je: String?,
-        __ze0: String?,
+    val __cap = ZErrorHandler<Unit> {
+        __je,
+        __ze0,
         ->
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
@@ -711,7 +598,7 @@ public fun zLivelinessDeclareToken(
             }
         }
     }
-    if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
     return __ret
 }
 
@@ -721,40 +608,20 @@ public fun zLivelinessGet(
     keyExpr0: String?,
     keyExpr1: ZKeyExpr?,
     timeoutMs: Long,
-    callback: (
-        replierZid: ZZenohId?,
-        replierEid: Int,
-        isOk: Boolean,
-        sampleKeyExpr: ZKeyExpr?,
-        sampleKeyExprAsStr: String?,
-        samplePayloadToBytes: ByteArray?,
-        sampleEncodingToString: String?,
-        sampleKind: Int?,
-        sampleTimestampNtp64: Long?,
-        sampleExpress: Boolean?,
-        samplePriority: Int?,
-        sampleCongestionControl: Int?,
-        sampleAttachmentToBytes: ByteArray?,
-        sampleReliability: Int?,
-        sampleSourceZid: ZZenohId?,
-        sampleSourceEid: Int?,
-        sampleSourceSn: Long?,
-        errPayloadToBytes: ByteArray?,
-        errEncodingToString: String?,
-    ) -> Unit,
-    onClose: () -> Unit,
-    onError: (je: String?, message: String) -> Unit,
+    callback: ZReplyCallback,
+    onClose: VoidCallback,
+    onError: ZErrorHandler<Unit>,
 ) {
-    if (session.ptr == 0L) { onError("Operation on a closed native handle.", ""); return }
+    if (session.ptr == 0L) { onError.run("Operation on a closed native handle.", ""); return }
     if (keyExpr1 != null && keyExpr1.ptr == 0L) {
-        onError("Operation on a closed native handle.", ""); return
+        onError.run("Operation on a closed native handle.", ""); return
     }
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = {
-        __je: String?,
-        __ze0: String?,
+    val __cap = ZErrorHandler<Unit> {
+        __je,
+        __ze0,
         ->
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
@@ -771,55 +638,13 @@ public fun zLivelinessGet(
                 keyExpr0,
                 keyExpr1_ptr,
                 timeoutMs,
-                {
-                    replierZid: ByteArray?,
-                    replierEid: Int,
-                    isOk: Boolean,
-                    sampleKeyExpr: ZKeyExpr?,
-                    sampleKeyExprAsStr: String?,
-                    samplePayloadToBytes: ByteArray?,
-                    sampleEncodingToString: String?,
-                    sampleKind: Int?,
-                    sampleTimestampNtp64: Long?,
-                    sampleExpress: Boolean?,
-                    samplePriority: Int?,
-                    sampleCongestionControl: Int?,
-                    sampleAttachmentToBytes: ByteArray?,
-                    sampleReliability: Int?,
-                    sampleSourceZid: ByteArray??,
-                    sampleSourceEid: Int?,
-                    sampleSourceSn: Long?,
-                    errPayloadToBytes: ByteArray?,
-                    errEncodingToString: String?,
-                    ->
-                    callback(
-                        replierZid?.let { ZZenohId(it) },
-                        replierEid,
-                        isOk,
-                        sampleKeyExpr,
-                        sampleKeyExprAsStr,
-                        samplePayloadToBytes,
-                        sampleEncodingToString,
-                        sampleKind,
-                        sampleTimestampNtp64,
-                        sampleExpress,
-                        samplePriority,
-                        sampleCongestionControl,
-                        sampleAttachmentToBytes,
-                        sampleReliability,
-                        sampleSourceZid?.let { ZZenohId(it) },
-                        sampleSourceEid,
-                        sampleSourceSn,
-                        errPayloadToBytes,
-                        errEncodingToString,
-                    )
-                },
+                callback,
                 onClose,
                 __cap,
             )
         }
     }
-    if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
 }
 
 public fun zLivelinessDeclareSubscriber(
@@ -828,36 +653,21 @@ public fun zLivelinessDeclareSubscriber(
     keyExpr0: String?,
     keyExpr1: ZKeyExpr?,
     history: Boolean,
-    callback: (
-        keyExpr: ZKeyExpr,
-        keyExprAsStr: String,
-        payloadToBytes: ByteArray,
-        encodingToString: String,
-        kind: Int,
-        timestampNtp64: Long?,
-        express: Boolean,
-        priority: Int,
-        congestionControl: Int,
-        attachmentToBytes: ByteArray?,
-        reliability: Int,
-        sourceZid: ZZenohId?,
-        sourceEid: Int,
-        sourceSn: Long,
-    ) -> Unit,
-    onClose: () -> Unit,
-    onError: (je: String?, message: String) -> ZSubscriber,
+    callback: ZSampleCallback,
+    onClose: VoidCallback,
+    onError: ZErrorHandler<ZSubscriber>,
 ): ZSubscriber {
-    if (session.ptr == 0L) return onError("Operation on a closed native handle.", "")
-    if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError(
+    if (session.ptr == 0L) return onError.run("Operation on a closed native handle.", "")
+    if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError.run(
         "Operation on a closed native handle.",
         "",
     )
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = {
-        __je: String?,
-        __ze0: String?,
+    val __cap = ZErrorHandler<Unit> {
+        __je,
+        __ze0,
         ->
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
@@ -876,39 +686,7 @@ public fun zLivelinessDeclareSubscriber(
                         keyExpr0,
                         keyExpr1_ptr,
                         history,
-                        {
-                            keyExpr: ZKeyExpr,
-                            keyExprAsStr: String,
-                            payloadToBytes: ByteArray,
-                            encodingToString: String,
-                            kind: Int,
-                            timestampNtp64: Long?,
-                            express: Boolean,
-                            priority: Int,
-                            congestionControl: Int,
-                            attachmentToBytes: ByteArray?,
-                            reliability: Int,
-                            sourceZid: ByteArray?,
-                            sourceEid: Int,
-                            sourceSn: Long,
-                            ->
-                            callback(
-                                keyExpr,
-                                keyExprAsStr,
-                                payloadToBytes,
-                                encodingToString,
-                                kind,
-                                timestampNtp64,
-                                express,
-                                priority,
-                                congestionControl,
-                                attachmentToBytes,
-                                reliability,
-                                sourceZid?.let { ZZenohId(it) },
-                                sourceEid,
-                                sourceSn,
-                            )
-                        },
+                        callback,
                         onClose,
                         __cap,
                     ),
@@ -918,6 +696,6 @@ public fun zLivelinessDeclareSubscriber(
             }
         }
     }
-    if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
     return __ret
 }

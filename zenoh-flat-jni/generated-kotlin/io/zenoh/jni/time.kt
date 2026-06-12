@@ -2,6 +2,7 @@
 package io.zenoh.jni.time
 
 import io.zenoh.jni.JNINative
+import io.zenoh.jni.JniErrorHandler
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.withSortedHandleLocks
 
@@ -29,28 +30,28 @@ public class ZTimestamp(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun zTimestampNtp64(t: ZTimestamp, onError: (je: String?) -> Long): Long {
-    if (t.ptr == 0L) return onError("Operation on a closed native handle.")
+public fun zTimestampNtp64(t: ZTimestamp, onError: JniErrorHandler<Long>): Long {
+    if (t.ptr == 0L) return onError.run("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
-    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(t) {
         val t_ptr = t.ptr
         JNINative.zTimestampNtp64(t_ptr, __cap)
     }
-    if (__cap_failed) return onError(__cap_je)
+    if (__cap_failed) return onError.run(__cap_je)
     return __ret
 }
 
-public fun zTimestampId(t: ZTimestamp, onError: (je: String?) -> ByteArray): ByteArray {
-    if (t.ptr == 0L) return onError("Operation on a closed native handle.")
+public fun zTimestampId(t: ZTimestamp, onError: JniErrorHandler<ByteArray>): ByteArray {
+    if (t.ptr == 0L) return onError.run("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
-    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(t) {
         val t_ptr = t.ptr
         JNINative.zTimestampId(t_ptr, __cap)
     }
-    if (__cap_failed) return onError(__cap_je)
+    if (__cap_failed) return onError.run(__cap_je)
     return __ret
 }

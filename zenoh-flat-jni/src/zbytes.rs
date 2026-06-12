@@ -23,14 +23,17 @@ use zenoh_ext::{VarInt, ZDeserializeError, ZDeserializer, ZSerializer};
 
 type JResult<T> = core::result::Result<T, JniBindingError<()>>;
 
-/// Deliver an error to the foreign `onError` callback — the SAME model the
+/// Deliver an error to the foreign `onError` handler — the SAME model the
 /// generated wrappers use (no direct `throw` from native). `on_error` is a
-/// Kotlin `(je: String?) -> R` function (the binding-error arity); we invoke it
-/// with the message via the erased `invoke`. The handler throws `ZError`, so a
-/// JVM exception is pending when we return the sentinel. (This hand-written
-/// surface holds no native handle locks, so invoking the throwing callback
-/// straight from the upcall is safe — no lock is held across the throw.)
+/// `io.zenoh.jni.JniErrorHandler<R>` instance (the binding-error arity); we
+/// invoke its typed `run` with the message, through the same process-wide
+/// cached interface-method the generated code uses. The handler throws
+/// `ZError`, so a JVM exception is pending when we return the sentinel. (This
+/// hand-written surface holds no native handle locks, so invoking the
+/// throwing callback straight from the upcall is safe — no lock is held
+/// across the throw.)
 fn signal_error(env: &mut JNIEnv, on_error: &JObject, err: &impl core::fmt::Display) {
+    static MID: prebindgen::lang::CachedIfaceMethod = prebindgen::lang::CachedIfaceMethod::new();
     // If a JVM exception is already pending (a Java upcall threw), let it
     // propagate untouched — do NOT invoke the callback over it (and do not
     // clear it): the pending exception surfaces when we return the sentinel.
@@ -41,13 +44,15 @@ fn signal_error(env: &mut JNIEnv, on_error: &JObject, err: &impl core::fmt::Disp
         Ok(s) => s.into(),
         Err(_) => JObject::null(),
     };
-    // The callback throws `ZError`, leaving a pending exception; we ignore the
+    // The handler throws `ZError`, leaving a pending exception; we ignore the
     // `Err` and return so it propagates.
-    let _ = env.call_method(
+    let _ = MID.call_object(
+        env,
+        "io/zenoh/jni/JniErrorHandler",
+        "run",
+        "(Ljava/lang/String;)Ljava/lang/Object;",
         on_error,
-        "invoke",
-        "(Ljava/lang/Object;)Ljava/lang/Object;",
-        &[JValue::Object(&je)],
+        &[jni::sys::jvalue { l: je.as_raw() }],
     );
 }
 

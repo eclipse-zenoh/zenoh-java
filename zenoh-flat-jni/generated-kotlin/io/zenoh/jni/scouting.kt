@@ -2,9 +2,12 @@
 package io.zenoh.jni.scouting
 
 import io.zenoh.jni.JNINative
+import io.zenoh.jni.JniErrorHandler
 import io.zenoh.jni.NativeHandle
+import io.zenoh.jni.VoidCallback
 import io.zenoh.jni.config.WhatAmI
 import io.zenoh.jni.config.ZConfig
+import io.zenoh.jni.errors.ZErrorHandler
 import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.withSortedHandleLocks
 
@@ -56,59 +59,66 @@ public class ZScout(initialPtr: Long) : NativeHandle(initialPtr) {
     }
 }
 
-public fun zHelloWhatami(h: ZHello, onError: (je: String?) -> WhatAmI): WhatAmI {
-    if (h.ptr == 0L) return onError("Operation on a closed native handle.")
+public fun interface ZHelloCallback {
+    public fun run(whatami: Int, zid: ByteArray, locators: List<String>)
+}
+
+public fun zHelloWhatami(h: ZHello, onError: JniErrorHandler<WhatAmI>): WhatAmI {
+    if (h.ptr == 0L) return onError.run("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
-    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(h) {
         val h_ptr = h.ptr
         WhatAmI.fromInt(JNINative.zHelloWhatami(h_ptr, __cap))
     }
-    if (__cap_failed) return onError(__cap_je)
+    if (__cap_failed) return onError.run(__cap_je)
     return __ret
 }
 
-public fun zHelloZid(h: ZHello, onError: (je: String?) -> ZZenohId): ZZenohId {
-    if (h.ptr == 0L) return onError("Operation on a closed native handle.")
+public fun zHelloZid(h: ZHello, onError: JniErrorHandler<ZZenohId>): ZZenohId {
+    if (h.ptr == 0L) return onError.run("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
-    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(h) {
         val h_ptr = h.ptr
         ZZenohId(JNINative.zHelloZid(h_ptr, __cap))
     }
-    if (__cap_failed) return onError(__cap_je)
+    if (__cap_failed) return onError.run(__cap_je)
     return __ret
 }
 
-public fun zHelloLocators(h: ZHello, onError: (je: String?) -> List<String>): List<String> {
-    if (h.ptr == 0L) return onError("Operation on a closed native handle.")
+public fun zHelloLocators(h: ZHello, onError: JniErrorHandler<List<String>>): List<String> {
+    if (h.ptr == 0L) return onError.run("Operation on a closed native handle.")
     var __cap_failed = false
     var __cap_je: String? = null
-    val __cap = { __je: String? -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
     val __ret = withSortedHandleLocks(h) {
         val h_ptr = h.ptr
         JNINative.zHelloLocators(h_ptr, __cap)
     }
-    if (__cap_failed) return onError(__cap_je)
+    if (__cap_failed) return onError.run(__cap_je)
     return __ret
 }
 
 public fun zScout(
     whatami: Int,
     config: ZConfig?,
-    callback: (whatami: Int, zid: ZZenohId, locators: List<String>) -> Unit,
-    onClose: () -> Unit,
-    onError: (je: String?, message: String) -> ZScout,
+    callback: ZHelloCallback,
+    onClose: VoidCallback,
+    onError: ZErrorHandler<ZScout>,
 ): ZScout {
-    if (config != null && config.ptr == 0L) return onError("Operation on a closed native handle.", "")
+    if (config != null && config.ptr == 0L) return onError.run(
+        "Operation on a closed native handle.",
+        "",
+    )
     var __cap_failed = false
     var __cap_je: String? = null
     var __cap_ze0: String? = null
-    val __cap = {
-        __je: String?,
-        __ze0: String?,
+    val __cap = ZErrorHandler<Unit> {
+        __je,
+        __ze0,
         ->
         __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
     }
@@ -117,23 +127,9 @@ public fun zScout(
         config?.let { __locks.add(it) }
         withSortedHandleLocks(__locks) {
             val config_ptr = config?.ptr ?: 0L
-            ZScout(
-                JNINative.zScout(
-                    whatami,
-                    config_ptr,
-                    {
-                        whatami: Int,
-                        zid: ByteArray,
-                        locators: List<String>,
-                        ->
-                        callback(whatami, ZZenohId(zid), locators)
-                    },
-                    onClose,
-                    __cap,
-                ),
-            )
+            ZScout(JNINative.zScout(whatami, config_ptr, callback, onClose, __cap))
         }
     }
-    if (__cap_failed) return onError(__cap_je, (__cap_ze0 ?: ""))
+    if (__cap_failed) return onError.run(__cap_je, (__cap_ze0 ?: ""))
     return __ret
 }

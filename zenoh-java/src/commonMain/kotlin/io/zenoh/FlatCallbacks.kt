@@ -38,15 +38,15 @@ import io.zenoh.scouting.Hello
 
 internal fun sampleCallbackOf(
     f: (Sample) -> Unit
-): (io.zenoh.jni.keyexpr.ZKeyExpr, String, ByteArray, String, Int, Long?, Boolean, Int, Int, ByteArray?, Int, io.zenoh.jni.config.ZZenohId?, Int, Long) -> Unit =
-    { keH, keStr, payload, encStr, kindInt, ntp64, express, prioInt, ccInt, attach, reliabilityInt, sourceZid, sourceEid, sourceSn ->
+): io.zenoh.jni.sample.ZSampleCallback =
+    io.zenoh.jni.sample.ZSampleCallback { keH, keStr, payload, encStr, kindInt, ntp64, express, prioInt, ccInt, attach, reliabilityInt, sourceZid, sourceEid, sourceSn ->
         f(Sample.fromParts(keH, keStr, payload, encStr, kindInt, ntp64, express, prioInt, ccInt, attach, reliabilityInt, sourceZid, sourceEid, sourceSn))
     }
 
 internal fun queryCallbackOf(
     f: (Query) -> Unit
-): (io.zenoh.jni.keyexpr.ZKeyExpr, String, String, ByteArray?, String?, ByteArray?, Int, io.zenoh.jni.query.ZQuery) -> Unit =
-    { keH, keStr, parameters, payload, encStr, attach, acceptsReplies, zq ->
+): io.zenoh.jni.query.ZQueryCallback =
+    io.zenoh.jni.query.ZQueryCallback { keH, keStr, parameters, payload, encStr, attach, acceptsReplies, zq ->
         // The decomposed leaves — including the cloned `keH` key-expr handle and
         // the owned `zq` query handle — are folded into the SDK [Query]. Unlike
         // the decomposed read-only types (Sample/Hello), the query OWNS `zq` and
@@ -59,9 +59,9 @@ internal fun queryCallbackOf(
 
 internal fun replyCallbackOf(
     f: (Reply) -> Unit
-): (io.zenoh.jni.config.ZZenohId?, Int, Boolean, io.zenoh.jni.keyexpr.ZKeyExpr?, String?, ByteArray?, String?, Int?, Long?, Boolean?, Int?, Int?, ByteArray?, Int?, io.zenoh.jni.config.ZZenohId?, Int?, Long?, ByteArray?, String?) -> Unit =
-    { zid, eid, isOk, keH, keStr, payload, encStr, kindInt, ntp64, express, prioInt, ccInt, attach, reliabilityInt, sourceZid, sourceEid, sourceSn, errPayload, errEncStr ->
-        val replierId = zid?.let { EntityGlobalId(ZenohId(it), eid.toUInt()) }
+): io.zenoh.jni.query.ZReplyCallback =
+    io.zenoh.jni.query.ZReplyCallback { zid, eid, isOk, keH, keStr, payload, encStr, kindInt, ntp64, express, prioInt, ccInt, attach, reliabilityInt, sourceZid, sourceEid, sourceSn, errPayload, errEncStr ->
+        val replierId = zid?.let { EntityGlobalId(ZenohId(io.zenoh.jni.config.ZZenohId(it)), eid.toUInt()) }
         f(
             if (isOk) {
                 Reply.Success(
@@ -80,7 +80,7 @@ internal fun replyCallbackOf(
 
 internal fun helloCallbackOf(
     f: (Hello) -> Unit
-): (Int, io.zenoh.jni.config.ZZenohId, List<String>) -> Unit =
-    { whatamiInt, zid, locators ->
-        f(Hello(WhatAmI.fromJni(io.zenoh.jni.config.WhatAmI.fromInt(whatamiInt)), ZenohId(zid), locators))
+): io.zenoh.jni.scouting.ZHelloCallback =
+    io.zenoh.jni.scouting.ZHelloCallback { whatamiInt, zid, locators ->
+        f(Hello(WhatAmI.fromJni(io.zenoh.jni.config.WhatAmI.fromInt(whatamiInt)), ZenohId(io.zenoh.jni.config.ZZenohId(zid)), locators))
     }

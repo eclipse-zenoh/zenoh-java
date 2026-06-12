@@ -74,7 +74,7 @@ data class Sample(
             ccInt: Int,
             attach: ByteArray?,
             reliabilityInt: Int,
-            sourceZid: io.zenoh.jni.config.ZZenohId?,
+            sourceZid: ByteArray?,
             sourceEid: Int,
             sourceSn: Long,
         ): Sample = Sample(
