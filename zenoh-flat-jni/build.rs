@@ -138,12 +138,17 @@ fn main() {
         .fun(pq!(z_zbytes_from_vec))
         .fun_output_direct()
         .ptr_class(pq!(ZEncoding))
-        // Canonical input: encoding params accept a `String` (z_encoding_from_string).
+        // Canonical input: encoding params cross as their lossless decomposed
+        // value `(id: i32, schema: Option<String>)` (z_encoding_from_id) — cheap
+        // primitives, no per-call String parse, no native handle on the Kotlin
+        // `Encoding` value. `Option<&ZEncoding>` becomes a `present:bool` flag +
+        // `(encodingId: Int, encodingSchema: String?)` via the multi-arg
+        // Optional fold (the SDK caches `(id, schema)` once and reuses it).
         // Canonical output: the handle (identity, raw jlong) + id (raw jint) —
         // both free jvalue slots. Schema and the canonical string are HEAVY
         // (JNI string allocs) and stay on-demand accessors through the handle
         // (forward-extraction rule: never assume the consumer reads them).
-        .ptr_class_input(pq!(z_encoding_from_string))
+        .ptr_class_input(pq!(z_encoding_from_id))
         .ptr_class_output_direct()
         .ptr_class_output(pq!(z_encoding_id))
         .fun_accessor(pq!(z_encoding_id))

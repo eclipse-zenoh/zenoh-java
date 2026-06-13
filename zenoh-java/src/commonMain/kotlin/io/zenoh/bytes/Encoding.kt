@@ -41,27 +41,62 @@ class Encoding private constructor(
 
     private var schemaLazy: String? = null
     private var schemaKnown: Boolean = false
+    private var idCached: Int = id ?: 0
+    private var idKnown: Boolean = id != null
 
     /**
-     * Optional schema. A handle-backed (received) Encoding reads it LAZILY on
-     * first access (forward-extraction rule: never delivered eagerly — we
-     * cannot assume any consumer reads it). A repr-primary Encoding carries
-     * its schema inside [repr]; this accessor is for the received form.
+     * Ensure the lossless decomposed form `(id, schema)` is cached. Zenoh's
+     * encoding IS `(id, schema)`, so this loses nothing. A handle-backed
+     * (received) Encoding already knows its [id]; its schema is read LAZILY
+     * through the handle on first need. A repr-primary Encoding (a predefined
+     * constant or [from]) derives BOTH once from a transient handle built off
+     * [repr], then frees it — caching pure JVM values and retaining no native
+     * handle. The cache is reused across every native crossing, so a reused
+     * encoding (the normal case — a publisher publishes one data type) never
+     * re-parses its string per call.
      */
-    internal val schema: String?
-        get() {
-            if (!schemaKnown) {
-                synchronized(this) {
+    private fun ensureDecomposed() {
+        if (idKnown && schemaKnown) return
+        synchronized(this) {
+            if (idKnown && schemaKnown) return
+            if (handle != null) {
+                if (!schemaKnown) {
+                    schemaLazy = io.zenoh.jni.bytes.zEncodingSchema(handle, throwZError0)
+                    schemaKnown = true
+                }
+            } else {
+                val h = io.zenoh.jni.bytes.zEncodingFromString(repr, throwZError0)
+                try {
+                    if (!idKnown) {
+                        idCached = io.zenoh.jni.bytes.zEncodingId(h, throwZError0)
+                        idKnown = true
+                    }
                     if (!schemaKnown) {
-                        schemaLazy = handle?.let {
-                            io.zenoh.jni.bytes.zEncodingSchema(it, throwZError0)
-                        }
+                        schemaLazy = io.zenoh.jni.bytes.zEncodingSchema(h, throwZError0)
                         schemaKnown = true
                     }
+                } finally {
+                    h.close()
                 }
             }
-            return schemaLazy
         }
+    }
+
+    /**
+     * Encoding id for the OUTBOUND native crossing. Cached once (see
+     * [ensureDecomposed]) and reused across every put/get/reply — the wire
+     * carries this cheap primitive instead of a freshly parsed string.
+     */
+    internal fun idForWire(): Int {
+        ensureDecomposed()
+        return idCached
+    }
+
+    /** Optional schema for the OUTBOUND native crossing. Cached once. */
+    internal fun schemaForWire(): String? {
+        ensureDecomposed()
+        return schemaLazy
+    }
 
     /**
      * Canonical display string. A handle-backed (received) Encoding

@@ -255,7 +255,9 @@ public fun zQuerierGet(
     querier: ZQuerier,
     parameters: String?,
     payload: ByteArray?,
-    encoding: String?,
+    encodingPresent: Boolean,
+    encodingId: Int,
+    encodingSchema: String?,
     attachment: ByteArray?,
     callback: ZReplyCallback,
     onClose: VoidCallback,
@@ -269,7 +271,9 @@ public fun zQuerierGet(
             querier_ptr,
             parameters,
             payload,
-            encoding,
+            encodingPresent,
+            encodingId,
+            encodingSchema,
             attachment,
             callback.asRaw(),
             onClose,
@@ -285,7 +289,9 @@ public fun zQueryReplySuccess(
     keyExpr0: String?,
     keyExpr1: ZKeyExpr?,
     payload: ByteArray,
-    encoding: String?,
+    encodingPresent: Boolean,
+    encodingId: Int,
+    encodingSchema: String?,
     timestampNtp64: Long?,
     attachment: ByteArray?,
     express: Boolean?,
@@ -309,7 +315,9 @@ public fun zQueryReplySuccess(
                 keyExpr0,
                 keyExpr1_ptr,
                 payload,
-                encoding,
+                encodingPresent,
+                encodingId,
+                encodingSchema,
                 timestampNtp64,
                 attachment,
                 express,
@@ -323,14 +331,23 @@ public fun zQueryReplySuccess(
 public fun zQueryReplyError(
     query: ZQuery,
     payload: ByteArray,
-    encoding: String?,
+    encodingPresent: Boolean,
+    encodingId: Int,
+    encodingSchema: String?,
     onError: ZErrorHandler<Unit>,
 ) {
     if (query.ptr == 0L) { onError.run("Operation on a closed native handle.", ""); return }
     val __cap = ZErrorHandlerCapture.acquire()
     withSortedHandleLocks(query) {
         val query_ptr = query.ptr
-        JNINative.zQueryReplyError(query_ptr, payload, encoding, __cap)
+        JNINative.zQueryReplyError(
+            query_ptr,
+            payload,
+            encodingPresent,
+            encodingId,
+            encodingSchema,
+            __cap,
+        )
     }
     if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
 }

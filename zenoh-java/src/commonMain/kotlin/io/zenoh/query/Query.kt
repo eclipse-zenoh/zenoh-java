@@ -99,7 +99,9 @@ class Query internal constructor(
             keyExpr.exprStr,
             keyExpr.exprHandle,
             payload.into().bytes,
-            options.encoding.repr,
+            true,
+            options.encoding.idForWire(),
+            options.encoding.schemaForWire(),
             options.timeStamp?.ntpValue(),
             options.attachment?.into()?.bytes,
             options.express,
@@ -159,7 +161,7 @@ class Query internal constructor(
     @Throws(ZError::class)
     fun replyErr(message: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
-        io.zenoh.jni.query.zQueryReplyError(q, message.into().bytes, options.encoding.repr, throwZError)
+        io.zenoh.jni.query.zQueryReplyError(q, message.into().bytes, true, options.encoding.idForWire(), options.encoding.schemaForWire(), throwZError)
         q.close()
         zQuery = null
     }

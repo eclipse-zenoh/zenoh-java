@@ -134,7 +134,9 @@ class Publisher internal constructor(
         io.zenoh.jni.pubsub.zPublisherPut(
             p,
             payload.into().bytes,
-            encoding.repr,
+            true,
+            encoding.idForWire(),
+            encoding.schemaForWire(),
             attachment?.into()?.bytes,
             throwZError,
         )

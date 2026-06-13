@@ -58,7 +58,9 @@ public class ZSubscriber(initialPtr: Long) : NativeHandle(initialPtr) {
 public fun zPublisherPut(
     publisher: ZPublisher,
     payload: ByteArray,
-    encoding: String?,
+    encodingPresent: Boolean,
+    encodingId: Int,
+    encodingSchema: String?,
     attachment: ByteArray?,
     onError: ZErrorHandler<Unit>,
 ) {
@@ -66,7 +68,15 @@ public fun zPublisherPut(
     val __cap = ZErrorHandlerCapture.acquire()
     withSortedHandleLocks(publisher) {
         val publisher_ptr = publisher.ptr
-        JNINative.zPublisherPut(publisher_ptr, payload, encoding, attachment, __cap)
+        JNINative.zPublisherPut(
+            publisher_ptr,
+            payload,
+            encodingPresent,
+            encodingId,
+            encodingSchema,
+            attachment,
+            __cap,
+        )
     }
     if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
 }

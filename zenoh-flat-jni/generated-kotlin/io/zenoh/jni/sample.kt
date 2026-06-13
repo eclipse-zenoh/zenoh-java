@@ -282,7 +282,9 @@ public fun <R> zSamplePut(
     keyExpr0: String?,
     keyExpr1: ZKeyExpr?,
     payload: ByteArray,
-    encoding: String?,
+    encodingPresent: Boolean,
+    encodingId: Int,
+    encodingSchema: String?,
     timestampNtp64: Long?,
     attachment: ByteArray?,
     congestionControl: CongestionControl?,
@@ -302,7 +304,7 @@ public fun <R> zSamplePut(
         withSortedHandleLocks(__locks) {
             val keyExpr1_ptr = keyExpr1?.ptr ?: 0L
             try {
-                (JNINative.zSamplePut(keyExprSel, keyExpr0, keyExpr1_ptr, payload, encoding, timestampNtp64, attachment, congestionControl?.value, priority?.value, express, reliability?.value, build.asRaw(), __cap) as R)
+                (JNINative.zSamplePut(keyExprSel, keyExpr0, keyExpr1_ptr, payload, encodingPresent, encodingId, encodingSchema, timestampNtp64, attachment, congestionControl?.value, priority?.value, express, reliability?.value, build.asRaw(), __cap) as R)
             } finally {
                 keyExpr1?.let { it.ptr = 0L }
             }

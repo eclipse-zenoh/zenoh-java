@@ -729,6 +729,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val zSession = zSession ?: throw sessionClosedException
         return run {
             val sel = selector.into()
+            val enc = options.encoding ?: Encoding.defaultEncoding()
             io.zenoh.jni.session.zSessionGet(
                 zSession,
                 sel.keyExpr.exprSel,
@@ -743,7 +744,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.qos.priority.jni,
                 options.qos.express,
                 options.payload?.into()?.bytes,
-                (options.encoding ?: Encoding.defaultEncoding()).repr,
+                true,
+                enc.idForWire(),
+                enc.schemaForWire(),
                 options.attachment?.into()?.bytes,
                 replyCallbackOf { handler.handle(it) },
                 { handler.onClose() },
@@ -762,6 +765,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val zSession = zSession ?: throw sessionClosedException
         run {
             val sel = selector.into()
+            val enc = options.encoding ?: Encoding.defaultEncoding()
             io.zenoh.jni.session.zSessionGet(
                 zSession,
                 sel.keyExpr.exprSel,
@@ -776,7 +780,9 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.qos.priority.jni,
                 options.qos.express,
                 options.payload?.into()?.bytes,
-                (options.encoding ?: Encoding.defaultEncoding()).repr,
+                true,
+                enc.idForWire(),
+                enc.schemaForWire(),
                 options.attachment?.into()?.bytes,
                 replyCallbackOf { callback.run(it) },
                 { },
@@ -789,13 +795,16 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     internal fun resolvePut(keyExpr: KeyExpr, payload: IntoZBytes, putOptions: PutOptions) {
         val zSession = zSession ?: return
         run {
+            val enc = putOptions.encoding ?: Encoding.defaultEncoding()
             io.zenoh.jni.session.zSessionPut(
                 zSession,
                 keyExpr.exprSel,
                 keyExpr.exprStr,
                 keyExpr.exprHandle,
                 payload.into().bytes,
-                (putOptions.encoding ?: Encoding.defaultEncoding()).repr,
+                true,
+                enc.idForWire(),
+                enc.schemaForWire(),
                 putOptions.congestionControl.jni,
                 putOptions.priority.jni,
                 putOptions.express,
