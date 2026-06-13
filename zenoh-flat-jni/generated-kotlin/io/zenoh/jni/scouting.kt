@@ -3,12 +3,14 @@ package io.zenoh.jni.scouting
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniErrorHandler
+import io.zenoh.jni.JniErrorHandlerCapture
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.VoidCallback
 import io.zenoh.jni.config.WhatAmI
 import io.zenoh.jni.config.ZConfig
 import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.errors.ZErrorHandler
+import io.zenoh.jni.errors.ZErrorHandlerCapture
 import io.zenoh.jni.withSortedHandleLocks
 
 /** Typed handle for a native Zenoh `ZHello`. */
@@ -71,40 +73,34 @@ public fun ZHelloCallback.asRaw(): ZHelloCallbackRaw = ZHelloCallbackRaw { whata
 
 public fun zHelloWhatami(h: ZHello, onError: JniErrorHandler<WhatAmI>): WhatAmI {
     if (h.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(h) {
         val h_ptr = h.ptr
         WhatAmI.fromInt(JNINative.zHelloWhatami(h_ptr, __cap))
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zHelloZid(h: ZHello, onError: JniErrorHandler<ZZenohId>): ZZenohId {
     if (h.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(h) {
         val h_ptr = h.ptr
         ZZenohId(JNINative.zHelloZid(h_ptr, __cap))
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zHelloLocators(h: ZHello, onError: JniErrorHandler<List<String>>): List<String> {
     if (h.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(h) {
         val h_ptr = h.ptr
         JNINative.zHelloLocators(h_ptr, __cap)
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
@@ -119,15 +115,7 @@ public fun zScout(
         "Operation on a closed native handle.",
         "",
     )
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     val __ret = run {
         val __locks = ArrayList<NativeHandle>()
         config?.let { __locks.add(it) }
@@ -136,6 +124,6 @@ public fun zScout(
             ZScout(JNINative.zScout(whatami, config_ptr, callback.asRaw(), onClose, __cap))
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
     return __ret
 }

@@ -3,6 +3,7 @@ package io.zenoh.jni.sample
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniErrorHandler
+import io.zenoh.jni.JniErrorHandlerCapture
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.bytes.ZEncoding
 import io.zenoh.jni.bytes.ZZBytes
@@ -131,92 +132,78 @@ public fun <R> ZSampleBuilder<R>.asRaw(): ZSampleBuilderRaw<R> = ZSampleBuilderR
 
 public fun zSampleKeyExpr(s: ZSample, onError: JniErrorHandler<ZKeyExpr>): ZKeyExpr {
     if (s.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(s) {
         val s_ptr = s.ptr
         ZKeyExpr(JNINative.zSampleKeyExpr(s_ptr, __cap))
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zSamplePayload(s: ZSample, onError: JniErrorHandler<ZZBytes>): ZZBytes {
     if (s.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(s) {
         val s_ptr = s.ptr
         ZZBytes(JNINative.zSamplePayload(s_ptr, __cap))
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zSampleEncoding(s: ZSample, onError: JniErrorHandler<ZEncoding>): ZEncoding {
     if (s.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(s) {
         val s_ptr = s.ptr
         ZEncoding(JNINative.zSampleEncoding(s_ptr, __cap))
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zSampleKind(s: ZSample, onError: JniErrorHandler<SampleKind>): SampleKind {
     if (s.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(s) {
         val s_ptr = s.ptr
         SampleKind.fromInt(JNINative.zSampleKind(s_ptr, __cap))
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zSampleTimestamp(s: ZSample, onError: JniErrorHandler<ZTimestamp?>): ZTimestamp? {
     if (s.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(s) {
         val s_ptr = s.ptr
         JNINative.zSampleTimestamp(s_ptr, __cap).let { if (it == 0L) null else ZTimestamp(it) }
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zSampleExpress(s: ZSample, onError: JniErrorHandler<Boolean>): Boolean {
     if (s.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(s) {
         val s_ptr = s.ptr
         JNINative.zSampleExpress(s_ptr, __cap)
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zSamplePriority(s: ZSample, onError: JniErrorHandler<Priority>): Priority {
     if (s.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(s) {
         val s_ptr = s.ptr
         Priority.fromInt(JNINative.zSamplePriority(s_ptr, __cap))
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
@@ -225,79 +212,67 @@ public fun zSampleCongestionControl(
     onError: JniErrorHandler<CongestionControl>,
 ): CongestionControl {
     if (s.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(s) {
         val s_ptr = s.ptr
         CongestionControl.fromInt(JNINative.zSampleCongestionControl(s_ptr, __cap))
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zSampleAttachment(s: ZSample, onError: JniErrorHandler<ZZBytes?>): ZZBytes? {
     if (s.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(s) {
         val s_ptr = s.ptr
         JNINative.zSampleAttachment(s_ptr, __cap).let { if (it == 0L) null else ZZBytes(it) }
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zSampleReliability(s: ZSample, onError: JniErrorHandler<Reliability>): Reliability {
     if (s.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(s) {
         val s_ptr = s.ptr
         Reliability.fromInt(JNINative.zSampleReliability(s_ptr, __cap))
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zSampleSourceZid(s: ZSample, onError: JniErrorHandler<ZZenohId?>): ZZenohId? {
     if (s.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(s) {
         val s_ptr = s.ptr
         JNINative.zSampleSourceZid(s_ptr, __cap)?.let { ZZenohId(it) }
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zSampleSourceEid(s: ZSample, onError: JniErrorHandler<Int>): Int {
     if (s.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(s) {
         val s_ptr = s.ptr
         JNINative.zSampleSourceEid(s_ptr, __cap)
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zSampleSourceSn(s: ZSample, onError: JniErrorHandler<Long>): Long {
     if (s.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(s) {
         val s_ptr = s.ptr
         JNINative.zSampleSourceSn(s_ptr, __cap)
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
@@ -320,9 +295,7 @@ public fun <R> zSamplePut(
     if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError.run(
         "Operation on a closed native handle.",
     )
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = run {
         val __locks = ArrayList<NativeHandle>()
         keyExpr1?.let { __locks.add(it) }
@@ -335,7 +308,7 @@ public fun <R> zSamplePut(
             }
         }
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
@@ -356,9 +329,7 @@ public fun <R> zSampleDelete(
     if (keyExpr1 != null && keyExpr1.ptr == 0L) return onError.run(
         "Operation on a closed native handle.",
     )
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = run {
         val __locks = ArrayList<NativeHandle>()
         keyExpr1?.let { __locks.add(it) }
@@ -371,6 +342,6 @@ public fun <R> zSampleDelete(
             }
         }
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }

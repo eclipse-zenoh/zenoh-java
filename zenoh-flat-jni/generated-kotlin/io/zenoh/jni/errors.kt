@@ -3,6 +3,7 @@ package io.zenoh.jni.errors
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniErrorHandler
+import io.zenoh.jni.JniErrorHandlerCapture
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.withSortedHandleLocks
 
@@ -34,15 +35,28 @@ public fun interface ZErrorHandler<out R> {
     public fun run(je: String?, message: String): R
 }
 
+internal class ZErrorHandlerCapture : ZErrorHandler<Unit> {
+    @JvmField var failed: Boolean = false
+    @JvmField var je: String? = null
+    @JvmField var ze0: String? = null
+    override fun run(je: String?, message: String) { failed = true; this.je = je; this.ze0 = message }
+    companion object {
+        private val TL: ThreadLocal<ZErrorHandlerCapture> = ThreadLocal.withInitial { ZErrorHandlerCapture() }
+        @JvmStatic fun acquire(): ZErrorHandlerCapture {
+            val c = TL.get()
+            c.failed = false; c.je = null; c.ze0 = null
+            return c
+        }
+    }
+}
+
 public fun zErrorMessage(e: ZError, onError: JniErrorHandler<String>): String {
     if (e.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(e) {
         val e_ptr = e.ptr
         JNINative.zErrorMessage(e_ptr, __cap)
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }

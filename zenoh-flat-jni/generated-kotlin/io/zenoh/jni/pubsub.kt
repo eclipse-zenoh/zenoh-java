@@ -4,6 +4,7 @@ package io.zenoh.jni.pubsub
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.errors.ZErrorHandler
+import io.zenoh.jni.errors.ZErrorHandlerCapture
 import io.zenoh.jni.withSortedHandleLocks
 
 /** Typed handle for a native Zenoh `ZPublisher`. */
@@ -62,20 +63,12 @@ public fun zPublisherPut(
     onError: ZErrorHandler<Unit>,
 ) {
     if (publisher.ptr == 0L) { onError.run("Operation on a closed native handle.", ""); return }
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     withSortedHandleLocks(publisher) {
         val publisher_ptr = publisher.ptr
         JNINative.zPublisherPut(publisher_ptr, payload, encoding, attachment, __cap)
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
 }
 
 public fun zPublisherDelete(
@@ -84,18 +77,10 @@ public fun zPublisherDelete(
     onError: ZErrorHandler<Unit>,
 ) {
     if (publisher.ptr == 0L) { onError.run("Operation on a closed native handle.", ""); return }
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     withSortedHandleLocks(publisher) {
         val publisher_ptr = publisher.ptr
         JNINative.zPublisherDelete(publisher_ptr, attachment, __cap)
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
 }

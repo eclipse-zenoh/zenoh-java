@@ -3,27 +3,22 @@ package io.zenoh.jni.logger
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniErrorHandler
+import io.zenoh.jni.JniErrorHandlerCapture
 
 public fun initAndroidLogs(filter: String, onError: JniErrorHandler<Unit>) {
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     JNINative.initAndroidLogs(filter, __cap)
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
 }
 
 public fun tryInitZenohLogsFromEnv(onError: JniErrorHandler<Unit>) {
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     JNINative.tryInitZenohLogsFromEnv(__cap)
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
 }
 
 public fun initZenohLogsFromEnvOr(fallbackFilter: String, onError: JniErrorHandler<Unit>) {
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     JNINative.initZenohLogsFromEnvOr(fallbackFilter, __cap)
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
 }

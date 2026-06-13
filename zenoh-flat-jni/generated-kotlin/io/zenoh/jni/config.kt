@@ -3,8 +3,10 @@ package io.zenoh.jni.config
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniErrorHandler
+import io.zenoh.jni.JniErrorHandlerCapture
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.errors.ZErrorHandler
+import io.zenoh.jni.errors.ZErrorHandlerCapture
 import io.zenoh.jni.withSortedHandleLocks
 
 /** JVM-side surface for the native Rust `WhatAmI` enum. */
@@ -51,132 +53,82 @@ public class ZConfig(initialPtr: Long) : NativeHandle(initialPtr) {
 }
 
 public fun zConfigDefault(onError: JniErrorHandler<ZConfig>): ZConfig {
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = ZConfig(JNINative.zConfigDefault(__cap))
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zConfigFromFile(path: String, onError: ZErrorHandler<ZConfig>): ZConfig {
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     val __ret = ZConfig(JNINative.zConfigFromFile(path, __cap))
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
     return __ret
 }
 
 public fun zConfigFromJson(s: String, onError: ZErrorHandler<ZConfig>): ZConfig {
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     val __ret = ZConfig(JNINative.zConfigFromJson(s, __cap))
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
     return __ret
 }
 
 public fun zConfigFromJson5(s: String, onError: ZErrorHandler<ZConfig>): ZConfig {
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     val __ret = ZConfig(JNINative.zConfigFromJson5(s, __cap))
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
     return __ret
 }
 
 public fun zConfigFromYaml(s: String, onError: ZErrorHandler<ZConfig>): ZConfig {
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     val __ret = ZConfig(JNINative.zConfigFromYaml(s, __cap))
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
     return __ret
 }
 
 public fun zConfigGetJson(c: ZConfig, key: String, onError: JniErrorHandler<String>): String {
     if (c.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(c) {
         val c_ptr = c.ptr
         JNINative.zConfigGetJson(c_ptr, key, __cap)
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zConfigInsertJson5(c: ZConfig, key: String, value: String, onError: ZErrorHandler<Unit>) {
     if (c.ptr == 0L) { onError.run("Operation on a closed native handle.", ""); return }
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     withSortedHandleLocks(c) {
         val c_ptr = c.ptr
         JNINative.zConfigInsertJson5(c_ptr, key, value, __cap)
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
 }
 
 public fun zConfigClone(c: ZConfig, onError: JniErrorHandler<ZConfig>): ZConfig {
     if (c.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(c) {
         val c_ptr = c.ptr
         ZConfig(JNINative.zConfigClone(c_ptr, __cap))
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zZenohIdToBytes(z: ZZenohId, onError: JniErrorHandler<ByteArray>): ByteArray {
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = JNINative.zZenohIdToBytes(z.bytes, __cap)
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
 public fun zZenohIdToString(z: ZZenohId, onError: JniErrorHandler<String>): String {
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = JNINative.zZenohIdToString(z.bytes, __cap)
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }

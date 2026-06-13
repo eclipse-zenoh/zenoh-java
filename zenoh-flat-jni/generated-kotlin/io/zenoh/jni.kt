@@ -84,6 +84,20 @@ public fun interface JniErrorHandler<out R> {
     public fun run(je: String?): R
 }
 
+internal class JniErrorHandlerCapture : JniErrorHandler<Unit> {
+    @JvmField var failed: Boolean = false
+    @JvmField var je: String? = null
+    override fun run(je: String?) { failed = true; this.je = je }
+    companion object {
+        private val TL: ThreadLocal<JniErrorHandlerCapture> = ThreadLocal.withInitial { JniErrorHandlerCapture() }
+        @JvmStatic fun acquire(): JniErrorHandlerCapture {
+            val c = TL.get()
+            c.failed = false; c.je = null
+            return c
+        }
+    }
+}
+
 internal object JNINative {
     external fun initAndroidLogs(filter: String, errorSink: Any)
     external fun initZenohLogsFromEnvOr(fallbackFilter: String, errorSink: Any)

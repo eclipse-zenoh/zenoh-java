@@ -3,11 +3,13 @@ package io.zenoh.jni.session
 
 import io.zenoh.jni.JNINative
 import io.zenoh.jni.JniErrorHandler
+import io.zenoh.jni.JniErrorHandlerCapture
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.VoidCallback
 import io.zenoh.jni.config.ZConfig
 import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.errors.ZErrorHandler
+import io.zenoh.jni.errors.ZErrorHandlerCapture
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.liveliness.ZLivelinessToken
 import io.zenoh.jni.pubsub.ZPublisher
@@ -53,15 +55,7 @@ public class ZSession(initialPtr: Long) : NativeHandle(initialPtr) {
 
 public fun zOpen(config: ZConfig, onError: ZErrorHandler<ZSession>): ZSession {
     if (config.ptr == 0L) return onError.run("Operation on a closed native handle.", "")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(config) {
         val config_ptr = config.ptr
         try {
@@ -70,7 +64,7 @@ public fun zOpen(config: ZConfig, onError: ZErrorHandler<ZSession>): ZSession {
             config.ptr = 0L
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
     return __ret
 }
 
@@ -90,15 +84,7 @@ public fun zSessionDeclarePublisher(
         "Operation on a closed native handle.",
         "",
     )
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     val __ret = run {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(session)
@@ -125,7 +111,7 @@ public fun zSessionDeclarePublisher(
             }
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
     return __ret
 }
 
@@ -147,15 +133,7 @@ public fun zSessionPut(
     if (keyExpr1 != null && keyExpr1.ptr == 0L) {
         onError.run("Operation on a closed native handle.", ""); return
     }
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     run {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(session)
@@ -179,7 +157,7 @@ public fun zSessionPut(
             )
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
 }
 
 public fun zSessionDelete(
@@ -198,15 +176,7 @@ public fun zSessionDelete(
     if (keyExpr1 != null && keyExpr1.ptr == 0L) {
         onError.run("Operation on a closed native handle.", ""); return
     }
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     run {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(session)
@@ -228,7 +198,7 @@ public fun zSessionDelete(
             )
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
 }
 
 public fun zSessionDeclareSubscriber(
@@ -245,15 +215,7 @@ public fun zSessionDeclareSubscriber(
         "Operation on a closed native handle.",
         "",
     )
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     val __ret = run {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(session)
@@ -278,7 +240,7 @@ public fun zSessionDeclareSubscriber(
             }
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
     return __ret
 }
 
@@ -301,15 +263,7 @@ public fun zSessionDeclareQuerier(
         "Operation on a closed native handle.",
         "",
     )
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     val __ret = run {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(session)
@@ -339,7 +293,7 @@ public fun zSessionDeclareQuerier(
             }
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
     return __ret
 }
 
@@ -358,15 +312,7 @@ public fun zSessionDeclareQueryable(
         "Operation on a closed native handle.",
         "",
     )
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     val __ret = run {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(session)
@@ -392,7 +338,7 @@ public fun zSessionDeclareQueryable(
             }
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
     return __ret
 }
 
@@ -402,20 +348,12 @@ public fun zSessionDeclareKeyexpr(
     onError: ZErrorHandler<ZKeyExpr>,
 ): ZKeyExpr {
     if (session.ptr == 0L) return onError.run("Operation on a closed native handle.", "")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(session) {
         val session_ptr = session.ptr
         ZKeyExpr(JNINative.zSessionDeclareKeyexpr(session_ptr, keyExpr, __cap))
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
     return __ret
 }
 
@@ -426,15 +364,7 @@ public fun zSessionUndeclareKeyexpr(
 ) {
     if (session.ptr == 0L) { onError.run("Operation on a closed native handle.", ""); return }
     if (keyExpr.ptr == 0L) { onError.run("Operation on a closed native handle.", ""); return }
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     withSortedHandleLocks(session, keyExpr) {
         val session_ptr = session.ptr
         val keyExpr_ptr = keyExpr.ptr
@@ -444,7 +374,7 @@ public fun zSessionUndeclareKeyexpr(
             keyExpr.ptr = 0L
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
 }
 
 public fun zSessionGet(
@@ -471,15 +401,7 @@ public fun zSessionGet(
     if (keyExpr1 != null && keyExpr1.ptr == 0L) {
         onError.run("Operation on a closed native handle.", ""); return
     }
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     run {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(session)
@@ -509,19 +431,17 @@ public fun zSessionGet(
             )
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
 }
 
 public fun zSessionZid(session: ZSession, onError: JniErrorHandler<ZZenohId>): ZZenohId {
     if (session.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(session) {
         val session_ptr = session.ptr
         ZZenohId(JNINative.zSessionZid(session_ptr, __cap))
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
@@ -530,14 +450,12 @@ public fun zSessionPeersZid(
     onError: JniErrorHandler<List<ZZenohId>>,
 ): List<ZZenohId> {
     if (session.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(session) {
         val session_ptr = session.ptr
         JNINative.zSessionPeersZid(session_ptr, __cap).map { ZZenohId(it) }
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
@@ -546,14 +464,12 @@ public fun zSessionRoutersZid(
     onError: JniErrorHandler<List<ZZenohId>>,
 ): List<ZZenohId> {
     if (session.ptr == 0L) return onError.run("Operation on a closed native handle.")
-    var __cap_failed = false
-    var __cap_je: String? = null
-    val __cap = JniErrorHandler<Unit> { __je -> __cap_failed = true; __cap_je = __je }
+    val __cap = JniErrorHandlerCapture.acquire()
     val __ret = withSortedHandleLocks(session) {
         val session_ptr = session.ptr
         JNINative.zSessionRoutersZid(session_ptr, __cap).map { ZZenohId(it) }
     }
-    if (__cap_failed) return onError.run(__cap_je)
+    if (__cap.failed) return onError.run(__cap.je)
     return __ret
 }
 
@@ -569,15 +485,7 @@ public fun zLivelinessDeclareToken(
         "Operation on a closed native handle.",
         "",
     )
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     val __ret = run {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(session)
@@ -600,7 +508,7 @@ public fun zLivelinessDeclareToken(
             }
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
     return __ret
 }
 
@@ -618,15 +526,7 @@ public fun zLivelinessGet(
     if (keyExpr1 != null && keyExpr1.ptr == 0L) {
         onError.run("Operation on a closed native handle.", ""); return
     }
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     run {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(session)
@@ -646,7 +546,7 @@ public fun zLivelinessGet(
             )
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
 }
 
 public fun zLivelinessDeclareSubscriber(
@@ -664,15 +564,7 @@ public fun zLivelinessDeclareSubscriber(
         "Operation on a closed native handle.",
         "",
     )
-    var __cap_failed = false
-    var __cap_je: String? = null
-    var __cap_ze0: String? = null
-    val __cap = ZErrorHandler<Unit> {
-        __je,
-        __ze0,
-        ->
-        __cap_failed = true; __cap_je = __je; __cap_ze0 = __ze0
-    }
+    val __cap = ZErrorHandlerCapture.acquire()
     val __ret = run {
         val __locks = ArrayList<NativeHandle>()
         __locks.add(session)
@@ -698,6 +590,6 @@ public fun zLivelinessDeclareSubscriber(
             }
         }
     }
-    if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)
+    if (__cap.failed) return onError.run(__cap.je, __cap.ze0!!)
     return __ret
 }
