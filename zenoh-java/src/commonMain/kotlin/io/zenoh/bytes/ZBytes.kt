@@ -32,7 +32,30 @@ import io.zenoh.exceptions.throwZError0
  * flatbuffers, etc.
  *
  */
-class ZBytes internal constructor(internal val bytes: ByteArray) : IntoZBytes {
+class ZBytes private constructor(
+    private var eager: ByteArray?,
+    private var handle: io.zenoh.jni.bytes.ZZBytes?,
+) : IntoZBytes {
+
+    internal constructor(bytes: ByteArray) : this(bytes, null)
+
+    /**
+     * The payload bytes. A handle-backed (received) ZBytes materializes them
+     * LAZILY on first access — one borrow-copy out of the native buffer via
+     * `zZbytesAsBytes` — then closes the native handle (forward-extraction
+     * rule: the handle is delivered eagerly, the heavy bytes on demand).
+     */
+    internal val bytes: ByteArray
+        get() = eager ?: synchronized(this) {
+            eager ?: run {
+                val h = handle!!
+                val b = io.zenoh.jni.bytes.zZbytesAsBytes(h, throwZError0)
+                eager = b
+                handle = null
+                h.close()
+                b
+            }
+        }
 
     companion object {
 
@@ -52,13 +75,9 @@ class ZBytes internal constructor(internal val bytes: ByteArray) : IntoZBytes {
          * Decodes a native `ZZBytes` handle into a value [ZBytes] and frees the
          * handle. Used when an accessor / callback hands back an owned buffer.
          */
-        internal fun fromHandle(handle: io.zenoh.jni.bytes.ZZBytes): ZBytes {
-            try {
-                return ZBytes(io.zenoh.jni.bytes.zZbytesToBytes(handle, throwZError0))
-            } finally {
-                handle.close()
-            }
-        }
+        /** Wrap a received owned handle; bytes are read lazily (see [bytes]). */
+        internal fun fromHandle(handle: io.zenoh.jni.bytes.ZZBytes): ZBytes =
+            ZBytes(null, handle)
     }
 
     /**

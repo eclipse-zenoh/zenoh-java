@@ -7,8 +7,8 @@ import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.VoidCallback
 import io.zenoh.jni.config.WhatAmI
 import io.zenoh.jni.config.ZConfig
-import io.zenoh.jni.errors.ZErrorHandler
 import io.zenoh.jni.config.ZZenohId
+import io.zenoh.jni.errors.ZErrorHandler
 import io.zenoh.jni.withSortedHandleLocks
 
 /** Typed handle for a native Zenoh `ZHello`. */
@@ -60,8 +60,14 @@ public class ZScout(initialPtr: Long) : NativeHandle(initialPtr) {
 }
 
 public fun interface ZHelloCallback {
+    public fun run(whatami: Int, zid: ZZenohId, locators: List<String>)
+}
+
+public fun interface ZHelloCallbackRaw {
     public fun run(whatami: Int, zid: ByteArray, locators: List<String>)
 }
+
+public fun ZHelloCallback.asRaw(): ZHelloCallbackRaw = ZHelloCallbackRaw { whatami, zid, locators -> run(whatami, ZZenohId(zid), locators) }
 
 public fun zHelloWhatami(h: ZHello, onError: JniErrorHandler<WhatAmI>): WhatAmI {
     if (h.ptr == 0L) return onError.run("Operation on a closed native handle.")
@@ -127,7 +133,7 @@ public fun zScout(
         config?.let { __locks.add(it) }
         withSortedHandleLocks(__locks) {
             val config_ptr = config?.ptr ?: 0L
-            ZScout(JNINative.zScout(whatami, config_ptr, callback, onClose, __cap))
+            ZScout(JNINative.zScout(whatami, config_ptr, callback.asRaw(), onClose, __cap))
         }
     }
     if (__cap_failed) return onError.run(__cap_je, __cap_ze0!!)

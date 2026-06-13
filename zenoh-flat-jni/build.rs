@@ -53,11 +53,12 @@ fn main() {
         // dispatched. Auto-applies to every ZKeyExpr param.
         .ptr_class_input(pq!(z_keyexpr_try_from))
         .ptr_class_input_direct()
-        // Canonical output: a key-expr decomposes into BOTH its handle (identity)
-        // and its borrowed string form (`z_keyexpr_as_str`) — 2 leaves ⇒ builder
-        // callback. Auto-applies to every (non-Result) ZKeyExpr return.
+        // Canonical output: the handle ONLY (identity, 1 raw-jlong leaf —
+        // forward-extraction rule: handles/prims eager, heavy data on demand).
+        // The string form stays an on-demand accessor (`zKeyexprAsStr`) — the
+        // SDK KeyExpr reads it lazily. Auto-applies to every (non-Result)
+        // ZKeyExpr return.
         .ptr_class_output_direct()
-        .ptr_class_output(pq!(z_keyexpr_as_str))
         .fun_accessor(pq!(z_keyexpr_as_str))
         // Fallible factories return `Result<ZKeyExpr, ZError>` (Result is not
         // output-decomposed → handle return + error callback).
@@ -122,10 +123,14 @@ fn main() {
         .package("bytes")
         .ptr_class(pq!(ZZBytes))
         // Canonical input: `payload`/`attachment` params accept a `ByteArray`
-        // (built via z_zbytes_from_vec). Canonical output: a ZZBytes is its bytes
-        // (1 leaf ⇒ return value). `z_zbytes_from_slice(&[u8])` has no JNI shape.
+        // (built via z_zbytes_from_vec). Canonical output: the handle ONLY
+        // (identity — forward-extraction rule: the bytes are heavy, fetched on
+        // demand via `zZbytesAsBytes`, one borrow-copy). A delivered payload
+        // costs a refcount-bump clone + Box, no byte copy.
+        // `z_zbytes_from_slice(&[u8])` has no JNI shape.
         .ptr_class_input(pq!(z_zbytes_from_vec))
-        .ptr_class_output(pq!(z_zbytes_to_bytes))
+        .ptr_class_output_direct()
+        .fun_accessor(pq!(z_zbytes_as_bytes))
         .fun_accessor(pq!(z_zbytes_to_bytes))
         .fun_accessor(pq!(z_zbytes_clone))
         // Keep the factory exported with a raw-handle return (fun_output_direct
@@ -134,15 +139,21 @@ fn main() {
         .fun_output_direct()
         .ptr_class(pq!(ZEncoding))
         // Canonical input: encoding params accept a `String` (z_encoding_from_string).
-        // Canonical output: an encoding is its canonical string (1 leaf ⇒ return).
+        // Canonical output: the handle (identity, raw jlong) + id (raw jint) —
+        // both free jvalue slots. Schema and the canonical string are HEAVY
+        // (JNI string allocs) and stay on-demand accessors through the handle
+        // (forward-extraction rule: never assume the consumer reads them).
         .ptr_class_input(pq!(z_encoding_from_string))
-        .ptr_class_output(pq!(z_encoding_to_string))
+        .ptr_class_output_direct()
+        .ptr_class_output(pq!(z_encoding_id))
         .fun_accessor(pq!(z_encoding_id))
         .fun_accessor(pq!(z_encoding_schema))
         .fun_accessor(pq!(z_encoding_to_string))
         .fun_accessor(pq!(z_encoding_clone))
-        // Factory: keep the handle return (canonical output would make it String).
+        // Factories: keep the handle return (canonical output would decompose).
         .fun(pq!(z_encoding_from_string))
+        .fun_output_direct()
+        .fun(pq!(z_encoding_from_id))
         .fun_output_direct()
         .fun_accessor(pq!(z_encoding_with_schema))
         .fun(pq!(z_encoding_zenoh_bytes))

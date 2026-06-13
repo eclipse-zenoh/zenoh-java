@@ -6,11 +6,11 @@ import io.zenoh.jni.JniErrorHandler
 import io.zenoh.jni.NativeHandle
 import io.zenoh.jni.VoidCallback
 import io.zenoh.jni.bytes.ZEncoding
+import io.zenoh.jni.bytes.ZZBytes
+import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.errors.ZErrorHandler
 import io.zenoh.jni.keyexpr.ZKeyExpr
 import io.zenoh.jni.sample.ZSample
-import io.zenoh.jni.bytes.ZZBytes
-import io.zenoh.jni.config.ZZenohId
 import io.zenoh.jni.withSortedHandleLocks
 
 /** JVM-side surface for the native Rust `ConsolidationMode` enum. */
@@ -172,39 +172,82 @@ public class ZReplyError(initialPtr: Long) : NativeHandle(initialPtr) {
 public fun interface ZQueryCallback {
     public fun run(
         keyexpr: ZKeyExpr,
-        keyexprAsStr: String,
         parameters: String,
-        payloadToBytes: ByteArray?,
-        encodingToString: String?,
-        attachmentToBytes: ByteArray?,
+        payload: ZZBytes?,
+        encoding: ZEncoding?,
+        encodingId: Int?,
+        attachment: ZZBytes?,
         acceptsReplies: Int,
         handle: ZQuery,
     )
 }
 
+public fun interface ZQueryCallbackRaw {
+    public fun run(
+        keyexpr: Long,
+        parameters: String,
+        payload: Long?,
+        encoding: Long?,
+        encodingId: Int?,
+        attachment: Long?,
+        acceptsReplies: Int,
+        handle: Long,
+    )
+}
+
+public fun ZQueryCallback.asRaw(): ZQueryCallbackRaw = ZQueryCallbackRaw { keyexpr, parameters, payload, encoding, encodingId, attachment, acceptsReplies, handle -> run(ZKeyExpr(keyexpr), parameters, payload?.let { ZZBytes(it) }, encoding?.let { ZEncoding(it) }, encodingId, attachment?.let { ZZBytes(it) }, acceptsReplies, ZQuery(handle)) }
+
 public fun interface ZReplyCallback {
     public fun run(
-        replierZid: ByteArray?,
+        replierZid: ZZenohId?,
         replierEid: Int,
         isOk: Boolean,
         sampleKeyExpr: ZKeyExpr?,
-        sampleKeyExprAsStr: String?,
-        samplePayloadToBytes: ByteArray?,
-        sampleEncodingToString: String?,
+        samplePayload: ZZBytes?,
+        sampleEncoding: ZEncoding?,
+        sampleEncodingId: Int?,
         sampleKind: Int?,
         sampleTimestampNtp64: Long?,
         sampleExpress: Boolean?,
         samplePriority: Int?,
         sampleCongestionControl: Int?,
-        sampleAttachmentToBytes: ByteArray?,
+        sampleAttachment: ZZBytes?,
+        sampleReliability: Int?,
+        sampleSourceZid: ZZenohId?,
+        sampleSourceEid: Int?,
+        sampleSourceSn: Long?,
+        errPayload: ZZBytes?,
+        errEncoding: ZEncoding?,
+        errEncodingId: Int?,
+    )
+}
+
+public fun interface ZReplyCallbackRaw {
+    public fun run(
+        replierZid: ByteArray?,
+        replierEid: Int,
+        isOk: Boolean,
+        sampleKeyExpr: Long?,
+        samplePayload: Long?,
+        sampleEncoding: Long?,
+        sampleEncodingId: Int?,
+        sampleKind: Int?,
+        sampleTimestampNtp64: Long?,
+        sampleExpress: Boolean?,
+        samplePriority: Int?,
+        sampleCongestionControl: Int?,
+        sampleAttachment: Long?,
         sampleReliability: Int?,
         sampleSourceZid: ByteArray?,
         sampleSourceEid: Int?,
         sampleSourceSn: Long?,
-        errPayloadToBytes: ByteArray?,
-        errEncodingToString: String?,
+        errPayload: Long?,
+        errEncoding: Long?,
+        errEncodingId: Int?,
     )
 }
+
+public fun ZReplyCallback.asRaw(): ZReplyCallbackRaw = ZReplyCallbackRaw { replierZid, replierEid, isOk, sampleKeyExpr, samplePayload, sampleEncoding, sampleEncodingId, sampleKind, sampleTimestampNtp64, sampleExpress, samplePriority, sampleCongestionControl, sampleAttachment, sampleReliability, sampleSourceZid, sampleSourceEid, sampleSourceSn, errPayload, errEncoding, errEncodingId -> run(replierZid?.let { ZZenohId(it) }, replierEid, isOk, sampleKeyExpr?.let { ZKeyExpr(it) }, samplePayload?.let { ZZBytes(it) }, sampleEncoding?.let { ZEncoding(it) }, sampleEncodingId, sampleKind, sampleTimestampNtp64, sampleExpress, samplePriority, sampleCongestionControl, sampleAttachment?.let { ZZBytes(it) }, sampleReliability, sampleSourceZid?.let { ZZenohId(it) }, sampleSourceEid, sampleSourceSn, errPayload?.let { ZZBytes(it) }, errEncoding?.let { ZEncoding(it) }, errEncodingId) }
 
 public fun zQuerierGet(
     querier: ZQuerier,
@@ -234,7 +277,7 @@ public fun zQuerierGet(
             payload,
             encoding,
             attachment,
-            callback,
+            callback.asRaw(),
             onClose,
             __cap,
         )

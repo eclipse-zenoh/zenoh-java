@@ -31,7 +31,50 @@ import io.zenoh.exceptions.throwZError0
  * on demand for each native crossing (the raw `z_*` API takes the encoding by
  * reference, so the transient handle is closed by the caller after the call).
  */
-class Encoding internal constructor(internal val repr: String) {
+class Encoding private constructor(
+    private var reprLazy: String?,
+    internal val id: Int?,
+    private val handle: io.zenoh.jni.bytes.ZEncoding?,
+) {
+
+    internal constructor(repr: String) : this(repr, null, null)
+
+    private var schemaLazy: String? = null
+    private var schemaKnown: Boolean = false
+
+    /**
+     * Optional schema. A handle-backed (received) Encoding reads it LAZILY on
+     * first access (forward-extraction rule: never delivered eagerly — we
+     * cannot assume any consumer reads it). A repr-primary Encoding carries
+     * its schema inside [repr]; this accessor is for the received form.
+     */
+    internal val schema: String?
+        get() {
+            if (!schemaKnown) {
+                synchronized(this) {
+                    if (!schemaKnown) {
+                        schemaLazy = handle?.let {
+                            io.zenoh.jni.bytes.zEncodingSchema(it, throwZError0)
+                        }
+                        schemaKnown = true
+                    }
+                }
+            }
+            return schemaLazy
+        }
+
+    /**
+     * Canonical display string. A handle-backed (received) Encoding
+     * materializes it LAZILY on first use (toString/equals) via the native
+     * accessor — received encodings are usually only forwarded or compared by
+     * id, so the common path never builds the string (forward-extraction rule).
+     */
+    internal val repr: String
+        get() = reprLazy ?: synchronized(this) {
+            reprLazy
+                ?: io.zenoh.jni.bytes.zEncodingToString(handle!!, throwZError0)
+                    .also { reprLazy = it }
+        }
 
     companion object {
         @JvmField val ZENOH_BYTES = Encoding("zenoh/bytes")
@@ -109,6 +152,11 @@ class Encoding internal constructor(internal val repr: String) {
                 handle.close()
             }
         }
+
+        /** Wrap the decomposed `(handle, id)` leaves. Schema and the
+         * canonical string stay lazy through the handle. */
+        internal fun fromParts(encH: io.zenoh.jni.bytes.ZEncoding, id: Int): Encoding =
+            Encoding(null, id, encH)
     }
 
     /**
@@ -117,7 +165,11 @@ class Encoding internal constructor(internal val repr: String) {
      * caller MUST close the returned handle after the native call.
      */
     internal fun toZEncoding(): io.zenoh.jni.bytes.ZEncoding =
-        io.zenoh.jni.bytes.zEncodingFromString(repr, throwZError0)
+        if (handle != null) {
+            io.zenoh.jni.bytes.zEncodingClone(handle, throwZError0)
+        } else {
+            io.zenoh.jni.bytes.zEncodingFromString(repr, throwZError0)
+        }
 
     /**
      * Set a schema to this encoding. Zenoh does not define what a schema is and its semantics is left to the implementer.

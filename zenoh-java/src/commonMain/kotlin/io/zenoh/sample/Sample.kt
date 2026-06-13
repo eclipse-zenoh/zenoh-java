@@ -64,23 +64,23 @@ data class Sample(
         @Suppress("UNUSED_PARAMETER")
         fun fromParts(
             keH: io.zenoh.jni.keyexpr.ZKeyExpr,
-            keStr: String,
-            payload: ByteArray,
-            encStr: String,
+            payloadH: io.zenoh.jni.bytes.ZZBytes,
+            encH: io.zenoh.jni.bytes.ZEncoding,
+            encId: Int,
             kindInt: Int,
             ntp64: Long?,
             express: Boolean,
             prioInt: Int,
             ccInt: Int,
-            attach: ByteArray?,
+            attachH: io.zenoh.jni.bytes.ZZBytes?,
             reliabilityInt: Int,
-            sourceZid: ByteArray?,
+            sourceZid: io.zenoh.jni.config.ZZenohId?,
             sourceEid: Int,
             sourceSn: Long,
         ): Sample = Sample(
-            KeyExpr(keH, keStr),
-            ZBytes(payload),
-            Encoding(encStr),
+            KeyExpr(keH),
+            ZBytes.fromHandle(payloadH),
+            Encoding.fromParts(encH, encId),
             io.zenoh.jni.sample.SampleKind.fromInt(kindInt).toPublic(),
             ntp64?.let { TimeStamp(it) },
             QoS(
@@ -88,7 +88,7 @@ data class Sample(
                 Priority.fromJni(io.zenoh.jni.qos.Priority.fromInt(prioInt)),
                 express
             ),
-            attach?.let { ZBytes(it) }
+            attachH?.let { ZBytes.fromHandle(it) }
         )
     }
 }

@@ -51,31 +51,30 @@ class Query internal constructor(
     internal companion object {
         /**
          * Builds an SDK [Query] from a queryable callback's natively-decomposed
-         * leaves (delivered in ONE JNI crossing — no per-field `z_query_*`
-         * accessor calls). `keH`/`keStr` are the key expression's cloned handle
-         * and string; `zq` is the owned query handle, **retained** because the
-         * reply methods consume it (replying keeps working after the callback
-         * returns).
+         * leaves (delivered in ONE JNI crossing as raw handles + primitives —
+         * heavy data is read lazily on demand). `zq` is the owned query
+         * handle, **retained** because the reply methods consume it (replying
+         * keeps working after the callback returns).
          */
         fun fromParts(
             keH: io.zenoh.jni.keyexpr.ZKeyExpr,
-            keStr: String,
             parameters: String,
-            payload: ByteArray?,
-            encStr: String?,
-            attach: ByteArray?,
+            payloadH: io.zenoh.jni.bytes.ZZBytes?,
+            encH: io.zenoh.jni.bytes.ZEncoding?,
+            encId: Int?,
+            attachH: io.zenoh.jni.bytes.ZZBytes?,
             acceptsRepliesInt: Int,
             zq: ZQuery,
         ): Query {
-            val ke = KeyExpr(keH, keStr)
+            val ke = KeyExpr(keH)
             val selector = if (parameters.isEmpty()) Selector(ke)
                            else Selector(ke, Parameters.from(parameters))
             return Query(
                 ke,
                 selector,
-                payload?.let { ZBytes(it) },
-                encStr?.let { Encoding(it) },
-                attach?.let { ZBytes(it) },
+                payloadH?.let { ZBytes.fromHandle(it) },
+                encH?.let { Encoding.fromParts(it, encId!!) },
+                attachH?.let { ZBytes.fromHandle(it) },
                 io.zenoh.jni.query.ReplyKeyExpr.fromInt(acceptsRepliesInt).toPublic(),
                 zq
             )

@@ -73,11 +73,20 @@ import io.zenoh.jni.keyexpr.zKeyexprToString
 class KeyExpr internal constructor(
     /** The owned native handle, passed (by reference) to raw `z_keyexpr_*` ops. */
     internal val flat: ZKeyExpr,
-    private val keyExprString: String,
+    keyExprString: String? = null,
 ) : AutoCloseable, IntoSelector, SessionDeclaration {
 
-    /** Build from a handle, reading its canonical string form once. */
-    internal constructor(flat: ZKeyExpr) : this(flat, zKeyexprToString(flat, throwZError0))
+    private var keyExprStringLazy: String? = keyExprString
+
+    /**
+     * The string form, read LAZILY from the native handle on first use
+     * (toString/equals) — a received key expression is usually only matched
+     * or echoed by handle, so the common path never crosses for the string
+     * (forward-extraction rule: handle eager, string on demand).
+     */
+    private val keyExprString: String
+        get() = keyExprStringLazy
+            ?: io.zenoh.jni.keyexpr.zKeyexprAsStr(flat, throwZError0).also { keyExprStringLazy = it }
 
     companion object {
         init {
