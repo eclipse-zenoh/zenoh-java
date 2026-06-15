@@ -26,8 +26,8 @@ include(":examples")
 
 // zenoh-flat-jni is now a separate repository (https://github.com/ZettaScaleLabs/zenoh-flat-jni)
 // and is consumed as a Maven artifact: org.eclipse.zenoh:zenoh-flat-jni:VERSION
-// For local development, you can optionally use composite builds:
-// includeBuild("../zenoh-flat-jni")
+// For local development with coordinated changes, use Gradle composite build:
+includeBuild("../zenoh-flat-jni")
 
 plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version("0.4.0")
