@@ -15,6 +15,7 @@
 package io.zenoh.bytes
 
 import io.zenoh.exceptions.throwZError0
+import io.zenoh.jni.bytes.Encoding as JniEncoding
 
 /**
  * Default encoding values used by Zenoh.
@@ -34,7 +35,7 @@ import io.zenoh.exceptions.throwZError0
 class Encoding private constructor(
     private var reprLazy: String?,
     internal val id: Int?,
-    private val handle: io.zenoh.jni.bytes.ZEncoding?,
+    private val handle: JniEncoding?,
 ) {
 
     internal constructor(repr: String) : this(repr, null, null)
@@ -61,18 +62,18 @@ class Encoding private constructor(
             if (idKnown && schemaKnown) return
             if (handle != null) {
                 if (!schemaKnown) {
-                    schemaLazy = io.zenoh.jni.bytes.zEncodingSchema(handle, throwZError0)
+                    schemaLazy = handle.getSchema(throwZError0)
                     schemaKnown = true
                 }
             } else {
-                val h = io.zenoh.jni.bytes.zEncodingFromString(repr, throwZError0)
+                val h = JniEncoding.fromString(repr, throwZError0)
                 try {
                     if (!idKnown) {
-                        idCached = io.zenoh.jni.bytes.zEncodingId(h, throwZError0)
+                        idCached = h.id(throwZError0)
                         idKnown = true
                     }
                     if (!schemaKnown) {
-                        schemaLazy = io.zenoh.jni.bytes.zEncodingSchema(h, throwZError0)
+                        schemaLazy = h.getSchema(throwZError0)
                         schemaKnown = true
                     }
                 } finally {
@@ -107,7 +108,7 @@ class Encoding private constructor(
     internal val repr: String
         get() = reprLazy ?: synchronized(this) {
             reprLazy
-                ?: io.zenoh.jni.bytes.zEncodingToString(handle!!, throwZError0)
+                ?: handle!!.toStr(throwZError0)
                     .also { reprLazy = it }
         }
 
@@ -180,9 +181,9 @@ class Encoding private constructor(
          * Decodes a native `ZEncoding` handle into a value [Encoding] and frees
          * the handle. Used when an accessor / callback hands back an encoding.
          */
-        internal fun fromHandle(handle: io.zenoh.jni.bytes.ZEncoding): Encoding {
+        internal fun fromHandle(handle: JniEncoding): Encoding {
             try {
-                return Encoding(io.zenoh.jni.bytes.zEncodingToString(handle, throwZError0))
+                return Encoding(handle.toStr(throwZError0))
             } finally {
                 handle.close()
             }
@@ -190,7 +191,7 @@ class Encoding private constructor(
 
         /** Wrap the decomposed `(handle, id)` leaves. Schema and the
          * canonical string stay lazy through the handle. */
-        internal fun fromParts(encH: io.zenoh.jni.bytes.ZEncoding, id: Int): Encoding =
+        internal fun fromParts(encH: JniEncoding, id: Int): Encoding =
             Encoding(null, id, encH)
     }
 
@@ -199,11 +200,11 @@ class Encoding private constructor(
      * encoding parameters take it **by reference** (not consumed), so the
      * caller MUST close the returned handle after the native call.
      */
-    internal fun toZEncoding(): io.zenoh.jni.bytes.ZEncoding =
+    internal fun toZEncoding(): JniEncoding =
         if (handle != null) {
-            io.zenoh.jni.bytes.zEncodingClone(handle, throwZError0)
+            handle.newClone(throwZError0)
         } else {
-            io.zenoh.jni.bytes.zEncodingFromString(repr, throwZError0)
+            JniEncoding.fromString(repr, throwZError0)
         }
 
     /**
@@ -211,11 +212,11 @@ class Encoding private constructor(
      * E.g. a common schema for `text/plain` encoding is `utf-8`.
      */
     fun withSchema(schema: String): Encoding {
-        val base = toZEncoding()
-        val withSchema = io.zenoh.jni.bytes.zEncodingWithSchema(base, schema, throwZError0)
-        base.close()
+        // `withSchema` takes the base encoding flattened to `(id, schema)`; this
+        // Encoding already exposes that decomposition lazily.
+        val withSchema = JniEncoding.withSchema(idForWire(), schemaForWire(), schema, throwZError0)
         try {
-            return Encoding(io.zenoh.jni.bytes.zEncodingToString(withSchema, throwZError0))
+            return Encoding(withSchema.toStr(throwZError0))
         } finally {
             withSchema.close()
         }

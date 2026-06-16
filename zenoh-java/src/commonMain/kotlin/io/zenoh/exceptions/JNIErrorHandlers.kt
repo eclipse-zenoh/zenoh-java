@@ -15,7 +15,7 @@
 package io.zenoh.exceptions
 
 import io.zenoh.jni.JniErrorHandler
-import io.zenoh.jni.errors.ZErrorHandler
+import io.zenoh.jni.errors.ErrorHandler
 
 /**
  * Error-callback handlers passed to the generated flat-jni wrappers. In the
@@ -34,8 +34,8 @@ import io.zenoh.jni.errors.ZErrorHandler
 /** Handler for a fallible wrapper (`Result<_, ZError>`): `run(je, message)`.
  * `message` is builder-typed (non-null) — on a binding error (`je != null`)
  * the native side fills it with the default `""`. */
-internal val throwZError: ZErrorHandler<Nothing> =
-    ZErrorHandler { je, message -> throw ZError(je ?: message) }
+internal val throwZError: ErrorHandler<Nothing> =
+    ErrorHandler { je, message -> throw ZError(je ?: message) }
 
 /** Handler for an infallible wrapper (binding errors only): `run(je)`. */
 internal val throwZError0: JniErrorHandler<Nothing> =

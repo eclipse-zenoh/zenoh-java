@@ -38,15 +38,15 @@ import io.zenoh.scouting.Hello
 
 internal fun sampleCallbackOf(
     f: (Sample) -> Unit
-): io.zenoh.jni.sample.ZSampleCallback =
-    io.zenoh.jni.sample.ZSampleCallback { keH, payloadH, encH, encId, kindInt, ntp64, express, prioInt, ccInt, attachH, reliabilityInt, sourceZid, sourceEid, sourceSn ->
+): io.zenoh.jni.sample.SampleCallback =
+    io.zenoh.jni.sample.SampleCallback { keH, payloadH, encH, encId, kindInt, ntp64, express, prioInt, ccInt, attachH, reliabilityInt, sourceZid, sourceEid, sourceSn ->
         f(Sample.fromParts(keH, payloadH, encH, encId, kindInt, ntp64, express, prioInt, ccInt, attachH, reliabilityInt, sourceZid, sourceEid, sourceSn))
     }
 
 internal fun queryCallbackOf(
     f: (Query) -> Unit
-): io.zenoh.jni.query.ZQueryCallback =
-    io.zenoh.jni.query.ZQueryCallback { keH, parameters, payloadH, encH, encId, attachH, acceptsReplies, zq ->
+): io.zenoh.jni.query.QueryCallback =
+    io.zenoh.jni.query.QueryCallback { keH, parameters, payloadH, encH, encId, attachH, acceptsReplies, zq ->
         // The decomposed leaves — including the cloned `keH` key-expr handle and
         // the owned `zq` query handle — are folded into the SDK [Query]. Unlike
         // the decomposed read-only types (Sample/Hello), the query OWNS `zq` and
@@ -59,8 +59,8 @@ internal fun queryCallbackOf(
 
 internal fun replyCallbackOf(
     f: (Reply) -> Unit
-): io.zenoh.jni.query.ZReplyCallback =
-    io.zenoh.jni.query.ZReplyCallback { zid, eid, isOk, keH, payloadH, encH, encId, kindInt, ntp64, express, prioInt, ccInt, attachH, reliabilityInt, sourceZid, sourceEid, sourceSn, errPayloadH, errEncH, errEncId ->
+): io.zenoh.jni.query.ReplyCallback =
+    io.zenoh.jni.query.ReplyCallback { zid, eid, isOk, keH, payloadH, encH, encId, kindInt, ntp64, express, prioInt, ccInt, attachH, reliabilityInt, sourceZid, sourceEid, sourceSn, errPayloadH, errEncH, errEncId ->
         val replierId = zid?.let { EntityGlobalId(ZenohId(it), eid.toUInt()) }
         f(
             if (isOk) {
@@ -80,7 +80,7 @@ internal fun replyCallbackOf(
 
 internal fun helloCallbackOf(
     f: (Hello) -> Unit
-): io.zenoh.jni.scouting.ZHelloCallback =
-    io.zenoh.jni.scouting.ZHelloCallback { whatamiInt, zid, locators ->
+): io.zenoh.jni.scouting.HelloCallback =
+    io.zenoh.jni.scouting.HelloCallback { whatamiInt, zid, locators ->
         f(Hello(WhatAmI.fromJni(io.zenoh.jni.config.WhatAmI.fromInt(whatamiInt)), ZenohId(zid), locators))
     }

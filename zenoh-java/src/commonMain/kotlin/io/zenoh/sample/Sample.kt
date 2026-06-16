@@ -63,18 +63,18 @@ data class Sample(
          */
         @Suppress("UNUSED_PARAMETER")
         fun fromParts(
-            keH: io.zenoh.jni.keyexpr.ZKeyExpr,
-            payloadH: io.zenoh.jni.bytes.ZZBytes,
-            encH: io.zenoh.jni.bytes.ZEncoding,
+            keH: io.zenoh.jni.keyexpr.KeyExpr,
+            payloadH: io.zenoh.jni.bytes.ZBytes,
+            encH: io.zenoh.jni.bytes.Encoding,
             encId: Int,
             kindInt: Int,
             ntp64: Long?,
             express: Boolean,
             prioInt: Int,
             ccInt: Int,
-            attachH: io.zenoh.jni.bytes.ZZBytes?,
+            attachH: io.zenoh.jni.bytes.ZBytes?,
             reliabilityInt: Int,
-            sourceZid: io.zenoh.jni.config.ZZenohId?,
+            sourceZid: io.zenoh.jni.config.ZenohId?,
             sourceEid: Int,
             sourceSn: Long,
         ): Sample = Sample(

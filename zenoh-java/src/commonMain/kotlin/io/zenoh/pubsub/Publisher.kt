@@ -20,7 +20,9 @@ import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError
-import io.zenoh.jni.pubsub.ZPublisher
+import io.zenoh.jni.pubsub.Publisher as JniPublisher
+import io.zenoh.jni.pubsub.publisherPut
+import io.zenoh.jni.pubsub.publisherDelete
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
@@ -64,7 +66,7 @@ class Publisher internal constructor(
     private var congestionControl: CongestionControl,
     private var priority: Priority,
     val encoding: Encoding,
-    private var zPublisher: ZPublisher?,
+    private var zPublisher: JniPublisher?,
 ) : SessionDeclaration, AutoCloseable {
 
     companion object {
@@ -104,7 +106,7 @@ class Publisher internal constructor(
     @Throws(ZError::class)
     fun delete(options: DeleteOptions = DeleteOptions()) {
         val p = zPublisher ?: throw publisherNotValid
-        io.zenoh.jni.pubsub.zPublisherDelete(p, options.attachment?.into()?.bytes, throwZError)
+        publisherDelete(p, options.attachment?.into()?.bytes, throwZError)
     }
 
     /**
@@ -131,7 +133,7 @@ class Publisher internal constructor(
     @Throws(ZError::class)
     private fun performPut(payload: IntoZBytes, encoding: Encoding, attachment: IntoZBytes?) {
         val p = zPublisher ?: throw publisherNotValid
-        io.zenoh.jni.pubsub.zPublisherPut(
+        publisherPut(
             p,
             payload.into().bytes,
             true,

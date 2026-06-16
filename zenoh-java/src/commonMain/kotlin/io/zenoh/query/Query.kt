@@ -20,7 +20,6 @@ import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError
-import io.zenoh.jni.query.ZQuery
 import io.zenoh.keyexpr.KeyExpr
 
 /**
@@ -42,7 +41,7 @@ class Query internal constructor(
     val encoding: Encoding?,
     val attachment: ZBytes?,
     val acceptsReplies: ReplyKeyExpr,
-    private var zQuery: ZQuery?
+    private var zQuery: io.zenoh.jni.query.Query?
 ) : AutoCloseable, ZenohType {
 
     /** Shortcut to the [selector]'s parameters. */
@@ -57,14 +56,14 @@ class Query internal constructor(
          * keeps working after the callback returns).
          */
         fun fromParts(
-            keH: io.zenoh.jni.keyexpr.ZKeyExpr,
+            keH: io.zenoh.jni.keyexpr.KeyExpr,
             parameters: String,
-            payloadH: io.zenoh.jni.bytes.ZZBytes?,
-            encH: io.zenoh.jni.bytes.ZEncoding?,
+            payloadH: io.zenoh.jni.bytes.ZBytes?,
+            encH: io.zenoh.jni.bytes.Encoding?,
             encId: Int?,
-            attachH: io.zenoh.jni.bytes.ZZBytes?,
+            attachH: io.zenoh.jni.bytes.ZBytes?,
             acceptsRepliesInt: Int,
-            zq: ZQuery,
+            zq: io.zenoh.jni.query.Query,
         ): Query {
             val ke = KeyExpr(keH)
             val selector = if (parameters.isEmpty()) Selector(ke)
@@ -93,7 +92,7 @@ class Query internal constructor(
     @JvmOverloads
     fun reply(keyExpr: KeyExpr, payload: IntoZBytes, options: ReplyOptions = ReplyOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
-        io.zenoh.jni.query.zQueryReplySuccess(
+        io.zenoh.jni.query.queryReplySuccess(
             q,
             keyExpr.exprSel,
             keyExpr.exprStr,
@@ -137,7 +136,7 @@ class Query internal constructor(
     @Throws(ZError::class)
     fun replyDel(keyExpr: KeyExpr, options: ReplyDelOptions = ReplyDelOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
-        io.zenoh.jni.query.zQueryReplyDelete(
+        io.zenoh.jni.query.queryReplyDelete(
             q,
             keyExpr.exprSel,
             keyExpr.exprStr,
@@ -161,7 +160,7 @@ class Query internal constructor(
     @Throws(ZError::class)
     fun replyErr(message: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
-        io.zenoh.jni.query.zQueryReplyError(q, message.into().bytes, true, options.encoding.idForWire(), options.encoding.schemaForWire(), throwZError)
+        io.zenoh.jni.query.queryReplyError(q, message.into().bytes, true, options.encoding.idForWire(), options.encoding.schemaForWire(), throwZError)
         q.close()
         zQuery = null
     }

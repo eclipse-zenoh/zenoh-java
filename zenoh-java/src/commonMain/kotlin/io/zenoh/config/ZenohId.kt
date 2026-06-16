@@ -15,15 +15,16 @@
 package io.zenoh.config
 
 import io.zenoh.exceptions.throwZError0
+import io.zenoh.jni.config.ZenohId as JniZenohId
 import kotlin.math.absoluteValue
 
 /**
  * The global unique id of a Zenoh peer.
  */
-data class ZenohId internal constructor(internal val inner: io.zenoh.jni.config.ZZenohId) {
+data class ZenohId internal constructor(internal val inner: JniZenohId) {
 
     override fun toString(): String {
-        return io.zenoh.jni.config.zZenohIdToString(inner, throwZError0)
+        return inner.toStr(throwZError0)
     }
 
     override fun equals(other: Any?): Boolean {

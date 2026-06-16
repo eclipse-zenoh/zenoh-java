@@ -21,7 +21,6 @@ import io.zenoh.config.ZenohId
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError
 import io.zenoh.handlers.Callback
-import io.zenoh.jni.scouting.ZScout
 
 /**
  * Scout for routers and/or peers.
@@ -69,7 +68,7 @@ import io.zenoh.jni.scouting.ZScout
  * @see HandlerScout
  */
 sealed class Scout (
-    private var zScout: ZScout?
+    private var zScout: io.zenoh.jni.scouting.Scout?
 ) : AutoCloseable {
 
     companion object {
@@ -99,11 +98,11 @@ sealed class Scout (
             config: Config?,
             callback: Callback<Hello>,
             onClose: () -> Unit,
-        ): ZScout {
+        ): io.zenoh.jni.scouting.Scout {
             val bitfield = whatAmI.map { it.jni.value }.reduce { acc, v -> acc or v }
             val helloCallback = io.zenoh.helloCallbackOf { callback.run(it) }
             val onCloseCallback = { onClose() }
-            return io.zenoh.jni.scouting.zScout(bitfield, config?.zConfig, helloCallback, onCloseCallback, throwZError)
+            return io.zenoh.jni.scouting.scout(bitfield, config?.zConfig, helloCallback, onCloseCallback, throwZError)
         }
     }
 
@@ -135,7 +134,7 @@ sealed class Scout (
  * CallbackScout scout = Zenoh.scout(hello -> {...});
  * ```
  */
-class CallbackScout internal constructor(zScout: ZScout) : Scout(zScout)
+class CallbackScout internal constructor(zScout: io.zenoh.jni.scouting.Scout) : Scout(zScout)
 
 /**
  * Scout using a handler to handle incoming [Hello] messages.
@@ -148,4 +147,4 @@ class CallbackScout internal constructor(zScout: ZScout) : Scout(zScout)
  * @param R The type of the receiver.
  * @param receiver The receiver of the scout's handler.
  */
-class HandlerScout<R> internal constructor(zScout: ZScout, val receiver: R) : Scout(zScout)
+class HandlerScout<R> internal constructor(zScout: io.zenoh.jni.scouting.Scout, val receiver: R) : Scout(zScout)

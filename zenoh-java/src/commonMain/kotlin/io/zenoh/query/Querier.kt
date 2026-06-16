@@ -24,7 +24,6 @@ import io.zenoh.exceptions.throwZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
-import io.zenoh.jni.query.ZQuerier
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
@@ -56,7 +55,7 @@ import java.util.concurrent.LinkedBlockingDeque
  * @param keyExpr The [KeyExpr] of the querier.
  * @param qos The [QoS] configuration of the querier.
  */
-class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private var zQuerier: ZQuerier?) :
+class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private var zQuerier: io.zenoh.jni.query.Querier?) :
     SessionDeclaration, AutoCloseable {
 
     /**
@@ -147,7 +146,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
     private fun resolveGetWithCallback(callback: Callback<Reply>, options: GetOptions) {
         val q = zQuerier ?: throw ZError("Querier is not valid.")
         val enc = options.encoding ?: Encoding.defaultEncoding()
-        io.zenoh.jni.query.zQuerierGet(
+        io.zenoh.jni.query.querierGet(
             q,
             options.parameters?.toString(),
             options.payload?.into()?.bytes,
@@ -164,7 +163,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
     private fun <R> resolveGetWithHandler(handler: Handler<Reply, R>, options: GetOptions): R {
         val q = zQuerier ?: throw ZError("Querier is not valid.")
         val enc = options.encoding ?: Encoding.defaultEncoding()
-        io.zenoh.jni.query.zQuerierGet(
+        io.zenoh.jni.query.querierGet(
             q,
             options.parameters?.toString(),
             options.payload?.into()?.bytes,

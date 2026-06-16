@@ -15,6 +15,7 @@
 package io.zenoh.bytes
 
 import io.zenoh.exceptions.throwZError0
+import io.zenoh.jni.bytes.ZBytes as JniZBytes
 
 /**
  * ZBytes contains the serialized bytes of user data.
@@ -34,7 +35,7 @@ import io.zenoh.exceptions.throwZError0
  */
 class ZBytes private constructor(
     private var eager: ByteArray?,
-    private var handle: io.zenoh.jni.bytes.ZZBytes?,
+    private var handle: JniZBytes?,
 ) : IntoZBytes {
 
     internal constructor(bytes: ByteArray) : this(bytes, null)
@@ -49,7 +50,7 @@ class ZBytes private constructor(
         get() = eager ?: synchronized(this) {
             eager ?: run {
                 val h = handle!!
-                val b = io.zenoh.jni.bytes.zZbytesAsBytes(h, throwZError0)
+                val b = h.asBytes(throwZError0)
                 eager = b
                 handle = null
                 h.close()
@@ -76,17 +77,17 @@ class ZBytes private constructor(
          * handle. Used when an accessor / callback hands back an owned buffer.
          */
         /** Wrap a received owned handle; bytes are read lazily (see [bytes]). */
-        internal fun fromHandle(handle: io.zenoh.jni.bytes.ZZBytes): ZBytes =
+        internal fun fromHandle(handle: JniZBytes): ZBytes =
             ZBytes(null, handle)
     }
 
     /**
-     * Builds a fresh native `ZZBytes` handle from these bytes. The raw `z_*`
+     * Builds a fresh native `ZBytes` handle from these bytes. The raw
      * payload/attachment parameters take it **by value** (Rust frees it), so
      * the caller does not close it.
      */
-    internal fun toZZBytes(): io.zenoh.jni.bytes.ZZBytes =
-        io.zenoh.jni.bytes.zZbytesFromVec(bytes, throwZError0)
+    internal fun toZZBytes(): JniZBytes =
+        JniZBytes.fromVec(bytes, throwZError0)
 
     /** Returns the internal byte representation of the [ZBytes]. */
     fun toBytes(): ByteArray = bytes

@@ -20,17 +20,9 @@ import io.zenoh.session.SessionDeclaration
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError
 import io.zenoh.exceptions.throwZError0
-import io.zenoh.jni.keyexpr.ZKeyExpr
+import io.zenoh.jni.keyexpr.KeyExpr as JniKeyExpr
 import io.zenoh.query.IntoSelector
 import io.zenoh.query.Selector
-import io.zenoh.jni.keyexpr.zKeyexprTryFrom
-import io.zenoh.jni.keyexpr.zKeyexprAutocanonize
-import io.zenoh.jni.keyexpr.zKeyexprIntersects
-import io.zenoh.jni.keyexpr.zKeyexprIncludes
-import io.zenoh.jni.keyexpr.zKeyexprRelationTo
-import io.zenoh.jni.keyexpr.zKeyexprJoin
-import io.zenoh.jni.keyexpr.zKeyexprConcat
-import io.zenoh.jni.keyexpr.zKeyexprToString
 
 /**
  * # Address space
@@ -71,8 +63,8 @@ import io.zenoh.jni.keyexpr.zKeyexprToString
  *
  */
 class KeyExpr internal constructor(
-    /** The owned native handle, passed (by reference) to raw `z_keyexpr_*` ops. */
-    internal val flat: ZKeyExpr,
+    /** The owned native handle, passed (by reference) to raw `keyexpr_*` ops. */
+    internal val flat: JniKeyExpr,
     keyExprString: String? = null,
 ) : AutoCloseable, IntoSelector, SessionDeclaration {
 
@@ -86,7 +78,7 @@ class KeyExpr internal constructor(
      */
     private val keyExprString: String
         get() = keyExprStringLazy
-            ?: io.zenoh.jni.keyexpr.zKeyexprAsStr(flat, throwZError0).also { keyExprStringLazy = it }
+            ?: flat.getStr(throwZError0).also { keyExprStringLazy = it }
 
     companion object {
         init {
@@ -107,7 +99,7 @@ class KeyExpr internal constructor(
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun tryFrom(keyExpr: String): KeyExpr = KeyExpr(zKeyexprTryFrom(keyExpr, throwZError))
+        fun tryFrom(keyExpr: String): KeyExpr = KeyExpr(JniKeyExpr.tryFrom(keyExpr, throwZError))
 
         /**
          * Autocanonize.
@@ -121,7 +113,7 @@ class KeyExpr internal constructor(
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun autocanonize(keyExpr: String): KeyExpr = KeyExpr(zKeyexprAutocanonize(keyExpr, throwZError))
+        fun autocanonize(keyExpr: String): KeyExpr = KeyExpr(JniKeyExpr.autocanonize(keyExpr, throwZError))
     }
 
     /**
@@ -131,7 +123,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun intersects(other: KeyExpr): Boolean =
-        zKeyexprIntersects(this.exprSel, this.exprStr, this.exprHandle, other.exprSel, other.exprStr, other.exprHandle, throwZError0)
+        this.flat.intersects(other.exprSel, other.exprStr, other.exprHandle, throwZError0)
 
     /**
      * Includes operation. This method returns `true` when all the keys defined by `other` also belong to the set
@@ -140,7 +132,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun includes(other: KeyExpr): Boolean =
-        zKeyexprIncludes(this.exprSel, this.exprStr, this.exprHandle, other.exprSel, other.exprStr, other.exprHandle, throwZError0)
+        this.flat.includes(other.exprSel, other.exprStr, other.exprHandle, throwZError0)
 
     /**
      * Returns the relation between 'this' and other from 'this''s point of view ([SetIntersectionLevel.INCLUDES]
@@ -149,7 +141,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun relationTo(other: KeyExpr): SetIntersectionLevel =
-        SetIntersectionLevel.fromJni(zKeyexprRelationTo(this.exprSel, this.exprStr, this.exprHandle, other.exprSel, other.exprStr, other.exprHandle, throwZError0))
+        SetIntersectionLevel.fromJni(this.flat.relationTo(other.exprSel, other.exprStr, other.exprHandle, throwZError0))
 
     /**
      * Joins both sides, inserting a / in between them.
@@ -157,7 +149,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun join(other: String): KeyExpr =
-        KeyExpr(zKeyexprJoin(this.exprSel, this.exprStr, this.exprHandle, other, throwZError))
+        KeyExpr(JniKeyExpr.join(this.exprSel, this.exprStr, this.exprHandle, other, throwZError))
 
     /**
      * Performs string concatenation and returns the result as a KeyExpr if possible.
@@ -165,7 +157,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun concat(other: String): KeyExpr =
-        KeyExpr(zKeyexprConcat(this.exprSel, this.exprStr, this.exprHandle, other, throwZError))
+        KeyExpr(JniKeyExpr.concat(this.exprSel, this.exprStr, this.exprHandle, other, throwZError))
 
     override fun toString(): String = keyExprString
 
@@ -201,9 +193,9 @@ class KeyExpr internal constructor(
     internal val exprSel: Int get() = 1
     internal val exprStr: String? get() = null
     /** Borrowed handle arm — Rust clones it; this KeyExpr stays valid. */
-    internal val exprHandle: ZKeyExpr get() = flat
+    internal val exprHandle: JniKeyExpr get() = flat
     /** Owned handle arm for by-value consumers — a clone the wrapper consumes. */
-    internal fun exprHandleOwned(): ZKeyExpr = io.zenoh.jni.keyexpr.zKeyexprClone(flat, throwZError0)
+    internal fun exprHandleOwned(): JniKeyExpr = flat.newClone(throwZError0)
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

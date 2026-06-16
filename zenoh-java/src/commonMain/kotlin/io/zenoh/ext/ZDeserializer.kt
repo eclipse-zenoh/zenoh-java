@@ -18,7 +18,13 @@ import com.google.common.reflect.TypeToken
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.throwZError0
-import io.zenoh.jni.bytes.deserializeViaJNI
+
+// NOTE: typed deserialization (`deserializeViaJNI`) is NOT provided by the flat
+// zenoh-flat-jni bindings (serialization is out of scope for the flat tier).
+// This stub keeps the SDK compiling; calling `deserialize` throws until the flat
+// serialization surface is implemented.
+private fun deserializeViaJNI(bytes: ByteArray, type: java.lang.reflect.Type, onError: Any): Any =
+    throw NotImplementedError("Typed deserialization is not supported by the flat zenoh-flat-jni bindings.")
 
 /**
  * Zenoh deserializer.

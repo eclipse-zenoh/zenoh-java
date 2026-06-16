@@ -15,7 +15,6 @@
 package io.zenoh.pubsub
 
 import io.zenoh.handlers.BlockingQueueHandler
-import io.zenoh.jni.pubsub.ZSubscriber
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.session.SessionDeclaration
 
@@ -63,7 +62,7 @@ import io.zenoh.session.SessionDeclaration
  * ```
  */
 sealed class Subscriber(
-    val keyExpr: KeyExpr, private var zSubscriber: ZSubscriber?
+    val keyExpr: KeyExpr, private var zSubscriber: io.zenoh.jni.pubsub.Subscriber?
 ) : AutoCloseable, SessionDeclaration {
 
     fun isValid(): Boolean {
@@ -94,7 +93,7 @@ sealed class Subscriber(
  * }
  * ```
  */
-class CallbackSubscriber internal constructor(keyExpr: KeyExpr, zSubscriber: ZSubscriber?): Subscriber(keyExpr, zSubscriber)
+class CallbackSubscriber internal constructor(keyExpr: KeyExpr, zSubscriber: io.zenoh.jni.pubsub.Subscriber?): Subscriber(keyExpr, zSubscriber)
 
 /**
  * Subscriber using a [io.zenoh.handlers.Handler] for handling incoming samples.
@@ -119,4 +118,4 @@ class CallbackSubscriber internal constructor(keyExpr: KeyExpr, zSubscriber: ZSu
  * @param R The type of the receiver.
  * @param receiver The receiver of the subscriber's handler.
  */
-class HandlerSubscriber<R> internal constructor(keyExpr: KeyExpr, zSubscriber: ZSubscriber?, val receiver: R): Subscriber(keyExpr, zSubscriber)
+class HandlerSubscriber<R> internal constructor(keyExpr: KeyExpr, zSubscriber: io.zenoh.jni.pubsub.Subscriber?, val receiver: R): Subscriber(keyExpr, zSubscriber)
