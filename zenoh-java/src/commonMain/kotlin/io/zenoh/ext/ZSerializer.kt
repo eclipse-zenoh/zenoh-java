@@ -15,16 +15,10 @@
 package io.zenoh.ext
 
 import com.google.common.reflect.TypeToken
+import io.zenoh.ZenohLoad
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.throwZError0
-
-// NOTE: typed serialization (`serializeViaJNI`) is NOT provided by the flat
-// zenoh-flat-jni bindings (serialization is out of scope for the flat tier).
-// This stub keeps the SDK compiling; calling `serialize` throws until the flat
-// serialization surface is implemented. Raw `ByteArray` payloads (the throughput
-// path) are unaffected.
-private fun serializeViaJNI(value: Any, type: java.lang.reflect.Type, onError: Any): ByteArray =
-    throw NotImplementedError("Typed serialization is not supported by the flat zenoh-flat-jni bindings.")
+import io.zenoh.jni.bytes.serializeViaJNI
 
 /**
  * Zenoh serializer.
@@ -107,6 +101,15 @@ private fun serializeViaJNI(value: Any, type: java.lang.reflect.Type, onError: A
  * @see ZDeserializer
  */
 abstract class ZSerializer<T>: TypeToken<T>() {
+
+    companion object {
+        // The standalone (de)serialization JNI path has no Session to trigger the
+        // native-library load, so load it here (extract + System.load the bundled
+        // dylib) exactly like every other SDK entry point.
+        init {
+            ZenohLoad
+        }
+    }
 
     /**
      * Serialize [t] into a [ZBytes].
