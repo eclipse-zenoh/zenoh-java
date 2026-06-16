@@ -856,7 +856,6 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     /** Launches the session, returning the [Session] on success. */
     @Throws(ZError::class)
     private fun launch(): Session {
-        ZenohLoad
         // `z_open` consumes the config by value; clone so the SDK [Config] stays
         // reusable for the caller (e.g. opening more than one session).
         this.zSession =

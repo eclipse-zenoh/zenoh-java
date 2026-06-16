@@ -15,7 +15,6 @@
 package io.zenoh.ext
 
 import com.google.common.reflect.TypeToken
-import io.zenoh.ZenohLoad
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.throwZError0
@@ -102,15 +101,6 @@ import io.zenoh.jni.bytes.deserializeViaJNI
  * @see ZSerializer
  */
 abstract class ZDeserializer<T>: TypeToken<T>() {
-
-    companion object {
-        // The standalone (de)serialization JNI path has no Session to trigger the
-        // native-library load, so load it here (extract + System.load the bundled
-        // dylib) exactly like every other SDK entry point.
-        init {
-            ZenohLoad
-        }
-    }
 
     /**
      * Deserialize the [zbytes] into an element of type [T].

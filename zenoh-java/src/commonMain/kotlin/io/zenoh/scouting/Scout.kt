@@ -15,7 +15,6 @@
 package io.zenoh.scouting
 
 import io.zenoh.Config
-import io.zenoh.ZenohLoad
 import io.zenoh.config.WhatAmI
 import io.zenoh.config.ZenohId
 import io.zenoh.exceptions.ZError
@@ -72,10 +71,6 @@ sealed class Scout (
 ) : AutoCloseable {
 
     companion object {
-
-        init {
-            ZenohLoad
-        }
 
         @Throws(ZError::class)
         internal fun <R> scoutWithHandler(

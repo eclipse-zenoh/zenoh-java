@@ -116,7 +116,6 @@ object Zenoh {
     fun tryInitLogFromEnv() {
         val logEnv = System.getenv(LOG_ENV)
         if (logEnv != null) {
-            ZenohLoad
             Logger.start(logEnv)
         }
     }
@@ -134,14 +133,7 @@ object Zenoh {
     @JvmStatic
     @Throws(ZError::class)
     fun initLogFromEnvOr(fallbackFilter: String) {
-        ZenohLoad
         val logLevelProp = System.getenv(LOG_ENV)
         logLevelProp?.let { Logger.start(it) } ?: Logger.start(fallbackFilter)
     }
 }
-
-/**
- * Static singleton class to load the Zenoh native library once and only once, as well as the logger in function of the
- * log level configuration.
- */
-internal expect object ZenohLoad

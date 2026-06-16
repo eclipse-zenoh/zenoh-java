@@ -15,7 +15,6 @@
 package io.zenoh.keyexpr
 
 import io.zenoh.Session
-import io.zenoh.ZenohLoad
 import io.zenoh.session.SessionDeclaration
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError
@@ -81,9 +80,6 @@ class KeyExpr internal constructor(
             ?: flat.getStr(throwZError0).also { keyExprStringLazy = it }
 
     companion object {
-        init {
-            ZenohLoad
-        }
 
         /**
          * Try from.
