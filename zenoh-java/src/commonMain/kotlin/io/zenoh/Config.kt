@@ -132,7 +132,7 @@ class Config internal constructor(internal val zConfig: JniConfig) {
      * The json value associated to the [key].
      */
     @Throws(ZError::class)
-    fun getJson(key: String): String = zConfig.getJson(key, throwZError0)
+    fun getJson(key: String): String = zConfig.getJson(key, throwZError)
 
     /**
      * Inserts a json5 value associated to the [key] into the Config.

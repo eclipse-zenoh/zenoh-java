@@ -15,6 +15,112 @@
 package io.zenoh.bytes
 
 import io.zenoh.exceptions.throwZError0
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_CBOR
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_CBOR_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_CDR
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_CDR_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_COAP_PAYLOAD
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_COAP_PAYLOAD_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_JAVA_SERIALIZED_OBJECT
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_JAVA_SERIALIZED_OBJECT_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_JSON
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_JSONPATH
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_JSONPATH_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_JSON_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_JSON_PATCH_JSON
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_JSON_PATCH_JSON_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_JSON_SEQ
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_JSON_SEQ_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_JWT
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_JWT_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_MP4
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_MP4_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_OCTET_STREAM
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_OCTET_STREAM_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_OPENMETRICS_TEXT
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_OPENMETRICS_TEXT_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_PROTOBUF
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_PROTOBUF_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_PYTHON_SERIALIZED_OBJECT
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_PYTHON_SERIALIZED_OBJECT_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_SOAP_XML
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_SOAP_XML_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_SQL
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_SQL_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_XML
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_XML_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_X_WWW_FORM_URLENCODED
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_X_WWW_FORM_URLENCODED_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_YAML
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_YAML_ID
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_YANG
+import io.zenoh.jni.bytes.ENCODING_APPLICATION_YANG_ID
+import io.zenoh.jni.bytes.ENCODING_AUDIO_AAC
+import io.zenoh.jni.bytes.ENCODING_AUDIO_AAC_ID
+import io.zenoh.jni.bytes.ENCODING_AUDIO_FLAC
+import io.zenoh.jni.bytes.ENCODING_AUDIO_FLAC_ID
+import io.zenoh.jni.bytes.ENCODING_AUDIO_MP4
+import io.zenoh.jni.bytes.ENCODING_AUDIO_MP4_ID
+import io.zenoh.jni.bytes.ENCODING_AUDIO_OGG
+import io.zenoh.jni.bytes.ENCODING_AUDIO_OGG_ID
+import io.zenoh.jni.bytes.ENCODING_AUDIO_VORBIS
+import io.zenoh.jni.bytes.ENCODING_AUDIO_VORBIS_ID
+import io.zenoh.jni.bytes.ENCODING_IMAGE_BMP
+import io.zenoh.jni.bytes.ENCODING_IMAGE_BMP_ID
+import io.zenoh.jni.bytes.ENCODING_IMAGE_GIF
+import io.zenoh.jni.bytes.ENCODING_IMAGE_GIF_ID
+import io.zenoh.jni.bytes.ENCODING_IMAGE_JPEG
+import io.zenoh.jni.bytes.ENCODING_IMAGE_JPEG_ID
+import io.zenoh.jni.bytes.ENCODING_IMAGE_PNG
+import io.zenoh.jni.bytes.ENCODING_IMAGE_PNG_ID
+import io.zenoh.jni.bytes.ENCODING_IMAGE_WEBP
+import io.zenoh.jni.bytes.ENCODING_IMAGE_WEBP_ID
+import io.zenoh.jni.bytes.ENCODING_TEXT_CSS
+import io.zenoh.jni.bytes.ENCODING_TEXT_CSS_ID
+import io.zenoh.jni.bytes.ENCODING_TEXT_CSV
+import io.zenoh.jni.bytes.ENCODING_TEXT_CSV_ID
+import io.zenoh.jni.bytes.ENCODING_TEXT_HTML
+import io.zenoh.jni.bytes.ENCODING_TEXT_HTML_ID
+import io.zenoh.jni.bytes.ENCODING_TEXT_JAVASCRIPT
+import io.zenoh.jni.bytes.ENCODING_TEXT_JAVASCRIPT_ID
+import io.zenoh.jni.bytes.ENCODING_TEXT_JSON
+import io.zenoh.jni.bytes.ENCODING_TEXT_JSON5
+import io.zenoh.jni.bytes.ENCODING_TEXT_JSON5_ID
+import io.zenoh.jni.bytes.ENCODING_TEXT_JSON_ID
+import io.zenoh.jni.bytes.ENCODING_TEXT_MARKDOWN
+import io.zenoh.jni.bytes.ENCODING_TEXT_MARKDOWN_ID
+import io.zenoh.jni.bytes.ENCODING_TEXT_PLAIN
+import io.zenoh.jni.bytes.ENCODING_TEXT_PLAIN_ID
+import io.zenoh.jni.bytes.ENCODING_TEXT_XML
+import io.zenoh.jni.bytes.ENCODING_TEXT_XML_ID
+import io.zenoh.jni.bytes.ENCODING_TEXT_YAML
+import io.zenoh.jni.bytes.ENCODING_TEXT_YAML_ID
+import io.zenoh.jni.bytes.ENCODING_VIDEO_H261
+import io.zenoh.jni.bytes.ENCODING_VIDEO_H261_ID
+import io.zenoh.jni.bytes.ENCODING_VIDEO_H263
+import io.zenoh.jni.bytes.ENCODING_VIDEO_H263_ID
+import io.zenoh.jni.bytes.ENCODING_VIDEO_H264
+import io.zenoh.jni.bytes.ENCODING_VIDEO_H264_ID
+import io.zenoh.jni.bytes.ENCODING_VIDEO_H265
+import io.zenoh.jni.bytes.ENCODING_VIDEO_H265_ID
+import io.zenoh.jni.bytes.ENCODING_VIDEO_H266
+import io.zenoh.jni.bytes.ENCODING_VIDEO_H266_ID
+import io.zenoh.jni.bytes.ENCODING_VIDEO_MP4
+import io.zenoh.jni.bytes.ENCODING_VIDEO_MP4_ID
+import io.zenoh.jni.bytes.ENCODING_VIDEO_OGG
+import io.zenoh.jni.bytes.ENCODING_VIDEO_OGG_ID
+import io.zenoh.jni.bytes.ENCODING_VIDEO_RAW
+import io.zenoh.jni.bytes.ENCODING_VIDEO_RAW_ID
+import io.zenoh.jni.bytes.ENCODING_VIDEO_VP8
+import io.zenoh.jni.bytes.ENCODING_VIDEO_VP8_ID
+import io.zenoh.jni.bytes.ENCODING_VIDEO_VP9
+import io.zenoh.jni.bytes.ENCODING_VIDEO_VP9_ID
+import io.zenoh.jni.bytes.ENCODING_ZENOH_BYTES
+import io.zenoh.jni.bytes.ENCODING_ZENOH_BYTES_ID
+import io.zenoh.jni.bytes.ENCODING_ZENOH_SERIALIZED
+import io.zenoh.jni.bytes.ENCODING_ZENOH_SERIALIZED_ID
+import io.zenoh.jni.bytes.ENCODING_ZENOH_STRING
+import io.zenoh.jni.bytes.ENCODING_ZENOH_STRING_ID
 import io.zenoh.jni.bytes.Encoding as JniEncoding
 
 /**
@@ -49,10 +155,12 @@ class Encoding private constructor(
      * Ensure the lossless decomposed form `(id, schema)` is cached. Zenoh's
      * encoding IS `(id, schema)`, so this loses nothing. A handle-backed
      * (received) Encoding already knows its [id]; its schema is read LAZILY
-     * through the handle on first need. A repr-primary Encoding (a predefined
-     * constant or [from]) derives BOTH once from a transient handle built off
-     * [repr], then frees it — caching pure JVM values and retaining no native
-     * handle. The cache is reused across every native crossing, so a reused
+     * through the handle on first need. A predefined constant is born fully
+     * decomposed (repr + id from the generated consts, schema known-absent) and
+     * never enters this path. A repr-primary Encoding built by [from] derives
+     * BOTH once from a transient handle built off [repr], then frees it —
+     * caching pure JVM values and retaining no native handle. The cache is
+     * reused across every native crossing, so a reused
      * encoding (the normal case — a publisher publishes one data type) never
      * re-parses its string per call.
      */
@@ -113,59 +221,69 @@ class Encoding private constructor(
         }
 
     companion object {
-        @JvmField val ZENOH_BYTES = Encoding("zenoh/bytes")
-        @JvmField val ZENOH_STRING = Encoding("zenoh/string")
-        @JvmField val ZENOH_SERIALIZED = Encoding("zenoh/serialized")
-        @JvmField val APPLICATION_OCTET_STREAM = Encoding("application/octet-stream")
-        @JvmField val TEXT_PLAIN = Encoding("text/plain")
-        @JvmField val APPLICATION_JSON = Encoding("application/json")
-        @JvmField val TEXT_JSON = Encoding("text/json")
-        @JvmField val APPLICATION_CDR = Encoding("application/cdr")
-        @JvmField val APPLICATION_CBOR = Encoding("application/cbor")
-        @JvmField val APPLICATION_YAML = Encoding("application/yaml")
-        @JvmField val TEXT_YAML = Encoding("text/yaml")
-        @JvmField val TEXT_JSON5 = Encoding("text/json5")
-        @JvmField val APPLICATION_PYTHON_SERIALIZED_OBJECT = Encoding("application/python-serialized-object")
-        @JvmField val APPLICATION_PROTOBUF = Encoding("application/protobuf")
-        @JvmField val APPLICATION_JAVA_SERIALIZED_OBJECT = Encoding("application/java-serialized-object")
-        @JvmField val APPLICATION_OPENMETRICS_TEXT = Encoding("application/openmetrics-text")
-        @JvmField val IMAGE_PNG = Encoding("image/png")
-        @JvmField val IMAGE_JPEG = Encoding("image/jpeg")
-        @JvmField val IMAGE_GIF = Encoding("image/gif")
-        @JvmField val IMAGE_BMP = Encoding("image/bmp")
-        @JvmField val IMAGE_WEBP = Encoding("image/webp")
-        @JvmField val APPLICATION_XML = Encoding("application/xml")
-        @JvmField val APPLICATION_X_WWW_FORM_URLENCODED = Encoding("application/x-www-form-urlencoded")
-        @JvmField val TEXT_HTML = Encoding("text/html")
-        @JvmField val TEXT_XML = Encoding("text/xml")
-        @JvmField val TEXT_CSS = Encoding("text/css")
-        @JvmField val TEXT_JAVASCRIPT = Encoding("text/javascript")
-        @JvmField val TEXT_MARKDOWN = Encoding("text/markdown")
-        @JvmField val TEXT_CSV = Encoding("text/csv")
-        @JvmField val APPLICATION_SQL = Encoding("application/sql")
-        @JvmField val APPLICATION_COAP_PAYLOAD = Encoding("application/coap-payload")
-        @JvmField val APPLICATION_JSON_PATCH_JSON = Encoding("application/json-patch+json")
-        @JvmField val APPLICATION_JSON_SEQ = Encoding("application/json-seq")
-        @JvmField val APPLICATION_JSONPATH = Encoding("application/jsonpath")
-        @JvmField val APPLICATION_JWT = Encoding("application/jwt")
-        @JvmField val APPLICATION_MP4 = Encoding("application/mp4")
-        @JvmField val APPLICATION_SOAP_XML = Encoding("application/soap+xml")
-        @JvmField val APPLICATION_YANG = Encoding("application/yang")
-        @JvmField val AUDIO_AAC = Encoding("audio/aac")
-        @JvmField val AUDIO_FLAC = Encoding("audio/flac")
-        @JvmField val AUDIO_MP4 = Encoding("audio/mp4")
-        @JvmField val AUDIO_OGG = Encoding("audio/ogg")
-        @JvmField val AUDIO_VORBIS = Encoding("audio/vorbis")
-        @JvmField val VIDEO_H261 = Encoding("video/h261")
-        @JvmField val VIDEO_H263 = Encoding("video/h263")
-        @JvmField val VIDEO_H264 = Encoding("video/h264")
-        @JvmField val VIDEO_H265 = Encoding("video/h265")
-        @JvmField val VIDEO_H266 = Encoding("video/h266")
-        @JvmField val VIDEO_MP4 = Encoding("video/mp4")
-        @JvmField val VIDEO_OGG = Encoding("video/ogg")
-        @JvmField val VIDEO_RAW = Encoding("video/raw")
-        @JvmField val VIDEO_VP8 = Encoding("video/vp8")
-        @JvmField val VIDEO_VP9 = Encoding("video/vp9")
+        /**
+         * A predefined constant: its canonical string and wire id come from
+         * the generated `ENCODING_*` consts (single source of truth in Rust),
+         * and a predefined encoding never carries a schema — the decomposed
+         * `(id, schema)` form is fully known up front, so these constants
+         * never touch native for decomposition (see [ensureDecomposed]).
+         */
+        private fun predefined(repr: String, id: Int): Encoding =
+            Encoding(repr, id, null).apply { schemaKnown = true }
+
+        @JvmField val ZENOH_BYTES = predefined(ENCODING_ZENOH_BYTES, ENCODING_ZENOH_BYTES_ID)
+        @JvmField val ZENOH_STRING = predefined(ENCODING_ZENOH_STRING, ENCODING_ZENOH_STRING_ID)
+        @JvmField val ZENOH_SERIALIZED = predefined(ENCODING_ZENOH_SERIALIZED, ENCODING_ZENOH_SERIALIZED_ID)
+        @JvmField val APPLICATION_OCTET_STREAM = predefined(ENCODING_APPLICATION_OCTET_STREAM, ENCODING_APPLICATION_OCTET_STREAM_ID)
+        @JvmField val TEXT_PLAIN = predefined(ENCODING_TEXT_PLAIN, ENCODING_TEXT_PLAIN_ID)
+        @JvmField val APPLICATION_JSON = predefined(ENCODING_APPLICATION_JSON, ENCODING_APPLICATION_JSON_ID)
+        @JvmField val TEXT_JSON = predefined(ENCODING_TEXT_JSON, ENCODING_TEXT_JSON_ID)
+        @JvmField val APPLICATION_CDR = predefined(ENCODING_APPLICATION_CDR, ENCODING_APPLICATION_CDR_ID)
+        @JvmField val APPLICATION_CBOR = predefined(ENCODING_APPLICATION_CBOR, ENCODING_APPLICATION_CBOR_ID)
+        @JvmField val APPLICATION_YAML = predefined(ENCODING_APPLICATION_YAML, ENCODING_APPLICATION_YAML_ID)
+        @JvmField val TEXT_YAML = predefined(ENCODING_TEXT_YAML, ENCODING_TEXT_YAML_ID)
+        @JvmField val TEXT_JSON5 = predefined(ENCODING_TEXT_JSON5, ENCODING_TEXT_JSON5_ID)
+        @JvmField val APPLICATION_PYTHON_SERIALIZED_OBJECT = predefined(ENCODING_APPLICATION_PYTHON_SERIALIZED_OBJECT, ENCODING_APPLICATION_PYTHON_SERIALIZED_OBJECT_ID)
+        @JvmField val APPLICATION_PROTOBUF = predefined(ENCODING_APPLICATION_PROTOBUF, ENCODING_APPLICATION_PROTOBUF_ID)
+        @JvmField val APPLICATION_JAVA_SERIALIZED_OBJECT = predefined(ENCODING_APPLICATION_JAVA_SERIALIZED_OBJECT, ENCODING_APPLICATION_JAVA_SERIALIZED_OBJECT_ID)
+        @JvmField val APPLICATION_OPENMETRICS_TEXT = predefined(ENCODING_APPLICATION_OPENMETRICS_TEXT, ENCODING_APPLICATION_OPENMETRICS_TEXT_ID)
+        @JvmField val IMAGE_PNG = predefined(ENCODING_IMAGE_PNG, ENCODING_IMAGE_PNG_ID)
+        @JvmField val IMAGE_JPEG = predefined(ENCODING_IMAGE_JPEG, ENCODING_IMAGE_JPEG_ID)
+        @JvmField val IMAGE_GIF = predefined(ENCODING_IMAGE_GIF, ENCODING_IMAGE_GIF_ID)
+        @JvmField val IMAGE_BMP = predefined(ENCODING_IMAGE_BMP, ENCODING_IMAGE_BMP_ID)
+        @JvmField val IMAGE_WEBP = predefined(ENCODING_IMAGE_WEBP, ENCODING_IMAGE_WEBP_ID)
+        @JvmField val APPLICATION_XML = predefined(ENCODING_APPLICATION_XML, ENCODING_APPLICATION_XML_ID)
+        @JvmField val APPLICATION_X_WWW_FORM_URLENCODED = predefined(ENCODING_APPLICATION_X_WWW_FORM_URLENCODED, ENCODING_APPLICATION_X_WWW_FORM_URLENCODED_ID)
+        @JvmField val TEXT_HTML = predefined(ENCODING_TEXT_HTML, ENCODING_TEXT_HTML_ID)
+        @JvmField val TEXT_XML = predefined(ENCODING_TEXT_XML, ENCODING_TEXT_XML_ID)
+        @JvmField val TEXT_CSS = predefined(ENCODING_TEXT_CSS, ENCODING_TEXT_CSS_ID)
+        @JvmField val TEXT_JAVASCRIPT = predefined(ENCODING_TEXT_JAVASCRIPT, ENCODING_TEXT_JAVASCRIPT_ID)
+        @JvmField val TEXT_MARKDOWN = predefined(ENCODING_TEXT_MARKDOWN, ENCODING_TEXT_MARKDOWN_ID)
+        @JvmField val TEXT_CSV = predefined(ENCODING_TEXT_CSV, ENCODING_TEXT_CSV_ID)
+        @JvmField val APPLICATION_SQL = predefined(ENCODING_APPLICATION_SQL, ENCODING_APPLICATION_SQL_ID)
+        @JvmField val APPLICATION_COAP_PAYLOAD = predefined(ENCODING_APPLICATION_COAP_PAYLOAD, ENCODING_APPLICATION_COAP_PAYLOAD_ID)
+        @JvmField val APPLICATION_JSON_PATCH_JSON = predefined(ENCODING_APPLICATION_JSON_PATCH_JSON, ENCODING_APPLICATION_JSON_PATCH_JSON_ID)
+        @JvmField val APPLICATION_JSON_SEQ = predefined(ENCODING_APPLICATION_JSON_SEQ, ENCODING_APPLICATION_JSON_SEQ_ID)
+        @JvmField val APPLICATION_JSONPATH = predefined(ENCODING_APPLICATION_JSONPATH, ENCODING_APPLICATION_JSONPATH_ID)
+        @JvmField val APPLICATION_JWT = predefined(ENCODING_APPLICATION_JWT, ENCODING_APPLICATION_JWT_ID)
+        @JvmField val APPLICATION_MP4 = predefined(ENCODING_APPLICATION_MP4, ENCODING_APPLICATION_MP4_ID)
+        @JvmField val APPLICATION_SOAP_XML = predefined(ENCODING_APPLICATION_SOAP_XML, ENCODING_APPLICATION_SOAP_XML_ID)
+        @JvmField val APPLICATION_YANG = predefined(ENCODING_APPLICATION_YANG, ENCODING_APPLICATION_YANG_ID)
+        @JvmField val AUDIO_AAC = predefined(ENCODING_AUDIO_AAC, ENCODING_AUDIO_AAC_ID)
+        @JvmField val AUDIO_FLAC = predefined(ENCODING_AUDIO_FLAC, ENCODING_AUDIO_FLAC_ID)
+        @JvmField val AUDIO_MP4 = predefined(ENCODING_AUDIO_MP4, ENCODING_AUDIO_MP4_ID)
+        @JvmField val AUDIO_OGG = predefined(ENCODING_AUDIO_OGG, ENCODING_AUDIO_OGG_ID)
+        @JvmField val AUDIO_VORBIS = predefined(ENCODING_AUDIO_VORBIS, ENCODING_AUDIO_VORBIS_ID)
+        @JvmField val VIDEO_H261 = predefined(ENCODING_VIDEO_H261, ENCODING_VIDEO_H261_ID)
+        @JvmField val VIDEO_H263 = predefined(ENCODING_VIDEO_H263, ENCODING_VIDEO_H263_ID)
+        @JvmField val VIDEO_H264 = predefined(ENCODING_VIDEO_H264, ENCODING_VIDEO_H264_ID)
+        @JvmField val VIDEO_H265 = predefined(ENCODING_VIDEO_H265, ENCODING_VIDEO_H265_ID)
+        @JvmField val VIDEO_H266 = predefined(ENCODING_VIDEO_H266, ENCODING_VIDEO_H266_ID)
+        @JvmField val VIDEO_MP4 = predefined(ENCODING_VIDEO_MP4, ENCODING_VIDEO_MP4_ID)
+        @JvmField val VIDEO_OGG = predefined(ENCODING_VIDEO_OGG, ENCODING_VIDEO_OGG_ID)
+        @JvmField val VIDEO_RAW = predefined(ENCODING_VIDEO_RAW, ENCODING_VIDEO_RAW_ID)
+        @JvmField val VIDEO_VP8 = predefined(ENCODING_VIDEO_VP8, ENCODING_VIDEO_VP8_ID)
+        @JvmField val VIDEO_VP9 = predefined(ENCODING_VIDEO_VP9, ENCODING_VIDEO_VP9_ID)
 
         /** The default [Encoding] is [ZENOH_BYTES]. */
         @JvmStatic fun defaultEncoding() = ZENOH_BYTES
