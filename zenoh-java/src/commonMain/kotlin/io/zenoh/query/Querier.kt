@@ -146,8 +146,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
     private fun resolveGetWithCallback(callback: Callback<Reply>, options: GetOptions) {
         val q = zQuerier ?: throw ZError("Querier is not valid.")
         val enc = options.encoding ?: Encoding.defaultEncoding()
-        io.zenoh.jni.query.querierGet(
-            q,
+        q.get(
             options.parameters?.toString(),
             options.payload?.into()?.bytes,
             true,
@@ -163,8 +162,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
     private fun <R> resolveGetWithHandler(handler: Handler<Reply, R>, options: GetOptions): R {
         val q = zQuerier ?: throw ZError("Querier is not valid.")
         val enc = options.encoding ?: Encoding.defaultEncoding()
-        io.zenoh.jni.query.querierGet(
-            q,
+        q.get(
             options.parameters?.toString(),
             options.payload?.into()?.bytes,
             true,

@@ -92,8 +92,7 @@ class Query internal constructor(
     @JvmOverloads
     fun reply(keyExpr: KeyExpr, payload: IntoZBytes, options: ReplyOptions = ReplyOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
-        io.zenoh.jni.query.queryReplySuccess(
-            q,
+        q.replySuccess(
             keyExpr.flat,
             payload.into().bytes,
             true,
@@ -134,8 +133,7 @@ class Query internal constructor(
     @Throws(ZError::class)
     fun replyDel(keyExpr: KeyExpr, options: ReplyDelOptions = ReplyDelOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
-        io.zenoh.jni.query.queryReplyDelete(
-            q,
+        q.replyDelete(
             keyExpr.flat,
             options.timeStamp?.ntpValue(),
             options.attachment?.into()?.bytes,
@@ -156,7 +154,7 @@ class Query internal constructor(
     @Throws(ZError::class)
     fun replyErr(message: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
-        io.zenoh.jni.query.queryReplyError(q, message.into().bytes, true, options.encoding.idForWire(), options.encoding.schemaForWire(), throwZError)
+        q.replyError(message.into().bytes, true, options.encoding.idForWire(), options.encoding.schemaForWire(), throwZError)
         q.close()
         zQuery = null
     }

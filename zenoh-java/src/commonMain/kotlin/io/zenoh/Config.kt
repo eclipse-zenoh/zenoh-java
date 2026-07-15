@@ -18,7 +18,6 @@ import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError
 import io.zenoh.exceptions.throwZError0
 import io.zenoh.jni.config.Config as JniConfig
-import io.zenoh.jni.config.configInsertJson5
 import java.io.File
 import java.nio.file.Path
 
@@ -139,5 +138,5 @@ class Config internal constructor(internal val zConfig: JniConfig) {
      */
     @Throws(ZError::class)
     fun insertJson5(key: String, value: String) =
-        configInsertJson5(zConfig, key, value, throwZError)
+        zConfig.insertJson5(key, value, throwZError)
 }

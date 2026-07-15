@@ -51,7 +51,7 @@ class Liveliness internal constructor(private val session: Session) {
     @Throws(ZError::class)
     fun declareToken(keyExpr: KeyExpr): LivelinessToken {
         val zSession = session.zSession ?: throw Session.sessionClosedException
-        return LivelinessToken(io.zenoh.jni.session.livelinessDeclareToken(zSession, keyExpr.cloneFlat(), throwZError))
+        return LivelinessToken(zSession.livelinessDeclareToken(keyExpr.cloneFlat(), throwZError))
     }
 
     /**
@@ -68,8 +68,7 @@ class Liveliness internal constructor(private val session: Session) {
     ): BlockingQueue<Optional<Reply>> {
         val zSession = session.zSession ?: throw Session.sessionClosedException
         val handler = BlockingQueueHandler<Reply>(LinkedBlockingDeque())
-        io.zenoh.jni.session.livelinessGet(
-            zSession,
+        zSession.livelinessGet(
             keyExpr.flat,
             timeout.toMillis(),
             replyCallbackOf { handler.handle(it) },
@@ -92,8 +91,7 @@ class Liveliness internal constructor(private val session: Session) {
         keyExpr: KeyExpr, callback: Callback<Reply>, timeout: Duration = Duration.ofMillis(10000)
     ) {
         val zSession = session.zSession ?: throw Session.sessionClosedException
-        io.zenoh.jni.session.livelinessGet(
-            zSession,
+        zSession.livelinessGet(
             keyExpr.flat,
             timeout.toMillis(),
             replyCallbackOf { callback.run(it) },
@@ -116,8 +114,7 @@ class Liveliness internal constructor(private val session: Session) {
         keyExpr: KeyExpr, handler: Handler<Reply, R>, timeout: Duration = Duration.ofMillis(10000)
     ): R {
         val zSession = session.zSession ?: throw Session.sessionClosedException
-        io.zenoh.jni.session.livelinessGet(
-            zSession,
+        zSession.livelinessGet(
             keyExpr.flat,
             timeout.toMillis(),
             replyCallbackOf { handler.handle(it) },
@@ -141,8 +138,7 @@ class Liveliness internal constructor(private val session: Session) {
     ): HandlerSubscriber<BlockingQueue<Optional<Sample>>> {
         val handler = BlockingQueueHandler<Sample>(LinkedBlockingDeque())
         val zSession = session.zSession ?: throw Session.sessionClosedException
-        val zSubscriber = io.zenoh.jni.session.livelinessDeclareSubscriber(
-            zSession,
+        val zSubscriber = zSession.livelinessDeclareSubscriber(
             keyExpr.cloneFlat(),
             options.history,
             sampleCallbackOf { handler.handle(it) },
@@ -167,8 +163,7 @@ class Liveliness internal constructor(private val session: Session) {
         options: LivelinessSubscriberOptions = LivelinessSubscriberOptions()
     ): CallbackSubscriber {
         val zSession = session.zSession ?: throw Session.sessionClosedException
-        val zSubscriber = io.zenoh.jni.session.livelinessDeclareSubscriber(
-            zSession,
+        val zSubscriber = zSession.livelinessDeclareSubscriber(
             keyExpr.cloneFlat(),
             options.history,
             sampleCallbackOf { callback.run(it) },
@@ -194,8 +189,7 @@ class Liveliness internal constructor(private val session: Session) {
         options: LivelinessSubscriberOptions = LivelinessSubscriberOptions()
     ): HandlerSubscriber<R> {
         val zSession = session.zSession ?: throw Session.sessionClosedException
-        val zSubscriber = io.zenoh.jni.session.livelinessDeclareSubscriber(
-            zSession,
+        val zSubscriber = zSession.livelinessDeclareSubscriber(
             keyExpr.cloneFlat(),
             options.history,
             sampleCallbackOf { handler.handle(it) },

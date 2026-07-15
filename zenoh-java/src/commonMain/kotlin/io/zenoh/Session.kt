@@ -388,7 +388,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     fun declareKeyExpr(keyExpr: String): KeyExpr {
         val zSession = zSession ?: throw sessionClosedException
         val keyexpr = run {
-            KeyExpr(io.zenoh.jni.session.sessionDeclareKeyexpr(zSession, keyExpr, throwZError))
+            KeyExpr(zSession.declareKeyexpr(keyExpr, throwZError))
         }
         strongDeclarations.add(keyexpr)
         return keyexpr
@@ -411,7 +411,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
             throw ZError("Attempting to undeclare a non declared key expression.")
         }
         run {
-            io.zenoh.jni.session.sessionUndeclareKeyexpr(zSession, handle, throwZError)
+            zSession.undeclareKeyexpr(handle, throwZError)
         }
     }
 
@@ -587,8 +587,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     internal fun resolvePublisher(keyExpr: KeyExpr, options: PublisherOptions): Publisher {
         val zSession = zSession ?: throw sessionClosedException
         val publisher = run {
-            val zPublisher = io.zenoh.jni.session.sessionDeclarePublisher(
-                zSession,
+            val zPublisher = zSession.declarePublisher(
                 keyExpr.cloneFlat(),
                 options.congestionControl.jni,
                 options.priority.jni,
@@ -614,8 +613,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     ): HandlerSubscriber<R> {
         val zSession = zSession ?: throw sessionClosedException
         val subscriber = run {
-            val zSubscriber = io.zenoh.jni.session.sessionDeclareSubscriber(
-                zSession,
+            val zSubscriber = zSession.declareSubscriber(
                 keyExpr.cloneFlat(),
                 sampleCallbackOf { handler.handle(it) },
                 { handler.onClose() },
@@ -633,8 +631,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     ): CallbackSubscriber {
         val zSession = zSession ?: throw sessionClosedException
         val subscriber = run {
-            val zSubscriber = io.zenoh.jni.session.sessionDeclareSubscriber(
-                zSession,
+            val zSubscriber = zSession.declareSubscriber(
                 keyExpr.cloneFlat(),
                 sampleCallbackOf { callback.run(it) },
                 { },
@@ -652,8 +649,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     ): HandlerQueryable<R> {
         val zSession = zSession ?: throw sessionClosedException
         val queryable = run {
-            val zQueryable = io.zenoh.jni.session.sessionDeclareQueryable(
-                zSession,
+            val zQueryable = zSession.declareQueryable(
                 keyExpr.cloneFlat(),
                 options.complete,
                 queryCallbackOf { handler.handle(it) },
@@ -672,8 +668,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     ): CallbackQueryable {
         val zSession = zSession ?: throw sessionClosedException
         val queryable = run {
-            val zQueryable = io.zenoh.jni.session.sessionDeclareQueryable(
-                zSession,
+            val zQueryable = zSession.declareQueryable(
                 keyExpr.cloneFlat(),
                 options.complete,
                 queryCallbackOf { callback.run(it) },
@@ -693,8 +688,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     ): Querier {
         val zSession = zSession ?: throw sessionClosedException
         val querier = run {
-            val zQuerier = io.zenoh.jni.session.sessionDeclareQuerier(
-                zSession,
+            val zQuerier = zSession.declareQuerier(
                 keyExpr.cloneFlat(),
                 options.target.toFlat(),
                 options.consolidationMode.toFlat(),
@@ -729,8 +723,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         return run {
             val sel = selector.into()
             val enc = options.encoding ?: Encoding.defaultEncoding()
-            io.zenoh.jni.session.sessionGet(
-                zSession,
+            zSession.get(
                 sel.keyExpr.flat,
                 sel.parameters?.toString(),
                 options.timeout.toMillis(),
@@ -763,8 +756,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         run {
             val sel = selector.into()
             val enc = options.encoding ?: Encoding.defaultEncoding()
-            io.zenoh.jni.session.sessionGet(
-                zSession,
+            zSession.get(
                 sel.keyExpr.flat,
                 sel.parameters?.toString(),
                 options.timeout.toMillis(),
@@ -791,8 +783,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val zSession = zSession ?: return
         run {
             val enc = putOptions.encoding ?: Encoding.defaultEncoding()
-            io.zenoh.jni.session.sessionPut(
-                zSession,
+            zSession.put(
                 keyExpr.flat,
                 payload.into().bytes,
                 true,
@@ -812,8 +803,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     internal fun resolveDelete(keyExpr: KeyExpr, deleteOptions: DeleteOptions) {
         val zSession = zSession ?: return
         run {
-            io.zenoh.jni.session.sessionDelete(
-                zSession,
+            zSession.delete(
                 keyExpr.flat,
                 deleteOptions.congestionControl.jni,
                 deleteOptions.priority.jni,
@@ -836,19 +826,22 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val zSession = zSession ?: throw sessionClosedException
         // `io.zenoh.jni.config.ZenohId` is a value class, so the native fn
         // returns `List<io.zenoh.jni.config.ZenohId>` directly; wrap each as ZenohId.
-        return io.zenoh.jni.session.sessionGetPeersZid(zSession, throwZError0).map { ZenohId(it) }
+        return zSession.peersZid(throwZError0).map { ZenohId(it) }
     }
 
     @Throws(ZError::class)
     internal fun getRoutersId(): List<ZenohId> {
         val zSession = zSession ?: throw sessionClosedException
-        return io.zenoh.jni.session.sessionGetRoutersZid(zSession, throwZError0).map { ZenohId(it) }
+        return zSession.routersZid(throwZError0).map { ZenohId(it) }
     }
 
     /** Launches the session, returning the [Session] on success. */
     @Throws(ZError::class)
     private fun launch(): Session {
-        this.zSession = io.zenoh.jni.session.open(config.zConfig.newClone(throwZError0), throwZError)
+        this.zSession = io.zenoh.jni.session.Session.open(
+            config.zConfig.newClone(throwZError0),
+            throwZError,
+        )
         return this
     }
 }

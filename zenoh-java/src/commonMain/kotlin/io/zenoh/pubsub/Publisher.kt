@@ -21,8 +21,6 @@ import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError
 import io.zenoh.jni.pubsub.Publisher as JniPublisher
-import io.zenoh.jni.pubsub.publisherPut
-import io.zenoh.jni.pubsub.publisherDelete
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
@@ -106,7 +104,7 @@ class Publisher internal constructor(
     @Throws(ZError::class)
     fun delete(options: DeleteOptions = DeleteOptions()) {
         val p = zPublisher ?: throw publisherNotValid
-        publisherDelete(p, options.attachment?.into()?.bytes, throwZError)
+        p.delete(options.attachment?.into()?.bytes, throwZError)
     }
 
     /**
@@ -133,8 +131,7 @@ class Publisher internal constructor(
     @Throws(ZError::class)
     private fun performPut(payload: IntoZBytes, encoding: Encoding, attachment: IntoZBytes?) {
         val p = zPublisher ?: throw publisherNotValid
-        publisherPut(
-            p,
+        p.put(
             payload.into().bytes,
             true,
             encoding.idForWire(),
