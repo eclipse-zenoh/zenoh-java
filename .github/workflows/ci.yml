@@ -22,7 +22,34 @@ jobs:
         os: [ubuntu-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out zenoh-java
+        uses: actions/checkout@v4
+        with:
+          path: zenoh-java
+
+      - name: Check out zenoh-flat-jni
+        uses: actions/checkout@v4
+        with:
+          repository: ZettaScaleLabs/zenoh-flat-jni
+          ref: 8a414f827df62e6a141bcd578f11b806d0efd23a
+          path: zenoh-flat-jni
+
+      - name: Check out zenoh-flat
+        uses: actions/checkout@v4
+        with:
+          repository: ZettaScaleLabs/zenoh-flat
+          ref: ff6279292e34e0a1880495426dc7f70f764b77b1
+          path: zenoh-flat
+
+      - name: Use prebindgen from GitHub main
+        shell: bash
+        working-directory: zenoh-flat-jni
+        run: |
+          sed -i.bak \
+            -e 's|prebindgen = { path = "../prebindgen/prebindgen" }|prebindgen = { git = "https://github.com/milyin/prebindgen.git", branch = "main" }|g' \
+            -e 's|prebindgen-proc-macro = { path = "../prebindgen/prebindgen-proc-macro",|prebindgen-proc-macro = { git = "https://github.com/milyin/prebindgen.git", branch = "main",|g' \
+            Cargo.toml ../zenoh-flat/Cargo.toml
+          rm Cargo.toml.bak ../zenoh-flat/Cargo.toml.bak
 
       - uses: actions/setup-java@v4
         with:
@@ -35,28 +62,29 @@ jobs:
           rustup component add rustfmt clippy
 
       - name: Cargo Format
-        working-directory: zenoh-jni
+        working-directory: zenoh-flat-jni
         run: cargo fmt --all --check
 
       - name: Clippy Check without Cargo.lock
-        working-directory: zenoh-jni
+        working-directory: zenoh-flat-jni
         run: |
           rm Cargo.lock
           cargo clippy --all-targets --all-features -- -D warnings
           git restore Cargo.lock
 
       - name: Check for feature leaks
-        working-directory: zenoh-jni
+        working-directory: zenoh-flat-jni
         run: cargo test --no-default-features
 
-      - name: Build Zenoh-JNI
-        working-directory: zenoh-jni
+      - name: Build zenoh-flat-jni
+        working-directory: zenoh-flat-jni
         run: cargo build
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
       - name: Gradle Test
+        working-directory: zenoh-java
         run: ./gradlew jvmTest --info
 
   markdown_lint:

@@ -46,6 +46,19 @@ public class SessionTest {
     }
 
     @Test
+    public void configCanOpenMultipleSessions() throws ZError {
+        Config config = Config.loadDefault();
+        Session sessionA = Zenoh.open(config);
+        Session sessionB = Zenoh.open(config);
+
+        assertFalse(sessionA.isClosed());
+        assertFalse(sessionB.isClosed());
+
+        sessionA.close();
+        sessionB.close();
+    }
+
+    @Test
     public void sessionClose_declarationsAreUndeclaredAfterClosingSessionTest() throws ZError, InterruptedException {
         Session session = Zenoh.open(Config.loadDefault());
 

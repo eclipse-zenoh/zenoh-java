@@ -94,9 +94,7 @@ class Query internal constructor(
         val q = zQuery ?: throw ZError("Query is invalid")
         io.zenoh.jni.query.queryReplySuccess(
             q,
-            keyExpr.exprSel,
-            keyExpr.exprStr,
-            keyExpr.exprHandle,
+            keyExpr.flat,
             payload.into().bytes,
             true,
             options.encoding.idForWire(),
@@ -138,9 +136,7 @@ class Query internal constructor(
         val q = zQuery ?: throw ZError("Query is invalid")
         io.zenoh.jni.query.queryReplyDelete(
             q,
-            keyExpr.exprSel,
-            keyExpr.exprStr,
-            keyExpr.exprHandle,
+            keyExpr.flat,
             options.timeStamp?.ntpValue(),
             options.attachment?.into()?.bytes,
             options.express,
