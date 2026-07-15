@@ -51,7 +51,7 @@ class Liveliness internal constructor(private val session: Session) {
     @Throws(ZError::class)
     fun declareToken(keyExpr: KeyExpr): LivelinessToken {
         val zSession = session.zSession ?: throw Session.sessionClosedException
-        return LivelinessToken(io.zenoh.jni.session.livelinessDeclareToken(zSession, keyExpr.flat, throwZError))
+        return LivelinessToken(io.zenoh.jni.session.livelinessDeclareToken(zSession, keyExpr.cloneFlat(), throwZError))
     }
 
     /**
@@ -143,7 +143,7 @@ class Liveliness internal constructor(private val session: Session) {
         val zSession = session.zSession ?: throw Session.sessionClosedException
         val zSubscriber = io.zenoh.jni.session.livelinessDeclareSubscriber(
             zSession,
-            keyExpr.flat,
+            keyExpr.cloneFlat(),
             options.history,
             sampleCallbackOf { handler.handle(it) },
             { handler.onClose() },
@@ -169,7 +169,7 @@ class Liveliness internal constructor(private val session: Session) {
         val zSession = session.zSession ?: throw Session.sessionClosedException
         val zSubscriber = io.zenoh.jni.session.livelinessDeclareSubscriber(
             zSession,
-            keyExpr.flat,
+            keyExpr.cloneFlat(),
             options.history,
             sampleCallbackOf { callback.run(it) },
             { },
@@ -196,7 +196,7 @@ class Liveliness internal constructor(private val session: Session) {
         val zSession = session.zSession ?: throw Session.sessionClosedException
         val zSubscriber = io.zenoh.jni.session.livelinessDeclareSubscriber(
             zSession,
-            keyExpr.flat,
+            keyExpr.cloneFlat(),
             options.history,
             sampleCallbackOf { handler.handle(it) },
             { handler.onClose() },

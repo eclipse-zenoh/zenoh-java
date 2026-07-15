@@ -79,6 +79,9 @@ class KeyExpr internal constructor(
         get() = keyExprStringLazy
             ?: flat.getStr(throwZError0).also { keyExprStringLazy = it }
 
+    /** Clone the native handle before passing it to a consuming Rust API. */
+    internal fun cloneFlat(): JniKeyExpr = flat.newClone(throwZError0)
+
     companion object {
 
         /**
