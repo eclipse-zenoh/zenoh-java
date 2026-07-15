@@ -65,12 +65,9 @@ jobs:
         working-directory: zenoh-flat-jni
         run: cargo fmt --all --check
 
-      - name: Clippy Check without Cargo.lock
+      - name: Clippy Check
         working-directory: zenoh-flat-jni
-        run: |
-          rm Cargo.lock
-          cargo clippy --all-targets --all-features -- -D warnings
-          git restore Cargo.lock
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Check for feature leaks
         working-directory: zenoh-flat-jni
