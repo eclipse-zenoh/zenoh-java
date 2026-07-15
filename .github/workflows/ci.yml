@@ -59,7 +59,7 @@ jobs:
       - name: Install Rust toolchain
         run: |
           rustup show
-          rustup component add rustfmt clippy
+          rustup component add rustfmt clippy --toolchain 1.93.0
 
       - name: Cargo Format
         working-directory: zenoh-flat-jni
