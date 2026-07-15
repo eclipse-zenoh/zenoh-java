@@ -63,7 +63,7 @@ jobs:
 
       - name: Cargo Format
         working-directory: zenoh-flat-jni
-        run: cargo fmt --all --check
+        run: cargo fmt --check
 
       - name: Clippy Check
         working-directory: zenoh-flat-jni
