@@ -14,7 +14,6 @@
 
 package io.zenoh.config
 
-import io.zenoh.exceptions.throwZError0
 import io.zenoh.jni.config.ZenohId as JniZenohId
 import kotlin.math.absoluteValue
 
@@ -23,8 +22,22 @@ import kotlin.math.absoluteValue
  */
 data class ZenohId internal constructor(internal val inner: JniZenohId) {
 
+    /**
+     * The standard string form: the id bytes read as a little-endian integer,
+     * rendered as lowercase hex without leading zeros (`"0"` for the zero id) —
+     * Zenoh's own rule (uhlc `ID`'s `Debug`), implemented in pure Kotlin over
+     * the value-class bytes; correspondence with the native formatter is
+     * verified by `ZenohIdCorrespondenceTest`.
+     */
     override fun toString(): String {
-        return inner.toStr(throwZError0)
+        val hex = "0123456789abcdef"
+        val sb = StringBuilder(inner.bytes.size * 2)
+        for (i in inner.bytes.indices.reversed()) {
+            val b = inner.bytes[i].toInt() and 0xFF
+            sb.append(hex[b ushr 4]).append(hex[b and 0x0F])
+        }
+        val s = sb.trimStart('0').toString()
+        return s.ifEmpty { "0" }
     }
 
     override fun equals(other: Any?): Boolean {

@@ -134,8 +134,8 @@ class Publisher internal constructor(
         p.put(
             payload.into().bytes,
             true,
-            encoding.idForWire(),
-            encoding.schemaForWire(),
+            encoding.id,
+            encoding.schema,
             attachment?.into()?.bytes,
             throwZError,
         )

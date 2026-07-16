@@ -59,8 +59,8 @@ class Query internal constructor(
             keH: io.zenoh.jni.keyexpr.KeyExpr,
             parameters: String,
             payloadH: io.zenoh.jni.bytes.ZBytes?,
-            encH: io.zenoh.jni.bytes.Encoding?,
             encId: Int?,
+            encSchema: String?,
             attachH: io.zenoh.jni.bytes.ZBytes?,
             acceptsRepliesInt: Int,
             zq: io.zenoh.jni.query.Query,
@@ -72,7 +72,7 @@ class Query internal constructor(
                 ke,
                 selector,
                 payloadH?.let { ZBytes.fromHandle(it) },
-                encH?.let { Encoding.fromParts(it, encId!!) },
+                encId?.let { Encoding(it, encSchema) },
                 attachH?.let { ZBytes.fromHandle(it) },
                 io.zenoh.jni.query.ReplyKeyExpr.fromInt(acceptsRepliesInt).toPublic(),
                 zq
@@ -96,8 +96,8 @@ class Query internal constructor(
             keyExpr.flat,
             payload.into().bytes,
             true,
-            options.encoding.idForWire(),
-            options.encoding.schemaForWire(),
+            options.encoding.id,
+            options.encoding.schema,
             options.timeStamp?.ntpValue(),
             options.attachment?.into()?.bytes,
             options.express,
@@ -154,7 +154,7 @@ class Query internal constructor(
     @Throws(ZError::class)
     fun replyErr(message: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
-        q.replyError(message.into().bytes, true, options.encoding.idForWire(), options.encoding.schemaForWire(), throwZError)
+        q.replyError(message.into().bytes, true, options.encoding.id, options.encoding.schema, throwZError)
         q.close()
         zQuery = null
     }
