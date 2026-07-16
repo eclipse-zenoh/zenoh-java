@@ -80,13 +80,15 @@ class Publisher internal constructor(
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
     @Throws(ZError::class)
     fun put(payload: IntoZBytes) {
-        performPut(payload, encoding, null)
+        // No per-call encoding: the publisher's default encoding — set
+        // NATIVELY at declare time — applies, so no encoding data crosses.
+        performPut(payload, null, null)
     }
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
     @Throws(ZError::class)
     fun put(payload: IntoZBytes, options: PutOptions) {
-        performPut(payload, options.encoding ?: this.encoding, options.attachment)
+        performPut(payload, options.encoding, options.attachment)
     }
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
@@ -129,13 +131,15 @@ class Publisher internal constructor(
     }
 
     @Throws(ZError::class)
-    private fun performPut(payload: IntoZBytes, encoding: Encoding, attachment: IntoZBytes?) {
+    private fun performPut(payload: IntoZBytes, encoding: Encoding?, attachment: IntoZBytes?) {
         val p = zPublisher ?: throw publisherNotValid
+        // `null` encoding = absent: the publisher's default encoding — set
+        // NATIVELY at declare time — applies, and no encoding data crosses.
         p.put(
             payload.into().bytes,
-            true,
-            encoding.idForWire(),
-            encoding.schemaForWire(),
+            encoding != null,
+            encoding?.id ?: 0,
+            encoding?.schema,
             attachment?.into()?.bytes,
             throwZError,
         )

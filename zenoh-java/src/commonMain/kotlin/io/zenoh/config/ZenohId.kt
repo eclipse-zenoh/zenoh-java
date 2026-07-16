@@ -14,8 +14,8 @@
 
 package io.zenoh.config
 
-import io.zenoh.exceptions.throwZError0
 import io.zenoh.jni.config.ZenohId as JniZenohId
+import io.zenoh.jni.config.zidString
 import kotlin.math.absoluteValue
 
 /**
@@ -23,9 +23,12 @@ import kotlin.math.absoluteValue
  */
 data class ZenohId internal constructor(internal val inner: JniZenohId) {
 
-    override fun toString(): String {
-        return inner.toStr(throwZError0)
-    }
+    /**
+     * The standard string form, computed in pure Kotlin by the shared
+     * bindings tier ([zidString]); correspondence with the native formatter
+     * is verified by `ZenohIdCorrespondenceTest`.
+     */
+    override fun toString(): String = inner.zidString()
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

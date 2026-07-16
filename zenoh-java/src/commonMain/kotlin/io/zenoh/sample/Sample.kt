@@ -65,8 +65,8 @@ data class Sample(
         fun fromParts(
             keH: io.zenoh.jni.keyexpr.KeyExpr,
             payloadH: io.zenoh.jni.bytes.ZBytes,
-            encH: io.zenoh.jni.bytes.Encoding,
             encId: Int,
+            encSchema: String?,
             kindInt: Int,
             ntp64: Long?,
             express: Boolean,
@@ -80,7 +80,7 @@ data class Sample(
         ): Sample = Sample(
             KeyExpr(keH),
             ZBytes.fromHandle(payloadH),
-            Encoding.fromParts(encH, encId),
+            Encoding(encId, encSchema),
             io.zenoh.jni.sample.SampleKind.fromInt(kindInt).toPublic(),
             ntp64?.let { TimeStamp(it) },
             QoS(

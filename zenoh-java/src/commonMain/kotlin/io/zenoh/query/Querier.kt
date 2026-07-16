@@ -145,13 +145,13 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
 
     private fun resolveGetWithCallback(callback: Callback<Reply>, options: GetOptions) {
         val q = zQuerier ?: throw ZError("Querier is not valid.")
-        val enc = options.encoding ?: Encoding.defaultEncoding()
+        val enc = options.encoding
         q.get(
             options.parameters?.toString(),
             options.payload?.into()?.bytes,
-            true,
-            enc.idForWire(),
-            enc.schemaForWire(),
+            enc != null,
+            enc?.id ?: 0,
+            enc?.schema,
             options.attachment?.into()?.bytes,
             replyCallbackOf { callback.run(it) },
             { },
@@ -161,13 +161,13 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
 
     private fun <R> resolveGetWithHandler(handler: Handler<Reply, R>, options: GetOptions): R {
         val q = zQuerier ?: throw ZError("Querier is not valid.")
-        val enc = options.encoding ?: Encoding.defaultEncoding()
+        val enc = options.encoding
         q.get(
             options.parameters?.toString(),
             options.payload?.into()?.bytes,
-            true,
-            enc.idForWire(),
-            enc.schemaForWire(),
+            enc != null,
+            enc?.id ?: 0,
+            enc?.schema,
             options.attachment?.into()?.bytes,
             replyCallbackOf { handler.handle(it) },
             { handler.onClose() },
