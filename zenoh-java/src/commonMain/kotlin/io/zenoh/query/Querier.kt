@@ -15,14 +15,15 @@
 package io.zenoh.query
 
 import io.zenoh.annotations.Unstable
+import io.zenoh.replyCallbackOf
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
+import io.zenoh.exceptions.throwZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
-import io.zenoh.jni.JNIQuerier
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
@@ -54,7 +55,7 @@ import java.util.concurrent.LinkedBlockingDeque
  * @param keyExpr The [KeyExpr] of the querier.
  * @param qos The [QoS] configuration of the querier.
  */
-class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private var jniQuerier: JNIQuerier?) :
+class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private var zQuerier: io.zenoh.jni.query.Querier?) :
     SessionDeclaration, AutoCloseable {
 
     /**
@@ -78,7 +79,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
         options: GetOptions
     ): BlockingQueue<Optional<Reply>> {
         val handler = BlockingQueueHandler<Reply>(LinkedBlockingDeque())
-        return resolveGetWithHandler(keyExpr, handler, options)
+        return resolveGetWithHandler(handler, options)
     }
 
     /**
@@ -93,7 +94,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
         callback: Callback<Reply>,
         options: GetOptions
     ) {
-        resolveGetWithCallback(keyExpr, callback, options)
+        resolveGetWithCallback(callback, options)
     }
 
     /**
@@ -108,7 +109,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
         handler: Handler<Reply, R>,
         options: GetOptions
     ): R {
-        return resolveGetWithHandler(keyExpr, handler, options)
+        return resolveGetWithHandler(handler, options)
     }
 
     /**
@@ -126,8 +127,8 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
      * performed on it will fail.
      */
     override fun undeclare() {
-        jniQuerier?.close()
-        jniQuerier = null
+        zQuerier?.close()
+        zQuerier = null
     }
 
     /**
@@ -142,12 +143,37 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
         undeclare()
     }
 
-    private fun resolveGetWithCallback(keyExpr: KeyExpr, callback: Callback<Reply>, options: GetOptions) {
-        jniQuerier?.performGetWithCallback(keyExpr, callback, options) ?: throw ZError("Querier is not valid.")
+    private fun resolveGetWithCallback(callback: Callback<Reply>, options: GetOptions) {
+        val q = zQuerier ?: throw ZError("Querier is not valid.")
+        val enc = options.encoding ?: Encoding.defaultEncoding()
+        q.get(
+            options.parameters?.toString(),
+            options.payload?.into()?.bytes,
+            true,
+            enc.idForWire(),
+            enc.schemaForWire(),
+            options.attachment?.into()?.bytes,
+            replyCallbackOf { callback.run(it) },
+            { },
+            throwZError
+        )
     }
 
-    private fun <R> resolveGetWithHandler(keyExpr: KeyExpr, handler: Handler<Reply, R>, options: GetOptions): R {
-        return jniQuerier?.performGetWithHandler(keyExpr, handler, options) ?: throw ZError("Querier is not valid.")
+    private fun <R> resolveGetWithHandler(handler: Handler<Reply, R>, options: GetOptions): R {
+        val q = zQuerier ?: throw ZError("Querier is not valid.")
+        val enc = options.encoding ?: Encoding.defaultEncoding()
+        q.get(
+            options.parameters?.toString(),
+            options.payload?.into()?.bytes,
+            true,
+            enc.idForWire(),
+            enc.schemaForWire(),
+            options.attachment?.into()?.bytes,
+            replyCallbackOf { handler.handle(it) },
+            { handler.onClose() },
+            throwZError
+        )
+        return handler.receiver()
     }
 }
 

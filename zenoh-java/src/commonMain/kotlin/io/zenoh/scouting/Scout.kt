@@ -14,7 +14,12 @@
 
 package io.zenoh.scouting
 
-import io.zenoh.jni.JNIScout
+import io.zenoh.Config
+import io.zenoh.config.WhatAmI
+import io.zenoh.config.ZenohId
+import io.zenoh.exceptions.ZError
+import io.zenoh.exceptions.throwZError
+import io.zenoh.handlers.Callback
 
 /**
  * Scout for routers and/or peers.
@@ -62,15 +67,46 @@ import io.zenoh.jni.JNIScout
  * @see HandlerScout
  */
 sealed class Scout (
-    private var jniScout: JNIScout?
+    private var zScout: io.zenoh.jni.scouting.Scout?
 ) : AutoCloseable {
+
+    companion object {
+
+        @Throws(ZError::class)
+        internal fun <R> scoutWithHandler(
+            whatAmI: Set<WhatAmI>,
+            callback: Callback<Hello>,
+            onClose: () -> Unit,
+            config: Config?,
+            receiver: R,
+        ): HandlerScout<R> = HandlerScout(runScout(whatAmI, config, callback, onClose), receiver)
+
+        @Throws(ZError::class)
+        internal fun scoutWithCallback(
+            whatAmI: Set<WhatAmI>,
+            callback: Callback<Hello>,
+            config: Config?,
+        ): CallbackScout = CallbackScout(runScout(whatAmI, config, callback) {})
+
+        private fun runScout(
+            whatAmI: Set<WhatAmI>,
+            config: Config?,
+            callback: Callback<Hello>,
+            onClose: () -> Unit,
+        ): io.zenoh.jni.scouting.Scout {
+            val bitfield = whatAmI.map { it.jni.value }.reduce { acc, v -> acc or v }
+            val helloCallback = io.zenoh.helloCallbackOf { callback.run(it) }
+            val onCloseCallback = { onClose() }
+            return io.zenoh.jni.scouting.scout(bitfield, config?.zConfig, helloCallback, onCloseCallback, throwZError)
+        }
+    }
 
     /**
      * Stops the scouting.
      */
     fun stop() {
-        jniScout?.close()
-        jniScout = null
+        zScout?.close()
+        zScout = null
     }
 
     /**
@@ -93,7 +129,7 @@ sealed class Scout (
  * CallbackScout scout = Zenoh.scout(hello -> {...});
  * ```
  */
-class CallbackScout internal constructor(jniScout: JNIScout?) : Scout(jniScout)
+class CallbackScout internal constructor(zScout: io.zenoh.jni.scouting.Scout) : Scout(zScout)
 
 /**
  * Scout using a handler to handle incoming [Hello] messages.
@@ -106,4 +142,4 @@ class CallbackScout internal constructor(jniScout: JNIScout?) : Scout(jniScout)
  * @param R The type of the receiver.
  * @param receiver The receiver of the scout's handler.
  */
-class HandlerScout<R> internal constructor(jniScout: JNIScout?, val receiver: R) : Scout(jniScout)
+class HandlerScout<R> internal constructor(zScout: io.zenoh.jni.scouting.Scout, val receiver: R) : Scout(zScout)

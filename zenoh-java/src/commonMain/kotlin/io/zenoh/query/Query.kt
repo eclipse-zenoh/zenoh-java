@@ -19,11 +19,8 @@ import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
-import io.zenoh.jni.JNIQuery
+import io.zenoh.exceptions.throwZError
 import io.zenoh.keyexpr.KeyExpr
-import io.zenoh.qos.QoS
-import io.zenoh.sample.Sample
-import io.zenoh.sample.SampleKind
 
 /**
  * Represents a Zenoh Query in Kotlin.
@@ -44,11 +41,44 @@ class Query internal constructor(
     val encoding: Encoding?,
     val attachment: ZBytes?,
     val acceptsReplies: ReplyKeyExpr,
-    private var jniQuery: JNIQuery?
+    private var zQuery: io.zenoh.jni.query.Query?
 ) : AutoCloseable, ZenohType {
 
     /** Shortcut to the [selector]'s parameters. */
     val parameters = selector.parameters
+
+    internal companion object {
+        /**
+         * Builds an SDK [Query] from a queryable callback's natively-decomposed
+         * leaves (delivered in ONE JNI crossing as raw handles + primitives —
+         * heavy data is read lazily on demand). `zq` is the owned query
+         * handle, **retained** because the reply methods consume it (replying
+         * keeps working after the callback returns).
+         */
+        fun fromParts(
+            keH: io.zenoh.jni.keyexpr.KeyExpr,
+            parameters: String,
+            payloadH: io.zenoh.jni.bytes.ZBytes?,
+            encH: io.zenoh.jni.bytes.Encoding?,
+            encId: Int?,
+            attachH: io.zenoh.jni.bytes.ZBytes?,
+            acceptsRepliesInt: Int,
+            zq: io.zenoh.jni.query.Query,
+        ): Query {
+            val ke = KeyExpr(keH)
+            val selector = if (parameters.isEmpty()) Selector(ke)
+                           else Selector(ke, Parameters.from(parameters))
+            return Query(
+                ke,
+                selector,
+                payloadH?.let { ZBytes.fromHandle(it) },
+                encH?.let { Encoding.fromParts(it, encId!!) },
+                attachH?.let { ZBytes.fromHandle(it) },
+                io.zenoh.jni.query.ReplyKeyExpr.fromInt(acceptsRepliesInt).toPublic(),
+                zq
+            )
+        }
+    }
 
     /**
      * Reply to the specified key expression.
@@ -61,19 +91,23 @@ class Query internal constructor(
     @Throws(ZError::class)
     @JvmOverloads
     fun reply(keyExpr: KeyExpr, payload: IntoZBytes, options: ReplyOptions = ReplyOptions()) {
-        val sample = Sample(
-            keyExpr,
-            payload.into(),
-            options.encoding,
-            SampleKind.PUT,
-            options.timeStamp,
-            QoS(options.congestionControl, options.priority, options.express),
-            options.attachment?.into()
+        val q = zQuery ?: throw ZError("Query is invalid")
+        q.replySuccess(
+            keyExpr.flat,
+            payload.into().bytes,
+            true,
+            options.encoding.idForWire(),
+            options.encoding.schemaForWire(),
+            options.timeStamp?.ntpValue(),
+            options.attachment?.into()?.bytes,
+            options.express,
+            throwZError
         )
-        jniQuery?.apply {
-            replySuccess(sample)
-            jniQuery = null
-        } ?: throw (ZError("Query is invalid"))
+        // Single-reply model: dropping the native query finalizes the reply
+        // stream so the querier's get completes. Safe whether the query came
+        // straight from the callback or was carried across a channel.
+        q.close()
+        zQuery = null
     }
 
     /**
@@ -98,15 +132,16 @@ class Query internal constructor(
     @JvmOverloads
     @Throws(ZError::class)
     fun replyDel(keyExpr: KeyExpr, options: ReplyDelOptions = ReplyDelOptions()) {
-        jniQuery?.apply {
-            replyDelete(
-                keyExpr,
-                options.timeStamp,
-                options.attachment,
-                QoS(options.congestionControl, options.priority, options.express),
-            )
-            jniQuery = null
-        } ?: throw (ZError("Query is invalid"))
+        val q = zQuery ?: throw ZError("Query is invalid")
+        q.replyDelete(
+            keyExpr.flat,
+            options.timeStamp?.ntpValue(),
+            options.attachment?.into()?.bytes,
+            options.express,
+            throwZError
+        )
+        q.close()
+        zQuery = null
     }
 
     /**
@@ -118,10 +153,10 @@ class Query internal constructor(
     @JvmOverloads
     @Throws(ZError::class)
     fun replyErr(message: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
-        jniQuery?.apply {
-            replyError(message.into(), options.encoding)
-            jniQuery = null
-        } ?: throw (ZError("Query is invalid"))
+        val q = zQuery ?: throw ZError("Query is invalid")
+        q.replyError(message.into().bytes, true, options.encoding.idForWire(), options.encoding.schemaForWire(), throwZError)
+        q.close()
+        zQuery = null
     }
 
     /**
@@ -135,10 +170,8 @@ class Query internal constructor(
     fun replyErr(message: String, options: ReplyErrOptions = ReplyErrOptions()) = replyErr(ZBytes.from(message), options)
 
     override fun close() {
-        jniQuery?.apply {
-            this.close()
-            jniQuery = null
-        }
+        zQuery?.close()
+        zQuery = null
     }
 
     @Suppress("removal")

@@ -15,11 +15,13 @@
 package io.zenoh.liveliness
 
 import io.zenoh.Session
+import io.zenoh.replyCallbackOf
+import io.zenoh.sampleCallbackOf
 import io.zenoh.exceptions.ZError
+import io.zenoh.exceptions.throwZError
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
-import io.zenoh.jni.JNILiveliness
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.pubsub.CallbackSubscriber
 import io.zenoh.pubsub.HandlerSubscriber
@@ -48,8 +50,8 @@ class Liveliness internal constructor(private val session: Session) {
      */
     @Throws(ZError::class)
     fun declareToken(keyExpr: KeyExpr): LivelinessToken {
-        val jniSession = session.jniSession ?: throw Session.sessionClosedException
-        return JNILiveliness.declareToken(jniSession, keyExpr)
+        val zSession = session.zSession ?: throw Session.sessionClosedException
+        return LivelinessToken(zSession.livelinessDeclareToken(keyExpr.cloneFlat(), throwZError))
     }
 
     /**
@@ -64,16 +66,16 @@ class Liveliness internal constructor(private val session: Session) {
         keyExpr: KeyExpr,
         timeout: Duration = Duration.ofMillis(10000),
     ): BlockingQueue<Optional<Reply>> {
-        val jniSession = session.jniSession ?: throw Session.sessionClosedException
+        val zSession = session.zSession ?: throw Session.sessionClosedException
         val handler = BlockingQueueHandler<Reply>(LinkedBlockingDeque())
-        return JNILiveliness.get(
-            jniSession,
-            keyExpr,
-            handler::handle,
-            receiver = handler.receiver(),
-            timeout,
-            onClose = handler::onClose
+        zSession.livelinessGet(
+            keyExpr.flat,
+            timeout.toMillis(),
+            replyCallbackOf { handler.handle(it) },
+            { handler.onClose() },
+            throwZError
         )
+        return handler.receiver()
     }
 
     /**
@@ -88,8 +90,14 @@ class Liveliness internal constructor(private val session: Session) {
     fun get(
         keyExpr: KeyExpr, callback: Callback<Reply>, timeout: Duration = Duration.ofMillis(10000)
     ) {
-        val jniSession = session.jniSession ?: throw Session.sessionClosedException
-        return JNILiveliness.get(jniSession, keyExpr, callback, Unit, timeout, {})
+        val zSession = session.zSession ?: throw Session.sessionClosedException
+        zSession.livelinessGet(
+            keyExpr.flat,
+            timeout.toMillis(),
+            replyCallbackOf { callback.run(it) },
+            { },
+            throwZError
+        )
     }
 
     /**
@@ -105,16 +113,15 @@ class Liveliness internal constructor(private val session: Session) {
     fun <R> get(
         keyExpr: KeyExpr, handler: Handler<Reply, R>, timeout: Duration = Duration.ofMillis(10000)
     ): R {
-        val jniSession = session.jniSession ?: throw Session.sessionClosedException
-        val callback = handler::handle
-        return JNILiveliness.get(
-            jniSession,
-            keyExpr,
-            callback,
-            handler.receiver(),
-            timeout,
-            onClose = handler::onClose
+        val zSession = session.zSession ?: throw Session.sessionClosedException
+        zSession.livelinessGet(
+            keyExpr.flat,
+            timeout.toMillis(),
+            replyCallbackOf { handler.handle(it) },
+            { handler.onClose() },
+            throwZError
         )
+        return handler.receiver()
     }
 
     /**
@@ -130,15 +137,15 @@ class Liveliness internal constructor(private val session: Session) {
         options: LivelinessSubscriberOptions = LivelinessSubscriberOptions()
     ): HandlerSubscriber<BlockingQueue<Optional<Sample>>> {
         val handler = BlockingQueueHandler<Sample>(LinkedBlockingDeque())
-        val jniSession = session.jniSession ?: throw Session.sessionClosedException
-        return JNILiveliness.declareSubscriber(
-            jniSession,
-            keyExpr,
-            handler::handle,
-            handler.receiver(),
+        val zSession = session.zSession ?: throw Session.sessionClosedException
+        val zSubscriber = zSession.livelinessDeclareSubscriber(
+            keyExpr.cloneFlat(),
             options.history,
-            handler::onClose
+            sampleCallbackOf { handler.handle(it) },
+            { handler.onClose() },
+            throwZError
         )
+        return HandlerSubscriber(keyExpr, zSubscriber, handler.receiver())
     }
 
     /**
@@ -155,14 +162,15 @@ class Liveliness internal constructor(private val session: Session) {
         callback: Callback<Sample>,
         options: LivelinessSubscriberOptions = LivelinessSubscriberOptions()
     ): CallbackSubscriber {
-        val jniSession = session.jniSession ?: throw Session.sessionClosedException
-        return JNILiveliness.declareSubscriber(
-            jniSession,
-            keyExpr,
-            callback,
+        val zSession = session.zSession ?: throw Session.sessionClosedException
+        val zSubscriber = zSession.livelinessDeclareSubscriber(
+            keyExpr.cloneFlat(),
             options.history,
-            fun() {}
+            sampleCallbackOf { callback.run(it) },
+            { },
+            throwZError
         )
+        return CallbackSubscriber(keyExpr, zSubscriber)
     }
 
     /**
@@ -180,15 +188,15 @@ class Liveliness internal constructor(private val session: Session) {
         handler: Handler<Sample, R>,
         options: LivelinessSubscriberOptions = LivelinessSubscriberOptions()
     ): HandlerSubscriber<R> {
-        val jniSession = session.jniSession ?: throw Session.sessionClosedException
-        return JNILiveliness.declareSubscriber(
-            jniSession,
-            keyExpr,
-            handler::handle,
-            handler.receiver(),
+        val zSession = session.zSession ?: throw Session.sessionClosedException
+        val zSubscriber = zSession.livelinessDeclareSubscriber(
+            keyExpr.cloneFlat(),
             options.history,
-            handler::onClose
+            sampleCallbackOf { handler.handle(it) },
+            { handler.onClose() },
+            throwZError
         )
+        return HandlerSubscriber(keyExpr, zSubscriber, handler.receiver())
     }
 }
 

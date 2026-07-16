@@ -16,6 +16,8 @@ package io.zenoh.sample
 
 import io.zenoh.ZenohType
 import io.zenoh.qos.QoS
+import io.zenoh.qos.CongestionControl
+import io.zenoh.qos.Priority
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.ZBytes
@@ -48,4 +50,45 @@ data class Sample(
     val express = qos.express
     val congestionControl = qos.congestionControl
     val priority = qos.priority
+
+    internal companion object {
+        /**
+         * Builds an SDK [Sample] from the 14 leaves of the ZSample canonical
+         * output — the lambda parameter list every decomposed sample delivery
+         * uses (the `zReplySample` builder and the subscriber/liveliness
+         * callbacks), in record order. The whole graph arrives in ONE JNI
+         * crossing; the [KeyExpr] retains the delivered handle leaf. The
+         * trailing `reliability` / `source*` leaves are part of the generated
+         * decomposition but are not surfaced on the public [Sample] type.
+         */
+        @Suppress("UNUSED_PARAMETER")
+        fun fromParts(
+            keH: io.zenoh.jni.keyexpr.KeyExpr,
+            payloadH: io.zenoh.jni.bytes.ZBytes,
+            encH: io.zenoh.jni.bytes.Encoding,
+            encId: Int,
+            kindInt: Int,
+            ntp64: Long?,
+            express: Boolean,
+            prioInt: Int,
+            ccInt: Int,
+            attachH: io.zenoh.jni.bytes.ZBytes?,
+            reliabilityInt: Int,
+            sourceZid: io.zenoh.jni.config.ZenohId?,
+            sourceEid: Int,
+            sourceSn: Long,
+        ): Sample = Sample(
+            KeyExpr(keH),
+            ZBytes.fromHandle(payloadH),
+            Encoding.fromParts(encH, encId),
+            io.zenoh.jni.sample.SampleKind.fromInt(kindInt).toPublic(),
+            ntp64?.let { TimeStamp(it) },
+            QoS(
+                CongestionControl.fromJni(io.zenoh.jni.qos.CongestionControl.fromInt(ccInt)),
+                Priority.fromJni(io.zenoh.jni.qos.Priority.fromInt(prioInt)),
+                express
+            ),
+            attachH?.let { ZBytes.fromHandle(it) }
+        )
+    }
 }

@@ -14,16 +14,17 @@
 
 package io.zenoh.config
 
-import io.zenoh.jni.JNIZenohId
+import io.zenoh.exceptions.throwZError0
+import io.zenoh.jni.config.ZenohId as JniZenohId
 import kotlin.math.absoluteValue
 
 /**
  * The global unique id of a Zenoh peer.
  */
-data class ZenohId internal constructor(internal val bytes: ByteArray) {
+data class ZenohId internal constructor(internal val inner: JniZenohId) {
 
     override fun toString(): String {
-        return JNIZenohId.toStringViaJNI(bytes)
+        return inner.toStr(throwZError0)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -32,11 +33,11 @@ data class ZenohId internal constructor(internal val bytes: ByteArray) {
 
         other as ZenohId
 
-        return bytes.contentEquals(other.bytes)
+        return inner.bytes.contentEquals(other.inner.bytes)
     }
 
     override fun hashCode(): Int {
-        return bytes.contentHashCode()
+        return inner.bytes.contentHashCode()
     }
 }
 
