@@ -177,7 +177,7 @@ class Encoding private constructor(
                 val h = JniEncoding.fromString(repr, throwZError0)
                 try {
                     if (!idKnown) {
-                        idCached = h.id(throwZError0)
+                        idCached = h.getId(throwZError0)
                         idKnown = true
                     }
                     if (!schemaKnown) {

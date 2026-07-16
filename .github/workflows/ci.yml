@@ -31,14 +31,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ZettaScaleLabs/zenoh-flat-jni
-          ref: d8613fbdc20aac34f05bc2dc1691a7e127031065
+          ref: 7b307c9efe979e8a1645d2c3da4606b4ee29ec13
           path: zenoh-flat-jni
 
       - name: Check out zenoh-flat
         uses: actions/checkout@v4
         with:
           repository: ZettaScaleLabs/zenoh-flat
-          ref: 9d404a710249d6916c1b6ad998a10ab7a5b09b5a
+          ref: 7b151d7808583ed15884fada2fd40d5db387c982
           path: zenoh-flat
 
       - name: Use prebindgen from GitHub main
