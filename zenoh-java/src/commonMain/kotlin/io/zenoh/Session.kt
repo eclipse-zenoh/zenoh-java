@@ -826,13 +826,13 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val zSession = zSession ?: throw sessionClosedException
         // `io.zenoh.jni.config.ZenohId` is a value class, so the native fn
         // returns `List<io.zenoh.jni.config.ZenohId>` directly; wrap each as ZenohId.
-        return zSession.peersZid(throwZError0).map { ZenohId(it) }
+        return zSession.getPeersZid(throwZError0).map { ZenohId(it) }
     }
 
     @Throws(ZError::class)
     internal fun getRoutersId(): List<ZenohId> {
         val zSession = zSession ?: throw sessionClosedException
-        return zSession.routersZid(throwZError0).map { ZenohId(it) }
+        return zSession.getRoutersZid(throwZError0).map { ZenohId(it) }
     }
 
     /** Launches the session, returning the [Session] on success. */

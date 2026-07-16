@@ -98,7 +98,7 @@ class KeyExpr internal constructor(
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun tryFrom(keyExpr: String): KeyExpr = KeyExpr(JniKeyExpr.tryFrom(keyExpr, throwZError))
+        fun tryFrom(keyExpr: String): KeyExpr = KeyExpr(JniKeyExpr.newTryFrom(keyExpr, throwZError))
 
         /**
          * Autocanonize.
@@ -112,7 +112,7 @@ class KeyExpr internal constructor(
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun autocanonize(keyExpr: String): KeyExpr = KeyExpr(JniKeyExpr.autocanonize(keyExpr, throwZError))
+        fun autocanonize(keyExpr: String): KeyExpr = KeyExpr(JniKeyExpr.newAutocanonize(keyExpr, throwZError))
     }
 
     /**
@@ -148,7 +148,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun join(other: String): KeyExpr =
-        KeyExpr(JniKeyExpr.join(this.flat, other, throwZError))
+        KeyExpr(JniKeyExpr.newJoin(this.flat, other, throwZError))
 
     /**
      * Performs string concatenation and returns the result as a KeyExpr if possible.
@@ -156,7 +156,7 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun concat(other: String): KeyExpr =
-        KeyExpr(JniKeyExpr.concat(this.flat, other, throwZError))
+        KeyExpr(JniKeyExpr.newConcat(this.flat, other, throwZError))
 
     override fun toString(): String = keyExprString
 

@@ -87,7 +87,7 @@ class ZBytes private constructor(
      * the caller does not close it.
      */
     internal fun toZZBytes(): JniZBytes =
-        JniZBytes.fromVec(bytes, throwZError0)
+        JniZBytes.newFromVec(bytes, throwZError0)
 
     /** Returns the internal byte representation of the [ZBytes]. */
     fun toBytes(): ByteArray = bytes

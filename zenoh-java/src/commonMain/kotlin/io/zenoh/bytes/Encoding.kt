@@ -174,7 +174,7 @@ class Encoding private constructor(
                     schemaKnown = true
                 }
             } else {
-                val h = JniEncoding.fromString(repr, throwZError0)
+                val h = JniEncoding.newFromString(repr, throwZError0)
                 try {
                     if (!idKnown) {
                         idCached = h.getId(throwZError0)
@@ -322,7 +322,7 @@ class Encoding private constructor(
         if (handle != null) {
             handle.newClone(throwZError0)
         } else {
-            JniEncoding.fromString(repr, throwZError0)
+            JniEncoding.newFromString(repr, throwZError0)
         }
 
     /**
@@ -332,7 +332,7 @@ class Encoding private constructor(
     fun withSchema(schema: String): Encoding {
         // `withSchema` takes the base encoding flattened to `(id, schema)`; this
         // Encoding already exposes that decomposition lazily.
-        val withSchema = JniEncoding.withSchema(idForWire(), schemaForWire(), schema, throwZError0)
+        val withSchema = JniEncoding.newWithSchema(idForWire(), schemaForWire(), schema, throwZError0)
         try {
             return Encoding(withSchema.toStr(throwZError0))
         } finally {
