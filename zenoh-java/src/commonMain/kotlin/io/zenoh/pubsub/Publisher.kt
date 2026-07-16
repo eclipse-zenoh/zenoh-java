@@ -17,6 +17,7 @@ package io.zenoh.pubsub
 import io.zenoh.*
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
+import io.zenoh.bytes.forWire
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError
@@ -80,13 +81,15 @@ class Publisher internal constructor(
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
     @Throws(ZError::class)
     fun put(payload: IntoZBytes) {
-        performPut(payload, encoding, null)
+        // No per-call encoding: the publisher's default encoding — set
+        // NATIVELY at declare time — applies, so no encoding data crosses.
+        performPut(payload, null, null)
     }
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
     @Throws(ZError::class)
     fun put(payload: IntoZBytes, options: PutOptions) {
-        performPut(payload, options.encoding ?: this.encoding, options.attachment)
+        performPut(payload, options.encoding, options.attachment)
     }
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
@@ -129,13 +132,17 @@ class Publisher internal constructor(
     }
 
     @Throws(ZError::class)
-    private fun performPut(payload: IntoZBytes, encoding: Encoding, attachment: IntoZBytes?) {
+    private fun performPut(payload: IntoZBytes, encoding: Encoding?, attachment: IntoZBytes?) {
         val p = zPublisher ?: throw publisherNotValid
+        // `null` encoding = absent (`sel -1`): the publisher's native default
+        // applies. A [io.zenoh.bytes.PinnedEncoding] crosses as its handle.
+        val enc = encoding.forWire()
         p.put(
             payload.into().bytes,
-            true,
-            encoding.id,
-            encoding.schema,
+            enc.sel,
+            enc.id,
+            enc.schema,
+            enc.handle,
             attachment?.into()?.bytes,
             throwZError,
         )

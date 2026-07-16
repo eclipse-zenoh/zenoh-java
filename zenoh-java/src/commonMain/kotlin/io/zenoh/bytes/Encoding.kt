@@ -33,8 +33,12 @@ import io.zenoh.jni.bytes.*
  * is a plain immutable value: no native handle, no native calls, nothing to
  * close. Its correspondence to the native implementation is verified by
  * `EncodingCorrespondenceTest`.
+ *
+ * For a hot publish loop with a custom schema-bearing encoding, [pinned]
+ * preallocates the native form once so each call crosses only a handle —
+ * see [PinnedEncoding].
  */
-class Encoding internal constructor(
+open class Encoding internal constructor(
     internal val id: Int,
     internal val schema: String? = null,
 ) {
@@ -197,6 +201,18 @@ class Encoding internal constructor(
     }
 
     /**
+     * Preallocate the native form of this encoding. The returned
+     * [PinnedEncoding] IS this encoding (usable anywhere an [Encoding] is —
+     * e.g. `PutOptions.encoding` or `PublisherOptions.encoding`), but native
+     * calls pass its prebuilt handle instead of re-crossing the `(id, schema)`
+     * pair — for a custom schema-bearing encoding in a hot publish loop this
+     * removes the per-call string traffic. The native side only borrows the
+     * handle (a cheap clone per call), so the pinned encoding is reusable
+     * until [PinnedEncoding.close]s.
+     */
+    fun pinned(): PinnedEncoding = PinnedEncoding(id, schema)
+
+    /**
      * Set a schema to this encoding. Zenoh does not define what a schema is and its semantics is left to the implementer.
      * E.g. a common schema for `text/plain` encoding is `utf-8`.
      *
@@ -234,10 +250,66 @@ class Encoding internal constructor(
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-        other as Encoding
+        // `is`, not javaClass: a [PinnedEncoding] equals its plain counterpart
+        // (pinning is a transport optimization, not part of the value).
+        if (other !is Encoding) return false
         return id == other.id && schema == other.schema
     }
 
     override fun hashCode(): Int = 31 * id + (schema?.hashCode() ?: 0)
+}
+
+/**
+ * The selector-tuple wire form of an optional encoding, matching the generated
+ * externs' dual-arm expansion: `sel == -1` = absent, arm `0` = the decomposed
+ * `(id, schema)` value, arm `1` = a pinned native handle (borrowed by the
+ * call). Computed once per call so a concurrent [PinnedEncoding.close] cannot
+ * desynchronize the tuple.
+ */
+internal class EncodingWire(
+    val sel: Int,
+    val id: Int?,
+    val schema: String?,
+    val handle: io.zenoh.jni.bytes.Encoding?,
+)
+
+/** See [EncodingWire]. A closed [PinnedEncoding] falls back to arm 0. */
+internal fun Encoding?.forWire(): EncodingWire {
+    if (this == null) return EncodingWire(-1, null, null, null)
+    val h = (this as? PinnedEncoding)?.handleOrNull()
+    return if (h != null) {
+        EncodingWire(1, null, null, h)
+    } else {
+        EncodingWire(0, id, schema, null)
+    }
+}
+
+/**
+ * An [Encoding] with its native form preallocated (see [Encoding.pinned]).
+ * Native calls pass the prebuilt handle (borrowed — cloned natively per call,
+ * an `Arc` bump) instead of re-crossing the `(id, schema)` pair, removing the
+ * per-call schema-string traffic in hot publish loops.
+ *
+ * Owns one native handle: [close] releases it deterministically (after which
+ * native calls fall back to the plain `(id, schema)` crossing); a finalizer
+ * backstops leaks.
+ */
+class PinnedEncoding internal constructor(id: Int, schema: String?) :
+    Encoding(id, schema), AutoCloseable {
+
+    internal val handle: io.zenoh.jni.bytes.Encoding =
+        io.zenoh.jni.bytes.Encoding.newFromId(id, schema, io.zenoh.exceptions.throwZError0)
+
+    /** Whether the pinned native form is still available. */
+    internal fun handleOrNull(): io.zenoh.jni.bytes.Encoding? =
+        handle.takeIf { !it.isClosed() }
+
+    override fun close() {
+        handle.close()
+    }
+
+    @Suppress("removal")
+    protected fun finalize() {
+        close()
+    }
 }

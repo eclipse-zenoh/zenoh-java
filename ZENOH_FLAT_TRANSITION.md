@@ -26,7 +26,7 @@ zenoh (Rust)
 | PR | Scope | Status |
 | --- | --- | --- |
 | [#481](https://github.com/eclipse-zenoh/zenoh-java/pull/481) | Use receiver-style zenoh-flat-jni bindings (generated Session/Query/Publisher methods, split key-expr overloads, de-prefixed callback names); +61–83% subscriber throughput | merged |
-| `encoding-pure-value` | `Encoding` and `ZenohId.toString` become pure JVM values (no JNI crossings, no retained handles — fixes a per-message native leak), verified by correspondence tests against the native implementation; pairs with [zenoh-flat-jni#4](https://github.com/ZettaScaleLabs/zenoh-flat-jni/pull/4) | in progress |
+| `encoding-pure-value` | `Encoding`/`ZenohId.toString` become pure JVM values (correspondence-tested, fixes a per-message native leak); publisher **default encoding set natively at declare** (plain puts cross no encoding data); `PinnedEncoding` preallocates the native form for per-put overrides (handle-only crossing). Pairs with [zenoh-flat-jni#4](https://github.com/ZettaScaleLabs/zenoh-flat-jni/pull/4), [zenoh-flat#3](https://github.com/ZettaScaleLabs/zenoh-flat/pull/3), [prebindgen#80](https://github.com/milyin/prebindgen/pull/80) | in progress |
 
 Companion PRs in the upstream repos are coordinated per constituent PR (e.g.
 [ZettaScaleLabs/zenoh-flat-jni#3](https://github.com/ZettaScaleLabs/zenoh-flat-jni/pull/3)
