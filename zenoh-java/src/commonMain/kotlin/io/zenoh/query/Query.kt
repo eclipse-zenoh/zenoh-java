@@ -178,9 +178,4 @@ class Query internal constructor(
         zQuery?.close()
         zQuery = null
     }
-
-    @Suppress("removal")
-    protected fun finalize() {
-        close()
-    }
 }

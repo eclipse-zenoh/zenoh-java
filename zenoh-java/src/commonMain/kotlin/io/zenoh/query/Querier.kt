@@ -143,10 +143,6 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
         undeclare()
     }
 
-    protected fun finalize() {
-        undeclare()
-    }
-
     private fun resolveGetWithCallback(callback: Callback<Reply>, options: GetOptions) {
         val q = zQuerier ?: throw ZError("Querier is not valid.")
         q.get(

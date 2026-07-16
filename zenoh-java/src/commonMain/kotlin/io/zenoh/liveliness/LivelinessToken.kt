@@ -45,8 +45,4 @@ class LivelinessToken internal constructor(private var token: io.zenoh.jni.livel
     override fun close() {
         undeclare()
     }
-
-    protected fun finalize() {
-        undeclare()
-    }
 }

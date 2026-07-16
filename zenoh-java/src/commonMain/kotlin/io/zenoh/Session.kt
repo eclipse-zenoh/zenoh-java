@@ -110,10 +110,6 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         zSession = null
     }
 
-    protected fun finalize() {
-        close()
-    }
-
     /**
      * Declare a [Publisher] on the session.
      *

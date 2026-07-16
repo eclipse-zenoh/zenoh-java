@@ -129,11 +129,6 @@ class Publisher internal constructor(
         zPublisher = null
     }
 
-    @Suppress("removal")
-    protected fun finalize() {
-        zPublisher?.close()
-    }
-
     @Throws(ZError::class)
     private fun performPut(payload: IntoZBytes, encoding: Encoding?, attachment: IntoZBytes?) {
         val p = zPublisher ?: throw publisherNotValid

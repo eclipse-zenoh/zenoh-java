@@ -42,7 +42,9 @@ import io.zenoh.jni.bytes.Encoding as JniEncoding
  * they are born without an extra crossing: custom (schema-carrying) encodings
  * create one at construction, and received encodings (sample/query/reply)
  * arrive with one in the same delivery crossing. Handle release is GC-managed
- * ([EncodingCleaner]) — the value stays non-closeable either way.
+ * (the JNI `Encoding` class is `gc_managed` — a shared Cleaner frees the
+ * native box once the handle is unreachable) — the value stays non-closeable
+ * either way.
  */
 class Encoding internal constructor(
     internal val id: Int,
@@ -50,10 +52,6 @@ class Encoding internal constructor(
     /** The owned native handle, when this encoding was born with one. */
     internal val handle: JniEncoding? = null,
 ) {
-
-    init {
-        handle?.let { EncodingCleaner.register(it) }
-    }
 
     companion object {
         @JvmField val ZENOH_BYTES = Encoding(ENCODING_ZENOH_BYTES_ID)

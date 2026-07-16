@@ -77,10 +77,6 @@ sealed class Subscriber(
     override fun close() {
         undeclare()
     }
-
-    protected fun finalize() {
-        zSubscriber?.close()
-    }
 }
 
 /**
