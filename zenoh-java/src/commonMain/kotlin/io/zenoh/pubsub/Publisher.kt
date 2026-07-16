@@ -16,10 +16,15 @@ package io.zenoh.pubsub
 
 import io.zenoh.*
 import io.zenoh.bytes.Encoding
+import io.zenoh.bytes.jniHandle
+import io.zenoh.bytes.jniId
+import io.zenoh.bytes.jniSchema
+import io.zenoh.bytes.jniSel
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
-import io.zenoh.jni.JNIPublisher
+import io.zenoh.exceptions.throwZError
+import io.zenoh.jni.pubsub.Publisher as JniPublisher
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
@@ -63,7 +68,7 @@ class Publisher internal constructor(
     private var congestionControl: CongestionControl,
     private var priority: Priority,
     val encoding: Encoding,
-    private var jniPublisher: JNIPublisher?,
+    private var zPublisher: JniPublisher?,
 ) : SessionDeclaration, AutoCloseable {
 
     companion object {
@@ -79,13 +84,15 @@ class Publisher internal constructor(
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
     @Throws(ZError::class)
     fun put(payload: IntoZBytes) {
-        jniPublisher?.put(payload, encoding, null) ?: throw publisherNotValid
+        // No per-call encoding: the publisher's default encoding — set
+        // NATIVELY at declare time — applies, so no encoding data crosses.
+        performPut(payload, null, null)
     }
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
     @Throws(ZError::class)
     fun put(payload: IntoZBytes, options: PutOptions) {
-        jniPublisher?.put(payload, options.encoding ?: this.encoding, options.attachment) ?: throw publisherNotValid
+        performPut(payload, options.encoding, options.attachment)
     }
 
     /** Performs a PUT operation on the specified [keyExpr] with the specified [payload]. */
@@ -102,14 +109,15 @@ class Publisher internal constructor(
     @JvmOverloads
     @Throws(ZError::class)
     fun delete(options: DeleteOptions = DeleteOptions()) {
-        jniPublisher?.delete(options.attachment) ?: throw(publisherNotValid)
+        val p = zPublisher ?: throw publisherNotValid
+        p.delete(options.attachment?.into()?.bytes, throwZError)
     }
 
     /**
      * Returns `true` if the publisher is still running.
      */
     fun isValid(): Boolean {
-        return jniPublisher != null
+        return zPublisher != null
     }
 
     override fun close() {
@@ -117,12 +125,22 @@ class Publisher internal constructor(
     }
 
     override fun undeclare() {
-        jniPublisher?.close()
-        jniPublisher = null
+        zPublisher?.close()
+        zPublisher = null
     }
 
-    @Suppress("removal")
-    protected fun finalize() {
-        jniPublisher?.close()
+    @Throws(ZError::class)
+    private fun performPut(payload: IntoZBytes, encoding: Encoding?, attachment: IntoZBytes?) {
+        val p = zPublisher ?: throw publisherNotValid
+        // `null` encoding = absent: the publisher's default encoding — set
+        // NATIVELY at declare time — applies, and no encoding data crosses.
+        // A per-put override rides this same call: bare handle, or (id,
+        // schema) for a value-only (predefined) encoding.
+        p.put(
+            payload.into().bytes,
+            encoding.jniSel, encoding.jniId, encoding.jniSchema, encoding.jniHandle,
+            attachment?.into()?.bytes,
+            throwZError,
+        )
     }
 }

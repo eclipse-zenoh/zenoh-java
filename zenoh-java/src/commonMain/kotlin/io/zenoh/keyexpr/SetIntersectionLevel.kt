@@ -19,13 +19,14 @@ package io.zenoh.keyexpr
  *
  * Note that [EQUALS] implies [INCLUDES], which itself implies [INTERSECTS].
  */
-enum class SetIntersectionLevel(internal val value: Int) {
-    DISJOINT(0),
-    INTERSECTS(1),
-    INCLUDES(2),
-    EQUALS(3);
+enum class SetIntersectionLevel(internal val jni: io.zenoh.jni.keyexpr.SetIntersectionLevel) {
+    DISJOINT(io.zenoh.jni.keyexpr.SetIntersectionLevel.DISJOINT),
+    INTERSECTS(io.zenoh.jni.keyexpr.SetIntersectionLevel.INTERSECTS),
+    INCLUDES(io.zenoh.jni.keyexpr.SetIntersectionLevel.INCLUDES),
+    EQUALS(io.zenoh.jni.keyexpr.SetIntersectionLevel.EQUALS);
 
     companion object {
-        internal fun fromInt(value: Int) = SetIntersectionLevel.entries.first { it.value == value }
+        internal fun fromJni(jni: io.zenoh.jni.keyexpr.SetIntersectionLevel): SetIntersectionLevel =
+            entries.first { it.jni == jni }
     }
 }

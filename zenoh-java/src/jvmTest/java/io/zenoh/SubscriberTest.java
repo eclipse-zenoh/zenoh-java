@@ -34,6 +34,8 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(JUnit4.class)
 public class SubscriberTest {
@@ -96,6 +98,54 @@ public class SubscriberTest {
             assertEquals(valueRecv.getPriority(), TEST_PRIORITY);
             assertEquals(valueRecv.getCongestionControl(), TEST_CONGESTION_CONTROL);
         }
+
+        subscriber.close();
+    }
+
+    /**
+     * Output (data) expansion smoke test: a received sample's key expression is
+     * built by the native `zSampleKeyExpr` builder, which delivers BOTH the
+     * key-expr handle and its string form in one JNI crossing. This asserts
+     * both leaves arrived intact:
+     *   - the string leaf: {@code keyExpr.toString()} matches the published key;
+     *   - the handle leaf: {@code keyExpr.intersects(...)} runs a native op on
+     *     the delivered handle (the combined-constructor identity arm), which
+     *     would fail if the handle were missing/dangling.
+     */
+    @Test
+    public void subscriber_sampleKeyExprDeliversHandleAndString() throws ZError {
+        var receivedSamples = new ArrayList<Sample>();
+        var subscriber = session.declareSubscriber(testKeyExpr, receivedSamples::add);
+
+        session.put(testKeyExpr, ZBytes.from("output-expansion"));
+
+        assertEquals(1, receivedSamples.size());
+        KeyExpr recvKe = receivedSamples.get(0).getKeyExpr();
+        // String leaf.
+        assertEquals(testKeyExpr.toString(), recvKe.toString());
+        // Handle leaf: native op over the delivered handle.
+        assertTrue(recvKe.intersects(testKeyExpr));
+
+        subscriber.close();
+    }
+
+    /**
+     * Output (data) expansion, nullable path: a sample published without a
+     * timestamp / attachment exercises the `Option<&T>` "None ⇒ null result"
+     * branch of zSampleTimestamp / zSampleAttachment (builder skipped). The
+     * default session adds no timestamp, so both must come back null.
+     */
+    @Test
+    public void subscriber_sampleNullableFieldsAreNull() throws ZError {
+        var receivedSamples = new ArrayList<Sample>();
+        var subscriber = session.declareSubscriber(testKeyExpr, receivedSamples::add);
+
+        session.put(testKeyExpr, ZBytes.from("no-timestamp"));
+
+        assertEquals(1, receivedSamples.size());
+        Sample s = receivedSamples.get(0);
+        assertNull(s.getTimestamp());
+        assertNull(s.getAttachment());
 
         subscriber.close();
     }

@@ -36,3 +36,10 @@ enum class ConsolidationMode {
     /** Holds back samples to only send the set of samples that had the highest timestamp for their key. */
     LATEST;
 }
+
+internal fun ConsolidationMode.toFlat(): io.zenoh.jni.query.ConsolidationMode = when (this) {
+    ConsolidationMode.AUTO -> io.zenoh.jni.query.ConsolidationMode.AUTO
+    ConsolidationMode.NONE -> io.zenoh.jni.query.ConsolidationMode.NONE
+    ConsolidationMode.MONOTONIC -> io.zenoh.jni.query.ConsolidationMode.MONOTONIC
+    ConsolidationMode.LATEST -> io.zenoh.jni.query.ConsolidationMode.LATEST
+}

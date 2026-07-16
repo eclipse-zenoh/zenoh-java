@@ -33,3 +33,9 @@ enum class QueryTarget {
     ALL_COMPLETE;
 }
 
+internal fun QueryTarget.toFlat(): io.zenoh.jni.query.QueryTarget = when (this) {
+    QueryTarget.BEST_MATCHING -> io.zenoh.jni.query.QueryTarget.BEST_MATCHING
+    QueryTarget.ALL -> io.zenoh.jni.query.QueryTarget.ALL
+    QueryTarget.ALL_COMPLETE -> io.zenoh.jni.query.QueryTarget.ALL_COMPLETE
+}
+

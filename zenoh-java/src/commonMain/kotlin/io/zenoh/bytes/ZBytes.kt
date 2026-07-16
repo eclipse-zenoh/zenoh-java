@@ -14,6 +14,9 @@
 
 package io.zenoh.bytes
 
+import io.zenoh.exceptions.throwZError0
+import io.zenoh.jni.bytes.ZBytes as JniZBytes
+
 /**
  * ZBytes contains the serialized bytes of user data.
  *
@@ -30,7 +33,30 @@ package io.zenoh.bytes
  * flatbuffers, etc.
  *
  */
-class ZBytes internal constructor(internal val bytes: ByteArray) : IntoZBytes {
+class ZBytes private constructor(
+    private var eager: ByteArray?,
+    private var handle: JniZBytes?,
+) : IntoZBytes {
+
+    internal constructor(bytes: ByteArray) : this(bytes, null)
+
+    /**
+     * The payload bytes. A handle-backed (received) ZBytes materializes them
+     * LAZILY on first access — one borrow-copy out of the native buffer via
+     * `zZbytesAsBytes` — then closes the native handle (forward-extraction
+     * rule: the handle is delivered eagerly, the heavy bytes on demand).
+     */
+    internal val bytes: ByteArray
+        get() = eager ?: synchronized(this) {
+            eager ?: run {
+                val h = handle!!
+                val b = h.asBytes(throwZError0)
+                eager = b
+                handle = null
+                h.close()
+                b
+            }
+        }
 
     companion object {
 
@@ -45,7 +71,23 @@ class ZBytes internal constructor(internal val bytes: ByteArray) : IntoZBytes {
          */
         @JvmStatic
         fun from(bytes: ByteArray) = ZBytes(bytes)
+
+        /**
+         * Decodes a native `ZZBytes` handle into a value [ZBytes] and frees the
+         * handle. Used when an accessor / callback hands back an owned buffer.
+         */
+        /** Wrap a received owned handle; bytes are read lazily (see [bytes]). */
+        internal fun fromHandle(handle: JniZBytes): ZBytes =
+            ZBytes(null, handle)
     }
+
+    /**
+     * Builds a fresh native `ZBytes` handle from these bytes. The raw
+     * payload/attachment parameters take it **by value** (Rust frees it), so
+     * the caller does not close it.
+     */
+    internal fun toZZBytes(): JniZBytes =
+        JniZBytes.newFromVec(bytes, throwZError0)
 
     /** Returns the internal byte representation of the [ZBytes]. */
     fun toBytes(): ByteArray = bytes
