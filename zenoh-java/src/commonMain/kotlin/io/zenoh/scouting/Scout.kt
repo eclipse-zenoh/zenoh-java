@@ -115,10 +115,6 @@ sealed class Scout (
     override fun close() {
         stop()
     }
-
-    protected fun finalize() {
-        stop()
-    }
 }
 
 /**

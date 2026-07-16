@@ -53,11 +53,13 @@ data class Sample(
 
     internal companion object {
         /**
-         * Builds an SDK [Sample] from the 14 leaves of the ZSample canonical
+         * Builds an SDK [Sample] from the 15 leaves of the ZSample canonical
          * output — the lambda parameter list every decomposed sample delivery
          * uses (the `zReplySample` builder and the subscriber/liveliness
          * callbacks), in record order. The whole graph arrives in ONE JNI
-         * crossing; the [KeyExpr] retains the delivered handle leaf. The
+         * crossing; the [KeyExpr] retains the delivered handle leaf, and the
+         * [Encoding] retains its delivered handle (`encH`) so re-sending it
+         * crosses a bare `jlong` instead of rebuilding the native value. The
          * trailing `reliability` / `source*` leaves are part of the generated
          * decomposition but are not surfaced on the public [Sample] type.
          */
@@ -67,6 +69,7 @@ data class Sample(
             payloadH: io.zenoh.jni.bytes.ZBytes,
             encId: Int,
             encSchema: String?,
+            encH: io.zenoh.jni.bytes.Encoding,
             kindInt: Int,
             ntp64: Long?,
             express: Boolean,
@@ -80,7 +83,7 @@ data class Sample(
         ): Sample = Sample(
             KeyExpr(keH),
             ZBytes.fromHandle(payloadH),
-            Encoding(encId, encSchema),
+            Encoding(encId, encSchema, encH),
             io.zenoh.jni.sample.SampleKind.fromInt(kindInt).toPublic(),
             ntp64?.let { TimeStamp(it) },
             QoS(

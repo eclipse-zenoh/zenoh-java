@@ -76,10 +76,6 @@ sealed class Queryable(
     override fun close() {
         undeclare()
     }
-
-    protected fun finalize() {
-        zQueryable?.close()
-    }
 }
 
 /**

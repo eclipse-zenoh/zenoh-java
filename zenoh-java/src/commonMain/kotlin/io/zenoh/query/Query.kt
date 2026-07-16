@@ -16,6 +16,10 @@ package io.zenoh.query
 
 import io.zenoh.ZenohType
 import io.zenoh.bytes.Encoding
+import io.zenoh.bytes.jniHandle
+import io.zenoh.bytes.jniId
+import io.zenoh.bytes.jniSchema
+import io.zenoh.bytes.jniSel
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
@@ -61,6 +65,7 @@ class Query internal constructor(
             payloadH: io.zenoh.jni.bytes.ZBytes?,
             encId: Int?,
             encSchema: String?,
+            encH: io.zenoh.jni.bytes.Encoding?,
             attachH: io.zenoh.jni.bytes.ZBytes?,
             acceptsRepliesInt: Int,
             zq: io.zenoh.jni.query.Query,
@@ -72,7 +77,7 @@ class Query internal constructor(
                 ke,
                 selector,
                 payloadH?.let { ZBytes.fromHandle(it) },
-                encId?.let { Encoding(it, encSchema) },
+                encId?.let { Encoding(it, encSchema, encH) },
                 attachH?.let { ZBytes.fromHandle(it) },
                 io.zenoh.jni.query.ReplyKeyExpr.fromInt(acceptsRepliesInt).toPublic(),
                 zq
@@ -96,9 +101,7 @@ class Query internal constructor(
         q.replySuccess(
             keyExpr.flat,
             payload.into().bytes,
-            enc != null,
-            enc?.id ?: 0,
-            enc?.schema,
+            enc.jniSel, enc.jniId, enc.jniSchema, enc.jniHandle,
             options.timeStamp?.ntpValue(),
             options.attachment?.into()?.bytes,
             options.express,
@@ -156,7 +159,7 @@ class Query internal constructor(
     fun replyErr(message: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
         val enc = options.encoding
-        q.replyError(message.into().bytes, enc != null, enc?.id ?: 0, enc?.schema, throwZError)
+        q.replyError(message.into().bytes, enc.jniSel, enc.jniId, enc.jniSchema, enc.jniHandle, throwZError)
         q.close()
         zQuery = null
     }
@@ -174,10 +177,5 @@ class Query internal constructor(
     override fun close() {
         zQuery?.close()
         zQuery = null
-    }
-
-    @Suppress("removal")
-    protected fun finalize() {
-        close()
     }
 }
