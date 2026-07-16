@@ -15,6 +15,7 @@
 package io.zenoh.bytes
 
 import io.zenoh.jni.bytes.*
+import io.zenoh.jni.bytes.Encoding as JniEncoding
 
 /**
  * Default encoding values used by Zenoh.
@@ -30,13 +31,29 @@ import io.zenoh.jni.bytes.*
  * representation. This class is a plain immutable value; all conversion logic
  * (the id↔name table and Zenoh's parse/render rules) lives in the shared
  * bindings tier ([EncodingCodec]), verified against the native implementation
- * by `EncodingCorrespondenceTest`. No native handle, no native calls, nothing
- * to close.
+ * by `EncodingCorrespondenceTest`. Nothing to close: identity, equality and
+ * rendering never touch the native side.
+ *
+ * Sends are shaped to MINIMIZE JNI CROSSINGS. The predefined constants stay
+ * value-only: a send carries just their id inside the send call itself — no
+ * native handle ever exists for them. An encoding that already owns a native
+ * [handle] sends it as a bare `jlong` instead (the native side borrows and
+ * clones it, so the handle is reusable forever). Handles exist only where
+ * they are born without an extra crossing: custom (schema-carrying) encodings
+ * create one at construction, and received encodings (sample/query/reply)
+ * arrive with one in the same delivery crossing. Handle release is GC-managed
+ * ([EncodingCleaner]) — the value stays non-closeable either way.
  */
 class Encoding internal constructor(
     internal val id: Int,
     internal val schema: String? = null,
+    /** The owned native handle, when this encoding was born with one. */
+    internal val handle: JniEncoding? = null,
 ) {
+
+    init {
+        handle?.let { EncodingCleaner.register(it) }
+    }
 
     companion object {
         @JvmField val ZENOH_BYTES = Encoding(ENCODING_ZENOH_BYTES_ID)
@@ -100,20 +117,34 @@ class Encoding internal constructor(
          * Parse a textual encoding (e.g. `"text/plain"`, `"text/plain;utf-8"`,
          * `"my_encoding"`). Well-known names resolve to their canonical id;
          * everything else is preserved as a custom encoding.
+         *
+         * A plain well-known name yields a value-only encoding (sends carry
+         * just the id); a schema-carrying/custom result creates its native
+         * handle here — construction is the one crossing, every send after is
+         * a bare `jlong`.
          */
         @JvmStatic fun from(s: String): Encoding {
             val (id, schema) = EncodingCodec.parse(s)
-            return Encoding(id, schema)
+            return Encoding(id, schema, schema?.let { createHandle(id, it) })
         }
+
+        /** Native handle for a custom encoding — construction is the one crossing. */
+        private fun createHandle(id: Int, schema: String?): JniEncoding =
+            JniEncoding.newFromId(id, schema) { je ->
+                throw IllegalStateException("encoding creation failed: $je")
+            }
     }
 
     /**
      * Set a schema to this encoding. Zenoh does not define what a schema is and its semantics is left to the implementer.
      * E.g. a common schema for `text/plain` encoding is `utf-8`.
+     *
+     * The result is a custom encoding, so its native handle is created here —
+     * construction is the one crossing, every send after is a bare `jlong`.
      */
     fun withSchema(schema: String): Encoding {
         val (nid, nschema) = EncodingCodec.withSchema(id, this.schema, schema)
-        return Encoding(nid, nschema)
+        return Encoding(nid, nschema, createHandle(nid, nschema))
     }
 
     /** Canonical textual form. */
@@ -128,3 +159,26 @@ class Encoding internal constructor(
 
     override fun hashCode(): Int = 31 * id + (schema?.hashCode() ?: 0)
 }
+
+// The four slots of the generated encoding selector block (`encodingSel,
+// encoding00, encoding01, encoding1`), computed from one optional [Encoding]
+// in a single expression per slot so every send call site stays one flat call
+// with zero extra JNI crossings: absent -> -1, handle-owning -> the bare
+// handle (arm 1), value-only -> (id, schema) built Rust-side inside the same
+// call (arm 0).
+
+internal val Encoding?.jniSel: Int
+    get() = when {
+        this == null -> -1
+        handle != null -> 1
+        else -> 0
+    }
+
+internal val Encoding?.jniId: Int?
+    get() = if (this != null && handle == null) id else null
+
+internal val Encoding?.jniSchema: String?
+    get() = if (this != null && handle == null) schema else null
+
+internal val Encoding?.jniHandle: JniEncoding?
+    get() = this?.handle

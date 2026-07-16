@@ -19,6 +19,10 @@ import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.bytes.into
+import io.zenoh.bytes.jniHandle
+import io.zenoh.bytes.jniId
+import io.zenoh.bytes.jniSchema
+import io.zenoh.bytes.jniSel
 import io.zenoh.config.ZenohId
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError
@@ -592,9 +596,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
             val enc = options.encoding
             val zPublisher = zSession.declarePublisher(
                 keyExpr.cloneFlat(),
-                true,
-                enc.id,
-                enc.schema,
+                enc.jniSel, enc.jniId, enc.jniSchema, enc.jniHandle,
                 options.congestionControl.jni,
                 options.priority.jni,
                 options.express,
@@ -728,7 +730,6 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val zSession = zSession ?: throw sessionClosedException
         return run {
             val sel = selector.into()
-            val enc = options.encoding
             zSession.get(
                 sel.keyExpr.flat,
                 sel.parameters?.toString(),
@@ -740,9 +741,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.qos.priority.jni,
                 options.qos.express,
                 options.payload?.into()?.bytes,
-                enc != null,
-                enc?.id ?: 0,
-                enc?.schema,
+                options.encoding.jniSel, options.encoding.jniId, options.encoding.jniSchema, options.encoding.jniHandle,
                 options.attachment?.into()?.bytes,
                 replyCallbackOf { handler.handle(it) },
                 { handler.onClose() },
@@ -761,7 +760,6 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val zSession = zSession ?: throw sessionClosedException
         run {
             val sel = selector.into()
-            val enc = options.encoding
             zSession.get(
                 sel.keyExpr.flat,
                 sel.parameters?.toString(),
@@ -773,9 +771,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.qos.priority.jni,
                 options.qos.express,
                 options.payload?.into()?.bytes,
-                enc != null,
-                enc?.id ?: 0,
-                enc?.schema,
+                options.encoding.jniSel, options.encoding.jniId, options.encoding.jniSchema, options.encoding.jniHandle,
                 options.attachment?.into()?.bytes,
                 replyCallbackOf { callback.run(it) },
                 { },
@@ -792,9 +788,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
             zSession.put(
                 keyExpr.flat,
                 payload.into().bytes,
-                enc != null,
-                enc?.id ?: 0,
-                enc?.schema,
+                enc.jniSel, enc.jniId, enc.jniSchema, enc.jniHandle,
                 putOptions.congestionControl.jni,
                 putOptions.priority.jni,
                 putOptions.express,

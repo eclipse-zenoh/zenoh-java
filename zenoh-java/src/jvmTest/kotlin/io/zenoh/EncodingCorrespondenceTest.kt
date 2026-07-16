@@ -103,8 +103,9 @@ class EncodingCorrespondenceTest {
         )
         for (base in bases) {
             val pure = base.withSchema("new-schema")
-            // The `e` param crosses as its decomposed (id, schema) value.
-            val w = JniEncoding.newWithSchema(base.id, base.schema, "new-schema", throwZError0)
+            // The `e` param crosses on the selector's value arm as its
+            // decomposed (id, schema) pair.
+            val w = JniEncoding.newWithSchema(0, base.id, base.schema, null, "new-schema", throwZError0)
             val nativeStr = try {
                 w.toStr(throwZError0)
             } finally {

@@ -16,6 +16,10 @@ package io.zenoh.pubsub
 
 import io.zenoh.*
 import io.zenoh.bytes.Encoding
+import io.zenoh.bytes.jniHandle
+import io.zenoh.bytes.jniId
+import io.zenoh.bytes.jniSchema
+import io.zenoh.bytes.jniSel
 import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
@@ -135,11 +139,11 @@ class Publisher internal constructor(
         val p = zPublisher ?: throw publisherNotValid
         // `null` encoding = absent: the publisher's default encoding — set
         // NATIVELY at declare time — applies, and no encoding data crosses.
+        // A per-put override rides this same call: bare handle, or (id,
+        // schema) for a value-only (predefined) encoding.
         p.put(
             payload.into().bytes,
-            encoding != null,
-            encoding?.id ?: 0,
-            encoding?.schema,
+            encoding.jniSel, encoding.jniId, encoding.jniSchema, encoding.jniHandle,
             attachment?.into()?.bytes,
             throwZError,
         )
