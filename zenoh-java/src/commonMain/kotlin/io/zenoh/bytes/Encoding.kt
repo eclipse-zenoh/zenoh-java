@@ -38,13 +38,15 @@ import io.zenoh.jni.bytes.Encoding as JniEncoding
  * value-only: a send carries just their id inside the send call itself — no
  * native handle ever exists for them. An encoding that already owns a native
  * [handle] sends it as a bare `jlong` instead (the native side borrows and
- * clones it, so the handle is reusable forever). Handles exist only where
- * they are born without an extra crossing: custom (schema-carrying) encodings
- * create one at construction, and received encodings (sample/query/reply)
- * arrive with one in the same delivery crossing. Handle release is GC-managed
- * (the JNI `Encoding` class is `gc_managed` — a shared Cleaner frees the
- * native box once the handle is unreachable) — the value stays non-closeable
- * either way.
+ * clones it, so the handle is reusable forever). Handles are born ONLY at
+ * construction of a custom (schema-carrying) encoding — construction is the
+ * one crossing. Received encodings (sample/query/reply) are always
+ * value-only `(id, schema)`: delivering a handle with each message
+ * measurably cost more than the schema re-decode it saved when one was
+ * re-sent, so a re-sent received encoding crosses through the `(id, schema)`
+ * value arm instead. Handle release is GC-managed (the JNI `Encoding` class
+ * is `gc_managed` — a shared Cleaner frees the native box once the handle is
+ * unreachable) — the value stays non-closeable either way.
  */
 class Encoding internal constructor(
     internal val id: Int,

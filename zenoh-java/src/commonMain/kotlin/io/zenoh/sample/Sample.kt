@@ -53,16 +53,15 @@ data class Sample(
 
     internal companion object {
         /**
-         * Builds an SDK [Sample] from the 15 leaves of the ZSample canonical
+         * Builds an SDK [Sample] from the 14 leaves of the ZSample canonical
          * output — the lambda parameter list every decomposed sample delivery
          * uses (the `zReplySample` builder and the subscriber/liveliness
          * callbacks), in record order. The whole graph arrives in ONE JNI
          * crossing; the [KeyExpr] is string-backed (a received keyexpr never
-         * carries a wire declaration, so a native handle would buy nothing), and the
-         * [Encoding] retains its delivered handle (`encH`) so re-sending it
-         * crosses a bare `jlong` instead of rebuilding the native value —
-         * delivered ONLY for schema-carrying encodings (a preset re-sends
-         * through the id arm for free, so it arrives value-only). The
+         * carries a wire declaration, so a native handle would buy nothing),
+         * and the [Encoding] is value-only `(id, schema?)` — a delivered
+         * native handle measurably cost more per receive than the
+         * schema-string re-decode it saved on the resent fraction. The
          * trailing `reliability` / `source*` leaves are part of the generated
          * decomposition but are not surfaced on the public [Sample] type.
          */
@@ -72,7 +71,6 @@ data class Sample(
             payloadH: io.zenoh.jni.bytes.ZBytes,
             encId: Int,
             encSchema: String?,
-            encH: io.zenoh.jni.bytes.Encoding?,
             kindInt: Int,
             ntp64: Long?,
             express: Boolean,
@@ -86,7 +84,7 @@ data class Sample(
         ): Sample = Sample(
             KeyExpr(keStr),
             ZBytes.fromHandle(payloadH),
-            Encoding(encId, encSchema, encH),
+            Encoding(encId, encSchema),
             io.zenoh.jni.sample.SampleKind.fromInt(kindInt).toPublic(),
             ntp64?.let { TimeStamp(it) },
             QoS(

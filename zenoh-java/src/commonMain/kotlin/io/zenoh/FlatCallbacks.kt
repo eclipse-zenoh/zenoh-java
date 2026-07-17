@@ -39,14 +39,14 @@ import io.zenoh.scouting.Hello
 internal fun sampleCallbackOf(
     f: (Sample) -> Unit
 ): io.zenoh.jni.sample.SampleCallback =
-    io.zenoh.jni.sample.SampleCallback { keStr, payloadH, encId, encSchema, encH, kindInt, ntp64, express, prioInt, ccInt, attachH, reliabilityInt, sourceZid, sourceEid, sourceSn ->
-        f(Sample.fromParts(keStr, payloadH, encId, encSchema, encH, kindInt, ntp64, express, prioInt, ccInt, attachH, reliabilityInt, sourceZid, sourceEid, sourceSn))
+    io.zenoh.jni.sample.SampleCallback { keStr, payloadH, encId, encSchema, kindInt, ntp64, express, prioInt, ccInt, attachH, reliabilityInt, sourceZid, sourceEid, sourceSn ->
+        f(Sample.fromParts(keStr, payloadH, encId, encSchema, kindInt, ntp64, express, prioInt, ccInt, attachH, reliabilityInt, sourceZid, sourceEid, sourceSn))
     }
 
 internal fun queryCallbackOf(
     f: (Query) -> Unit
 ): io.zenoh.jni.query.QueryCallback =
-    io.zenoh.jni.query.QueryCallback { keStr, parameters, payloadH, encId, encSchema, encH, attachH, acceptsReplies, zq ->
+    io.zenoh.jni.query.QueryCallback { keStr, parameters, payloadH, encId, encSchema, attachH, acceptsReplies, zq ->
         // The decomposed leaves — including the key-expr string and
         // the owned `zq` query handle — are folded into the SDK [Query]. Unlike
         // the decomposed read-only types (Sample/Hello), the query OWNS `zq` and
@@ -54,25 +54,25 @@ internal fun queryCallbackOf(
         // on a channel by a queue handler) and replied to later. The native query
         // is dropped when it is replied to (see [Query.reply]) or when [Query] is
         // closed — that drop is what finalizes the querier's get.
-        f(Query.fromParts(keStr, parameters, payloadH, encId, encSchema, encH, attachH, acceptsReplies, zq))
+        f(Query.fromParts(keStr, parameters, payloadH, encId, encSchema, attachH, acceptsReplies, zq))
     }
 
 internal fun replyCallbackOf(
     f: (Reply) -> Unit
 ): io.zenoh.jni.query.ReplyCallback =
-    io.zenoh.jni.query.ReplyCallback { zid, eid, isOk, keStr, payloadH, encId, encSchema, encH, kindInt, ntp64, express, prioInt, ccInt, attachH, reliabilityInt, sourceZid, sourceEid, sourceSn, errPayloadH, errEncId, errEncSchema, errEncH ->
+    io.zenoh.jni.query.ReplyCallback { zid, eid, isOk, keStr, payloadH, encId, encSchema, kindInt, ntp64, express, prioInt, ccInt, attachH, reliabilityInt, sourceZid, sourceEid, sourceSn, errPayloadH, errEncId, errEncSchema ->
         val replierId = zid?.let { EntityGlobalId(ZenohId(it), eid.toUInt()) }
         f(
             if (isOk) {
                 Reply.Success(
                     replierId,
-                    Sample.fromParts(keStr!!, payloadH!!, encId!!, encSchema, encH, kindInt!!, ntp64, express!!, prioInt!!, ccInt!!, attachH, reliabilityInt!!, sourceZid, sourceEid!!, sourceSn!!)
+                    Sample.fromParts(keStr!!, payloadH!!, encId!!, encSchema, kindInt!!, ntp64, express!!, prioInt!!, ccInt!!, attachH, reliabilityInt!!, sourceZid, sourceEid!!, sourceSn!!)
                 )
             } else {
                 Reply.Error(
                     replierId,
                     ZBytes.fromHandle(errPayloadH!!),
-                    errEncId?.let { Encoding(it, errEncSchema, errEncH) } ?: Encoding.defaultEncoding()
+                    errEncId?.let { Encoding(it, errEncSchema) } ?: Encoding.defaultEncoding()
                 )
             }
         )

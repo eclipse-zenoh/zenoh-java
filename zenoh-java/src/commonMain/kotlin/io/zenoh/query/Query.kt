@@ -68,7 +68,6 @@ class Query internal constructor(
             payloadH: io.zenoh.jni.bytes.ZBytes?,
             encId: Int?,
             encSchema: String?,
-            encH: io.zenoh.jni.bytes.Encoding?,
             attachH: io.zenoh.jni.bytes.ZBytes?,
             acceptsRepliesInt: Int,
             zq: io.zenoh.jni.query.Query,
@@ -80,7 +79,7 @@ class Query internal constructor(
                 ke,
                 selector,
                 payloadH?.let { ZBytes.fromHandle(it) },
-                encId?.let { Encoding(it, encSchema, encH) },
+                encId?.let { Encoding(it, encSchema) },
                 attachH?.let { ZBytes.fromHandle(it) },
                 io.zenoh.jni.query.ReplyKeyExpr.fromInt(acceptsRepliesInt).toPublic(),
                 zq
