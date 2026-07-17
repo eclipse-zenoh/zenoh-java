@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ZettaScaleLabs/zenoh-flat-jni
-          ref: aecffacefcde4f803d74829ad0ae59091a15eca0
+          ref: e4a8ed7a354f6f44ab1e44f70771298dc82c9c67
           path: zenoh-flat-jni
 
       - name: Check out zenoh-flat
