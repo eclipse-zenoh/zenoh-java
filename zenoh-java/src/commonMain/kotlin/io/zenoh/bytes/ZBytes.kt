@@ -32,6 +32,20 @@ import io.zenoh.jni.bytes.ZBytes as JniZBytes
  * encouraged to use any data format of their choice like JSON, protobuf,
  * flatbuffers, etc.
  *
+ * # Native memory lifecycle
+ *
+ * A ZBytes *created* from user data ([from]) is a plain value — it never
+ * holds native memory. A *received* ZBytes (a sample's payload or
+ * attachment, a query payload, a reply) wraps a native buffer that is
+ * freed automatically on the first [bytes] access (the bytes are copied
+ * out lazily, once). A received ZBytes whose content is **never read**
+ * keeps its native buffer allocated: unlike every other handle-owning
+ * class in this SDK, ZBytes is deliberately NOT covered by the
+ * garbage-collection backstop — payloads are the per-message hot path,
+ * and registering a GC cleaner per message measured −23% throughput at
+ * small payload sizes. In callback-based subscribers/queryables, access
+ * (or discard) payloads and attachments you care about; unread ones on
+ * dropped samples are the one place native memory can be retained.
  */
 class ZBytes private constructor(
     private var eager: ByteArray?,
