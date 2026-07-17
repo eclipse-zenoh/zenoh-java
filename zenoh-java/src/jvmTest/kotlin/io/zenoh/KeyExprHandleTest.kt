@@ -15,6 +15,7 @@
 package io.zenoh
 
 import io.zenoh.bytes.ZBytes
+import io.zenoh.exceptions.ZError
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.sample.Sample
 import org.junit.Assert.assertEquals
@@ -60,6 +61,30 @@ class KeyExprHandleTest {
         assertNull(declared.handle)
         assertEquals("example/testing/keyexpr/declared", declared.toString())
         session.close()
+    }
+
+    @Test
+    fun failedUndeclarationStillDetachesTheConsumedHandle() {
+        // Undeclaring through the WRONG session makes the native undeclare
+        // fail — and the generated wrapper consumes the handle even then. The
+        // KeyExpr must degrade to its string form (handle detached), not keep
+        // selecting a dead handle.
+        val session1 = Zenoh.open(Config.loadDefault())
+        val session2 = Zenoh.open(Config.loadDefault())
+        val declared = session1.declareKeyExpr("example/testing/keyexpr/wrongsession")
+        var failed = false
+        try {
+            session2.undeclare(declared)
+        } catch (e: ZError) {
+            failed = true
+        }
+        assertTrue(failed)
+        assertNull(declared.handle)
+        // String-backed operation keeps working after the failed undeclare.
+        assertTrue(declared.intersects(KeyExpr.tryFrom("example/testing/**")))
+        session1.put(declared, ZBytes.from("test"))
+        session1.close()
+        session2.close()
     }
 
     @Test

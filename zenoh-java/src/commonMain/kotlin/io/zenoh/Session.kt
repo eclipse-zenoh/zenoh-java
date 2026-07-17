@@ -421,10 +421,15 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         if (handle == null || handle.isClosed()) {
             throw ZError("Attempting to undeclare a non declared key expression.")
         }
-        run {
+        try {
             zSession.undeclareKeyexpr(handle, throwZError)
+        } finally {
+            // The generated wrapper consumes the handle even when the native
+            // undeclare fails (the Rust side takes it by value) — detach it
+            // either way, degrading the KeyExpr to its string form instead of
+            // leaving a dead handle to be selected by later operations.
+            keyExpr.handle = null
         }
-        keyExpr.handle = null
     }
 
     /**
