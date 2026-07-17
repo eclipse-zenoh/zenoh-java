@@ -34,6 +34,9 @@ import java.nio.file.Path
  *
  * A default configuration can be loaded using [Config.loadDefault].
  *
+ * The native configuration a Config wraps is consumed by [Zenoh.open] (or [Zenoh.scout]); a Config that is
+ * never used is released by the garbage-collection backstop.
+ *
  * Visit the [default configuration](https://github.com/eclipse-zenoh/zenoh/blob/main/DEFAULT_CONFIG.json5) for more
  * information on the Zenoh config parameters.
  */

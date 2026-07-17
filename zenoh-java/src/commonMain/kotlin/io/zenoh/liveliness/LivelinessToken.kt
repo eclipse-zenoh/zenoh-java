@@ -26,7 +26,8 @@ import io.zenoh.session.SessionDeclaration
  * that declared the token has Zenoh connectivity with the Zenoh application
  * that monitors it.
  *
- * Liveliness tokens are automatically undeclared when dropped.
+ * A token whose last reference is dropped is undeclared by the garbage-collection backstop
+ * (non-deterministic — call [undeclare] or [close] to withdraw the liveliness promptly).
  */
 class LivelinessToken internal constructor(private var token: io.zenoh.jni.liveliness.LivelinessToken?): SessionDeclaration, AutoCloseable {
 

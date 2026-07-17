@@ -25,7 +25,8 @@ import io.zenoh.handlers.Callback
  * Scout for routers and/or peers.
  *
  * Scout spawns a task that periodically sends scout messages and waits for Hello replies.
- * Drop the returned Scout to stop the scouting task.
+ * Call `stop` (or `close`) on the returned Scout to stop the scouting task; a Scout whose last
+ * reference is dropped is stopped by the garbage-collection backstop (non-deterministic).
  *
  * To launch a scout, use [io.zenoh.Zenoh.scout]:
  *

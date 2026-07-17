@@ -54,7 +54,9 @@ import io.zenoh.query.Selector
  * A [KeyExpr] is its validated string. A native instance exists ONLY behind a
  * [Session.declareKeyExpr] result — the single case where zenoh attaches a wire
  * declaration (a compact id replacing the string on the wire) worth carrying;
- * such an instance should be [close]d (or `use`d) when no longer needed.
+ * such an instance should be [close]d (or `use`d) when no longer needed —
+ * the declaring session keeps a strong reference to it and undeclares it when
+ * the session closes, with a garbage-collection backstop after that.
  * Every other [KeyExpr] — constructed via [tryFrom]/[autocanonize] or received
  * with a sample — is a plain value: nothing to close, no native resource.
  */
