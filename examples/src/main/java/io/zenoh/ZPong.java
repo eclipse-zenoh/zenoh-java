@@ -18,6 +18,7 @@ import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Publisher;
 import io.zenoh.pubsub.PublisherOptions;
+import io.zenoh.pubsub.PutOptions;
 import io.zenoh.qos.CongestionControl;
 import picocli.CommandLine;
 
@@ -53,7 +54,13 @@ public class ZPong implements Callable<Integer> {
 
             session.declareSubscriber(keyExprPing, sample -> {
                 try {
-                    publisher.put(sample.getPayload());
+                    // Echo the RECEIVED data — payload AND encoding: a pong
+                    // that drops metadata isn't a faithful echo, and the
+                    // round trip is meant to exercise the real
+                    // receive-then-resend path.
+                    PutOptions options = new PutOptions();
+                    options.setEncoding(sample.getEncoding());
+                    publisher.put(sample.getPayload(), options);
                 } catch (ZError e) {
                     System.err.println("Error responding to ping: " + e.getMessage());
                 }
