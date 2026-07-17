@@ -41,7 +41,9 @@ import java.util.concurrent.LinkedBlockingDeque
 /**
  * A querier that allows to send queries to a [Queryable].
  *
- * Queriers are automatically undeclared when dropped.
+ * A querier whose last reference is dropped is undeclared by the garbage-collection backstop
+ * (non-deterministic — call `close` for prompt effect); closing the session undeclares any querier
+ * still reachable.
  *
  * Example:
  * ```java

@@ -35,7 +35,9 @@ import kotlin.Throws
  * A Zenoh Publisher.
  *
  * A publisher is automatically dropped when using it with the 'try-with-resources' statement (i.e. 'use' in Kotlin).
- * The session from which it was declared will also keep a reference to it and undeclare it once the session is closed.
+ * The session keeps only a *weak* reference to it: a publisher whose last reference is dropped is undeclared by the
+ * garbage-collection backstop (non-deterministic — call [close] for prompt effect), and closing the session
+ * undeclares any publisher still reachable.
  *
  * In order to declare a publisher, [Session.declarePublisher] must be called.
  *

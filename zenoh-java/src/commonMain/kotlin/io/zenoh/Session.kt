@@ -58,6 +58,10 @@ import java.util.concurrent.LinkedBlockingDeque
  * Sessions are open upon creation and can be closed manually by calling [close]. Alternatively, the session will be
  * automatically closed when used with Java's try-with-resources statement or its Kotlin counterpart, [use].
  *
+ * Native resources held by a session (and by its declarations) that is simply forgotten are released by a
+ * garbage-collection backstop once the objects become unreachable; still, explicit [close] is recommended for
+ * deterministic release.
+ *
  * For optimal performance and adherence to good practices, it is recommended to have only one running session, which
  * is sufficient for most use cases. You should _never_ construct one session per publisher/subscriber, as this will
  * significantly increase the size of your Zenoh network, while preventing potential locality-based optimizations.
@@ -96,7 +100,8 @@ class Session private constructor(private val config: Config) : AutoCloseable {
      * Closing the session invalidates any attempt to perform a declaration or to perform an operation such as Put or Delete.
      * Attempting to do so will result in a failure.
      *
-     * However, any session declaration that was still alive and bound to the session previous to closing it, will still be alive.
+     * Every declaration still bound to the session (subscribers, queryables, publishers, queriers, …) is undeclared
+     * as part of closing it.
      */
     override fun close() {
         strongDeclarations.removeIf {

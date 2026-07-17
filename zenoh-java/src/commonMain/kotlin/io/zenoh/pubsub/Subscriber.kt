@@ -23,6 +23,10 @@ import io.zenoh.session.SessionDeclaration
  *
  * Its main purpose is to keep the subscription active as long as it exists.
  *
+ * The declaring session holds a *strong* reference to it: dropping your own reference does NOT stop the
+ * subscription — it stays active until [close] (or `undeclare`) is called or the session is closed, whichever
+ * comes first. Only after that does it become eligible for garbage collection.
+ *
  * Example using the default [BlockingQueueHandler] handler:
  *
  * ```java
