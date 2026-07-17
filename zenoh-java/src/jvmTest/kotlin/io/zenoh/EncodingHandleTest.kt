@@ -22,7 +22,6 @@ import io.zenoh.sample.Sample
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
 import org.junit.Test
 
 /**
@@ -33,11 +32,11 @@ import org.junit.Test
  *   the send call itself, no handle ever exists;
  * - custom (schema-carrying) encodings own a handle from construction —
  *   construction is the one crossing, every send after is a bare jlong;
- * - received SCHEMA-CARRYING encodings arrive WITH their handle in the same
- *   delivery crossing, so re-sending one (the save-and-republish scenario)
- *   never rebuilds the native value from its schema string; a received
- *   PRESET arrives value-only — its handle would buy nothing (the id arm is
- *   free), so the binding never materializes one (`encoding_if_schema`).
+ * - received encodings are ALWAYS value-only `(id, schema)`: a ping-pong A/B
+ *   on the save-and-republish scenario showed the per-receive handle
+ *   lifecycle (clone + Box + wrapper + Cleaner) costs more than the schema
+ *   re-decode it saves on the resent fraction, so no handle is ever
+ *   delivered — a re-sent received encoding crosses through the value arm.
  */
 class EncodingHandleTest {
 
@@ -58,14 +57,15 @@ class EncodingHandleTest {
     }
 
     @Test
-    fun receivedEncodingIsSendReadyAndResendsByHandle() {
+    fun receivedEncodingIsValueOnlyAndResendsThroughValueArm() {
         val custom = Encoding.from("application/custom;my-schema")
         val session = Zenoh.open(Config.loadDefault())
         val keyExpr = KeyExpr.tryFrom("example/testing/encoding/handle")
         val received = mutableListOf<Sample>()
         val subscriber = session.declareSubscriber(keyExpr) { received.add(it) }
 
-        // Send 1: user-created custom encoding — crosses by handle.
+        // Send 1: user-created custom encoding — crosses by its
+        // construction-born handle.
         val putOptions = PutOptions()
         putOptions.encoding = custom
         session.put(keyExpr, ZBytes.from("one"), putOptions)
@@ -74,12 +74,12 @@ class EncodingHandleTest {
         assertEquals(1, received.size)
         val saved = received[0].encoding
         assertEquals(custom, saved)
-        // Delivered send-ready: the handle arrived with the sample.
-        assertNotNull(saved.handle)
+        // Value-only delivery: no per-message native handle materialized.
+        assertNull(saved.handle)
 
-        // Send 2: the user's scenario — re-publish with the SAVED encoding.
-        // The retained handle is what crosses; nothing is rebuilt.
-        val handleBefore = saved.handle
+        // Send 2: the save-and-republish scenario — the SAVED encoding
+        // re-sends through the (id, schema) value arm, rebuilt natively
+        // inside the same send crossing.
         val resendOptions = PutOptions()
         resendOptions.encoding = saved
         session.put(keyExpr, ZBytes.from("two"), resendOptions)
@@ -87,10 +87,7 @@ class EncodingHandleTest {
 
         assertEquals(2, received.size)
         assertEquals(custom, received[1].encoding)
-        // The saved encoding still owns the same reusable handle (borrowed,
-        // never consumed, by the send).
-        assertSame(handleBefore, saved.handle)
-        assertNotNull(received[1].encoding.handle)
+        assertNull(received[1].encoding.handle)
 
         subscriber.close()
         session.close()

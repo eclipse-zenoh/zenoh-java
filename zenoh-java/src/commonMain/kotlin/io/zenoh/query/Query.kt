@@ -25,6 +25,9 @@ import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError
 import io.zenoh.keyexpr.KeyExpr
+import io.zenoh.keyexpr.jniSel
+import io.zenoh.keyexpr.jniStr
+import io.zenoh.keyexpr.jniHandle
 
 /**
  * Represents a Zenoh Query in Kotlin.
@@ -60,24 +63,23 @@ class Query internal constructor(
          * keeps working after the callback returns).
          */
         fun fromParts(
-            keH: io.zenoh.jni.keyexpr.KeyExpr,
+            keStr: String,
             parameters: String,
             payloadH: io.zenoh.jni.bytes.ZBytes?,
             encId: Int?,
             encSchema: String?,
-            encH: io.zenoh.jni.bytes.Encoding?,
             attachH: io.zenoh.jni.bytes.ZBytes?,
             acceptsRepliesInt: Int,
             zq: io.zenoh.jni.query.Query,
         ): Query {
-            val ke = KeyExpr(keH)
+            val ke = KeyExpr(keStr)
             val selector = if (parameters.isEmpty()) Selector(ke)
                            else Selector(ke, Parameters.from(parameters))
             return Query(
                 ke,
                 selector,
                 payloadH?.let { ZBytes.fromHandle(it) },
-                encId?.let { Encoding(it, encSchema, encH) },
+                encId?.let { Encoding(it, encSchema) },
                 attachH?.let { ZBytes.fromHandle(it) },
                 io.zenoh.jni.query.ReplyKeyExpr.fromInt(acceptsRepliesInt).toPublic(),
                 zq
@@ -99,7 +101,7 @@ class Query internal constructor(
         val q = zQuery ?: throw ZError("Query is invalid")
         val enc = options.encoding
         q.replySuccess(
-            keyExpr.flat,
+            keyExpr.jniSel, keyExpr.jniStr, keyExpr.jniHandle,
             payload.into().bytes,
             enc.jniSel, enc.jniId, enc.jniSchema, enc.jniHandle,
             options.timeStamp?.ntpValue(),
@@ -138,7 +140,7 @@ class Query internal constructor(
     fun replyDel(keyExpr: KeyExpr, options: ReplyDelOptions = ReplyDelOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
         q.replyDelete(
-            keyExpr.flat,
+            keyExpr.jniSel, keyExpr.jniStr, keyExpr.jniHandle,
             options.timeStamp?.ntpValue(),
             options.attachment?.into()?.bytes,
             options.express,

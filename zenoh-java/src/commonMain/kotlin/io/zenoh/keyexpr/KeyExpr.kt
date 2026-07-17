@@ -51,36 +51,41 @@ import io.zenoh.query.Selector
  *
  * # Declaring a key expression from a session.
  *
- * A [KeyExpr] acts as a container for the string representation of a key expression. Operations like `intersects`,
- * `includes`, and `equals` are processed at the native layer using this string representation. For improved performance,
- * consider initializing a [KeyExpr] through [Session.declareKeyExpr]. This method associates the [KeyExpr] with a native
- * instance, thereby optimizing operation execution. However, it is crucial to manually invoke [close] on each [KeyExpr]
- * instance before it is garbage collected to prevent memory leaks.
- *
- * As an alternative, employing a try-with-resources pattern using Kotlin's `use` block is recommended. This approach
- * ensures that [close] is automatically called, safely managing the lifecycle of the [KeyExpr] instance.
- *
+ * A [KeyExpr] is its validated string. A native instance exists ONLY behind a
+ * [Session.declareKeyExpr] result — the single case where zenoh attaches a wire
+ * declaration (a compact id replacing the string on the wire) worth carrying;
+ * such an instance should be [close]d (or `use`d) when no longer needed.
+ * Every other [KeyExpr] — constructed via [tryFrom]/[autocanonize] or received
+ * with a sample — is a plain value: nothing to close, no native resource.
  */
 class KeyExpr internal constructor(
-    /** The owned native handle, passed (by reference) to raw `keyexpr_*` ops. */
-    internal val flat: JniKeyExpr,
-    keyExprString: String? = null,
+    private val keyExprString: String,
+    /**
+     * The owned native handle — non-null ONLY for [Session.declareKeyExpr]
+     * results, whose wire declaration makes sends through the declaring
+     * session compact. Everything else is string-backed.
+     */
+    internal var handle: JniKeyExpr? = null,
 ) : AutoCloseable, IntoSelector, SessionDeclaration {
 
-    private var keyExprStringLazy: String? = keyExprString
+    /** Clone the native handle before passing it to a consuming Rust API. */
+    internal fun cloneHandle(): JniKeyExpr? = handle?.newClone(throwZError0)
 
     /**
-     * The string form, read LAZILY from the native handle on first use
-     * (toString/equals) — a received key expression is usually only matched
-     * or echoed by handle, so the common path never crosses for the string
-     * (forward-extraction rule: handle eager, string on demand).
+     * Run [body] with a native handle: the declared handle when present,
+     * else a transient one validated from the string (closed afterwards).
+     * Used by the native keyexpr algebra ops.
      */
-    private val keyExprString: String
-        get() = keyExprStringLazy
-            ?: flat.getStr(throwZError0).also { keyExprStringLazy = it }
-
-    /** Clone the native handle before passing it to a consuming Rust API. */
-    internal fun cloneFlat(): JniKeyExpr = flat.newClone(throwZError0)
+    private inline fun <R> withHandle(body: (JniKeyExpr) -> R): R {
+        val h = handle
+        if (h != null) return body(h)
+        val tmp = JniKeyExpr.newTryFrom(keyExprString, throwZError)
+        try {
+            return body(tmp)
+        } finally {
+            tmp.close()
+        }
+    }
 
     companion object {
 
@@ -92,13 +97,20 @@ class KeyExpr internal constructor(
          *
          * You may use [autocanonize] instead if you are unsure if the expression you will use for construction will be canon.
          *
+         * The result is string-backed: the expression is validated natively
+         * once and the probe handle is released — an undeclared native
+         * keyexpr carries no state beyond its string.
+         *
          * @param keyExpr The intended key expression as a string.
          * @return The [KeyExpr] in case of success.
          * @throws ZError in the case of failure.
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun tryFrom(keyExpr: String): KeyExpr = KeyExpr(JniKeyExpr.newTryFrom(keyExpr, throwZError))
+        fun tryFrom(keyExpr: String): KeyExpr {
+            JniKeyExpr.newTryFrom(keyExpr, throwZError).close()
+            return KeyExpr(keyExpr)
+        }
 
         /**
          * Autocanonize.
@@ -112,7 +124,14 @@ class KeyExpr internal constructor(
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun autocanonize(keyExpr: String): KeyExpr = KeyExpr(JniKeyExpr.newAutocanonize(keyExpr, throwZError))
+        fun autocanonize(keyExpr: String): KeyExpr {
+            val probe = JniKeyExpr.newAutocanonize(keyExpr, throwZError)
+            try {
+                return KeyExpr(probe.getStr(throwZError0))
+            } finally {
+                probe.close()
+            }
+        }
     }
 
     /**
@@ -121,8 +140,10 @@ class KeyExpr internal constructor(
      * Will return false as well if the key expression is not valid anymore.
      */
     @Throws(ZError::class)
-    fun intersects(other: KeyExpr): Boolean =
-        this.flat.intersects(other.flat, throwZError0)
+    fun intersects(other: KeyExpr): Boolean = withHandle { h ->
+        other.handle?.let { h.intersects(it, throwZError0) }
+            ?: h.intersects(other.keyExprString, throwZError0)
+    }
 
     /**
      * Includes operation. This method returns `true` when all the keys defined by `other` also belong to the set
@@ -130,8 +151,10 @@ class KeyExpr internal constructor(
      * Will return false as well if the key expression is not valid anymore.
      */
     @Throws(ZError::class)
-    fun includes(other: KeyExpr): Boolean =
-        this.flat.includes(other.flat, throwZError0)
+    fun includes(other: KeyExpr): Boolean = withHandle { h ->
+        other.handle?.let { h.includes(it, throwZError0) }
+            ?: h.includes(other.keyExprString, throwZError0)
+    }
 
     /**
      * Returns the relation between 'this' and other from 'this''s point of view ([SetIntersectionLevel.INCLUDES]
@@ -139,24 +162,43 @@ class KeyExpr internal constructor(
      * so you should favor these methods for most applications.
      */
     @Throws(ZError::class)
-    fun relationTo(other: KeyExpr): SetIntersectionLevel =
-        SetIntersectionLevel.fromJni(this.flat.relationTo(other.flat, throwZError0))
+    fun relationTo(other: KeyExpr): SetIntersectionLevel = withHandle { h ->
+        val raw = other.handle?.let { h.relationTo(it, throwZError0) }
+            ?: h.relationTo(other.keyExprString, throwZError0)
+        SetIntersectionLevel.fromJni(raw)
+    }
 
     /**
      * Joins both sides, inserting a / in between them.
      * This should be your preferred method when concatenating path segments.
      */
     @Throws(ZError::class)
-    fun join(other: String): KeyExpr =
-        KeyExpr(JniKeyExpr.newJoin(this.flat, other, throwZError))
+    fun join(other: String): KeyExpr {
+        // The companion factory validates and joins natively; the result is a
+        // fresh (declaration-less) handle — keep its canonical string only.
+        val probe = handle?.let { JniKeyExpr.newJoin(it, other, throwZError) }
+            ?: JniKeyExpr.newJoin(keyExprString, other, throwZError)
+        try {
+            return KeyExpr(probe.getStr(throwZError0))
+        } finally {
+            probe.close()
+        }
+    }
 
     /**
      * Performs string concatenation and returns the result as a KeyExpr if possible.
      * You should probably prefer [join] as Zenoh may then take advantage of the hierarchical separation it inserts.
      */
     @Throws(ZError::class)
-    fun concat(other: String): KeyExpr =
-        KeyExpr(JniKeyExpr.newConcat(this.flat, other, throwZError))
+    fun concat(other: String): KeyExpr {
+        val probe = handle?.let { JniKeyExpr.newConcat(it, other, throwZError) }
+            ?: JniKeyExpr.newConcat(keyExprString, other, throwZError)
+        try {
+            return KeyExpr(probe.getStr(throwZError0))
+        } finally {
+            probe.close()
+        }
+    }
 
     override fun toString(): String = keyExprString
 
@@ -175,8 +217,8 @@ class KeyExpr internal constructor(
      * operations on it, but without the inner optimizations.
      */
     override fun undeclare() {
-        // Frees the owned native key-expression handle.
-        flat.close()
+        handle?.close()
+        handle = null
     }
 
     override fun into(): Selector = Selector(this)
@@ -194,3 +236,19 @@ class KeyExpr internal constructor(
         return keyExprString.hashCode()
     }
 }
+
+// The three slots of the generated key-expr selector block (`keyExprSel,
+// keyExpr0, keyExpr1`), computed from one [KeyExpr] in a single expression per
+// slot so every send call site stays one flat call: declared -> the bare
+// handle (arm 1), string-backed -> the validated string rebuilt Rust-side
+// inside the same call (arm 0). For CONSUMING params use [KeyExpr.cloneHandle]
+// in the third slot instead — the handle arm takes the value by move.
+
+internal val KeyExpr.jniSel: Int
+    get() = if (handle != null) 1 else 0
+
+internal val KeyExpr.jniStr: String?
+    get() = if (handle == null) toString() else null
+
+internal val KeyExpr.jniHandle: JniKeyExpr?
+    get() = handle
