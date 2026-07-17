@@ -27,6 +27,7 @@ zenoh (Rust)
 | --- | --- | --- |
 | [#481](https://github.com/eclipse-zenoh/zenoh-java/pull/481) | Use receiver-style zenoh-flat-jni bindings (generated Session/Query/Publisher methods, split key-expr overloads, de-prefixed callback names); +61–83% subscriber throughput | merged |
 | [#484](https://github.com/eclipse-zenoh/zenoh-java/pull/484) | `Encoding`/`ZenohId.toString` become pure JVM values (fixes a per-message native leak); the conversion logic lives in the **shared tier** (`EncodingCodec`/`zidString` in zenoh-flat-jni, correspondence-tested against native, reusable by zenoh-kotlin) with only a thin facade here; publisher **default encoding set natively at declare** (plain puts cross no encoding data). Pairs with [zenoh-flat-jni#4](https://github.com/ZettaScaleLabs/zenoh-flat-jni/pull/4), [zenoh-flat#3](https://github.com/ZettaScaleLabs/zenoh-flat/pull/3) (merged), [prebindgen#80](https://github.com/milyin/prebindgen/pull/80) (merged) | in progress |
+| [#491](https://github.com/eclipse-zenoh/zenoh-java/pull/491) | `Session.undeclare` detaches the key-expr handle even when the native undeclare fails (the generated wrapper consumes it either way); found on the zenoh-kotlin port ([zenoh-kotlin#668](https://github.com/eclipse-zenoh/zenoh-kotlin/pull/668)) | open |
 
 Companion PRs in the upstream repos are coordinated per constituent PR (e.g.
 [ZettaScaleLabs/zenoh-flat-jni#3](https://github.com/ZettaScaleLabs/zenoh-flat-jni/pull/3)
