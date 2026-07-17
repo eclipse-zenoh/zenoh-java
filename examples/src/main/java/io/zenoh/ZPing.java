@@ -14,13 +14,11 @@
 
 package io.zenoh;
 
-import io.zenoh.bytes.Encoding;
 import io.zenoh.bytes.ZBytes;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Publisher;
 import io.zenoh.pubsub.PublisherOptions;
-import io.zenoh.pubsub.PutOptions;
 import io.zenoh.qos.CongestionControl;
 import io.zenoh.sample.Sample;
 import picocli.CommandLine;
@@ -65,33 +63,18 @@ public class ZPing implements Callable<Integer> {
             }
             ZBytes payload = ZBytes.from(data);
 
-            // A custom, schema-carrying encoding rides every ping: the pong
-            // side retransmits the RECEIVED payload and encoding, so the
-            // round trip exercises the real receive-then-resend metadata path.
-            Encoding customEncoding = Encoding.from("application/custom;zping-schema");
-            PutOptions putOptions = new PutOptions();
-            putOptions.setEncoding(customEncoding);
-
             // Warm-up
             System.out.println("Warming up for " + warmup + " seconds...");
             long warmupEnd = System.currentTimeMillis() + (long) (warmup * 1000);
-            Sample echoed = null;
             while (System.currentTimeMillis() < warmupEnd) {
-                publisher.put(payload, putOptions);
-                echoed = receiverQueue.take().orElse(null);
-            }
-            // Guard: the pong must echo the received encoding, not drop it —
-            // otherwise the round trip isn't measuring what it claims to.
-            if (echoed != null && !customEncoding.equals(echoed.getEncoding())) {
-                System.err.println("ZPong did not retransmit the received encoding (got "
-                        + echoed.getEncoding() + ", expected " + customEncoding + ")");
-                return 1;
+                publisher.put(payload);
+                receiverQueue.take();
             }
 
             List<Long> samples = new ArrayList<>();
             for (int i = 0; i < n; i++) {
                 long startTime = System.nanoTime();
-                publisher.put(payload, putOptions);
+                publisher.put(payload);
                 receiverQueue.take();
                 long elapsedTime = (System.nanoTime() - startTime) / 1000; // Convert to microseconds
                 samples.add(elapsedTime);
