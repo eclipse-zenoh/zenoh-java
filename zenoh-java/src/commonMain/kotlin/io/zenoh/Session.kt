@@ -31,6 +31,9 @@ import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
 import io.zenoh.keyexpr.KeyExpr
+import io.zenoh.keyexpr.jniSel
+import io.zenoh.keyexpr.jniStr
+import io.zenoh.keyexpr.jniHandle
 import io.zenoh.liveliness.Liveliness
 import io.zenoh.pubsub.*
 import io.zenoh.qos.QoS
@@ -388,7 +391,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     fun declareKeyExpr(keyExpr: String): KeyExpr {
         val zSession = zSession ?: throw sessionClosedException
         val keyexpr = run {
-            KeyExpr(zSession.declareKeyexpr(keyExpr, throwZError))
+            // The one place a KeyExpr carries a native handle: the wire
+            // declaration attached here makes sends through this session
+            // compact, so the handle is worth holding.
+            KeyExpr(keyExpr, zSession.declareKeyexpr(keyExpr, throwZError))
         }
         strongDeclarations.add(keyexpr)
         return keyexpr
@@ -406,13 +412,14 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     @Throws(ZError::class)
     fun undeclare(keyExpr: KeyExpr) {
         val zSession = zSession ?: throw sessionClosedException
-        val handle = keyExpr.flat
-        if (handle.isClosed()) {
+        val handle = keyExpr.handle
+        if (handle == null || handle.isClosed()) {
             throw ZError("Attempting to undeclare a non declared key expression.")
         }
         run {
             zSession.undeclareKeyexpr(handle, throwZError)
         }
+        keyExpr.handle = null
     }
 
     /**
@@ -591,7 +598,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
             // plain puts then cross no encoding data at all (see Publisher).
             val enc = options.encoding
             val zPublisher = zSession.declarePublisher(
-                keyExpr.cloneFlat(),
+                keyExpr.jniSel, keyExpr.jniStr, keyExpr.cloneHandle(),
                 enc.jniSel, enc.jniId, enc.jniSchema, enc.jniHandle,
                 options.congestionControl.jni,
                 options.priority.jni,
@@ -618,7 +625,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val zSession = zSession ?: throw sessionClosedException
         val subscriber = run {
             val zSubscriber = zSession.declareSubscriber(
-                keyExpr.cloneFlat(),
+                keyExpr.jniSel, keyExpr.jniStr, keyExpr.cloneHandle(),
                 sampleCallbackOf { handler.handle(it) },
                 { handler.onClose() },
                 throwZError
@@ -636,7 +643,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val zSession = zSession ?: throw sessionClosedException
         val subscriber = run {
             val zSubscriber = zSession.declareSubscriber(
-                keyExpr.cloneFlat(),
+                keyExpr.jniSel, keyExpr.jniStr, keyExpr.cloneHandle(),
                 sampleCallbackOf { callback.run(it) },
                 { },
                 throwZError
@@ -654,7 +661,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val zSession = zSession ?: throw sessionClosedException
         val queryable = run {
             val zQueryable = zSession.declareQueryable(
-                keyExpr.cloneFlat(),
+                keyExpr.jniSel, keyExpr.jniStr, keyExpr.cloneHandle(),
                 options.complete,
                 queryCallbackOf { handler.handle(it) },
                 { handler.onClose() },
@@ -673,7 +680,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val zSession = zSession ?: throw sessionClosedException
         val queryable = run {
             val zQueryable = zSession.declareQueryable(
-                keyExpr.cloneFlat(),
+                keyExpr.jniSel, keyExpr.jniStr, keyExpr.cloneHandle(),
                 options.complete,
                 queryCallbackOf { callback.run(it) },
                 { },
@@ -693,7 +700,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val zSession = zSession ?: throw sessionClosedException
         val querier = run {
             val zQuerier = zSession.declareQuerier(
-                keyExpr.cloneFlat(),
+                keyExpr.jniSel, keyExpr.jniStr, keyExpr.cloneHandle(),
                 options.target.toFlat(),
                 options.consolidationMode.toFlat(),
                 options.congestionControl.jni,
@@ -727,7 +734,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         return run {
             val sel = selector.into()
             zSession.get(
-                sel.keyExpr.flat,
+                sel.keyExpr.jniSel, sel.keyExpr.jniStr, sel.keyExpr.jniHandle,
                 sel.parameters?.toString(),
                 options.timeout.toMillis(),
                 options.target.toFlat(),
@@ -757,7 +764,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         run {
             val sel = selector.into()
             zSession.get(
-                sel.keyExpr.flat,
+                sel.keyExpr.jniSel, sel.keyExpr.jniStr, sel.keyExpr.jniHandle,
                 sel.parameters?.toString(),
                 options.timeout.toMillis(),
                 options.target.toFlat(),
@@ -782,7 +789,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         run {
             val enc = putOptions.encoding
             zSession.put(
-                keyExpr.flat,
+                keyExpr.jniSel, keyExpr.jniStr, keyExpr.jniHandle,
                 payload.into().bytes,
                 enc.jniSel, enc.jniId, enc.jniSchema, enc.jniHandle,
                 putOptions.congestionControl.jni,
@@ -800,7 +807,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         val zSession = zSession ?: return
         run {
             zSession.delete(
-                keyExpr.flat,
+                keyExpr.jniSel, keyExpr.jniStr, keyExpr.jniHandle,
                 deleteOptions.congestionControl.jni,
                 deleteOptions.priority.jni,
                 deleteOptions.express,

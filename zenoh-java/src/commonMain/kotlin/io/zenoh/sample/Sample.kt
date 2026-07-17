@@ -57,7 +57,8 @@ data class Sample(
          * output — the lambda parameter list every decomposed sample delivery
          * uses (the `zReplySample` builder and the subscriber/liveliness
          * callbacks), in record order. The whole graph arrives in ONE JNI
-         * crossing; the [KeyExpr] retains the delivered handle leaf, and the
+         * crossing; the [KeyExpr] is string-backed (a received keyexpr never
+         * carries a wire declaration, so a native handle would buy nothing), and the
          * [Encoding] retains its delivered handle (`encH`) so re-sending it
          * crosses a bare `jlong` instead of rebuilding the native value —
          * delivered ONLY for schema-carrying encodings (a preset re-sends
@@ -67,7 +68,7 @@ data class Sample(
          */
         @Suppress("UNUSED_PARAMETER")
         fun fromParts(
-            keH: io.zenoh.jni.keyexpr.KeyExpr,
+            keStr: String,
             payloadH: io.zenoh.jni.bytes.ZBytes,
             encId: Int,
             encSchema: String?,
@@ -83,7 +84,7 @@ data class Sample(
             sourceEid: Int,
             sourceSn: Long,
         ): Sample = Sample(
-            KeyExpr(keH),
+            KeyExpr(keStr),
             ZBytes.fromHandle(payloadH),
             Encoding(encId, encSchema, encH),
             io.zenoh.jni.sample.SampleKind.fromInt(kindInt).toPublic(),
