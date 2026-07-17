@@ -66,7 +66,7 @@ internal fun replyCallbackOf(
             if (isOk) {
                 Reply.Success(
                     replierId,
-                    Sample.fromParts(keH!!, payloadH!!, encId!!, encSchema, encH!!, kindInt!!, ntp64, express!!, prioInt!!, ccInt!!, attachH, reliabilityInt!!, sourceZid, sourceEid!!, sourceSn!!)
+                    Sample.fromParts(keH!!, payloadH!!, encId!!, encSchema, encH, kindInt!!, ntp64, express!!, prioInt!!, ccInt!!, attachH, reliabilityInt!!, sourceZid, sourceEid!!, sourceSn!!)
                 )
             } else {
                 Reply.Error(

@@ -33,9 +33,11 @@ import org.junit.Test
  *   the send call itself, no handle ever exists;
  * - custom (schema-carrying) encodings own a handle from construction —
  *   construction is the one crossing, every send after is a bare jlong;
- * - received encodings arrive WITH their handle in the same delivery
- *   crossing, so re-sending one (the save-and-republish scenario) never
- *   rebuilds the native value from its schema string.
+ * - received SCHEMA-CARRYING encodings arrive WITH their handle in the same
+ *   delivery crossing, so re-sending one (the save-and-republish scenario)
+ *   never rebuilds the native value from its schema string; a received
+ *   PRESET arrives value-only — its handle would buy nothing (the id arm is
+ *   free), so the binding never materializes one (`encoding_if_schema`).
  */
 class EncodingHandleTest {
 
@@ -95,7 +97,7 @@ class EncodingHandleTest {
     }
 
     @Test
-    fun predefinedRoundTripStaysValueOnSendAndHandleOnReceive() {
+    fun predefinedRoundTripStaysValueOnlyEndToEnd() {
         val session = Zenoh.open(Config.loadDefault())
         val keyExpr = KeyExpr.tryFrom("example/testing/encoding/preset")
         val received = mutableListOf<Sample>()
@@ -110,8 +112,10 @@ class EncodingHandleTest {
         assertNull(Encoding.TEXT_PLAIN.handle)
         assertEquals(1, received.size)
         assertEquals(Encoding.TEXT_PLAIN, received[0].encoding)
-        // …while the received copy arrived send-ready.
-        assertNotNull(received[0].encoding.handle)
+        // …and the received copy is value-only too: a schema-less encoding
+        // re-sends through the id arm for free, so no per-message native
+        // handle (clone + Box + wrapper + Cleaner) is ever materialized.
+        assertNull(received[0].encoding.handle)
 
         subscriber.close()
         session.close()

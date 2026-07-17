@@ -59,7 +59,9 @@ data class Sample(
          * callbacks), in record order. The whole graph arrives in ONE JNI
          * crossing; the [KeyExpr] retains the delivered handle leaf, and the
          * [Encoding] retains its delivered handle (`encH`) so re-sending it
-         * crosses a bare `jlong` instead of rebuilding the native value. The
+         * crosses a bare `jlong` instead of rebuilding the native value —
+         * delivered ONLY for schema-carrying encodings (a preset re-sends
+         * through the id arm for free, so it arrives value-only). The
          * trailing `reliability` / `source*` leaves are part of the generated
          * decomposition but are not surfaced on the public [Sample] type.
          */
@@ -69,7 +71,7 @@ data class Sample(
             payloadH: io.zenoh.jni.bytes.ZBytes,
             encId: Int,
             encSchema: String?,
-            encH: io.zenoh.jni.bytes.Encoding,
+            encH: io.zenoh.jni.bytes.Encoding?,
             kindInt: Int,
             ntp64: Long?,
             express: Boolean,
