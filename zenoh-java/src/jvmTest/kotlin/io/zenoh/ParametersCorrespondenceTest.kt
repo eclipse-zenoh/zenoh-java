@@ -16,10 +16,13 @@ package io.zenoh
 
 import io.zenoh.exceptions.throwZError0
 import io.zenoh.jni.query.Parameters as JniParameters
+import io.zenoh.jni.query.parametersContainsKey
+import io.zenoh.jni.query.parametersExtend
 import io.zenoh.jni.query.parametersGet
 import io.zenoh.jni.query.parametersInsert
 import io.zenoh.jni.query.parametersIsWellFormed
 import io.zenoh.jni.query.parametersRemove
+import io.zenoh.jni.query.parametersValues
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import kotlin.random.Random
@@ -28,13 +31,15 @@ import kotlin.random.Random
  * Correspondence tests for the shared pure-JVM
  * [io.zenoh.jni.query.Parameters] implementation.
  *
- * The shared tier implements selector-parameters parsing in pure Kotlin (no
- * JNI crossing on the production path), on the contract that any JVM-side
- * reimplementation of zenoh-flat semantics must be verified against the
- * native implementation. These tests drive both — the pure implementation and
- * the native oracle (`parametersGet`/`parametersInsert`/`parametersRemove`/
- * `parametersIsWellFormed`, thin wrappers over `zenoh::query::Parameters`) —
- * over edge shapes and randomized inputs, asserting equal results.
+ * zenoh-flat exposes parameters processing as regular API (the `parameters*`
+ * functions in `io.zenoh.jni.query`, thin wrappers over
+ * `zenoh::query::Parameters`); the JVM production path runs the same
+ * semantics in pure Kotlin instead, because crossing JNI per string
+ * operation is expensive — a JNI peculiarity, not a zenoh-flat design
+ * choice. On the contract that any pure reimplementation of native
+ * semantics must be verified against the native implementation, these tests
+ * drive both over edge shapes and randomized inputs, asserting equal
+ * results.
  */
 class ParametersCorrespondenceTest {
 
@@ -76,6 +81,16 @@ class ParametersCorrespondenceTest {
                 parametersGet(s, k, throwZError0),
                 pure.get(k),
             )
+            assertEquals(
+                "values(\"$k\") diverges for input \"$s\"",
+                parametersValues(s, k, throwZError0),
+                pure.values(k),
+            )
+            assertEquals(
+                "containsKey(\"$k\") diverges for input \"$s\"",
+                parametersContainsKey(s, k, throwZError0),
+                pure.containsKey(k),
+            )
         }
         assertEquals(
             "isWellFormed diverges for input \"$s\"",
@@ -89,19 +104,26 @@ class ParametersCorrespondenceTest {
                 JniParameters.fromString(s).also { it.insert(k, "val") }.asString(),
             )
         }
-        // `remove` is deliberately NOT oracle-compared: see
-        // [nativeRemoveBugCanary].
+        assertEquals(
+            "extend diverges for input \"$s\"",
+            parametersExtend(s, "zk1=zv1;zk2", throwZError0),
+            JniParameters.fromString(s)
+                .also { it.extend(JniParameters.fromString("zk1=zv1;zk2")) }
+                .asString(),
+        )
+        // `remove` is deliberately NOT compared against the native
+        // implementation: see [nativeRemoveBugCanary].
     }
 
     @Test
-    fun edgeCasesMatchNativeOracle() {
+    fun edgeCasesMatchNative() {
         for (s in edgeCases) {
             assertCorrespondence(s)
         }
     }
 
     @Test
-    fun randomizedInputsMatchNativeOracle() {
+    fun randomizedInputsMatchNative() {
         // Random strings over an alphabet dense in separators, so structural
         // collisions (duplicate keys, empty chunks, '=' in values) are common.
         val alphabet = "ab;=|%; =;"
