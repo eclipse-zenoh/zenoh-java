@@ -26,13 +26,13 @@ import org.junit.Test
  * The SDK implements the encoding string ↔ `(id, schema)` conversion in pure
  * Kotlin (no JNI crossing), on the contract that any JVM-side reimplementation
  * of zenoh-flat API must be verified against the native implementation. These
- * tests drive both implementations — the pure one and the native oracle (the
+ * tests drive both implementations — the pure one and the native one (the
  * generated `Encoding` handle methods) — over the whole predefined id range
  * plus the edge shapes of the parse/render rules, asserting equal results.
  */
 class EncodingCorrespondenceTest {
 
-    /** Native oracle: the canonical string of `(id, schema)`. */
+    /** Native implementation: the canonical string of `(id, schema)`. */
     private fun nativeRender(id: Int, schema: String?): String {
         val h = JniEncoding.newFromId(id, schema, throwZError0)
         try {
@@ -42,7 +42,7 @@ class EncodingCorrespondenceTest {
         }
     }
 
-    /** Native oracle: parse a string into `(id, schema, canonical string)`. */
+    /** Native implementation: parse a string into `(id, schema, canonical string)`. */
     private fun nativeParse(s: String): Triple<Int, String?, String> {
         val h = JniEncoding.newFromString(s, throwZError0)
         try {

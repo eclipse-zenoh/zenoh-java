@@ -73,6 +73,9 @@ class Query internal constructor(
             zq: io.zenoh.jni.query.Query,
         ): Query {
             val ke = KeyExpr(keStr)
+            // The parameters string is ATTACKER-CONTROLLED (the Rust layer
+            // forwards any selector parameters untouched) — the shared
+            // string-backed Parameters accepts any input, never throwing.
             val selector = if (parameters.isEmpty()) Selector(ke)
                            else Selector(ke, Parameters.from(parameters))
             return Query(
