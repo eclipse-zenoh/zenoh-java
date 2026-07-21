@@ -19,6 +19,7 @@ import io.zenoh.replyCallbackOf
 import io.zenoh.sampleCallbackOf
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError
+import io.zenoh.exceptions.throwZError0
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
@@ -54,7 +55,7 @@ class Liveliness internal constructor(private val session: Session) {
     @Throws(ZError::class)
     fun declareToken(keyExpr: KeyExpr): LivelinessToken {
         val zSession = session.zSession ?: throw Session.sessionClosedException
-        return LivelinessToken(zSession.livelinessDeclareToken(keyExpr.jniSel, keyExpr.jniStr, keyExpr.cloneHandle(), throwZError))
+        return LivelinessToken(zSession.livelinessDeclareToken(keyExpr.jniSel, keyExpr.jniStr, keyExpr.cloneHandle(), throwZError0, throwZError))
     }
 
     /**
@@ -76,7 +77,7 @@ class Liveliness internal constructor(private val session: Session) {
             timeout.toMillis(),
             replyCallbackOf { handler.handle(it) },
             { handler.onClose() },
-            throwZError
+            throwZError0, throwZError
         )
         return handler.receiver()
     }
@@ -99,7 +100,7 @@ class Liveliness internal constructor(private val session: Session) {
             timeout.toMillis(),
             replyCallbackOf { callback.run(it) },
             { },
-            throwZError
+            throwZError0, throwZError
         )
     }
 
@@ -122,7 +123,7 @@ class Liveliness internal constructor(private val session: Session) {
             timeout.toMillis(),
             replyCallbackOf { handler.handle(it) },
             { handler.onClose() },
-            throwZError
+            throwZError0, throwZError
         )
         return handler.receiver()
     }
@@ -146,7 +147,7 @@ class Liveliness internal constructor(private val session: Session) {
             options.history,
             sampleCallbackOf { handler.handle(it) },
             { handler.onClose() },
-            throwZError
+            throwZError0, throwZError
         )
         return HandlerSubscriber(keyExpr, zSubscriber, handler.receiver())
     }
@@ -171,7 +172,7 @@ class Liveliness internal constructor(private val session: Session) {
             options.history,
             sampleCallbackOf { callback.run(it) },
             { },
-            throwZError
+            throwZError0, throwZError
         )
         return CallbackSubscriber(keyExpr, zSubscriber)
     }
@@ -197,7 +198,7 @@ class Liveliness internal constructor(private val session: Session) {
             options.history,
             sampleCallbackOf { handler.handle(it) },
             { handler.onClose() },
-            throwZError
+            throwZError0, throwZError
         )
         return HandlerSubscriber(keyExpr, zSubscriber, handler.receiver())
     }

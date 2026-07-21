@@ -81,7 +81,7 @@ class KeyExpr internal constructor(
     private inline fun <R> withHandle(body: (JniKeyExpr) -> R): R {
         val h = handle
         if (h != null) return body(h)
-        val tmp = JniKeyExpr.newTryFrom(keyExprString, throwZError)
+        val tmp = JniKeyExpr.newTryFrom(keyExprString, throwZError0, throwZError)
         try {
             return body(tmp)
         } finally {
@@ -110,7 +110,7 @@ class KeyExpr internal constructor(
         @JvmStatic
         @Throws(ZError::class)
         fun tryFrom(keyExpr: String): KeyExpr {
-            JniKeyExpr.newTryFrom(keyExpr, throwZError).close()
+            JniKeyExpr.newTryFrom(keyExpr, throwZError0, throwZError).close()
             return KeyExpr(keyExpr)
         }
 
@@ -127,7 +127,7 @@ class KeyExpr internal constructor(
         @JvmStatic
         @Throws(ZError::class)
         fun autocanonize(keyExpr: String): KeyExpr {
-            val probe = JniKeyExpr.newAutocanonize(keyExpr, throwZError)
+            val probe = JniKeyExpr.newAutocanonize(keyExpr, throwZError0, throwZError)
             try {
                 return KeyExpr(probe.getStr(throwZError0))
             } finally {
@@ -178,8 +178,8 @@ class KeyExpr internal constructor(
     fun join(other: String): KeyExpr {
         // The companion factory validates and joins natively; the result is a
         // fresh (declaration-less) handle — keep its canonical string only.
-        val probe = handle?.let { JniKeyExpr.newJoin(it, other, throwZError) }
-            ?: JniKeyExpr.newJoin(keyExprString, other, throwZError)
+        val probe = handle?.let { JniKeyExpr.newJoin(it, other, throwZError0, throwZError) }
+            ?: JniKeyExpr.newJoin(keyExprString, other, throwZError0, throwZError)
         try {
             return KeyExpr(probe.getStr(throwZError0))
         } finally {
@@ -193,8 +193,8 @@ class KeyExpr internal constructor(
      */
     @Throws(ZError::class)
     fun concat(other: String): KeyExpr {
-        val probe = handle?.let { JniKeyExpr.newConcat(it, other, throwZError) }
-            ?: JniKeyExpr.newConcat(keyExprString, other, throwZError)
+        val probe = handle?.let { JniKeyExpr.newConcat(it, other, throwZError0, throwZError) }
+            ?: JniKeyExpr.newConcat(keyExprString, other, throwZError0, throwZError)
         try {
             return KeyExpr(probe.getStr(throwZError0))
         } finally {

@@ -72,7 +72,7 @@ class Config internal constructor(internal val zConfig: JniConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromFile(path: Path): Config = Config(JniConfig.newFromFile(path.toString(), throwZError))
+        fun fromFile(path: Path): Config = Config(JniConfig.newFromFile(path.toString(), throwZError0, throwZError))
 
         /**
          * Loads the configuration from json-formatted string.
@@ -85,7 +85,7 @@ class Config internal constructor(internal val zConfig: JniConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromJson(config: String): Config = Config(JniConfig.newFromJson(config, throwZError))
+        fun fromJson(config: String): Config = Config(JniConfig.newFromJson(config, throwZError0, throwZError))
 
         /**
          * Loads the configuration from json5-formatted string.
@@ -98,7 +98,7 @@ class Config internal constructor(internal val zConfig: JniConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromJson5(config: String): Config = Config(JniConfig.newFromJson5(config, throwZError))
+        fun fromJson5(config: String): Config = Config(JniConfig.newFromJson5(config, throwZError0, throwZError))
 
         /**
          * Loads the configuration from yaml-formatted string.
@@ -111,7 +111,7 @@ class Config internal constructor(internal val zConfig: JniConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromYaml(config: String): Config = Config(JniConfig.newFromYaml(config, throwZError))
+        fun fromYaml(config: String): Config = Config(JniConfig.newFromYaml(config, throwZError0, throwZError))
 
         /**
          * Loads the configuration from the env variable [CONFIG_ENV].
@@ -134,12 +134,12 @@ class Config internal constructor(internal val zConfig: JniConfig) {
      * The json value associated to the [key].
      */
     @Throws(ZError::class)
-    fun getJson(key: String): String = zConfig.getJson(key, throwZError)
+    fun getJson(key: String): String = zConfig.getJson(key, throwZError0, throwZError)
 
     /**
      * Inserts a json5 value associated to the [key] into the Config.
      */
     @Throws(ZError::class)
     fun insertJson5(key: String, value: String) =
-        zConfig.insertJson5(key, value, throwZError)
+        zConfig.insertJson5(key, value, throwZError0, throwZError)
 }

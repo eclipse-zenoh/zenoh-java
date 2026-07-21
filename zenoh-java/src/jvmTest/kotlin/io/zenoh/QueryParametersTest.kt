@@ -15,6 +15,7 @@
 package io.zenoh
 
 import io.zenoh.exceptions.throwZError
+import io.zenoh.exceptions.throwZError0
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.query.Parameters
 import io.zenoh.query.Query
@@ -91,7 +92,7 @@ class QueryParametersTest {
             null,                           // attachment
             replyCallbackOf { reply = it },
             {},                             // onClose
-            throwZError,
+            throwZError0, throwZError,
         )
         Thread.sleep(1000)
 

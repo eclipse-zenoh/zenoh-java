@@ -399,7 +399,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
             // The one place a KeyExpr carries a native handle: the wire
             // declaration attached here makes sends through this session
             // compact, so the handle is worth holding.
-            KeyExpr(keyExpr, zSession.declareKeyexpr(keyExpr, throwZError))
+            KeyExpr(keyExpr, zSession.declareKeyexpr(keyExpr, throwZError0, throwZError))
         }
         strongDeclarations.add(keyexpr)
         return keyexpr
@@ -422,7 +422,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
             throw ZError("Attempting to undeclare a non declared key expression.")
         }
         try {
-            zSession.undeclareKeyexpr(handle, throwZError)
+            zSession.undeclareKeyexpr(handle, throwZError0, throwZError)
         } finally {
             // The generated wrapper consumes the handle even when the native
             // undeclare fails (the Rust side takes it by value) — detach it
@@ -614,7 +614,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.priority.jni,
                 options.express,
                 options.reliability.jni,
-                throwZError
+                throwZError0, throwZError
             )
             Publisher(
                 keyExpr,
@@ -638,7 +638,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 keyExpr.jniSel, keyExpr.jniStr, keyExpr.cloneHandle(),
                 sampleCallbackOf { handler.handle(it) },
                 { handler.onClose() },
-                throwZError
+                throwZError0, throwZError
             )
             HandlerSubscriber(keyExpr, zSubscriber, handler.receiver())
         }
@@ -656,7 +656,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 keyExpr.jniSel, keyExpr.jniStr, keyExpr.cloneHandle(),
                 sampleCallbackOf { callback.run(it) },
                 { },
-                throwZError
+                throwZError0, throwZError
             )
             CallbackSubscriber(keyExpr, zSubscriber)
         }
@@ -675,7 +675,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.complete,
                 queryCallbackOf { handler.handle(it) },
                 { handler.onClose() },
-                throwZError
+                throwZError0, throwZError
             )
             HandlerQueryable(keyExpr, zQueryable, handler.receiver())
         }
@@ -694,7 +694,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.complete,
                 queryCallbackOf { callback.run(it) },
                 { },
-                throwZError
+                throwZError0, throwZError
             )
             CallbackQueryable(keyExpr, zQueryable)
         }
@@ -718,7 +718,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.express,
                 options.timeout.toMillis(),
                 options.acceptReplies.toFlat(),
-                throwZError
+                throwZError0, throwZError
             )
             Querier(
                 keyExpr,
@@ -758,7 +758,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.attachment?.into()?.bytes,
                 replyCallbackOf { handler.handle(it) },
                 { handler.onClose() },
-                throwZError
+                throwZError0, throwZError
             )
             handler.receiver()
         }
@@ -788,7 +788,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 options.attachment?.into()?.bytes,
                 replyCallbackOf { callback.run(it) },
                 { },
-                throwZError
+                throwZError0, throwZError
             )
         }
     }
@@ -807,7 +807,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 putOptions.express,
                 putOptions.attachment?.into()?.bytes,
                 putOptions.reliability.jni,
-                throwZError
+                throwZError0, throwZError
             )
         }
     }
@@ -823,7 +823,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
                 deleteOptions.express,
                 deleteOptions.attachment?.into()?.bytes,
                 deleteOptions.reliability.jni,
-                throwZError
+                throwZError0, throwZError
             )
         }
     }
@@ -853,7 +853,7 @@ class Session private constructor(private val config: Config) : AutoCloseable {
     private fun launch(): Session {
         this.zSession = io.zenoh.jni.session.Session.open(
             config.zConfig.newClone(throwZError0),
-            throwZError,
+            throwZError0, throwZError,
         )
         return this
     }

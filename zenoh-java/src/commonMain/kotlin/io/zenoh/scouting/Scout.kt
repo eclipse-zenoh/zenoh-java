@@ -19,6 +19,7 @@ import io.zenoh.config.WhatAmI
 import io.zenoh.config.ZenohId
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError
+import io.zenoh.exceptions.throwZError0
 import io.zenoh.handlers.Callback
 
 /**
@@ -98,7 +99,7 @@ sealed class Scout (
             val bitfield = whatAmI.map { it.jni.value }.reduce { acc, v -> acc or v }
             val helloCallback = io.zenoh.helloCallbackOf { callback.run(it) }
             val onCloseCallback = { onClose() }
-            return io.zenoh.jni.scouting.scout(bitfield, config?.zConfig, helloCallback, onCloseCallback, throwZError)
+            return io.zenoh.jni.scouting.scout(bitfield, config?.zConfig, helloCallback, onCloseCallback, throwZError0, throwZError)
         }
     }
 

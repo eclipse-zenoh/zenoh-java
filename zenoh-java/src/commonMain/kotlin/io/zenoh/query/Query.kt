@@ -24,6 +24,7 @@ import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError
+import io.zenoh.exceptions.throwZError0
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.keyexpr.jniSel
 import io.zenoh.keyexpr.jniStr
@@ -110,7 +111,7 @@ class Query internal constructor(
             options.timeStamp?.ntpValue(),
             options.attachment?.into()?.bytes,
             options.express,
-            throwZError
+            throwZError0, throwZError
         )
         // Single-reply model: dropping the native query finalizes the reply
         // stream so the querier's get completes. Safe whether the query came
@@ -147,7 +148,7 @@ class Query internal constructor(
             options.timeStamp?.ntpValue(),
             options.attachment?.into()?.bytes,
             options.express,
-            throwZError
+            throwZError0, throwZError
         )
         q.close()
         zQuery = null
@@ -164,7 +165,7 @@ class Query internal constructor(
     fun replyErr(message: IntoZBytes, options: ReplyErrOptions = ReplyErrOptions()) {
         val q = zQuery ?: throw ZError("Query is invalid")
         val enc = options.encoding
-        q.replyError(message.into().bytes, enc.jniSel, enc.jniId, enc.jniSchema, enc.jniHandle, throwZError)
+        q.replyError(message.into().bytes, enc.jniSel, enc.jniId, enc.jniSchema, enc.jniHandle, throwZError0, throwZError)
         q.close()
         zQuery = null
     }
