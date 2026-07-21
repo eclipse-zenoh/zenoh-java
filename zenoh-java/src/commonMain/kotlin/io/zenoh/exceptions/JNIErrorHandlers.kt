@@ -20,23 +20,24 @@ import io.zenoh.jni.errors.ErrorHandler
 /**
  * Error-callback handlers passed to the generated flat-jni wrappers. In the
  * canonical model a wrapper never throws from native code — on failure it
- * invokes its trailing `onError` handler (a generated typed `fun interface`).
- * These handlers throw [ZError] directly, so the SDK no longer needs a
- * `try/catch` translation layer.
+ * invokes an error handler (a generated typed `fun interface`). These handlers
+ * throw [ZError] directly, so the SDK no longer needs a `try/catch` layer.
  *
- * `je` is the binding-layer error (UTF-8 decode, closed handle, …); `ze` is the
- * library (zenoh) error message. Exactly one is set. The handlers bind the
- * interface's `out R` to [Nothing], which is a subtype of every `R`, so a
- * single instance satisfies every wrapper's `onError` regardless of its
- * return type (declaration-site covariance).
+ * The generated protocol has two independent channels (prebindgen #45): a
+ * fallible wrapper takes `onBindingError` (a [JniErrorHandler], any
+ * binding-layer failure — UTF-8 decode, closed handle, …) followed by
+ * `onError` (the typed domain [ErrorHandler], the decomposed zenoh error);
+ * an infallible wrapper takes only the binding [JniErrorHandler]. The handlers
+ * bind the interface's `out R` to [Nothing], a subtype of every `R`, so a
+ * single instance satisfies every wrapper regardless of its return type
+ * (declaration-site covariance).
  */
 
-/** Handler for a fallible wrapper (`Result<_, ZError>`): `run(je, message)`.
- * `message` is builder-typed (non-null) — on a binding error (`je != null`)
- * the native side fills it with the default `""`. */
+/** Domain handler for a fallible wrapper (`Result<_, ZError>`): `run(message)`. */
 internal val throwZError: ErrorHandler<Nothing> =
-    ErrorHandler { je, message -> throw ZError(je ?: message) }
+    ErrorHandler { message -> throw ZError(message) }
 
-/** Handler for an infallible wrapper (binding errors only): `run(je)`. */
+/** Binding handler — the `onBindingError` of a fallible wrapper AND the sole
+ * `onError` of an infallible one: `run(je)`. */
 internal val throwZError0: JniErrorHandler<Nothing> =
     JniErrorHandler { je -> throw ZError(je ?: "native binding error") }

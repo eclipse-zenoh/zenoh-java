@@ -25,6 +25,7 @@ import io.zenoh.bytes.IntoZBytes
 import io.zenoh.bytes.ZBytes
 import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError
+import io.zenoh.exceptions.throwZError0
 import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
@@ -154,7 +155,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
             options.attachment?.into()?.bytes,
             replyCallbackOf { callback.run(it) },
             { },
-            throwZError
+            throwZError0, throwZError
         )
     }
 
@@ -167,7 +168,7 @@ class Querier internal constructor(val keyExpr: KeyExpr, val qos: QoS, private v
             options.attachment?.into()?.bytes,
             replyCallbackOf { handler.handle(it) },
             { handler.onClose() },
-            throwZError
+            throwZError0, throwZError
         )
         return handler.receiver()
     }
