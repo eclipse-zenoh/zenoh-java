@@ -10,6 +10,8 @@ import io.zenoh.qos.QoS;
 import io.zenoh.sample.Sample;
 import io.zenoh.sample.SampleKind;
 import org.apache.commons.net.ntp.TimeStamp;
+import io.zenoh.config.ZenohId;
+import io.zenoh.time.Timestamp;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -43,7 +45,7 @@ public class QueryableTest {
 
     @Test
     public void queryableRunsWithCallback() throws ZError, InterruptedException {
-        var timestamp = new TimeStamp(Date.from(Instant.now()));
+        var timestamp = Timestamp.ofNtp64(new TimeStamp(Date.from(Instant.now())).ntpValue(), session.info().zid());
 
         var queryable = session.declareQueryable(testKeyExpr, query ->
         {
@@ -70,7 +72,7 @@ public class QueryableTest {
 
     @Test
     public void queryableRunsWithHandler() throws ZError, InterruptedException {
-        var queryable = session.declareQueryable(testKeyExpr, new QueryHandler());
+        var queryable = session.declareQueryable(testKeyExpr, new QueryHandler(session.info().zid()));
 
         Thread.sleep(500);
 
@@ -142,7 +144,7 @@ public class QueryableTest {
     @Test
     public void queryReplySuccessTest() throws ZError, InterruptedException {
         var message = ZBytes.from("Test message");
-        var timestamp = TimeStamp.getCurrentTime();
+        var timestamp = Timestamp.ofNtp64(TimeStamp.getCurrentTime().ntpValue(), session.info().zid());
 
         Queryable queryable = session.declareQueryable(testKeyExpr, query -> {
             var options = new ReplyOptions();
@@ -215,7 +217,7 @@ public class QueryableTest {
 
     @Test
     public void queryReplyDeleteTest() throws ZError, InterruptedException {
-        var timestamp = TimeStamp.getCurrentTime();
+        var timestamp = Timestamp.ofNtp64(TimeStamp.getCurrentTime().ntpValue(), session.info().zid());
 
         var queryable = session.declareQueryable(testKeyExpr, query -> {
             try {
@@ -243,6 +245,14 @@ public class QueryableTest {
 }
 
 class QueryHandler implements Handler<Query, QueryHandler> {
+
+    // A timestamp is only meaningful paired with the id of the node whose
+    // clock produced it, so the handler is given the replying session's.
+    private final ZenohId zid;
+
+    QueryHandler(ZenohId zid) {
+        this.zid = zid;
+    }
 
     private int counter = 0;
     private final ArrayList<Sample> performedReplies = new ArrayList<>();
@@ -278,7 +288,7 @@ class QueryHandler implements Handler<Query, QueryHandler> {
                 payload,
                 Encoding.defaultEncoding(),
                 SampleKind.PUT,
-                new TimeStamp(Date.from(Instant.now())),
+                Timestamp.ofNtp64(new TimeStamp(Date.from(Instant.now())).ntpValue(), zid),
                 new QoS(),
                 null
         );

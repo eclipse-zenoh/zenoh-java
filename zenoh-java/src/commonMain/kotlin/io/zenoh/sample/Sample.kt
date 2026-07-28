@@ -21,7 +21,7 @@ import io.zenoh.qos.Priority
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.bytes.Encoding
 import io.zenoh.bytes.ZBytes
-import org.apache.commons.net.ntp.TimeStamp
+import io.zenoh.time.Timestamp
 
 /**
  * Class representing a Zenoh Sample.
@@ -30,7 +30,7 @@ import org.apache.commons.net.ntp.TimeStamp
  * @property payload [ZBytes] with the payload of the sample.
  * @property encoding [Encoding] of the payload.
  * @property kind The [SampleKind] of the sample.
- * @property timestamp Optional [TimeStamp].
+ * @property timestamp Optional [Timestamp].
  * @property qos The Quality of Service settings used to deliver the sample.
  * @property attachment Optional attachment.
  * @property express [QoS] express value.
@@ -42,7 +42,7 @@ data class Sample(
     val payload: ZBytes,
     val encoding: Encoding,
     val kind: SampleKind,
-    val timestamp: TimeStamp?,
+    val timestamp: Timestamp?,
     val qos: QoS,
     val attachment: ZBytes? = null,
 ): ZenohType {
@@ -53,7 +53,7 @@ data class Sample(
 
     internal companion object {
         /**
-         * Builds an SDK [Sample] from the 14 leaves of the ZSample canonical
+         * Builds an SDK [Sample] from the 12 leaves of the ZSample canonical
          * output — the lambda parameter list every decomposed sample delivery
          * uses (the `zReplySample` builder and the subscriber/liveliness
          * callbacks), in record order. The whole graph arrives in ONE JNI
@@ -62,31 +62,34 @@ data class Sample(
          * and the [Encoding] is value-only `(id, schema?)` — a delivered
          * native handle measurably cost more per receive than the
          * schema-string re-decode it saved on the resent fraction. The
-         * trailing `reliability` / `source*` leaves are part of the generated
-         * decomposition but are not surfaced on the public [Sample] type.
+         * trailing `reliability` / `sourceInfo` leaves are part of the
+         * generated decomposition but are not surfaced on the public [Sample]
+         * type.
          */
         @Suppress("UNUSED_PARAMETER")
         fun fromParts(
             keStr: String,
             payloadH: io.zenoh.jni.bytes.ZBytes,
             encId: Int,
-            encSchema: String?,
+            encSchema: ByteArray?,
             kindInt: Int,
-            ntp64: Long?,
+            timestamp: io.zenoh.jni.time.Timestamp?,
             express: Boolean,
             prioInt: Int,
             ccInt: Int,
             attachH: io.zenoh.jni.bytes.ZBytes?,
             reliabilityInt: Int,
-            sourceZid: io.zenoh.jni.config.ZenohId?,
-            sourceEid: Int,
-            sourceSn: Long,
+            sourceInfo: io.zenoh.jni.sample.SourceInfo?,
         ): Sample = Sample(
             KeyExpr(keStr),
             ZBytes.fromHandle(payloadH),
-            Encoding(encId, encSchema),
+            // A schema is raw bytes on the wire and zenoh does not require it
+            // to be UTF-8; this SDK's Encoding carries a String, so a schema
+            // that is not valid UTF-8 decodes lossily rather than throwing on
+            // a received message.
+            Encoding(encId, encSchema?.toString(Charsets.UTF_8)),
             io.zenoh.jni.sample.SampleKind.fromInt(kindInt).toPublic(),
-            ntp64?.let { TimeStamp(it) },
+            timestamp?.let { Timestamp.fromJni(it) },
             QoS(
                 CongestionControl.fromJni(io.zenoh.jni.qos.CongestionControl.fromInt(ccInt)),
                 Priority.fromJni(io.zenoh.jni.qos.Priority.fromInt(prioInt)),

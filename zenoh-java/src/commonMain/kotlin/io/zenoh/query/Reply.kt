@@ -23,7 +23,7 @@ import io.zenoh.sample.Sample
 import io.zenoh.qos.CongestionControl
 import io.zenoh.qos.Priority
 import io.zenoh.qos.QoS
-import org.apache.commons.net.ntp.TimeStamp
+import io.zenoh.time.Timestamp
 
 /**
  * Class to represent a Zenoh Reply to a remote query.
@@ -90,7 +90,7 @@ sealed class Reply private constructor(val replierId: EntityGlobalId?) : ZenohTy
  */
 data class ReplyOptions(
     var encoding: Encoding = Encoding.defaultEncoding(),
-    var timeStamp: TimeStamp? = null,
+    var timeStamp: Timestamp? = null,
     var attachment: IntoZBytes? = null,
     var express: Boolean = QoS.defaultResponse.express,
     @Deprecated("Congestion control on reply QoS is deprecated and will be ignored. See eclipse-zenoh/zenoh#2382.")
@@ -111,7 +111,7 @@ data class ReplyOptions(
  * @property priority The priority policy.
  */
 data class ReplyDelOptions(
-    var timeStamp: TimeStamp? = null,
+    var timeStamp: Timestamp? = null,
     var attachment: IntoZBytes? = null,
     var express: Boolean = QoS.defaultResponse.express,
     @Deprecated("Congestion control on reply QoS is deprecated and will be ignored. See eclipse-zenoh/zenoh#2382.")

@@ -68,7 +68,7 @@ class Query internal constructor(
             parameters: String,
             payloadH: io.zenoh.jni.bytes.ZBytes?,
             encId: Int?,
-            encSchema: String?,
+            encSchema: ByteArray?,
             attachH: io.zenoh.jni.bytes.ZBytes?,
             acceptsRepliesInt: Int,
             zq: io.zenoh.jni.query.Query,
@@ -83,7 +83,9 @@ class Query internal constructor(
                 ke,
                 selector,
                 payloadH?.let { ZBytes.fromHandle(it) },
-                encId?.let { Encoding(it, encSchema) },
+                // Raw bytes on the wire; decoded lossily since this SDK's
+                // Encoding carries a String (see Sample.fromParts).
+                encId?.let { Encoding(it, encSchema?.toString(Charsets.UTF_8)) },
                 attachH?.let { ZBytes.fromHandle(it) },
                 io.zenoh.jni.query.ReplyKeyExpr.fromInt(acceptsRepliesInt).toPublic(),
                 zq
@@ -108,7 +110,7 @@ class Query internal constructor(
             keyExpr.jniSel, keyExpr.jniStr, keyExpr.jniHandle,
             payload.into().bytes,
             enc.jniSel, enc.jniId, enc.jniSchema, enc.jniHandle,
-            options.timeStamp?.ntpValue(),
+            options.timeStamp?.toJni(),
             options.attachment?.into()?.bytes,
             options.express,
             throwZError0, throwZError
@@ -145,7 +147,7 @@ class Query internal constructor(
         val q = zQuery ?: throw ZError("Query is invalid")
         q.replyDelete(
             keyExpr.jniSel, keyExpr.jniStr, keyExpr.jniHandle,
-            options.timeStamp?.ntpValue(),
+            options.timeStamp?.toJni(),
             options.attachment?.into()?.bytes,
             options.express,
             throwZError0, throwZError

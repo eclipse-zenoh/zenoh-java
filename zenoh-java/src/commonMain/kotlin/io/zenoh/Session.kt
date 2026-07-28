@@ -31,6 +31,7 @@ import io.zenoh.handlers.BlockingQueueHandler
 import io.zenoh.handlers.Callback
 import io.zenoh.handlers.Handler
 import io.zenoh.keyexpr.KeyExpr
+import io.zenoh.jni.query.Selector as JniSelector
 import io.zenoh.keyexpr.jniSel
 import io.zenoh.keyexpr.jniStr
 import io.zenoh.keyexpr.jniHandle
@@ -744,8 +745,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         return run {
             val sel = selector.into()
             zSession.get(
-                sel.keyExpr.jniSel, sel.keyExpr.jniStr, sel.keyExpr.jniHandle,
-                sel.parameters?.toString(),
+                // `session_get` takes the whole selector by value: the key
+                // expression goes in as an owned handle, and the parameters
+                // ride along inside it rather than as a separate argument.
+                JniSelector(sel.keyExpr.intoJniHandle(), sel.parameters?.toString() ?: ""),
                 options.timeout.toMillis(),
                 options.target.toFlat(),
                 options.consolidation.toFlat(),
@@ -774,8 +777,10 @@ class Session private constructor(private val config: Config) : AutoCloseable {
         run {
             val sel = selector.into()
             zSession.get(
-                sel.keyExpr.jniSel, sel.keyExpr.jniStr, sel.keyExpr.jniHandle,
-                sel.parameters?.toString(),
+                // `session_get` takes the whole selector by value: the key
+                // expression goes in as an owned handle, and the parameters
+                // ride along inside it rather than as a separate argument.
+                JniSelector(sel.keyExpr.intoJniHandle(), sel.parameters?.toString() ?: ""),
                 options.timeout.toMillis(),
                 options.target.toFlat(),
                 options.consolidation.toFlat(),

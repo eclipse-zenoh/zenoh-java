@@ -16,6 +16,7 @@ package io.zenoh
 
 import io.zenoh.exceptions.throwZError
 import io.zenoh.exceptions.throwZError0
+import io.zenoh.jni.query.Selector as JniSelector
 import io.zenoh.keyexpr.KeyExpr
 import io.zenoh.query.Parameters
 import io.zenoh.query.Query
@@ -75,8 +76,10 @@ class QueryParametersTest {
         var reply: Reply? = null
         // Bypass the JVM-side Selector validation, as a remote client would.
         session.zSession!!.get(
-            keyExpr.toString(),             // s
-            "a=1;a=2;bad=%zz",              // parameters
+            // A Selector carries its parameters as an uninterpreted string, so
+            // constructing one directly is exactly the "remote client" path:
+            // nothing on the JVM side inspects them.
+            JniSelector(keyExpr.intoJniHandle(), "a=1;a=2;bad=%zz"),
             1000L,                          // timeoutMs
             null,                           // target
             null,                           // consolidation

@@ -22,6 +22,7 @@ import io.zenoh.query.Reply;
 import io.zenoh.query.ReplyOptions;
 import io.zenoh.sample.SampleKind;
 import org.apache.commons.net.ntp.TimeStamp;
+import io.zenoh.time.Timestamp;
 import org.junit.Test;
 
 import java.time.Instant;
@@ -47,10 +48,10 @@ public class QuerierTest {
      */
     @Test
     public void querier_runsWithCallbackTest() throws ZError, InterruptedException {
-        var timestamp = new TimeStamp(Date.from(Instant.now()));
         var examplePayload = ZBytes.from("Example payload");
         var exampleAttachment = ZBytes.from("Example attachment");
         var session = Zenoh.open(Config.loadDefault());
+        var timestamp = Timestamp.ofNtp64(new TimeStamp(Date.from(Instant.now())).ntpValue(), session.info().zid());
 
         var queryable = session.declareQueryable(testKeyExpr, query -> {
                 assertEquals(exampleAttachment, query.getAttachment());

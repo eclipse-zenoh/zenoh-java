@@ -85,7 +85,10 @@ class Config internal constructor(internal val zConfig: JniConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromJson(config: String): Config = Config(JniConfig.newFromJson(config, throwZError0, throwZError))
+        // Parsed by the JSON5 reader: base zenoh's `Config` has no `from_json`,
+        // and JSON is a subset of JSON5, so every input accepted here before is
+        // still accepted and parses to the same config.
+        fun fromJson(config: String): Config = Config(JniConfig.newFromJson5(config, throwZError0, throwZError))
 
         /**
          * Loads the configuration from json5-formatted string.

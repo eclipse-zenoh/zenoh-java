@@ -130,7 +130,7 @@ class Encoding internal constructor(
 
         /** Native handle for a custom encoding — construction is the one crossing. */
         private fun createHandle(id: Int, schema: String?): JniEncoding =
-            JniEncoding.newFromId(id, schema) { je ->
+            JniEncoding.newFromId(id, schema?.toByteArray(Charsets.UTF_8)) { je ->
                 throw IllegalStateException("encoding creation failed: $je")
             }
     }
@@ -177,8 +177,12 @@ internal val Encoding?.jniSel: Int
 internal val Encoding?.jniId: Int?
     get() = if (this != null && handle == null) id else null
 
-internal val Encoding?.jniSchema: String?
-    get() = if (this != null && handle == null) schema else null
+// A schema is raw bytes on the wire; zenoh transmits it verbatim and does not
+// require it to be UTF-8. This wrapper's schema is a String throughout (its
+// EncodingCodec is a text codec), so the transcode happens here, at the one
+// point where the value crosses.
+internal val Encoding?.jniSchema: ByteArray?
+    get() = if (this != null && handle == null) schema?.toByteArray(Charsets.UTF_8) else null
 
 internal val Encoding?.jniHandle: JniEncoding?
     get() = this?.handle

@@ -61,13 +61,16 @@ kotlin {
             dependencies {
                 // Zenoh Flat JNI - includes Kotlin sources and native libraries
                 implementation("org.eclipse.zenoh:zenoh-flat-jni:1.9.0")
-                implementation("commons-net:commons-net:3.9.0")
                 implementation("com.google.guava:guava:33.3.1-jre")
             }
         }
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
+                // Only the tests need an NTP64 clock now: the SDK's Timestamp
+                // carries the raw bits and an originating-node id, so it no
+                // longer depends on commons-net itself.
+                implementation("commons-net:commons-net:3.9.0")
             }
         }
         if (androidEnabled) {

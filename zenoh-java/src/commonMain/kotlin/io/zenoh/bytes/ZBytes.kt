@@ -57,14 +57,14 @@ class ZBytes private constructor(
     /**
      * The payload bytes. A handle-backed (received) ZBytes materializes them
      * LAZILY on first access — one borrow-copy out of the native buffer via
-     * `zZbytesAsBytes` — then closes the native handle (forward-extraction
+     * `zZbytesToBytes` — then closes the native handle (forward-extraction
      * rule: the handle is delivered eagerly, the heavy bytes on demand).
      */
     internal val bytes: ByteArray
         get() = eager ?: synchronized(this) {
             eager ?: run {
                 val h = handle!!
-                val b = h.asBytes(throwZError0)
+                val b = h.toBytes(throwZError0)
                 eager = b
                 handle = null
                 h.close()

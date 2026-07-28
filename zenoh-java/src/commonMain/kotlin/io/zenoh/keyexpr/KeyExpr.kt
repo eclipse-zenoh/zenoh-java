@@ -74,6 +74,20 @@ class KeyExpr internal constructor(
     internal fun cloneHandle(): JniKeyExpr? = handle?.newClone(throwZError0)
 
     /**
+     * A native handle to hand to a *consuming* Rust API, whichever backing
+     * this key expression has: the declared handle cloned, or a fresh one
+     * validated from the string. The callee takes ownership either way, so
+     * this never yields the shared declared handle itself.
+     *
+     * Unlike the [jniSel]/[jniStr]/[jniHandle] slot trio, this materializes a
+     * handle for a string-backed key expression rather than letting Rust
+     * rebuild it in-call — needed where the parameter is a whole value (a
+     * [io.zenoh.jni.query.Selector]) with no string arm to select.
+     */
+    internal fun intoJniHandle(): JniKeyExpr =
+        cloneHandle() ?: JniKeyExpr.newTryFrom(keyExprString, throwZError0, throwZError)
+
+    /**
      * Run [body] with a native handle: the declared handle when present,
      * else a transient one validated from the string (closed afterwards).
      * Used by the native keyexpr algebra ops.
@@ -129,7 +143,7 @@ class KeyExpr internal constructor(
         fun autocanonize(keyExpr: String): KeyExpr {
             val probe = JniKeyExpr.newAutocanonize(keyExpr, throwZError0, throwZError)
             try {
-                return KeyExpr(probe.getStr(throwZError0))
+                return KeyExpr(probe.asStr(throwZError0))
             } finally {
                 probe.close()
             }
@@ -181,7 +195,7 @@ class KeyExpr internal constructor(
         val probe = handle?.let { JniKeyExpr.newJoin(it, other, throwZError0, throwZError) }
             ?: JniKeyExpr.newJoin(keyExprString, other, throwZError0, throwZError)
         try {
-            return KeyExpr(probe.getStr(throwZError0))
+            return KeyExpr(probe.asStr(throwZError0))
         } finally {
             probe.close()
         }
@@ -196,7 +210,7 @@ class KeyExpr internal constructor(
         val probe = handle?.let { JniKeyExpr.newConcat(it, other, throwZError0, throwZError) }
             ?: JniKeyExpr.newConcat(keyExprString, other, throwZError0, throwZError)
         try {
-            return KeyExpr(probe.getStr(throwZError0))
+            return KeyExpr(probe.asStr(throwZError0))
         } finally {
             probe.close()
         }
