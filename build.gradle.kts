@@ -54,9 +54,27 @@ nexusPublishing {
     }
 }
 
+// The zenoh-flat-jni release this SDK builds against. Overridable per-invocation
+// (`-PzenohFlatJniVersion=…`) so a rehearsal can point at a snapshot without
+// editing anything tracked.
+val zenohFlatJniVersion: String by project
+
 subprojects {
     repositories {
         google()
         mavenCentral()
+        // A rehearsal has to build against a zenoh-flat-jni that is not released
+        // yet; its own rehearsal publishes <version>-SNAPSHOT here. This
+        // repository enters the resolution path *only* when a snapshot version
+        // was explicitly asked for, and even then only for that one module — so
+        // a release, whose version never ends in -SNAPSHOT, cannot resolve a
+        // mutable artifact by accident.
+        if (zenohFlatJniVersion.endsWith("-SNAPSHOT")) {
+            maven {
+                name = "centralSnapshots"
+                url = uri("https://central.sonatype.com/repository/maven-snapshots/")
+                content { includeModule("org.eclipse.zenoh", "zenoh-flat-jni") }
+            }
+        }
     }
 }

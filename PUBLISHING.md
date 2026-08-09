@@ -138,25 +138,44 @@ release is blocked.
 | Rehearsal | resolves zenoh-flat-jni from | proves |
 | --- | --- | --- |
 | local build and tests | a sibling checkout, via `-PuseLocalFlatJni=true` | the code compiles and the tests pass |
-| CI, `maven_publish` unchecked | the snapshot repository, or the sibling in CI | the artifact assembles |
+| CI, `maven_publish` unchecked | the snapshot repository | the artifact assembles |
 | CI, snapshot publication | `zenoh-flat-jni:<version>-SNAPSHOT` | signing, credentials, a real upload |
 | live release | `zenoh-flat-jni:<version>` on Central | **blocked until that exists** |
 
 A snapshot may depend on a snapshot, because nothing published is permanent. So
-to rehearse against an unreleased binding, point the build at the snapshot
-zenoh-flat-jni's own rehearsal published:
+the answer is to consume the snapshot that zenoh-flat-jni's *own* rehearsal
+published — a rehearsal there with `maven_publish` enabled uploads
+`zenoh-flat-jni:<version>-SNAPSHOT` to the Central snapshot repository.
+
+Nothing needs editing. Name the version on the command line:
 
 ```bash
-./gradlew build -PzenohFlatJniVersion=1.9.0-rc3-SNAPSHOT
+./gradlew build -PzenohFlatJniVersion=1.9.0-rc4-SNAPSHOT
 ```
 
-For that to resolve, the snapshot repository must be declared in the build's
-`repositories` block. It is **not** declared by default, deliberately: a
-repository that can serve mutable artifacts should not be in the resolution path
-of a release. Add it only for the duration of a rehearsal.
+or pass the same value as the `zenoh-flat-jni-version` input to a rehearsal of
+the release workflow.
 
-The alternative, and the one to prefer while developing, is not to involve a
-repository at all — see [Local development](#local-development).
+The Central snapshot repository is declared **conditionally** in
+`build.gradle.kts`, and this is the part worth understanding:
+
+```kotlin
+if (zenohFlatJniVersion.endsWith("-SNAPSHOT")) {
+    maven {
+        url = uri("https://central.sonatype.com/repository/maven-snapshots/")
+        content { includeModule("org.eclipse.zenoh", "zenoh-flat-jni") }
+    }
+}
+```
+
+It enters the resolution path only when a snapshot version was explicitly asked
+for, and even then serves only that one module. A release version never ends in
+`-SNAPSHOT`, so a release build cannot resolve a mutable artifact — not by
+oversight, and not by someone leaving a flag set. The guarantee is structural
+rather than procedural.
+
+While developing, prefer not to involve a repository at all — see
+[Local development](#local-development).
 
 ## How the pipeline works
 
