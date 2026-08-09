@@ -60,10 +60,27 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                // Zenoh Flat JNI - includes Kotlin sources and native libraries.
+                // Zenoh Flat JNI - Kotlin sources plus the native libraries.
+                //
+                // The two coordinates are NOT interchangeable: `zenoh-flat-jni`
+                // carries the six desktop targets, `zenoh-flat-jni-android` the
+                // four Android ABIs as `jni/<abi>/`. An Android build that
+                // depended on the desktop artifact would ship without any
+                // loadable library.
+                //
+                // They are selected here, rather than per source set, because
+                // commonMain references the generated classes and Kotlin
+                // Multiplatform cannot see a dependency declared only in the
+                // platform source sets. `-Pandroid=true` therefore has to select
+                // the whole build's flavour — which is also why the JVM and
+                // Android publications must be produced by separate Gradle
+                // invocations. See PUBLISHING.md.
+                //
                 // Version lives in gradle.properties so the release can bump it
                 // and a rehearsal can point at a snapshot.
-                implementation("org.eclipse.zenoh:zenoh-flat-jni:$zenohFlatJniVersion")
+                val flatJniArtifact =
+                    if (androidEnabled) "zenoh-flat-jni-android" else "zenoh-flat-jni"
+                implementation("org.eclipse.zenoh:$flatJniArtifact:$zenohFlatJniVersion")
                 implementation("com.google.guava:guava:33.3.1-jre")
             }
         }
@@ -86,9 +103,19 @@ kotlin {
     }
 
     val javadocJar by tasks.registering(Jar::class) {
-        dependsOn("dokkaGenerate")
+        dependsOn("dokkaGeneratePublicationJavadoc")
         archiveClassifier.set("javadoc")
-        from("${buildDir}/dokka/html")
+        // Dokka's javadoc publication writes here. It used to say `dokka/html`,
+        // which Dokka never produces, so the published javadoc JAR contained
+        // nothing but a manifest.
+        val javadocDir = layout.buildDirectory.dir("dokka/javadoc")
+        from(javadocDir)
+        doFirst {
+            val dir = javadocDir.get().asFile
+            check(dir.isDirectory && (dir.list()?.isNotEmpty() == true)) {
+                "$dir is missing or empty — the javadoc JAR would ship empty"
+            }
+        }
     }
 
     publishing {

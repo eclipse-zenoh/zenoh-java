@@ -21,7 +21,7 @@ Check the website [zenoh.io](http://zenoh.io) and the [roadmap](https://github.c
 
 This repository provides a Java compatible Kotlin binding based on the main [Zenoh implementation written in Rust](https://github.com/eclipse-zenoh/zenoh).
 
-The code relies on the Zenoh JNI native library, which written in Rust and communicates with the Kotlin layer via the Java Native Interface (JNI).
+The code relies on a native library written in Rust, communicating with the Kotlin layer through the Java Native Interface (JNI). That library is not built in this repository: it is generated and published separately as [zenoh-flat-jni](https://github.com/eclipse-zenoh/zenoh-flat-jni) and consumed here as an ordinary Maven dependency.
 
 ## <img src="doc_icon.png" alt="Zenoh" height="70"> Documentation
 
@@ -49,7 +49,7 @@ dependencyResolutionManagement {
 After that add to the dependencies in the app's `build.gradle.kts`:
 
 ```kotlin
-implementation("org.eclipse.zenoh:zenoh-java-android:1.1.1")
+implementation("org.eclipse.zenoh:zenoh-java-android:1.9.0")
 ```
 
 ### Platforms
@@ -90,7 +90,7 @@ dependencyResolutionManagement {
 After that add to the dependencies in the app's `build.gradle.kts`:
 
 ```kotlin
-implementation("org.eclipse.zenoh:zenoh-java:1.1.1")
+implementation("org.eclipse.zenoh:zenoh-java:1.9.0")
 ```
 
 ### Platforms
@@ -112,7 +112,6 @@ For the moment, the library targets the following platforms:
 
 Basically:
 
-- Rust ([Installation guide](https://doc.rust-lang.org/cargo/getting-started/installation.html))
 - Kotlin ([Installation guide](https://kotlinlang.org/docs/getting-started.html#backend))
 
 and in case of targeting Android you'll also need:
@@ -144,7 +143,7 @@ code is built here: the native libraries arrive inside the
 `org.eclipse.zenoh:zenoh-flat-jni` dependency, already cross-compiled for every
 supported desktop target, so the result is not tied to the machine that built it.
 
-Once we have published the package, we should be able to find it under `~/.m2/repository/org/eclipse/zenoh/zenoh-java/1.1.1`.
+Once we have published the package, we should be able to find it under `~/.m2/repository/org/eclipse/zenoh/zenoh-java/1.9.0`.
 
 Finally, in the gradle file of the project where you intend to use this library, add mavenLocal to the list of repositories and add zenoh-java as a dependency:
 
@@ -155,13 +154,13 @@ repositories {
 }
 
 dependencies {
-    implementation("org.eclipse.zenoh:zenoh-java:1.1.1")
+    implementation("org.eclipse.zenoh:zenoh-java:1.9.0")
 }
 ```
 
 ## <img src="android-robot.png" alt="Android" height="50"> Android
 
-In order to use these bindings in a native Android project, what we will do is to build them as an Android NDK Library,
+To use these bindings in a native Android project, build the Android publication,
 publishing it into Maven local for us to be able to easily import it in our project.
 
 The Android native libraries are **not** built here either: they arrive inside
@@ -176,9 +175,10 @@ To publish the library onto Maven Local, run:
 ```
 
 This will first trigger the compilation of the Zenoh-JNI for the previously mentioned targets, and secondly will
-publish the library, containing the native binaries.
+publish the library. The Android native binaries are not produced here — they
+come from the `zenoh-flat-jni-android` dependency.
 
-You should now be able to see the package under `~/.m2/repository/org/eclipse/zenoh/zenoh-java-android/1.1.1`.
+You should now be able to see the package under `~/.m2/repository/org/eclipse/zenoh/zenoh-java-android/1.9.0`.
 
 Finally, in the gradle file of the project where you intend to use this library, add mavenLocal to the list of repositories and add zenoh-java-android as a dependency:
 
@@ -189,7 +189,7 @@ repositories {
 }
 
 dependencies {
-    implementation("org.eclipse.zenoh:zenoh-java-android:1.1.1")
+    implementation("org.eclipse.zenoh:zenoh-java-android:1.9.0")
 }
 ```
 
@@ -218,7 +218,8 @@ To run the tests, run:
 ./gradlew jvmTest
 ```
 
-This will compile the native library on debug mode (if not already available) and run the tests afterward against the JVM target.
+This runs the tests against the JVM target. Nothing native is compiled: the
+libraries come from the `zenoh-flat-jni` dependency.
 
 ## Logging
 

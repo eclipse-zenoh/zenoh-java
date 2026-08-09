@@ -73,7 +73,10 @@ subprojects {
             maven {
                 name = "centralSnapshots"
                 url = uri("https://central.sonatype.com/repository/maven-snapshots/")
-                content { includeModule("org.eclipse.zenoh", "zenoh-flat-jni") }
+                content {
+                    includeModule("org.eclipse.zenoh", "zenoh-flat-jni")
+                    includeModule("org.eclipse.zenoh", "zenoh-flat-jni-android")
+                }
             }
         }
     }
