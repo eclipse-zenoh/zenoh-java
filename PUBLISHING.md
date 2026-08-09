@@ -36,10 +36,20 @@ org.eclipse.zenoh:zenoh-java-android:<version>  the Android artifact
 ```
 
 Both are **pure JVM/Kotlin**. This repository contains no Rust and builds no
-native libraries: they arrive inside
-`org.eclipse.zenoh:zenoh-flat-jni:<version>`, already cross-compiled for six
-desktop targets and four Android ABIs, and verified by that repository's own
-release. A consumer of `zenoh-java` gets them transitively.
+native libraries: they arrive inside the zenoh-flat-jni artifacts, already
+cross-compiled and verified by that repository's own release, and a consumer of
+`zenoh-java` gets them transitively.
+
+There are **two** such artifacts, and they are not interchangeable:
+
+| zenoh-java artifact | must depend on | which carries |
+| --- | --- | --- |
+| `zenoh-java` | `org.eclipse.zenoh:zenoh-flat-jni` | six desktop targets |
+| `zenoh-java-android` | `org.eclipse.zenoh:zenoh-flat-jni-android` | four Android ABIs, as `jni/<abi>/` |
+
+> **Known defect.** Today the dependency is declared once, in `commonMain`, as
+> the *desktop* coordinate — so the published Android POM points at an artifact
+> containing no Android libraries. See [Known gaps](#known-gaps).
 
 That is the whole reason the publishing here is simple — there is no build
 matrix, no cross-compilation, and no native artifact to inspect.
@@ -225,6 +235,19 @@ repository.
 
 ## Known gaps
 
+- **The Android publication depends on the wrong binding artifact.** The
+  dependency is declared in `commonMain`, so both publications inherit
+  `org.eclipse.zenoh:zenoh-flat-jni` — the desktop artifact. An Android consumer
+  therefore receives no `jni/<abi>/` libraries. Fixing it means giving each
+  platform source set its own coordinate, which is a Kotlin Multiplatform change
+  that needs an Android SDK to validate; **no Android release should be cut
+  before it is done**.
+- **JVM and Android are not released atomically.** Each publication runs in its
+  own job with its own `closeAndReleaseSonatypeStagingRepository`, so one
+  coordinate can go public while the other job fails. zenoh-flat-jni solved this
+  by publishing both from a single Gradle invocation into one staging
+  repository; the same fix applies here and is coupled to the item above,
+  because it needs an Android-enabled build.
 - **The rewritten release path has never run.** The workflows were repaired for
   a repository that no longer contains Rust; no rehearsal has yet exercised
   them.
@@ -245,4 +268,6 @@ repository.
       least once so signing and credentials were exercised.
 - [ ] `useLocalFlatJni` is off — the release resolves from Central.
 - [ ] The published POM references a released `zenoh-flat-jni`, not a snapshot.
+- [ ] For an Android release: the Android POM references
+      `zenoh-flat-jni-android`, not the desktop coordinate.
 - [ ] The released coordinates resolve from Maven Central.

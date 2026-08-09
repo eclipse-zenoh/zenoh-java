@@ -27,16 +27,30 @@ git commit version.txt -m "chore: Bump version to \`$version\`"
 # real release, never a snapshot: consumers do not have the snapshot repository
 # configured, and snapshots are mutable and eventually removed.
 if [[ -n "$flat_jni_version" ]]; then
+  # A *release* may not depend on a snapshot: consumers do not configure the
+  # snapshot repository, and snapshots mutate and expire. A rehearsal may — that
+  # is how the SDK is exercised before the binding is released at all.
   case "$flat_jni_version" in
     *-SNAPSHOT)
-      echo "error: refusing to release against a snapshot dependency ($flat_jni_version)" >&2
-      exit 1
+      if [[ "$live_run" == "true" ]]; then
+        echo "error: refusing to release against a snapshot dependency ($flat_jni_version)" >&2
+        exit 1
+      fi
+      echo "note: rehearsing against snapshot $flat_jni_version"
       ;;
   esac
+
   sed -i.bak -E "s|^zenohFlatJniVersion=.*|zenohFlatJniVersion=$flat_jni_version|" gradle.properties
   rm -f gradle.properties.bak
-  git diff gradle.properties
-  git commit gradle.properties -m "chore: Build against zenoh-flat-jni \`$flat_jni_version\`"
+
+  # Only commit when it actually moved: `git commit` on an unchanged file exits
+  # non-zero, which under `set -e` would abort the release before tagging.
+  if git diff --quiet gradle.properties; then
+    echo "note: already building against zenoh-flat-jni $flat_jni_version"
+  else
+    git diff gradle.properties
+    git commit gradle.properties -m "chore: Build against zenoh-flat-jni \`$flat_jni_version\`"
+  fi
 fi
 
 if [[ ${live_run} ]]; then
