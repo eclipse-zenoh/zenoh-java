@@ -90,7 +90,7 @@ dependencyResolutionManagement {
 After that add to the dependencies in the app's `build.gradle.kts`:
 
 ```kotlin
-implementation("org.eclipse.zenoh:zenoh-java-jvm:1.1.1")
+implementation("org.eclipse.zenoh:zenoh-java:1.1.1")
 ```
 
 ### Platforms
@@ -139,13 +139,12 @@ To publish a library for a JVM project into Maven local, run
 ./gradlew publishJvmPublicationToMavenLocal
 ```
 
-This will first, trigger the compilation of Zenoh-JNI in release, and second publish the library into maven local, containing the native library
-as a resource that will be loaded during runtime.
+This compiles the Kotlin and publishes the library into Maven local. No native
+code is built here: the native libraries arrive inside the
+`org.eclipse.zenoh:zenoh-flat-jni` dependency, already cross-compiled for every
+supported desktop target, so the result is not tied to the machine that built it.
 
-:warning: The native library will be compiled against the default rustup target on your machine, so although it may work fine
-for you on your desktop, the generated publication may not be working on another computer with a different operating system and/or a different cpu architecture.
-
-Once we have published the package, we should be able to find it under `~/.m2/repository/org/eclipse/zenoh/zenoh-java-jvm/1.1.1`.
+Once we have published the package, we should be able to find it under `~/.m2/repository/org/eclipse/zenoh/zenoh-java/1.1.1`.
 
 Finally, in the gradle file of the project where you intend to use this library, add mavenLocal to the list of repositories and add zenoh-java as a dependency:
 
@@ -156,7 +155,7 @@ repositories {
 }
 
 dependencies {
-    implementation("org.eclipse.zenoh:zenoh-java-jvm:1.1.1")
+    implementation("org.eclipse.zenoh:zenoh-java:1.1.1")
 }
 ```
 
@@ -165,30 +164,12 @@ dependencies {
 In order to use these bindings in a native Android project, what we will do is to build them as an Android NDK Library,
 publishing it into Maven local for us to be able to easily import it in our project.
 
-It is required to have the [NDK (native development kit)](https://developer.android.com/ndk) installed, since we are going to compile Zenoh JNI for multiple
-android native targets. The currently used NDK version is **26.0.10792818**.
-It can be set up by using Android Studio (go to `Preferences > Languages & Frameworks > Android SDK > SDK Tools`, tick `Show Package Details` and pick the right NDK version),
-or alternatively it can be found [here](https://developer.android.com/ndk/downloads).
+The Android native libraries are **not** built here either: they arrive inside
+the `org.eclipse.zenoh:zenoh-flat-jni-android` artifact, cross-compiled for
+`armeabi-v7a`, `arm64-v8a`, `x86` and `x86_64` by that repository's release. No
+NDK or Rust Android target is needed to build this SDK.
 
-The native platforms we are going to target are the following ones:
-
-- x86
-- x86_64
-- arm
-- arm64
-
-Therefore, if they are not yet already added to the Rust toolchain, run:
-
-```bash
-rustup target add armv7-linux-androideabi; \
-rustup target add i686-linux-android; \
-rustup target add aarch64-linux-android; \
-rustup target add x86_64-linux-android
-```
-
-to install them.
-
-So, in order to publish the library onto Maven Local, run:
+To publish the library onto Maven Local, run:
 
 ```bash
 ./gradlew -Pandroid=true publishAndroidReleasePublicationToMavenLocal
@@ -208,7 +189,7 @@ repositories {
 }
 
 dependencies {
-    implementation("org.eclipse.zenoh:zenoh-kotlin-android:1.1.1")
+    implementation("org.eclipse.zenoh:zenoh-java-android:1.1.1")
 }
 ```
 
@@ -298,6 +279,6 @@ Then after that, add the dependency as usual:
 
 ```kotlin
 dependencies {
-    implementation("org.eclipse.zenoh:zenoh-java-jvm:<version>")
+    implementation("org.eclipse.zenoh:zenoh-java:<version>")
 }
 ```
