@@ -26,9 +26,9 @@ on:
         type: string
         description: Release number
         required: false
-      zenoh-version:
+      zenoh-flat-jni-version:
         type: string
-        description: Release number of Zenoh
+        description: zenoh-flat-jni release to build against (must already be on Maven Central)
         required: false
       branch:
         type: string
@@ -67,9 +67,7 @@ jobs:
         env:
           LIVE_RUN: ${{ inputs.live-run || false }}
           VERSION: ${{ steps.create-release-branch.outputs.version }}
-          BUMP_DEPS_VERSION: ${{ inputs.zenoh-version }}
-          BUMP_DEPS_PATTERN: ${{ inputs.zenoh-version && 'zenoh.*' || '' }}
-          BUMP_DEPS_BRANCH: ${{ inputs.zenoh-version && format('release/{0}', inputs.zenoh-version) || '' }}
+          FLAT_JNI_VERSION: ${{ inputs.zenoh-flat-jni-version }}
           GIT_USER_NAME: eclipse-zenoh-bot
           GIT_USER_EMAIL: eclipse-zenoh-bot@users.noreply.github.com
 

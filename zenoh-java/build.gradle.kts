@@ -21,6 +21,7 @@ plugins {
     signing
 }
 
+val zenohFlatJniVersion: String by project
 val androidEnabled = project.findProperty("android")?.toString()?.toBoolean() == true
 val release = project.findProperty("release")?.toString()?.toBoolean() == true
 
@@ -59,8 +60,10 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                // Zenoh Flat JNI - includes Kotlin sources and native libraries
-                implementation("org.eclipse.zenoh:zenoh-flat-jni:1.9.0")
+                // Zenoh Flat JNI - includes Kotlin sources and native libraries.
+                // Version lives in gradle.properties so the release can bump it
+                // and a rehearsal can point at a snapshot.
+                implementation("org.eclipse.zenoh:zenoh-flat-jni:$zenohFlatJniVersion")
                 implementation("com.google.guava:guava:33.3.1-jre")
             }
         }

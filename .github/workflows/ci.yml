@@ -72,7 +72,10 @@ jobs:
 
       - name: Gradle Test
         working-directory: zenoh-java
-        run: ./gradlew jvmTest --info
+        # CI builds against the sibling checkouts above, so it opts into the
+        # composite build explicitly. A release does not: it resolves
+        # zenoh-flat-jni from Maven Central like any other consumer.
+        run: ./gradlew jvmTest --info -PuseLocalFlatJni=true
 
   markdown_lint:
     runs-on: ubuntu-latest
