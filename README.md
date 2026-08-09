@@ -125,6 +125,12 @@ This repository ships a [Gradle wrapper](https://docs.gradle.org/current/usergui
 
 Use `./gradlew` on Unix/macOS/Linux (or `gradlew.bat` on Windows) in place of `gradle` for all commands listed below.
 
+The native libraries are not built here — they arrive inside the
+`org.eclipse.zenoh:zenoh-flat-jni` dependency. To build against a local checkout
+of that repository instead of the published artifact, pass
+`-PuseLocalFlatJni=true`. Releasing is documented in
+[PUBLISHING.md](PUBLISHING.md).
+
 ## <img src="jvm.png" alt="JVM" height="50"> JVM
 
 To publish a library for a JVM project into Maven local, run
