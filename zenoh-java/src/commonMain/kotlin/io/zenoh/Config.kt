@@ -34,13 +34,14 @@ import java.nio.file.Path
  *
  * A default configuration can be loaded using [Config.loadDefault].
  *
- * The native configuration a Config wraps is consumed by [Zenoh.open] (or [Zenoh.scout]); a Config that is
- * never used is released by the garbage-collection backstop.
+ * [Zenoh.open] (and [Zenoh.scout]) copy the native configuration rather than taking it, so a Config stays
+ * usable afterwards and its native memory is released by [close] — or, if never closed, by the
+ * garbage-collection backstop.
  *
  * Visit the [default configuration](https://github.com/eclipse-zenoh/zenoh/blob/main/DEFAULT_CONFIG.json5) for more
  * information on the Zenoh config parameters.
  */
-class Config internal constructor(internal val zConfig: JniConfig) {
+class Config internal constructor(internal val zConfig: JniConfig) : AutoCloseable {
 
     companion object {
 
@@ -145,4 +146,11 @@ class Config internal constructor(internal val zConfig: JniConfig) {
     @Throws(ZError::class)
     fun insertJson5(key: String, value: String) =
         zConfig.insertJson5(key, value, throwZError0, throwZError)
+
+    /**
+     * Releases the native configuration. Idempotent. Any later use of this
+     * Config — [getJson], [insertJson5], or opening a session with it — fails
+     * with a [ZError] reporting a closed handle.
+     */
+    override fun close() = zConfig.close()
 }

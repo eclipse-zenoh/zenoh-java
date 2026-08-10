@@ -349,4 +349,14 @@ public class ConfigTest {
 
         assertTrue(retrievedEndpoints.contains("8.8.8.8"));
     }
+
+    @Test
+    public void closeIsIdempotentAndInvalidatesTheConfigTest() {
+        Config config = Config.loadDefault();
+        config.close();
+        config.close();
+
+        assertThrows(ZError.class, () -> config.getJson("mode"));
+        assertThrows(ZError.class, () -> config.insertJson5("mode", "\"peer\""));
+    }
 }
