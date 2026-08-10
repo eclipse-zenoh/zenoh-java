@@ -53,6 +53,17 @@ Nothing selects between them by hand, so a publication cannot name the wrong one
 And because one Gradle invocation produces both publications correctly, they are
 uploaded into a single staging repository and released together.
 
+That automatic resolution applies to the *dependency*, not to this SDK itself.
+zenoh-java keeps the two plain coordinates above: the release publishes the
+`jvm` and `androidRelease` publications only, never the Kotlin Multiplatform
+root module, so there is no module metadata for a consumer to resolve against
+and an Android consumer must name `zenoh-java-android` explicitly. That is
+deliberate — it keeps `org.eclipse.zenoh:zenoh-java` meaning the JVM artifact,
+as it always has. It is also why the publish workflow names its two publication
+tasks instead of using `publishAllPublicationsTo…`: the unpublished root
+publication carries the same `zenoh-java` artifactId as the JVM one, and
+publishing both would upload two different things to one coordinate.
+
 That is the whole reason the publishing here is simple — there is no build
 matrix, no cross-compilation, and no native artifact to inspect.
 
@@ -175,13 +186,18 @@ The Central snapshot repository is declared **conditionally** in
 if (zenohFlatJniVersion.endsWith("-SNAPSHOT")) {
     maven {
         url = uri("https://central.sonatype.com/repository/maven-snapshots/")
-        content { includeModule("org.eclipse.zenoh", "zenoh-flat-jni") }
+        content { includeGroup("org.eclipse.zenoh") }
     }
 }
 ```
 
+`includeGroup`, not `includeModule`: the dependency is declared on the root
+coordinate, but what Gradle actually downloads is `zenoh-flat-jni-jvm` or
+`zenoh-flat-jni-android`. Naming a single module would hide those from the
+snapshot repository and the build would fail to resolve.
+
 It enters the resolution path only when a snapshot version was explicitly asked
-for, and even then serves only that one module. A release version never ends in
+for, and even then serves only that one group. A release version never ends in
 `-SNAPSHOT`, so a release build cannot resolve a mutable artifact — not by
 oversight, and not by someone leaving a flag set. The guarantee is structural
 rather than procedural.
@@ -197,9 +213,10 @@ While developing, prefer not to involve a repository at all — see
    then `ci/scripts/bump-and-tag.bash` writes `version.txt`, optionally rewrites
    `zenohFlatJniVersion` in `gradle.properties`, commits and tags. It refuses a
    `-SNAPSHOT` binding version.
-2. **`publish-jvm`** and **`publish-android`** — compile Kotlin and publish. No
-   native toolchain is installed and no Rust is built; both would be pointless
-   here.
+2. **`publish_package`** — compiles Kotlin and publishes both artifacts in one
+   Gradle invocation, so they share one staging repository and are released
+   together. No native toolchain is installed and no Rust is built; both would
+   be pointless here.
 3. **`publish-github`** — creates the GitHub release, on a live run only.
 
 Publishing goes through `io.github.gradle-nexus.publish-plugin` to the Central
