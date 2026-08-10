@@ -48,9 +48,18 @@ import io.zenoh.jni.bytes.ZBytes as JniZBytes
  * dropped samples are the one place native memory can be retained.
  */
 class ZBytes private constructor(
-    private var eager: ByteArray?,
+    initialBytes: ByteArray?,
     private var handle: JniZBytes?,
 ) : IntoZBytes {
+
+    /**
+     * The materialized bytes, `null` until a handle-backed ZBytes is read.
+     * Volatile: the [bytes] getter reads it outside the monitor, so the write
+     * under the monitor must be safely published to that unlocked fast path.
+     * `handle` needs no such treatment — it is only touched inside the monitor.
+     */
+    @Volatile
+    private var eager: ByteArray? = initialBytes
 
     internal constructor(bytes: ByteArray) : this(bytes, null)
 
