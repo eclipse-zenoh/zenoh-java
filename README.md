@@ -254,7 +254,17 @@ To run the tests, run:
 ```
 
 This runs the tests against the JVM target. Nothing native is compiled: the
-libraries come from the `zenoh-flat-jni` dependency.
+libraries come from the `zenoh-flat-jni` dependency. The two source options from
+[Where the native library comes from](#where-the-native-library-comes-from)
+apply here as well, and both do compile it:
+
+```bash
+./gradlew jvmTest -PuseLocalJni=true                    # the pinned commit — what CI runs
+./gradlew jvmTest -PlocalJniDir=../zenoh-flat-jni       # your own checkout
+```
+
+Use the second when you are changing both repositories together — the first
+tests the commit `Cargo.lock` pins, not your working tree.
 
 ## Logging
 
