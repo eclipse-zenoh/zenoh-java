@@ -23,7 +23,7 @@ which covers them once for both repositories.
   - [After a release](#after-a-release)
 - [Rehearsing before zenoh-flat-jni is released](#rehearsing-before-zenoh-flat-jni-is-released)
 - [How the pipeline works](#how-the-pipeline-works)
-- [Local development](#local-development)
+- [Building against zenoh-flat-jni source](#building-against-zenoh-flat-jni-source)
 - [Required secrets](#required-secrets)
 - [Known gaps](#known-gaps)
 - [Release checklist](#release-checklist)
@@ -160,7 +160,7 @@ release is blocked.
 
 | Rehearsal | resolves zenoh-flat-jni from | proves |
 | --- | --- | --- |
-| local build and tests | a sibling checkout, via `-PuseLocalFlatJni=true` | the code compiles and the tests pass |
+| local build and tests | its source — the pinned commit, or your own checkout ([README](README.md#where-the-native-library-comes-from)) | the code compiles and the tests pass |
 | CI, `maven_publish` unchecked | the snapshot repository | the artifact assembles |
 | CI, snapshot publication | `zenoh-flat-jni:<version>-SNAPSHOT` | signing, credentials, a real upload |
 | live release | `zenoh-flat-jni:<version>` on Central | **blocked until that exists** |
@@ -203,7 +203,8 @@ oversight, and not by someone leaving a flag set. The guarantee is structural
 rather than procedural.
 
 While developing, prefer not to involve a repository at all — see
-[Local development](#local-development).
+[Where the native library comes from](README.md#where-the-native-library-comes-from)
+in the README.
 
 ## How the pipeline works
 
@@ -225,24 +226,22 @@ While developing, prefer not to involve a repository at all — see
 Publishing goes through `io.github.gradle-nexus.publish-plugin` to the Central
 Portal, signed with the organization GPG key, exactly as in zenoh-flat-jni.
 
-## Local development
+## Building against zenoh-flat-jni source
 
-The default build resolves `zenoh-flat-jni` from Maven Central like any consumer.
-To work against a local checkout of it:
+A build can be pointed at zenoh-flat-jni's *source* through a Gradle composite
+build, which is what CI and local development do — see
+[Where the native library comes from](README.md#where-the-native-library-comes-from) in the README,
+and [CI.md](CI.md) for the commit pin behind it.
 
-```bash
-./gradlew build -PuseLocalFlatJni=true
-```
+**A release must not.** With a composite build the published artifact would be
+built from source on the builder's disk while the POM still claimed the released
+version it was supposed to be built against. Nothing opts in by default, and
+`build.gradle.kts` fails any `publish*` task while an included build is present,
+so a leftover `-PuseLocalJni`, `-PlocalJniDir` or `path = "…"` cannot reach a
+publication silently.
 
-That substitutes `../zenoh-flat-jni` through a Gradle composite build, so changes
-there are picked up without publishing anything. Set it in your personal
-`gradle.properties` if you want it always on.
-
-**It must never be enabled for a release.** With it on, the published artifact
-would be built against whatever happens to be on the builder's disk rather than
-the resolved dependency, and the POM would still claim the released version. It
-is off by default and CI passes it explicitly only where it checks the sibling
-out.
+Which `zenoh-flat-jni` *release* this SDK is built and published against is
+`zenohFlatJniVersion` in `gradle.properties`, and that is unrelated to the above.
 
 ## Required secrets
 
@@ -275,7 +274,7 @@ repository.
 - [ ] `version.txt` and the intended tag agree.
 - [ ] A rehearsal completed under a fresh version, with publication enabled at
       least once so signing and credentials were exercised.
-- [ ] `useLocalFlatJni` is off — the release resolves from Central.
+- [ ] `useLocalJni` is off — the release resolves from Central.
 - [ ] The published POM references a released `zenoh-flat-jni`, not a snapshot.
 - [ ] For an Android release: the Android POM references
       `zenoh-flat-jni-android`, not the desktop coordinate.
