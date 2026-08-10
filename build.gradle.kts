@@ -73,10 +73,9 @@ subprojects {
             maven {
                 name = "centralSnapshots"
                 url = uri("https://central.sonatype.com/repository/maven-snapshots/")
-                content {
-                    includeModule("org.eclipse.zenoh", "zenoh-flat-jni")
-                    includeModule("org.eclipse.zenoh", "zenoh-flat-jni-android")
-                }
+                // The root module plus the platform variants Gradle resolves
+                // through its metadata.
+                content { includeGroup("org.eclipse.zenoh") }
             }
         }
     }

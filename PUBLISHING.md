@@ -40,21 +40,18 @@ native libraries: they arrive inside the zenoh-flat-jni artifacts, already
 cross-compiled and verified by that repository's own release, and a consumer of
 `zenoh-java` gets them transitively.
 
-There are **two** such artifacts, and they are not interchangeable:
+`zenoh-flat-jni` is itself a Kotlin Multiplatform library, so this SDK declares
+**one** dependency on its root coordinate and Gradle resolves the variant
+matching each target:
 
-| zenoh-java artifact | must depend on | which carries |
+| zenoh-java artifact | resolves | which carries |
 | --- | --- | --- |
-| `zenoh-java` | `org.eclipse.zenoh:zenoh-flat-jni` | six desktop targets |
-| `zenoh-java-android` | `org.eclipse.zenoh:zenoh-flat-jni-android` | four Android ABIs, as `jni/<abi>/` |
+| `zenoh-java` | `zenoh-flat-jni-jvm` | six desktop targets |
+| `zenoh-java-android` | `zenoh-flat-jni-android` | four Android ABIs, as `jni/<abi>/` |
 
-The build selects between them on `-Pandroid=true`, so each publication's POM
-names the right one. That selection is made for the build as a whole rather than
-per source set, because `commonMain` references the generated classes and Kotlin
-Multiplatform cannot see a dependency declared only in the platform source sets.
-
-**That is why the JVM and Android publications come from separate Gradle
-invocations**, and therefore why they are not released atomically — see
-[Known gaps](#known-gaps).
+Nothing selects between them by hand, so a publication cannot name the wrong one.
+And because one Gradle invocation produces both publications correctly, they are
+uploaded into a single staging repository and released together.
 
 That is the whole reason the publishing here is simple — there is no build
 matrix, no cross-compilation, and no native artifact to inspect.
@@ -240,21 +237,6 @@ repository.
 
 ## Known gaps
 
-- **JVM and Android are not released atomically.** Each publication runs in its
-  own job with its own `closeAndReleaseSonatypeStagingRepository`, so a live run
-  can make one coordinate public while the other job fails.
-
-  zenoh-flat-jni solved this by publishing both from one Gradle invocation into a
-  single staging repository. That is **not currently possible here**: the two
-  publications need different binding coordinates, and the choice is a
-  build-wide flag rather than a per-source-set dependency, so one invocation
-  cannot produce both correctly.
-
-  The real fix is upstream — if `zenoh-flat-jni` published one coordinate with
-  Gradle module metadata carrying `jvm` and `android` variants, this SDK could
-  declare a single dependency, `commonMain` would resolve it per target, and both
-  publications could come from one invocation. Until then the ordering risk is
-  real and a live release should check both coordinates afterwards.
 - **The rewritten release path has never run.** The workflows were repaired for
   a repository that no longer contains Rust; no rehearsal has yet exercised
   them.

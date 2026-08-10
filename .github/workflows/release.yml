@@ -71,10 +71,10 @@ jobs:
           GIT_USER_NAME: eclipse-zenoh-bot
           GIT_USER_EMAIL: eclipse-zenoh-bot@users.noreply.github.com
 
-  publish-jvm:
-    name: Publish JVM package
+  publish:
+    name: Publish to Maven Central
     needs: tag
-    uses: ./.github/workflows/publish-jvm.yml
+    uses: ./.github/workflows/publish.yml
     with:
       snapshot: ${{ !(inputs.live-run || false) }}
       branch: ${{ needs.tag.outputs.branch }}
@@ -83,27 +83,6 @@ jobs:
       contents: read
       packages: write
     secrets: inherit
-
-  publish-android:
-    name: Publish Android package
-    needs: tag
-    uses: ./.github/workflows/publish-android.yml
-    with:
-      snapshot: ${{ !(inputs.live-run || false) }}
-      branch: ${{ needs.tag.outputs.branch }}
-      maven_publish: ${{ !contains(inputs.maven_publish, 'false') }}
-    permissions:
-      contents: read
-      packages: write
-    secrets: inherit
-
-  publish-dokka:
-    name: Publish documentation
-    needs: [tag, publish-android, publish-jvm]
-    uses: ./.github/workflows/publish-dokka.yml
-    with:
-      live-run: ${{ inputs.live-run || false }}
-      branch: ${{ needs.tag.outputs.branch }}
 
   publish-github:
     needs: [tag, publish-android, publish-jvm]

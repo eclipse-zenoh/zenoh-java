@@ -60,27 +60,14 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                // Zenoh Flat JNI - Kotlin sources plus the native libraries.
-                //
-                // The two coordinates are NOT interchangeable: `zenoh-flat-jni`
-                // carries the six desktop targets, `zenoh-flat-jni-android` the
-                // four Android ABIs as `jni/<abi>/`. An Android build that
-                // depended on the desktop artifact would ship without any
-                // loadable library.
-                //
-                // They are selected here, rather than per source set, because
-                // commonMain references the generated classes and Kotlin
-                // Multiplatform cannot see a dependency declared only in the
-                // platform source sets. `-Pandroid=true` therefore has to select
-                // the whole build's flavour — which is also why the JVM and
-                // Android publications must be produced by separate Gradle
-                // invocations. See PUBLISHING.md.
+                // Zenoh Flat JNI. One coordinate: it is a Kotlin Multiplatform
+                // library, so Gradle resolves the JVM or Android variant from
+                // its module metadata according to the target being built. The
+                // native libraries come with whichever variant is chosen.
                 //
                 // Version lives in gradle.properties so the release can bump it
                 // and a rehearsal can point at a snapshot.
-                val flatJniArtifact =
-                    if (androidEnabled) "zenoh-flat-jni-android" else "zenoh-flat-jni"
-                implementation("org.eclipse.zenoh:$flatJniArtifact:$zenohFlatJniVersion")
+                implementation("org.eclipse.zenoh:zenoh-flat-jni:$zenohFlatJniVersion")
                 implementation("com.google.guava:guava:33.3.1-jre")
             }
         }

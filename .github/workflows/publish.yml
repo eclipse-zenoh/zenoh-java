@@ -1,4 +1,10 @@
-name: Publish (JVM)
+name: Publish
+
+# Both publications come from a *single* Gradle invocation, so they share one
+# staging repository and one close/release: either both coordinates become public
+# or neither does. That is only possible because zenoh-flat-jni is a Kotlin
+# Multiplatform library — one dependency declaration resolves per target, so an
+# Android-enabled build produces both publications correctly.
 
 on:
   workflow_call:
@@ -22,8 +28,8 @@ on:
 # cross-compiled and verified by that repository's release. This workflow only
 # compiles Kotlin and publishes.
 jobs:
-  publish_jvm_package:
-    name: Publish JVM package
+  publish_package:
+    name: Publish to Maven Central
     permissions:
       contents: read
       packages: write
@@ -46,7 +52,7 @@ jobs:
       # `maven_publish: false` rehearsal actually proves something. Only the
       # remote upload below is gated.
       - name: Assemble and verify the publication
-        run: ./gradlew publishJvmPublicationToMavenLocal --info
+        run: ./gradlew publishJvmPublicationToMavenLocal publishAndroidReleasePublicationToMavenLocal --info -Pandroid=true
 
       - name: Set pub mode env var
         # Note: This step is intended to allow publishing snapshot packages.
@@ -63,7 +69,9 @@ jobs:
       - if: ${{ inputs.maven_publish == true }}
         name: Gradle Publish JVM Package to Maven Central repository
         run: |
-          ./gradlew publishJvmPublicationToSonatypeRepository ${{ env.RELEASE }} --info -PremotePublication=true ${{ env.PUB_MODE }}
+          ./gradlew publishJvmPublicationToSonatypeRepository \
+                    publishAndroidReleasePublicationToSonatypeRepository \
+                    ${{ env.RELEASE }} --info -PremotePublication=true -Pandroid=true ${{ env.PUB_MODE }}
         env:
           CENTRAL_SONATYPE_TOKEN_USERNAME: ${{ secrets.CENTRAL_SONATYPE_TOKEN_USERNAME}}
           CENTRAL_SONATYPE_TOKEN_PASSWORD: ${{ secrets.CENTRAL_SONATYPE_TOKEN_PASSWORD }}
