@@ -21,6 +21,7 @@ plugins {
     signing
 }
 
+val zenohFlatJniVersion: String by project
 val androidEnabled = project.findProperty("android")?.toString()?.toBoolean() == true
 val release = project.findProperty("release")?.toString()?.toBoolean() == true
 
@@ -59,8 +60,14 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                // Zenoh Flat JNI - includes Kotlin sources and native libraries
-                implementation("org.eclipse.zenoh:zenoh-flat-jni:1.9.0")
+                // Zenoh Flat JNI. One coordinate: it is a Kotlin Multiplatform
+                // library, so Gradle resolves the JVM or Android variant from
+                // its module metadata according to the target being built. The
+                // native libraries come with whichever variant is chosen.
+                //
+                // Version lives in gradle.properties so the release can bump it
+                // and a rehearsal can point at a snapshot.
+                implementation("org.eclipse.zenoh:zenoh-flat-jni:$zenohFlatJniVersion")
                 implementation("com.google.guava:guava:33.3.1-jre")
             }
         }
@@ -83,9 +90,19 @@ kotlin {
     }
 
     val javadocJar by tasks.registering(Jar::class) {
-        dependsOn("dokkaGenerate")
+        dependsOn("dokkaGeneratePublicationJavadoc")
         archiveClassifier.set("javadoc")
-        from("${buildDir}/dokka/html")
+        // Dokka's javadoc publication writes here. It used to say `dokka/html`,
+        // which Dokka never produces, so the published javadoc JAR contained
+        // nothing but a manifest.
+        val javadocDir = layout.buildDirectory.dir("dokka/javadoc")
+        from(javadocDir)
+        doFirst {
+            val dir = javadocDir.get().asFile
+            check(dir.isDirectory && (dir.list()?.isNotEmpty() == true)) {
+                "$dir is missing or empty — the javadoc JAR would ship empty"
+            }
+        }
     }
 
     publishing {
