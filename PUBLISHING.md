@@ -160,7 +160,7 @@ release is blocked.
 
 | Rehearsal | resolves zenoh-flat-jni from | proves |
 | --- | --- | --- |
-| local build and tests | a sibling checkout, via `-PuseLocalFlatJni=true` | the code compiles and the tests pass |
+| local build and tests | a sibling checkout, via `-PuseLocalJni=true` | the code compiles and the tests pass |
 | CI, `maven_publish` unchecked | the snapshot repository | the artifact assembles |
 | CI, snapshot publication | `zenoh-flat-jni:<version>-SNAPSHOT` | signing, credentials, a real upload |
 | live release | `zenoh-flat-jni:<version>` on Central | **blocked until that exists** |
@@ -237,7 +237,7 @@ and [CI.md](CI.md) for the commit pin behind it.
 built from source on the builder's disk while the POM still claimed the released
 version it was supposed to be built against. Nothing opts in by default, and
 `build.gradle.kts` fails any `publish*` task while an included build is present,
-so a leftover `-PuseLocalFlatJni`, `-PflatJniDir` or `path = "…"` cannot reach a
+so a leftover `-PuseLocalJni`, `-PlocalJniDir` or `path = "…"` cannot reach a
 publication silently.
 
 Which `zenoh-flat-jni` *release* this SDK is built and published against is
@@ -274,7 +274,7 @@ repository.
 - [ ] `version.txt` and the intended tag agree.
 - [ ] A rehearsal completed under a fresh version, with publication enabled at
       least once so signing and credentials were exercised.
-- [ ] `useLocalFlatJni` is off — the release resolves from Central.
+- [ ] `useLocalJni` is off — the release resolves from Central.
 - [ ] The published POM references a released `zenoh-flat-jni`, not a snapshot.
 - [ ] For an Android release: the Android POM references
       `zenoh-flat-jni-android`, not the desktop coordinate.
