@@ -256,7 +256,8 @@ To run the tests, run:
 This runs the tests against the JVM target. Nothing native is compiled: the
 libraries come from the `zenoh-flat-jni` dependency. The two source options from
 [Where the native library comes from](#where-the-native-library-comes-from)
-apply here as well, and both do compile it:
+apply here as well, and both do compile it, so both need a Rust toolchain (see
+[rustup.rs](https://rustup.rs)):
 
 ```bash
 ./gradlew jvmTest -PuseLocalJni=true                    # the pinned commit — what CI runs

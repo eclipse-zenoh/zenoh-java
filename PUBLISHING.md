@@ -160,7 +160,7 @@ release is blocked.
 
 | Rehearsal | resolves zenoh-flat-jni from | proves |
 | --- | --- | --- |
-| local build and tests | a sibling checkout, via `-PuseLocalJni=true` | the code compiles and the tests pass |
+| local build and tests | its source — the pinned commit, or your own checkout ([README](README.md#where-the-native-library-comes-from)) | the code compiles and the tests pass |
 | CI, `maven_publish` unchecked | the snapshot repository | the artifact assembles |
 | CI, snapshot publication | `zenoh-flat-jni:<version>-SNAPSHOT` | signing, credentials, a real upload |
 | live release | `zenoh-flat-jni:<version>` on Central | **blocked until that exists** |
@@ -203,8 +203,8 @@ oversight, and not by someone leaving a flag set. The guarantee is structural
 rather than procedural.
 
 While developing, prefer not to involve a repository at all — see
-[Where the native library comes from](README.md#where-the-native-library-comes-from) in the README,
-and [CI.md](CI.md) for the commit pin behind it.
+[Where the native library comes from](README.md#where-the-native-library-comes-from)
+in the README.
 
 ## How the pipeline works
 
