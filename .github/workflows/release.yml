@@ -84,6 +84,19 @@ jobs:
       packages: write
     secrets: inherit
 
+  publish-dokka:
+    name: Publish documentation
+    needs: [tag, publish]
+    uses: ./.github/workflows/publish-dokka.yml
+    with:
+      live-run: ${{ inputs.live-run || false }}
+      branch: ${{ needs.tag.outputs.branch }}
+    # peaceiris/actions-gh-pages pushes the generated site to the gh-pages
+    # branch, which the default read-only token cannot do.
+    permissions:
+      contents: write
+    secrets: inherit
+
   publish-github:
     needs: [tag, publish]
     runs-on: macos-latest

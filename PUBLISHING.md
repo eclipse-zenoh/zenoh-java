@@ -207,7 +207,7 @@ While developing, prefer not to involve a repository at all — see
 
 ## How the pipeline works
 
-`release.yml` runs three jobs:
+`release.yml` runs four jobs:
 
 1. **`tag`** — `eclipse-zenoh/ci/create-release-branch` cuts the release branch,
    then `ci/scripts/bump-and-tag.bash` writes `version.txt`, optionally rewrites
@@ -217,7 +217,10 @@ While developing, prefer not to involve a repository at all — see
    Gradle invocation, so they share one staging repository and are released
    together. No native toolchain is installed and no Rust is built; both would
    be pointless here.
-3. **`publish-github`** — creates the GitHub release, on a live run only.
+3. **`publish-dokka`** — regenerates the API documentation and, on a live run
+   only, deploys it to the `gh-pages` site README.md links to. The javadoc JAR
+   attached to the Maven publications does not serve that site; this job does.
+4. **`publish-github`** — creates the GitHub release, on a live run only.
 
 Publishing goes through `io.github.gradle-nexus.publish-plugin` to the Central
 Portal, signed with the organization GPG key, exactly as in zenoh-flat-jni.
