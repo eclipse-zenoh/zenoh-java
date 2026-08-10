@@ -20,8 +20,15 @@ package io.zenoh.session
  * A session declaration is either a [io.zenoh.pubsub.Publisher],
  * a [io.zenoh.pubsub.Subscriber] or a [io.zenoh.query.Queryable] declared from a [io.zenoh.Session].
  */
-interface SessionDeclaration {
+interface SessionDeclaration : AutoCloseable {
 
     /** Undeclare a declaration. No further operations should be performed after calling this function. */
     fun undeclare()
+
+    /**
+     * Equivalent to [undeclare], so a declaration held through this interface can be used with
+     * try-with-resources (Java) or `use` (Kotlin). Every implementation in this SDK overrides it
+     * with the same behaviour.
+     */
+    override fun close() = undeclare()
 }

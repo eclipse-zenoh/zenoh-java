@@ -14,6 +14,7 @@
 
 package io.zenoh.bytes
 
+import io.zenoh.exceptions.ZError
 import io.zenoh.exceptions.throwZError0
 import io.zenoh.jni.bytes.ZBytes as JniZBytes
 
@@ -44,13 +45,17 @@ import io.zenoh.jni.bytes.ZBytes as JniZBytes
  * garbage-collection backstop — payloads are the per-message hot path,
  * and registering a GC cleaner per message measured −23% throughput at
  * small payload sizes. In callback-based subscribers/queryables, access
- * (or discard) payloads and attachments you care about; unread ones on
+ * (or [discard]) payloads and attachments you care about; unread ones on
  * dropped samples are the one place native memory can be retained.
+ *
+ * A payload you are not going to read can be released explicitly with
+ * [discard] / [close] (try-with-resources in Java, `use` in Kotlin) — see
+ * [discard] for what that means in each state.
  */
 class ZBytes private constructor(
     initialBytes: ByteArray?,
     private var handle: JniZBytes?,
-) : IntoZBytes {
+) : IntoZBytes, AutoCloseable {
 
     /**
      * The materialized bytes, `null` until a handle-backed ZBytes is read.
@@ -68,11 +73,13 @@ class ZBytes private constructor(
      * LAZILY on first access — one borrow-copy out of the native buffer via
      * `zZbytesToBytes` — then closes the native handle (forward-extraction
      * rule: the handle is delivered eagerly, the heavy bytes on demand).
+     *
+     * Throws [ZError] if this ZBytes was [discard]ed before being read.
      */
     internal val bytes: ByteArray
         get() = eager ?: synchronized(this) {
             eager ?: run {
-                val h = handle!!
+                val h = handle ?: throw ZError("ZBytes was discarded before its bytes were read.")
                 val b = h.toBytes(throwZError0)
                 eager = b
                 handle = null
@@ -80,6 +87,26 @@ class ZBytes private constructor(
                 b
             }
         }
+
+    /**
+     * Releases the native buffer of an **unread** received payload without
+     * copying it out. Idempotent, and safe against a concurrent read: it takes
+     * the same monitor as the lazy materialization, so either the read wins
+     * (the bytes are materialized and stay readable) or the discard wins (any
+     * later read fails with [ZError]).
+     *
+     * On a ZBytes whose bytes are already available — one built by [from], or a
+     * received one already read — there is no native memory left to release and
+     * this does nothing: the bytes stay readable.
+     */
+    @Synchronized
+    fun discard() {
+        handle?.close()
+        handle = null
+    }
+
+    /** Equivalent to [discard]; lets a payload be used with `use` / try-with-resources. */
+    override fun close() = discard()
 
     companion object {
 
