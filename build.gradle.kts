@@ -18,7 +18,6 @@ buildscript {
     }
     dependencies {
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0")
-        classpath("org.mozilla.rust-android-gradle:plugin:0.9.6")
         classpath("com.android.tools.build:gradle:7.4.2")
         classpath("com.gradleup.shadow:shadow-gradle-plugin:9.0.0-beta6")
     }
@@ -28,7 +27,6 @@ plugins {
     id("com.android.library") version "7.4.2" apply false
     id("org.jetbrains.kotlin.android") version "1.9.10" apply false
     id("org.jetbrains.kotlin.multiplatform") version "1.9.0" apply false
-    id("org.mozilla.rust-android-gradle.rust-android") version "0.9.6" apply false
     id("org.jetbrains.dokka-javadoc") version "2.0.0" apply false
     id("com.adarshr.test-logger") version "3.2.0" apply false
     kotlin("plugin.serialization") version "1.9.0" apply false
@@ -56,9 +54,29 @@ nexusPublishing {
     }
 }
 
+// The zenoh-flat-jni release this SDK builds against. Overridable per-invocation
+// (`-PzenohFlatJniVersion=…`) so a rehearsal can point at a snapshot without
+// editing anything tracked.
+val zenohFlatJniVersion: String by project
+
 subprojects {
     repositories {
         google()
         mavenCentral()
+        // A rehearsal has to build against a zenoh-flat-jni that is not released
+        // yet; its own rehearsal publishes <version>-SNAPSHOT here. This
+        // repository enters the resolution path *only* when a snapshot version
+        // was explicitly asked for, and even then only for that one module — so
+        // a release, whose version never ends in -SNAPSHOT, cannot resolve a
+        // mutable artifact by accident.
+        if (zenohFlatJniVersion.endsWith("-SNAPSHOT")) {
+            maven {
+                name = "centralSnapshots"
+                url = uri("https://central.sonatype.com/repository/maven-snapshots/")
+                // The root module plus the platform variants Gradle resolves
+                // through its metadata.
+                content { includeGroup("org.eclipse.zenoh") }
+            }
+        }
     }
 }

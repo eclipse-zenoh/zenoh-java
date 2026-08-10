@@ -23,3 +23,8 @@ enum class SampleKind {
         fun fromInt(value: Int) = entries.first { it.ordinal == value }
     }
 }
+
+internal fun io.zenoh.jni.sample.SampleKind.toPublic(): SampleKind = when (this) {
+    io.zenoh.jni.sample.SampleKind.PUT -> SampleKind.PUT
+    io.zenoh.jni.sample.SampleKind.DELETE -> SampleKind.DELETE
+}

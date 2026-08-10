@@ -17,6 +17,7 @@ package io.zenoh;
 import io.zenoh.exceptions.ZError;
 import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.pubsub.Subscriber;
+import io.zenoh.sample.Sample;
 import picocli.CommandLine;
 
 import java.util.List;
@@ -40,7 +41,7 @@ public class ZSubThr implements Callable<Integer> {
         System.out.println("Opening Session");
         try (Session session = Zenoh.open(config)) {
             try (KeyExpr keyExpr = KeyExpr.tryFrom("test/thr")) {
-                subscriber = session.declareSubscriber(keyExpr, sample -> listener(number));
+                subscriber = session.declareSubscriber(keyExpr, sample -> listener(sample, number));
                 System.out.println("Press CTRL-C to quit...");
 
                 while (subscriber.isValid()) {
@@ -51,7 +52,12 @@ public class ZSubThr implements Callable<Integer> {
         return 0;
     }
 
-    private void listener(long number) {
+    private void listener(Sample sample, long number) {
+        // Touch the delivered data so it actually reaches the Java surface
+        // (payload bytes + key-expression string): keeps lazy bindings honest
+        // and prevents either side from skipping materialization costs.
+        dataSink += sample.getPayload().toBytes().length
+                + sample.getKeyExpr().toString().length();
         if (batchCount > samples) {
             closeSubscriber();
             report();
@@ -86,8 +92,8 @@ public class ZSubThr implements Callable<Integer> {
         double elapsedTimeSecs = (double) (end - globalStartTimestampNs) / NANOS_TO_SEC;
         double averageMessagesPerSec = totalMessages / elapsedTimeSecs;
 
-        System.out.printf("Received %d messages in %.2f seconds: averaged %.2f msgs/sec%n",
-                totalMessages, elapsedTimeSecs, averageMessagesPerSec);
+        System.out.printf("Received %d messages in %.2f seconds: averaged %.2f msgs/sec (sink %d)%n",
+                totalMessages, elapsedTimeSecs, averageMessagesPerSec, dataSink);
     }
 
     private void closeSubscriber() {
@@ -114,6 +120,7 @@ public class ZSubThr implements Callable<Integer> {
     private static final long NANOS_TO_SEC = 1_000_000_000L;
     private long batchCount = 0;
     private long count = 0;
+    private long dataSink = 0;
     private long startTimestampNs = 0;
     private long globalStartTimestampNs = 0;
 

@@ -14,90 +14,74 @@
 
 package io.zenoh.query
 
-import java.net.URLDecoder
+import io.zenoh.jni.query.Parameters as JniParameters
 
 /**
  * Parameters of the [Selector].
  *
- * When in string form, the `parameters` should be encoded like the query section of a URL:
- *  - parameters are separated by `;`,
+ * A thin facade over the shared string-backed implementation
+ * ([io.zenoh.jni.query.Parameters]), which mirrors Rust's
+ * `zenoh::query::Parameters` exactly. The string form follows the
+ * `a=b;c=d|e;f=g` format:
+ *  - parameters are separated by `;` (empty chunks are skipped),
  *  - the parameter name and value are separated by the first `=`,
  *  - in the absence of `=`, the parameter value is considered to be the empty string,
- *  - both name and value should use percent-encoding to escape characters,
- *  - defining a value for the same parameter name twice is considered undefined behavior and an
- *    error result is returned.
+ *  - the value is taken verbatim (no percent-decoding),
+ *  - a duplicated parameter name is allowed: [get] returns the FIRST
+ *    occurrence, and the duplicates survive round-tripping until an
+ *    [insert]/[remove] normalizes the string.
  *
  * @see Selector
  */
-data class Parameters internal constructor(private val params: MutableMap<String, String>) : IntoParameters {
+class Parameters internal constructor(internal val inner: JniParameters) : IntoParameters {
 
     companion object {
-
-        private const val LIST_SEPARATOR = ";"
-        private const val FIELD_SEPARATOR = "="
-        private const val VALUE_SEPARATOR = "|"
 
         /**
          * Creates an empty Parameters.
          */
         @JvmStatic
-        fun empty() = Parameters(mutableMapOf())
+        fun empty() = Parameters(JniParameters.empty())
 
         /**
          * Creates a [Parameters] instance from the provided map.
          */
         @JvmStatic
-        fun from(params: Map<String, String>): Parameters = Parameters(params.toMutableMap())
+        fun from(params: Map<String, String>): Parameters = Parameters(JniParameters.fromMap(params))
 
         /**
-         * Attempts to create a [Parameters] from a string.
+         * Creates a [Parameters] from a string in the `a=b;c=d|e;f=g` format.
          *
-         * When in string form, the `parameters` should be encoded like the query section of a URL:
-         *  - parameters are separated by `;`,
-         *  - the parameter name and value are separated by the first `=`,
-         *  - in the absence of `=`, the parameter value is considered to be the empty string,
-         *  - both name and value should use percent-encoding to escape characters,
-         *  - defining a value for the same parameter name twice is considered undefined behavior and an
-         *    error result is returned.
+         * Construction is infallible — any string is accepted, exactly as in
+         * the Rust layer.
          */
         @JvmStatic
-        fun from(params: String): Parameters {
-            if (params.isBlank()) {
-                return Parameters(mutableMapOf())
-            }
-            return params.split(LIST_SEPARATOR).fold(mutableMapOf<String, String>()) { parametersMap, parameter ->
-                val (key, value) = parameter.split(FIELD_SEPARATOR).let { it[0] to it.getOrNull(1) }
-                require(!parametersMap.containsKey(key)) { "Duplicated parameter `$key` detected." }
-                parametersMap[key] = value?.let { URLDecoder.decode(it, Charsets.UTF_8.name()) } ?: ""
-                parametersMap
-            }.let { Parameters(it) }
-        }
+        fun from(params: String): Parameters = Parameters(JniParameters.fromString(params))
     }
 
-    override fun toString(): String =
-        params.entries.joinToString(LIST_SEPARATOR) { "${it.key}$FIELD_SEPARATOR${it.value}" }
+    override fun toString(): String = inner.toString()
 
     override fun into(): Parameters = this
 
     /**
      * Returns empty if no parameters were provided.
      */
-    fun isEmpty(): Boolean = params.isEmpty()
+    fun isEmpty(): Boolean = inner.isEmpty()
 
     /**
      * Returns true if the [key] is contained.
      */
-    fun containsKey(key: String): Boolean = params.containsKey(key)
+    fun containsKey(key: String): Boolean = inner.containsKey(key)
 
     /**
-     * Returns the value of the [key] if present.
+     * Returns the value of the [key] if present (the first occurrence wins).
      */
-    fun get(key: String): String? = params[key]
+    fun get(key: String): String? = inner.get(key)
 
     /**
      * Returns the value of the [key] if present, or if not, the [default] value provided.
      */
-    fun getOrDefault(key: String, default: String): String = params.getOrDefault(key, default)
+    fun getOrDefault(key: String, default: String): String = inner.getOrDefault(key, default)
 
     /**
      * Returns the values of the [key] if present.
@@ -108,25 +92,25 @@ data class Parameters internal constructor(private val params: MutableMap<String
      * assertEquals(List.of("1", "2", "3"), parameters.values("c"))
      * ```
      */
-    fun values(key: String): List<String>? = params[key]?.split(VALUE_SEPARATOR)
+    fun values(key: String): List<String>? = if (inner.containsKey(key)) inner.values(key) else null
 
     /**
      * Inserts the key-value pair into the parameters, returning the old value
      * in case of it being already present.
      */
-    fun insert(key: String, value: String): String? = params.put(key, value)
+    fun insert(key: String, value: String): String? = inner.insert(key, value)
 
     /**
      * Removes the [key] parameter, returning its value.
      */
-    fun remove(key: String): String? = params.remove(key)
+    fun remove(key: String): String? = inner.remove(key)
 
     /**
      * Extends the parameters with the [parameters] provided, overwriting
      * any conflicting params.
      */
     fun extend(parameters: IntoParameters) {
-        params.putAll(parameters.into().params)
+        inner.extend(parameters.into().inner)
     }
 
     /**
@@ -134,13 +118,18 @@ data class Parameters internal constructor(private val params: MutableMap<String
      * any conflicting params.
      */
     fun extend(parameters: Map<String, String>) {
-        params.putAll(parameters)
+        inner.extend(parameters)
     }
 
     /**
-     * Returns a map with the key value pairs of the parameters.
+     * Returns a map with the key value pairs of the parameters. For a
+     * duplicated key the last occurrence wins (unlike [get]).
      */
-    fun toMap(): Map<String, String> = params
+    fun toMap(): Map<String, String> = inner.toMap()
+
+    override fun equals(other: Any?): Boolean = other is Parameters && inner == other.inner
+
+    override fun hashCode(): Int = inner.hashCode()
 }
 
 interface IntoParameters {

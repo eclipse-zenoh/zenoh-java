@@ -15,7 +15,9 @@
 package io.zenoh
 
 import io.zenoh.exceptions.ZError
-import io.zenoh.jni.JNIConfig
+import io.zenoh.exceptions.throwZError
+import io.zenoh.exceptions.throwZError0
+import io.zenoh.jni.config.Config as JniConfig
 import java.io.File
 import java.nio.file.Path
 
@@ -32,10 +34,13 @@ import java.nio.file.Path
  *
  * A default configuration can be loaded using [Config.loadDefault].
  *
+ * The native configuration a Config wraps is consumed by [Zenoh.open] (or [Zenoh.scout]); a Config that is
+ * never used is released by the garbage-collection backstop.
+ *
  * Visit the [default configuration](https://github.com/eclipse-zenoh/zenoh/blob/main/DEFAULT_CONFIG.json5) for more
  * information on the Zenoh config parameters.
  */
-class Config internal constructor(internal val jniConfig: JNIConfig) {
+class Config internal constructor(internal val zConfig: JniConfig) {
 
     companion object {
 
@@ -45,9 +50,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          * Returns the default config.
          */
         @JvmStatic
-        fun loadDefault(): Config {
-            return JNIConfig.loadDefaultConfig()
-        }
+        fun loadDefault(): Config = Config(JniConfig.newDefault(throwZError0))
 
         /**
          * Loads the configuration from the [File] specified.
@@ -58,9 +61,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromFile(file: File): Config {
-            return JNIConfig.loadConfigFile(file)
-        }
+        fun fromFile(file: File): Config = fromFile(file.toPath())
 
         /**
          * Loads the configuration from the [Path] specified.
@@ -71,9 +72,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromFile(path: Path): Config {
-            return JNIConfig.loadConfigFile(path)
-        }
+        fun fromFile(path: Path): Config = Config(JniConfig.newFromFile(path.toString(), throwZError0, throwZError))
 
         /**
          * Loads the configuration from json-formatted string.
@@ -86,9 +85,10 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromJson(config: String): Config {
-            return JNIConfig.loadJsonConfig(config)
-        }
+        // Parsed by the JSON5 reader: base zenoh's `Config` has no `from_json`,
+        // and JSON is a subset of JSON5, so every input accepted here before is
+        // still accepted and parses to the same config.
+        fun fromJson(config: String): Config = Config(JniConfig.newFromJson5(config, throwZError0, throwZError))
 
         /**
          * Loads the configuration from json5-formatted string.
@@ -101,9 +101,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromJson5(config: String): Config {
-            return JNIConfig.loadJson5Config(config)
-        }
+        fun fromJson5(config: String): Config = Config(JniConfig.newFromJson5(config, throwZError0, throwZError))
 
         /**
          * Loads the configuration from yaml-formatted string.
@@ -116,9 +114,7 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
          */
         @JvmStatic
         @Throws(ZError::class)
-        fun fromYaml(config: String): Config {
-            return JNIConfig.loadYamlConfig(config)
-        }
+        fun fromYaml(config: String): Config = Config(JniConfig.newFromYaml(config, throwZError0, throwZError))
 
         /**
          * Loads the configuration from the env variable [CONFIG_ENV].
@@ -141,19 +137,12 @@ class Config internal constructor(internal val jniConfig: JNIConfig) {
      * The json value associated to the [key].
      */
     @Throws(ZError::class)
-    fun getJson(key: String): String {
-        return jniConfig.getJson(key)
-    }
+    fun getJson(key: String): String = zConfig.getJson(key, throwZError0, throwZError)
 
     /**
      * Inserts a json5 value associated to the [key] into the Config.
      */
     @Throws(ZError::class)
-    fun insertJson5(key: String, value: String) {
-        jniConfig.insertJson5(key, value)
-    }
-
-    protected fun finalize() {
-        jniConfig.close()
-    }
+    fun insertJson5(key: String, value: String) =
+        zConfig.insertJson5(key, value, throwZError0, throwZError)
 }

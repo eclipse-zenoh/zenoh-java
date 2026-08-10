@@ -19,6 +19,8 @@ import io.zenoh.keyexpr.KeyExpr;
 import io.zenoh.query.Query;
 import io.zenoh.query.QueryableOptions;
 import io.zenoh.query.ReplyOptions;
+import io.zenoh.config.ZenohId;
+import io.zenoh.time.Timestamp;
 import org.apache.commons.net.ntp.TimeStamp;
 import picocli.CommandLine;
 
@@ -45,6 +47,9 @@ public class ZQueryable implements Callable<Integer> {
 
         System.out.println("Opening session...");
         Session session = Zenoh.open(config);
+        // A timestamp is the pair (instant, id of the clock that produced it),
+        // so a reply stamps with THIS session's id.
+        this.zid = session.info().zid();
 
         // A Queryable can be implemented in multiple ways. Uncomment one to try:
         declareQueryableWithBlockingQueue(session, keyExpr);
@@ -98,12 +103,14 @@ public class ZQueryable implements Callable<Integer> {
             String valueInfo = query.getPayload() != null ? " with value '" + query.getPayload() + "'" : "";
             System.out.println(">> [Queryable] Received Query '" + query.getSelector() + "'" + valueInfo);
             var options = new ReplyOptions();
-            options.setTimeStamp(TimeStamp.getCurrentTime());
+            options.setTimeStamp(Timestamp.ofNtp64(TimeStamp.getCurrentTime().ntpValue(), zid));
             query.reply(query.getKeyExpr(), value, options);
         } catch (Exception e) {
             System.err.println(">> [Queryable] Error sending reply: " + e.getMessage());
         }
     }
+
+    private ZenohId zid;
 
     /**
      * ----- Example arguments and private fields -----

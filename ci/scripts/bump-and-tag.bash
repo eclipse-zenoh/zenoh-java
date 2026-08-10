@@ -5,58 +5,51 @@ set -xeo pipefail
 readonly live_run=${LIVE_RUN:-false}
 # Release number
 readonly version=${VERSION:?input VERSION is required}
-# Dependencies' pattern
-readonly bump_deps_pattern=${BUMP_DEPS_PATTERN:-''}
-# Dependencies' version
-readonly bump_deps_version=${BUMP_DEPS_VERSION:-''}
-# Dependencies' git branch
-readonly bump_deps_branch=${BUMP_DEPS_BRANCH:-''}
 # Git actor name
 readonly git_user_name=${GIT_USER_NAME:?input GIT_USER_NAME is required}
 # Git actor email
 readonly git_user_email=${GIT_USER_EMAIL:?input GIT_USER_EMAIL is required}
-
-cargo +stable install toml-cli
-
-# NOTE(fuzzypixelz): toml-cli doesn't yet support in-place modification
-# See: https://github.com/gnprice/toml-cli?tab=readme-ov-file#writing-ish-toml-set
-function toml_set_in_place() {
-  local tmp=$(mktemp)
-  toml set "$1" "$2" "$3" > "$tmp"
-  mv "$tmp" "$1"
-}
+# The zenoh-flat-jni release to build against, if it is moving with this release
+readonly flat_jni_version=${FLAT_JNI_VERSION:-''}
 
 export GIT_AUTHOR_NAME=$git_user_name
 export GIT_AUTHOR_EMAIL=$git_user_email
 export GIT_COMMITTER_NAME=$git_user_name
 export GIT_COMMITTER_EMAIL=$git_user_email
 
-# Bump Gradle project version
+# Bump Gradle project version. There is no Cargo manifest here any more: the
+# native libraries live inside the zenoh-flat-jni artifact this SDK depends on.
 printf '%s' "$version" > version.txt
-# Propagate version change to zenoh-jni
-toml_set_in_place zenoh-jni/Cargo.toml "package.version" "$version"
 
-git commit version.txt zenoh-jni/Cargo.toml -m "chore: Bump version to \`$version\`"
+git commit version.txt -m "chore: Bump version to \`$version\`"
 
-# Select all package dependencies that match $bump_deps_pattern and bump them to $bump_deps_version
-if [[ "$bump_deps_pattern" != '' ]]; then
-  deps=$(toml get zenoh-jni/Cargo.toml dependencies | jq -r "keys[] | select(test(\"$bump_deps_pattern\"))")
-  for dep in $deps; do
-    if [[ -n $bump_deps_version ]]; then
-      toml_set_in_place zenoh-jni/Cargo.toml "dependencies.$dep.version" "$bump_deps_version"
-    fi
+# Point at the zenoh-flat-jni release this SDK is built against. It must be a
+# real release, never a snapshot: consumers do not have the snapshot repository
+# configured, and snapshots are mutable and eventually removed.
+if [[ -n "$flat_jni_version" ]]; then
+  # A *release* may not depend on a snapshot: consumers do not configure the
+  # snapshot repository, and snapshots mutate and expire. A rehearsal may — that
+  # is how the SDK is exercised before the binding is released at all.
+  case "$flat_jni_version" in
+    *-SNAPSHOT)
+      if [[ "$live_run" == "true" ]]; then
+        echo "error: refusing to release against a snapshot dependency ($flat_jni_version)" >&2
+        exit 1
+      fi
+      echo "note: rehearsing against snapshot $flat_jni_version"
+      ;;
+  esac
 
-    if [[ -n $bump_deps_branch ]]; then
-      toml_set_in_place zenoh-jni/Cargo.toml "dependencies.$dep.branch" "$bump_deps_branch"
-    fi
-  done
-  # Update lockfile
-  cargo check --manifest-path zenoh-jni/Cargo.toml
+  sed -i.bak -E "s|^zenohFlatJniVersion=.*|zenohFlatJniVersion=$flat_jni_version|" gradle.properties
+  rm -f gradle.properties.bak
 
-  if [[ -n $bump_deps_version || -n $bump_deps_branch ]]; then
-    git commit zenoh-jni/Cargo.toml zenoh-jni/Cargo.lock -m "chore: Bump \`$bump_deps_pattern\` dependencies to \`$bump_deps_version\`"
+  # Only commit when it actually moved: `git commit` on an unchanged file exits
+  # non-zero, which under `set -e` would abort the release before tagging.
+  if git diff --quiet gradle.properties; then
+    echo "note: already building against zenoh-flat-jni $flat_jni_version"
   else
-    echo "warn: no changes have been made to any dependencies matching $bump_deps_pattern"
+    git diff gradle.properties
+    git commit gradle.properties -m "chore: Build against zenoh-flat-jni \`$flat_jni_version\`"
   fi
 fi
 

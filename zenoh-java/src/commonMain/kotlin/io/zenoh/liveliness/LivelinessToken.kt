@@ -14,7 +14,6 @@
 
 package io.zenoh.liveliness
 
-import io.zenoh.jni.JNILivelinessToken
 import io.zenoh.session.SessionDeclaration
 
 /**
@@ -27,16 +26,17 @@ import io.zenoh.session.SessionDeclaration
  * that declared the token has Zenoh connectivity with the Zenoh application
  * that monitors it.
  *
- * Liveliness tokens are automatically undeclared when dropped.
+ * A token whose last reference is dropped is undeclared by the garbage-collection backstop
+ * (non-deterministic — call [undeclare] or [close] to withdraw the liveliness promptly).
  */
-class LivelinessToken internal constructor(private var jniLivelinessToken: JNILivelinessToken?): SessionDeclaration, AutoCloseable {
+class LivelinessToken internal constructor(private var token: io.zenoh.jni.liveliness.LivelinessToken?): SessionDeclaration, AutoCloseable {
 
     /**
      * Undeclares the token.
      */
     override fun undeclare() {
-        jniLivelinessToken?.undeclare()
-        jniLivelinessToken = null
+        token?.close()
+        token = null
     }
 
     /**
@@ -44,10 +44,6 @@ class LivelinessToken internal constructor(private var jniLivelinessToken: JNILi
      * When using try-with-resources, this function is called automatically.
      */
     override fun close() {
-        undeclare()
-    }
-
-    protected fun finalize() {
         undeclare()
     }
 }

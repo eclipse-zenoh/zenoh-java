@@ -22,42 +22,53 @@ jobs:
         os: [ubuntu-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out zenoh-java
+        uses: actions/checkout@v4
+        with:
+          path: zenoh-java
+
+      - name: Check out zenoh-flat-jni
+        uses: actions/checkout@v4
+        with:
+          repository: eclipse-zenoh/zenoh-flat-jni
+          # No ref: track that repository's default branch. A pinned commit has
+          # to be hand-edited for every upstream fix, and this is the one hop
+          # in the chain no bot covers - zenoh-flat-jni's own Cargo.lock is
+          # kept aligned with zenoh for it, so following its main keeps the
+          # whole chain automatic. zenoh-flat is not checked out at all: it is
+          # resolved from git by that lockfile.
+          path: zenoh-flat-jni
 
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 11
 
+      # zenoh-flat-jni pins its toolchain in rust-toolchain.toml. Install it
+      # from that directory, so a missing toolchain fails here rather than
+      # inside the Gradle build - and so this repo never has to name a version
+      # its dependency is free to change.
+      #
+      # Nothing else Rust runs here. Formatting, clippy, the feature-leak test
+      # and the native build are zenoh-flat-jni's own CI, on three platforms,
+      # for the very commit pinned above; re-running them from this repo only
+      # adds ways for the two toolchains to disagree.
       - name: Install Rust toolchain
-        run: |
-          rustup show
-          rustup component add rustfmt clippy
-
-      - name: Cargo Format
-        working-directory: zenoh-jni
-        run: cargo fmt --all --check
-
-      - name: Clippy Check without Cargo.lock
-        working-directory: zenoh-jni
-        run: |
-          rm Cargo.lock
-          cargo clippy --all-targets --all-features -- -D warnings
-          git restore Cargo.lock
-
-      - name: Check for feature leaks
-        working-directory: zenoh-jni
-        run: cargo test --no-default-features
-
-      - name: Build Zenoh-JNI
-        working-directory: zenoh-jni
-        run: cargo build
+        working-directory: zenoh-flat-jni
+        run: rustup show
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
       - name: Gradle Test
-        run: ./gradlew jvmTest --info
+        working-directory: zenoh-java
+        # CI builds against the sibling checkout above, so it opts into the
+        # composite build explicitly. A release does not: it resolves
+        # zenoh-flat-jni from Maven Central like any other consumer.
+        #
+        # No cargo step precedes this: the composite build's test task depends
+        # on zenoh-flat-jni's own native build, so Gradle drives cargo.
+        run: ./gradlew jvmTest --info -PuseLocalFlatJni=true
 
   markdown_lint:
     runs-on: ubuntu-latest
@@ -82,25 +93,14 @@ jobs:
       - name: Check whether all jobs pass
         run: echo '${{ toJson(needs) }}' | jq -e 'all(.result == "success")'
 
-  # Publish snapshot packages. These jobs will only be triggered when the CI is executed on main.
-  publish_jvm_snapshot_package:
-    name: Publish JVM snapshot package
+  # Publish snapshot packages. Only triggered when CI runs on main.
+  # One job, because both publications now come from a single Gradle
+  # invocation — see .github/workflows/publish.yml.
+  publish_snapshot_package:
+    name: Publish snapshot package
     if: contains(fromJSON('["refs/heads/main"]'), github.ref)
     needs: ci
-    uses: ./.github/workflows/publish-jvm.yml
-    permissions:
-      contents: read
-      packages: write
-    with:
-      snapshot: true
-      branch: ${{ github.ref_name }}
-    secrets: inherit
-
-  publish_android_snapshot_package:
-    name: Publish Android snapshot package
-    if: contains(fromJSON('["refs/heads/main"]'), github.ref)
-    needs: ci
-    uses: ./.github/workflows/publish-android.yml
+    uses: ./.github/workflows/publish.yml
     permissions:
       contents: read
       packages: write

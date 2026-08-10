@@ -7,6 +7,7 @@ import io.zenoh.query.*;
 import io.zenoh.sample.Sample;
 import io.zenoh.sample.SampleKind;
 import org.apache.commons.net.ntp.TimeStamp;
+import io.zenoh.time.Timestamp;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -23,16 +24,19 @@ import static org.junit.Assert.assertNotNull;
 public class GetTest {
 
     static final ZBytes payload = ZBytes.from("test");
-    static final TimeStamp timestamp = TimeStamp.getCurrentTime();
+    static final long timestampNtp64 = TimeStamp.getCurrentTime().ntpValue();
     static final SampleKind kind = SampleKind.PUT;
 
     private Session session;
     private Selector selector;
     private Queryable queryable;
+    // Needs the session's id, so it cannot be a static initializer.
+    private Timestamp timestamp;
 
     @Before
     public void setUp() throws ZError {
         session = Zenoh.open(Config.loadDefault());
+        timestamp = Timestamp.ofNtp64(timestampNtp64, session.info().zid());
         selector = Selector.tryFrom("example/testing/keyexpr");
         queryable = session.declareQueryable(selector.getKeyExpr(), query ->
                 {
