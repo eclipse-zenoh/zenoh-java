@@ -203,7 +203,7 @@ oversight, and not by someone leaving a flag set. The guarantee is structural
 rather than procedural.
 
 While developing, prefer not to involve a repository at all — see
-[How to build it](README.md#building-against-zenoh-flat-jni-source) in the README,
+[Where the native library comes from](README.md#where-the-native-library-comes-from) in the README,
 and [CI.md](CI.md) for the commit pin behind it.
 
 ## How the pipeline works
@@ -230,7 +230,7 @@ Portal, signed with the organization GPG key, exactly as in zenoh-flat-jni.
 
 A build can be pointed at zenoh-flat-jni's *source* through a Gradle composite
 build, which is what CI and local development do — see
-[How to build it](README.md#building-against-zenoh-flat-jni-source) in the README,
+[Where the native library comes from](README.md#where-the-native-library-comes-from) in the README,
 and [CI.md](CI.md) for the commit pin behind it.
 
 **A release must not.** With a composite build the published artifact would be
