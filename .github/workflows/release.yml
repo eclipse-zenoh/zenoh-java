@@ -85,7 +85,7 @@ jobs:
     secrets: inherit
 
   publish-github:
-    needs: [tag, publish-android, publish-jvm]
+    needs: [tag, publish]
     runs-on: macos-latest
     steps:
       - uses: eclipse-zenoh/ci/publish-crates-github@main
