@@ -1,12 +1,26 @@
 name: CI
 
 on:
+  # `release/*` because that is where a release is actually built from: the
+  # release workflow creates the branch through the shared
+  # eclipse-zenoh/ci/create-release-branch action, and without this CI never runs
+  # on it. The dry-run branches that same action produces are excluded - they are
+  # throwaway.
   push:
-    branches: ["**"]
+    branches: ["main", "release/*", "!release/dry-run/*"]
+  # Every branch, not just main: a backport pull request targets a release
+  # branch, and it needs CI as much as any other. Not `push` on every branch as
+  # well - with this on, that runs the whole matrix twice per branch.
   pull_request:
     branches: ["**"]
-  schedule:
-    - cron: "0 6 * * 1-5"
+  # No schedule. The obvious argument for a nightly is that it would catch
+  # zenoh-flat-jni moving under us, and it would not: Cargo.lock pins that
+  # dependency to a commit, and Cargo re-resolves a git dependency only on
+  # `cargo update`, so a timed build rebuilds exactly what the last merge built.
+  # Upstream drift arrives here as a lockfile-sync pull request, which runs CI
+  # like anything else. What is left is an expired Central token or GPG key,
+  # caught only in a week with no merges at all - a thin canary against a daily
+  # publication. workflow_dispatch runs the path on demand.
   workflow_dispatch:
 
 env:
