@@ -101,8 +101,8 @@ Rehearsals are not constrained this way — see
 
 ## The snapshot publication
 
-Between releases, every merge to `main` and the weekday nightly upload a
-mutable pre-release build to the [Central snapshot
+Between releases, every merge to `main` uploads a mutable pre-release build to
+the [Central snapshot
 repository](https://central.sonatype.com/repository/maven-snapshots/). Its
 purpose is to keep the upload machinery exercised — signing keys, credentials,
 what Central accepts — and to give people a way to try the current `main`.
@@ -276,8 +276,8 @@ Then run **Release** from the Actions tab with:
 **`zenoh-flat-jni-version` decides what the rehearsal builds against.** Left
 empty it falls back to `zenohFlatJniVersion` in `gradle.properties` —
 `1.9.0-java-SNAPSHOT`, our own copy, which `main` republishes on every merge. A
-rehearsal against that is a real rehearsal, and it is also what the nightly
-scheduled run of `release.yml` does, passing no inputs at all.
+rehearsal against that is a real rehearsal — leaving the field empty is now a
+sound default rather than the guaranteed compile failure it used to be.
 
 What that fallback cannot do is reach a **live** release:
 `ci/scripts/bump-and-tag.bash` refuses a `-SNAPSHOT` binding, and it checks the

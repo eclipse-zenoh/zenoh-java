@@ -114,8 +114,8 @@ jobs:
       - name: Check whether all jobs pass
         run: echo '${{ toJson(needs) }}' | jq -e 'all(.result == "success")'
 
-  # Everything below publishes, and only from main: every merge there plus the
-  # weekday nightly above. Branches and pull requests publish nothing.
+  # Everything below publishes, and only from main, on every merge there.
+  # Branches and pull requests publish nothing.
   #
   # The snapshot must be usable by someone who is not us, which means its
   # zenoh-flat-jni dependency has to exist — and be the commit this SDK compiled
