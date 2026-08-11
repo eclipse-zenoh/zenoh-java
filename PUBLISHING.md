@@ -208,8 +208,11 @@ Could not find org.eclipse.zenoh:zenoh-flat-jni:1.9.0
 
 That is the conditional repository below doing its job, not a broken build: a
 non-snapshot version never gets the snapshot repository on its resolution path.
-The same applies to the nightly scheduled run of `release.yml`, which passes no
-inputs and so fails this way until zenoh-flat-jni is released for real.
+
+`release.yml` used to run on a weekday schedule as well, and a scheduled run
+passes no inputs — so it failed exactly this way every night. The schedule is
+gone: the workflow is `workflow_dispatch` only, and a rehearsal is something you
+start on purpose, with the version filled in.
 
 The Central snapshot repository is declared **conditionally** in
 `build.gradle.kts`, and this is the part worth understanding:
