@@ -34,11 +34,12 @@ readonly qualifier=${FLAT_JNI_QUALIFIER:-java}
 #
 # Each with the extension of its binary, because a matching stamp is not on its
 # own proof of a finished publication. The POM goes up before the Gradle module
-# metadata and before the jar or aar, so a run that died in between would leave
-# three readable stamps, no module metadata for Gradle to resolve a variant
-# against, and a decision to skip rebuilding — forever, since the next run reads
-# the same three stamps. Nothing downstream would catch it either: the consumer
-# smoke test runs on Linux, and the broken variant could be the Android one.
+# metadata and before the jar or aar, so a publication that died in between —
+# whether it was the first or an overwrite — leaves a readable stamp with no
+# module metadata for Gradle to resolve a variant against, and a decision to skip
+# rebuilding. Forever, since the next run reads the same stamp. Nothing
+# downstream would catch it either: the consumer smoke test runs on Linux, and
+# the broken variant could be the Android one.
 readonly artifacts=(
     zenoh-flat-jni:jar
     zenoh-flat-jni-jvm:jar
@@ -51,16 +52,18 @@ pinned_commit() {
     grep -Eom1 'zenoh-flat-jni\.git[^#"]*#[0-9a-f]{40}' | grep -Eo '[0-9a-f]{40}$'
 }
 
-# The file name the newest timestamped build of a snapshot has, from that
-# version's maven-metadata.xml on stdin:
-#   <artifact>-<version without -SNAPSHOT>-<timestamp>-<buildNumber>.<ext>
-timestamped_name() { # <artifact> <version> <ext>
+# Which timestamped build a snapshot currently resolves to, from that version's
+# maven-metadata.xml on stdin:
+#   <version without -SNAPSHOT>-<timestamp>-<buildNumber>
+# It is also the middle of every file name in that build:
+#   <artifact>-<value>.<ext>
+snapshot_value() { # <version>
     local metadata timestamp build
     metadata=$(cat)
     timestamp=$(sed -n 's:.*<timestamp>\(.*\)</timestamp>.*:\1:p' <<<"$metadata" | head -1)
     build=$(sed -n 's:.*<buildNumber>\(.*\)</buildNumber>.*:\1:p' <<<"$metadata" | head -1)
     [[ -n $timestamp && -n $build ]] || return 1
-    printf '%s-%s-%s-%s.%s' "$1" "${2%-SNAPSHOT}" "$timestamp" "$build" "$3"
+    printf '%s-%s-%s' "${1%-SNAPSHOT}" "$timestamp" "$build"
 }
 
 # The commit a published POM on stdin was built from; empty when it has no stamp.
@@ -68,27 +71,36 @@ pom_commit() {
     sed -n 's:.*<zenoh\.flatJniCommit>\(.*\)</zenoh\.flatJniCommit>.*:\1:p' | head -1
 }
 
-# Whether the metadata on stdin advertises an unclassified artifact of each given
-# extension. Maven appends an entry as each file lands, so a publication that
-# stopped part-way lists fewer than a finished one. The anchor is what excludes
-# the sources and javadoc jars: the schema puts <classifier> before <extension>,
-# so only a main artifact starts its entry with the extension.
-advertises() { # <extension>…
-    local blocks ext
+# Whether the metadata on stdin says every one of the given extensions is at the
+# given build. Each <snapshotVersion> carries its own <value>, updated as that
+# file lands, so an overwrite that failed part-way leaves the POM at build N+1
+# while the module metadata and the binary are still at N — which is the case a
+# presence check cannot see, since all three entries exist either way and have
+# since the first publication.
+#
+# The anchor is what excludes the sources and javadoc jars: the schema puts
+# <classifier> before <extension>, so only a main artifact starts its entry with
+# the extension.
+all_at() { # <value> <extension>…
+    local blocks value ext
     blocks=$(tr -d '[:space:]' | sed 's:<snapshotVersion>:\n:g')
+    value=${1//./\\.}
+    shift
     for ext in "$@"; do
-        grep -q "^<extension>$ext</extension>" <<<"$blocks" || return 1
+        grep -q "^<extension>$ext</extension><value>$value</value>" <<<"$blocks" || return 1
     done
 }
 
 # The stamp of the published copy of one coordinate; empty if it is not there, or
-# not all of it is.
+# not all of it is at the same build.
 published_commit() { # <artifact> <version> <binary extension>
-    local base_url="$repository/$group_path/$1/$2" metadata name
+    local base_url="$repository/$group_path/$1/$2" metadata value
     metadata=$(curl -sf "$base_url/maven-metadata.xml") || return 0
-    advertises pom module "$3" <<<"$metadata" || return 0
-    name=$(timestamped_name "$1" "$2" pom <<<"$metadata") || return 0
-    { curl -sf "$base_url/$name" || true; } | pom_commit
+    value=$(snapshot_value "$2" <<<"$metadata") || return 0
+    all_at "$value" pom module "$3" <<<"$metadata" || return 0
+    # The POM is fetched by that name, so a metadata entry naming a file that
+    # never landed reads as no stamp — and rebuilds.
+    { curl -sf "$base_url/$1-$value.pom" || true; } | pom_commit
 }
 
 self_test() {
@@ -101,7 +113,7 @@ self_test() {
     got=$(pinned_commit <Cargo.lock)
     [[ $got =~ ^[0-9a-f]{40}$ ]] || { echo "pinned_commit(Cargo.lock): $got" >&2; exit 1; }
 
-    got=$(timestamped_name zenoh-flat-jni 1.9.0-java-SNAPSHOT pom <<'EOF'
+    got=$(snapshot_value 1.9.0-java-SNAPSHOT <<'EOF'
 <versioning>
     <snapshot>
       <timestamp>20260810.012355</timestamp>
@@ -110,11 +122,11 @@ self_test() {
 </versioning>
 EOF
     )
-    [[ $got == zenoh-flat-jni-1.9.0-java-20260810.012355-1.pom ]] || { echo "timestamped_name: $got" >&2; exit 1; }
+    [[ $got == 1.9.0-java-20260810.012355-1 ]] || { echo "snapshot_value: $got" >&2; exit 1; }
 
-    # A release-style metadata carries no <snapshot> block: no name to build.
-    if timestamped_name zenoh-flat-jni 1.9.0 pom <<<'<versioning><latest>1.9.0</latest></versioning>' >/dev/null; then
-        echo "timestamped_name accepted metadata with no snapshot block" >&2
+    # A release-style metadata carries no <snapshot> block: no build to name.
+    if snapshot_value 1.9.0 <<<'<versioning><latest>1.9.0</latest></versioning>' >/dev/null; then
+        echo "snapshot_value accepted metadata with no snapshot block" >&2
         exit 1
     fi
 
@@ -124,23 +136,34 @@ EOF
     got=$(pom_commit <<<'<project><version>1.9.0-java-SNAPSHOT</version></project>')
     [[ -z $got ]] || { echo "pom_commit on an unstamped POM: $got" >&2; exit 1; }
 
-    # A finished publication, then the two ways one can be unfinished: stopped
-    # after the POM, and carrying a sources jar but no main jar. The layout is
-    # what zenoh-flat-jni really publishes — checked against 1.9.0-rc8-SNAPSHOT.
+    # A finished publication of build -1, in the layout zenoh-flat-jni really
+    # produces — checked against the published 1.9.0-rc8-SNAPSHOT.
+    local n=1.9.0-java-20260810.012355-1
     local finished="
-      <snapshotVersion><extension>pom</extension></snapshotVersion>
-      <snapshotVersion><extension>module</extension></snapshotVersion>
-      <snapshotVersion><classifier>sources</classifier><extension>jar</extension></snapshotVersion>
-      <snapshotVersion><extension>jar</extension></snapshotVersion>"
-    advertises pom module jar <<<"$finished" || { echo "advertises: finished rejected" >&2; exit 1; }
-    if advertises pom module aar <<<"$finished"; then
-        echo "advertises: accepted a jar publication as an aar one" >&2; exit 1
+      <snapshotVersion><extension>pom</extension><value>$n</value></snapshotVersion>
+      <snapshotVersion><extension>module</extension><value>$n</value></snapshotVersion>
+      <snapshotVersion><classifier>sources</classifier><extension>jar</extension><value>$n</value></snapshotVersion>
+      <snapshotVersion><extension>jar</extension><value>$n</value></snapshotVersion>"
+    all_at "$n" pom module jar <<<"$finished" || { echo "all_at: finished rejected" >&2; exit 1; }
+    if all_at "$n" pom module aar <<<"$finished"; then
+        echo "all_at: accepted a jar publication as an aar one" >&2; exit 1
     fi
-    if advertises pom module jar <<<'<snapshotVersion><extension>pom</extension></snapshotVersion>'; then
-        echo "advertises: accepted a publication that stopped after the POM" >&2; exit 1
+    if all_at "$n" pom module jar <<<"<snapshotVersion><extension>pom</extension><value>$n</value></snapshotVersion>"; then
+        echo "all_at: accepted a publication that stopped after the POM" >&2; exit 1
     fi
-    if advertises jar <<<'<snapshotVersion><classifier>sources</classifier><extension>jar</extension></snapshotVersion>'; then
-        echo "advertises: took the sources jar for the main one" >&2; exit 1
+    if all_at "$n" jar <<<"<snapshotVersion><classifier>sources</classifier><extension>jar</extension><value>$n</value></snapshotVersion>"; then
+        echo "all_at: took the sources jar for the main one" >&2; exit 1
+    fi
+
+    # The case a presence check cannot see: an overwrite that replaced the POM
+    # and then failed, leaving the module metadata and the binary at the build
+    # before it. Every extension is still listed; only the values disagree.
+    local m=1.9.0-java-20260811.030000-2
+    if all_at "$m" pom module jar <<<"
+      <snapshotVersion><extension>pom</extension><value>$m</value></snapshotVersion>
+      <snapshotVersion><extension>module</extension><value>$n</value></snapshotVersion>
+      <snapshotVersion><extension>jar</extension><value>$n</value></snapshotVersion>"; then
+        echo "all_at: accepted a coordinate split across two builds" >&2; exit 1
     fi
 
     echo "flat-jni-copy.bash self-test OK"
