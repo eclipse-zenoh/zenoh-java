@@ -130,6 +130,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       commit: ${{ steps.pin.outputs.commit }}
+      base: ${{ steps.pin.outputs.base }}
       qualifier: ${{ steps.pin.outputs.qualifier }}
       rebuild: ${{ steps.pin.outputs.rebuild }}
     steps:
@@ -162,6 +163,10 @@ jobs:
       source-repository: eclipse-zenoh/zenoh-flat-jni
       branch: ${{ needs.flat_jni_pin.outputs.commit }}
       version-qualifier: ${{ needs.flat_jni_pin.outputs.qualifier }}
+      # It derives the coordinate from its own version.txt; this is what we
+      # expect that to be, so a pin that moved past a version bump there fails
+      # before publishing something we cannot resolve.
+      expected-base-version: ${{ needs.flat_jni_pin.outputs.base }}
     secrets: inherit
 
   # Then the SDK snapshot, naming the copy above. Reached both ways: the copy

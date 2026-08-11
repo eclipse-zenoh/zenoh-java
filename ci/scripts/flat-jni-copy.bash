@@ -14,8 +14,8 @@
 # download. Anything missing — no metadata, no POM, no stamp — reads as "not
 # ours" and rebuilds, which is the safe direction.
 #
-# Writes `commit`, `version`, `qualifier` and `rebuild` to $GITHUB_OUTPUT when
-# running under Actions, and prints them either way. `--self-test` runs the
+# Writes `commit`, `version`, `base`, `qualifier` and `rebuild` to $GITHUB_OUTPUT
+# when running under Actions, and prints them either way. `--self-test` runs the
 # parsers against fixtures and exits.
 #
 set -euo pipefail
@@ -101,13 +101,17 @@ EOF
 }
 
 main() {
-    local version commit rebuild=false stamp
+    local version base commit rebuild=false stamp
     version=$(sed -n 's/^zenohFlatJniVersion=//p' gradle.properties | tr -d '[:space:]')
     [[ $version == *-$qualifier-SNAPSHOT ]] || {
         echo "::error::zenohFlatJniVersion=$version is not a -$qualifier-SNAPSHOT copy;" \
              "only that coordinate is ours to publish" >&2
         exit 1
     }
+    # zenoh-flat-jni derives the coordinate from its own version.txt, so it needs
+    # to be told what we expect: a pin that moved past a version bump there would
+    # otherwise publish 1.10.0-java-SNAPSHOT while we still resolve this.
+    base=${version%-$qualifier-SNAPSHOT}
     commit=$(pinned_commit <Cargo.lock)
 
     for artifact in "${artifacts[@]}"; do
@@ -120,11 +124,12 @@ main() {
         fi
     done
 
-    echo "commit=$commit rebuild=$rebuild"
+    echo "commit=$commit base=$base rebuild=$rebuild"
     if [[ -n ${GITHUB_OUTPUT:-} ]]; then
         {
             echo "commit=$commit"
             echo "version=$version"
+            echo "base=$base"
             echo "qualifier=$qualifier"
             echo "rebuild=$rebuild"
         } >>"$GITHUB_OUTPUT"
