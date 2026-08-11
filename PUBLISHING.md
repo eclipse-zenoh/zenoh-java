@@ -190,7 +190,7 @@ builds and publishes.
 | --- | --- |
 | `live-run` | **unchecked** |
 | `version` | a fresh provisional number, not one already used |
-| `zenoh-flat-jni-version` | a version that exists — today a snapshot, see [below](#rehearsing-the-release-workflow-with-a-snapshot). Empty falls back to `gradle.properties`, which names an unreleased version and fails |
+| `zenoh-flat-jni-version` | a version that exists — today a snapshot, see [below](#rehearsing-the-release-workflow-with-a-snapshot). Empty falls back to `gradle.properties`, which names our own `1.9.0-java-SNAPSHOT` copy: fine for a rehearsal, refused for a live run |
 | `maven_publish` | checked — or uncheck for the very first run |
 
 `live-run` and `maven_publish` behave exactly as in zenoh-flat-jni: unchecking
@@ -238,12 +238,15 @@ release is blocked.
 | CI, snapshot publication | `zenoh-flat-jni:<version>-SNAPSHOT` | signing, credentials, a real upload |
 | live release | `zenoh-flat-jni:<version>` on Central | **blocked until that exists** |
 
-A snapshot may depend on a snapshot, because nothing published is permanent. So
-the answer is to consume the snapshot that zenoh-flat-jni's *own* rehearsal
-published — a rehearsal there with `maven_publish` enabled uploads
-`zenoh-flat-jni:<version>-SNAPSHOT` to the Central snapshot repository.
+A snapshot may depend on a snapshot, because nothing published is permanent —
+which is what [The snapshot publication](#the-snapshot-publication) above rests
+on. `gradle.properties` names `1.9.0-java-SNAPSHOT`, our own copy, and every
+merge to `main` republishes it from the pinned commit. So a rehearsal needs
+nothing set: the default already resolves.
 
-Nothing needs editing. Name the version on the command line:
+Name another one on the command line to build against a different
+zenoh-flat-jni — the snapshot it publishes itself, or one from a rehearsal
+there:
 
 ```bash
 ./gradlew build -PzenohFlatJniVersion=1.9.0-rc8-SNAPSHOT
@@ -270,21 +273,16 @@ Then run **Release** from the Actions tab with:
 | `maven_publish` | checked to rehearse the upload too, unchecked to stop at assembly |
 | `version`, `branch` | leave empty unless you are rehearsing a specific one |
 
-**`zenoh-flat-jni-version` is the field that matters.** Left empty, the build
-falls back to `zenohFlatJniVersion` in `gradle.properties` — currently `1.9.0`,
-which is not on Maven Central, and the run dies while compiling:
+**`zenoh-flat-jni-version` decides what the rehearsal builds against.** Left
+empty it falls back to `zenohFlatJniVersion` in `gradle.properties` —
+`1.9.0-java-SNAPSHOT`, our own copy, which `main` republishes on every merge. A
+rehearsal against that is a real rehearsal, and it is also what the nightly
+scheduled run of `release.yml` does, passing no inputs at all.
 
-```text
-Could not find org.eclipse.zenoh:zenoh-flat-jni:1.9.0
-```
-
-That is the conditional repository below doing its job, not a broken build: a
-non-snapshot version never gets the snapshot repository on its resolution path.
-
-`release.yml` used to run on a weekday schedule as well, and a scheduled run
-passes no inputs — so it failed exactly this way every night. The schedule is
-gone: the workflow is `workflow_dispatch` only, and a rehearsal is something you
-start on purpose, with the version filled in.
+What that fallback cannot do is reach a **live** release:
+`ci/scripts/bump-and-tag.bash` refuses a `-SNAPSHOT` binding, and it checks the
+value `gradle.properties` ends up with rather than the input, precisely because
+an omitted input now inherits one.
 
 The Central snapshot repository is declared **conditionally** in
 `build.gradle.kts`, and this is the part worth understanding:
@@ -373,9 +371,11 @@ repository.
 - **The rewritten release path has never run.** The workflows were repaired for
   a repository that no longer contains Rust; no rehearsal has yet exercised
   them.
-- **No consumer test.** Unlike zenoh-flat-jni, nothing resolves the published
-  `zenoh-java` artifact from a repository and runs it before release. The tests
-  here run against the build's own output.
+- **No consumer test before a *release*.** Every snapshot publication is followed
+  by `ci/consumer-smoke-test`, which resolves the published artifact from the
+  snapshot repository and runs it — but a release goes to a staging repository
+  and is not resolvable at that point, so nothing consumes a release candidate
+  the way zenoh-flat-jni's own dry-run repository lets it consume one.
 - **The Android artifact has no runtime test**, and its `ndkVersion` and NDK
   setup step are retained although no native code is built here — unverified
   whether the Android Gradle Plugin still needs them.

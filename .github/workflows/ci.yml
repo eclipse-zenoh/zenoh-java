@@ -184,5 +184,11 @@ jobs:
       packages: write
     with:
       snapshot: true
-      branch: ${{ github.ref_name }}
+      # The commit that triggered this run, not `main`. Concurrency queues a
+      # newer run; it does not hold the branch still. Passing the branch name,
+      # this job would check out whatever `main` had become while the JNI copy
+      # was being built for half an hour — publishing SDK source B against the
+      # copy built from A's pin, which is the mismatch the whole job exists to
+      # prevent.
+      branch: ${{ github.sha }}
     secrets: inherit

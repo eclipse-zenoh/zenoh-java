@@ -31,7 +31,19 @@ readonly qualifier=${FLAT_JNI_QUALIFIER:-java}
 # All three coordinates, not just the root: one Gradle invocation uploads them,
 # but a partial failure leaves them at different builds, and it is the platform
 # ones that carry the native libraries.
-readonly artifacts=(zenoh-flat-jni zenoh-flat-jni-jvm zenoh-flat-jni-android)
+#
+# Each with the extension of its binary, because a matching stamp is not on its
+# own proof of a finished publication. The POM goes up before the Gradle module
+# metadata and before the jar or aar, so a run that died in between would leave
+# three readable stamps, no module metadata for Gradle to resolve a variant
+# against, and a decision to skip rebuilding — forever, since the next run reads
+# the same three stamps. Nothing downstream would catch it either: the consumer
+# smoke test runs on Linux, and the broken variant could be the Android one.
+readonly artifacts=(
+    zenoh-flat-jni:jar
+    zenoh-flat-jni-jvm:jar
+    zenoh-flat-jni-android:aar
+)
 
 # The commit Cargo.lock pins for the git dependency on zenoh-flat-jni. Reads
 # stdin so it can be tested without a lockfile.
@@ -56,10 +68,25 @@ pom_commit() {
     sed -n 's:.*<zenoh\.flatJniCommit>\(.*\)</zenoh\.flatJniCommit>.*:\1:p' | head -1
 }
 
-# The stamp of the published copy of one coordinate; empty if it is not there.
-published_commit() { # <artifact> <version>
+# Whether the metadata on stdin advertises an unclassified artifact of each given
+# extension. Maven appends an entry as each file lands, so a publication that
+# stopped part-way lists fewer than a finished one. The anchor is what excludes
+# the sources and javadoc jars: the schema puts <classifier> before <extension>,
+# so only a main artifact starts its entry with the extension.
+advertises() { # <extension>…
+    local blocks ext
+    blocks=$(tr -d '[:space:]' | sed 's:<snapshotVersion>:\n:g')
+    for ext in "$@"; do
+        grep -q "^<extension>$ext</extension>" <<<"$blocks" || return 1
+    done
+}
+
+# The stamp of the published copy of one coordinate; empty if it is not there, or
+# not all of it is.
+published_commit() { # <artifact> <version> <binary extension>
     local base_url="$repository/$group_path/$1/$2" metadata name
     metadata=$(curl -sf "$base_url/maven-metadata.xml") || return 0
+    advertises pom module "$3" <<<"$metadata" || return 0
     name=$(timestamped_name "$1" "$2" pom <<<"$metadata") || return 0
     { curl -sf "$base_url/$name" || true; } | pom_commit
 }
@@ -97,11 +124,30 @@ EOF
     got=$(pom_commit <<<'<project><version>1.9.0-java-SNAPSHOT</version></project>')
     [[ -z $got ]] || { echo "pom_commit on an unstamped POM: $got" >&2; exit 1; }
 
+    # A finished publication, then the two ways one can be unfinished: stopped
+    # after the POM, and carrying a sources jar but no main jar. The layout is
+    # what zenoh-flat-jni really publishes — checked against 1.9.0-rc8-SNAPSHOT.
+    local finished="
+      <snapshotVersion><extension>pom</extension></snapshotVersion>
+      <snapshotVersion><extension>module</extension></snapshotVersion>
+      <snapshotVersion><classifier>sources</classifier><extension>jar</extension></snapshotVersion>
+      <snapshotVersion><extension>jar</extension></snapshotVersion>"
+    advertises pom module jar <<<"$finished" || { echo "advertises: finished rejected" >&2; exit 1; }
+    if advertises pom module aar <<<"$finished"; then
+        echo "advertises: accepted a jar publication as an aar one" >&2; exit 1
+    fi
+    if advertises pom module jar <<<'<snapshotVersion><extension>pom</extension></snapshotVersion>'; then
+        echo "advertises: accepted a publication that stopped after the POM" >&2; exit 1
+    fi
+    if advertises jar <<<'<snapshotVersion><classifier>sources</classifier><extension>jar</extension></snapshotVersion>'; then
+        echo "advertises: took the sources jar for the main one" >&2; exit 1
+    fi
+
     echo "flat-jni-copy.bash self-test OK"
 }
 
 main() {
-    local version base commit rebuild=false stamp
+    local version base commit rebuild=false entry artifact stamp
     version=$(sed -n 's/^zenohFlatJniVersion=//p' gradle.properties | tr -d '[:space:]')
     [[ $version == *-$qualifier-SNAPSHOT ]] || {
         echo "::error::zenohFlatJniVersion=$version is not a -$qualifier-SNAPSHOT copy;" \
@@ -114,8 +160,9 @@ main() {
     base=${version%-$qualifier-SNAPSHOT}
     commit=$(pinned_commit <Cargo.lock)
 
-    for artifact in "${artifacts[@]}"; do
-        stamp=$(published_commit "$artifact" "$version")
+    for entry in "${artifacts[@]}"; do
+        artifact=${entry%:*}
+        stamp=$(published_commit "$artifact" "$version" "${entry#*:}")
         if [[ $stamp == "$commit" ]]; then
             echo "$artifact:$version is already $commit"
         else
