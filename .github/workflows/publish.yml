@@ -27,6 +27,10 @@ on:
 # org.eclipse.zenoh:zenoh-flat-jni artifact this SDK depends on, already
 # cross-compiled and verified by that repository's release. This workflow only
 # compiles Kotlin and publishes.
+#
+# Third-party actions are pinned to a commit, with the version in a trailing
+# comment: a tag is mutable, and a moved tag runs code nobody reviewed. Actions
+# under eclipse-zenoh/ are ours and stay on a branch.
 jobs:
   publish_package:
     name: Publish to Maven Central
@@ -36,17 +40,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.branch }}
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
           java-version: 11
 
+      # v5, not v6: v6 moved caching into a proprietary component under Gradle's
+      # own terms of use, which is not ours to accept for an Eclipse project.
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
 
       # Assembles the artifact and generates its POM without uploading, so a
       # `maven_publish: false` rehearsal actually proves something. Only the
@@ -82,7 +88,7 @@ jobs:
 
       - name: "Upload gradle problems report"
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: problem-reports-${{ github.job }}.zip
           path: ${{ github.workspace }}/build/reports/problems/

@@ -57,8 +57,12 @@ jobs:
           branch: ${{ inputs.branch }}
           github-token: ${{ secrets.BOT_TOKEN_WORKFLOW }}
 
+      # Third-party actions are pinned to a commit, with the version in a
+      # trailing comment: a tag is mutable, and a moved tag runs code nobody
+      # reviewed. The eclipse-zenoh/ci actions above and below are ours, and stay
+      # on a branch.
       - name: Checkout this repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.create-release-branch.outputs.branch }}
 

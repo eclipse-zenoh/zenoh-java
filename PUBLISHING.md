@@ -258,6 +258,13 @@ in the README.
 Publishing goes through `io.github.gradle-nexus.publish-plugin` to the Central
 Portal, signed with the organization GPG key, exactly as in zenoh-flat-jni.
 
+Every third-party action these workflows use is pinned to a **commit SHA**, with
+the version in a trailing comment — a tag is mutable, and a moved tag would run
+code nobody reviewed on a job that holds the signing key and the Central token.
+The `eclipse-zenoh/ci` actions are ours and stay on `@main` deliberately: the
+tagging and GitHub-release steps track whatever that branch holds at run time.
+Bumping a pin is an ordinary pull request; read the diff of the action first.
+
 ## Building against zenoh-flat-jni source
 
 A build can be pointed at zenoh-flat-jni's *source* through a Gradle composite

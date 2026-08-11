@@ -12,6 +12,9 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+# Third-party actions are pinned to a commit, with the version in a trailing
+# comment: a tag is mutable, and a moved tag runs code nobody reviewed. Actions
+# under eclipse-zenoh/ are ours and stay on a branch.
 jobs:
   build:
     name: Build on ${{ matrix.os }}
@@ -23,11 +26,11 @@ jobs:
 
     steps:
       - name: Check out zenoh-java
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: zenoh-java
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
           java-version: 11
@@ -44,8 +47,10 @@ jobs:
         working-directory: zenoh-java
         run: rustup show
 
+      # v5, not v6: v6 moved caching into a proprietary component under Gradle's
+      # own terms of use, which is not ours to accept for an Eclipse project.
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
 
       - name: Gradle Test
         working-directory: zenoh-java
@@ -63,8 +68,11 @@ jobs:
   markdown_lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: DavidAnson/markdownlint-cli2-action@v18
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Pinned where it stands. v18 runs on node20, which is not retired, and a
+      # newer major changes markdownlint's rules - an upgrade to make on its own,
+      # not inside a pinning change.
+      - uses: DavidAnson/markdownlint-cli2-action@eb5ca3ab411449c66620fe7f1b3c9e10547144b0 # v18
         with:
           config: '.markdownlint.yaml'
           globs: '**/README.md'
