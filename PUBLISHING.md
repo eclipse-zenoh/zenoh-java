@@ -16,6 +16,8 @@ which covers them once for both repositories.
 
 - [What this repository publishes](#what-this-repository-publishes)
 - [Relationship to zenoh-flat-jni](#relationship-to-zenoh-flat-jni)
+- [The snapshot publication](#the-snapshot-publication)
+  - [What it does not guarantee](#what-it-does-not-guarantee)
 - [Running a release](#running-a-release)
   - [Before the first run](#before-the-first-run)
   - [Rehearsal (dry run)](#rehearsal-dry-run)
@@ -89,11 +91,81 @@ Central, because a release must not depend on a snapshot:
 - snapshots are mutable and are eventually removed, so even where it resolved it
   would not stay reproducible.
 
-`ci/scripts/bump-and-tag.bash` refuses a `-SNAPSHOT` value outright rather than
-letting that reach a published POM.
+`ci/scripts/bump-and-tag.bash` refuses to let that reach a published POM. It
+checks the value `gradle.properties` ends up with, not the workflow input:
+between releases that file names a snapshot, so *omitting* the input is the way
+a release would reach one.
 
 Rehearsals are not constrained this way — see
 [Rehearsing before zenoh-flat-jni is released](#rehearsing-before-zenoh-flat-jni-is-released).
+
+## The snapshot publication
+
+Between releases, every merge to `main` and the weekday nightly upload a
+mutable pre-release build to the [Central snapshot
+repository](https://central.sonatype.com/repository/maven-snapshots/). Its
+purpose is to keep the upload machinery exercised — signing keys, credentials,
+what Central accepts — and to give people a way to try the current `main`.
+
+It publishes **five** coordinates, not two:
+
+```text
+org.eclipse.zenoh:zenoh-java:<version>-SNAPSHOT
+org.eclipse.zenoh:zenoh-java-android:<version>-SNAPSHOT
+org.eclipse.zenoh:zenoh-flat-jni:1.9.0-java-SNAPSHOT          (+ -jvm, -android)
+```
+
+The last three are **our own copy** of zenoh-flat-jni, built from the commit
+`Cargo.lock` pins. Publishing what we depend on is what makes the snapshot both
+self-sufficient and coherent:
+
+- **self-sufficient** — if zenoh-flat-jni's CI were switched off entirely, this
+  publication still works. It uses that repository's *source at a commit we
+  choose*, never an artifact its CI produced.
+- **coherent** — the dependency our POM names is the code we compiled against.
+  Pointing instead at zenoh-flat-jni's own `1.9.0-SNAPSHOT` would name the tip
+  of *its* `main` while we compiled against our pin; JNI being a binary
+  contract, that mismatch surfaces as `UnsatisfiedLinkError` at runtime rather
+  than as a build failure.
+
+The `-java` qualifier keeps our copy from overwriting the one zenoh-flat-jni
+publishes itself, or zenoh-kotlin's — the three can legitimately pin different
+commits at the same moment. The names are fixed rather than derived from a
+commit, so each is overwritten in place and storage does not grow with the
+number of builds. (Central still stores snapshots as timestamped builds and
+cleans them after 90 days, so it is the consumer-facing *name* that is constant,
+not the bytes behind it.)
+
+Rebuilding that copy means cross-compiling ten targets, on the order of half an
+hour, and the pin moves roughly once a day — so it is rebuilt only when it has
+to be. Every POM zenoh-flat-jni publishes carries the commit it was built from:
+
+```console
+$ curl -s .../1.9.0-java-SNAPSHOT/maven-metadata.xml           # ~2.9 kB
+$ curl -s .../zenoh-flat-jni-1.9.0-java-<timestamp>-<n>.pom    # ~1.8 kB
+<zenoh.flatJniCommit>e75529ce…</zenoh.flatJniCommit>
+```
+
+`ci/scripts/flat-jni-copy.bash` reads that stamp from all three coordinates and
+compares it with the pin; anything missing or different means rebuild. Run it
+locally to see the decision, or `--self-test` to check its parsers.
+
+### What it does not guarantee
+
+The two uploads are separate Gradle invocations and a snapshot repository has no
+staging-and-flip, so nothing makes the pair atomic. `main`'s CI runs are
+serialized rather than cancelled — cancelling mid-publication is what splits
+them — but a failure during the second upload still leaves a split state until
+the next successful run. That is accepted for a mutable pre-release artifact;
+strict coherence would need the SDK to name an immutable, timestamped snapshot,
+which conflicts with the fixed names above.
+
+Every publication is followed by `ci/consumer-smoke-test`, a separate Gradle
+build with no connection to this one, which resolves the published
+`zenoh-java:<version>-SNAPSHOT` from the snapshot repository with
+`--refresh-dependencies` and runs a key-expression round trip through JNI. That
+is the check that the whole chain — POM, transitive zenoh-flat-jni, native
+library — works for someone who is not us.
 
 ## Running a release
 

@@ -76,12 +76,13 @@ subprojects {
     repositories {
         google()
         mavenCentral()
-        // A rehearsal has to build against a zenoh-flat-jni that is not released
-        // yet; its own rehearsal publishes <version>-SNAPSHOT here. This
-        // repository enters the resolution path *only* when a snapshot version
-        // was explicitly asked for, and even then only for that one module — so
-        // a release, whose version never ends in -SNAPSHOT, cannot resolve a
-        // mutable artifact by accident.
+        // Between releases this SDK builds against a snapshot: our own copy of
+        // zenoh-flat-jni, `1.9.0-java-SNAPSHOT`, published by the same job that
+        // publishes this SDK's snapshot (see CI.md). A rehearsal can name
+        // another one. This repository enters the resolution path *only* when a
+        // snapshot version was asked for, and even then only for that one
+        // module — so a release, whose version never ends in -SNAPSHOT, cannot
+        // resolve a mutable artifact by accident.
         if (zenohFlatJniVersion.endsWith("-SNAPSHOT")) {
             maven {
                 name = "centralSnapshots"
