@@ -134,7 +134,7 @@ jobs:
       qualifier: ${{ steps.pin.outputs.qualifier }}
       rebuild: ${{ steps.pin.outputs.rebuild }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: pin
         run: bash ci/scripts/flat-jni-copy.bash
 
