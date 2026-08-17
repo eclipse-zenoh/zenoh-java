@@ -117,7 +117,7 @@ var pathtoroot = "../../../";
 public final class <span class="typeNameLabel"><a href=Encoding.html>Encoding</a></span>
 
                     </pre>
-                    <div class="block"><p>Default encoding values used by Zenoh.</p><p>An encoding has a similar role to Content-type in HTTP: it indicates, when present, how data should be interpreted by the application.</p><p>Please note the Zenoh protocol does not impose any encoding value, nor it operates on it. It can be seen as some optional metadata that is carried over by Zenoh in such a way the application may perform different operations depending on the encoding value.</p><p>A set of associated constants are provided to cover the most common encodings for user convenience. This is particularly useful in helping Zenoh to perform additional network optimizations.</p></div>
+                    <div class="block"><p>Default encoding values used by Zenoh.</p><p>An encoding has a similar role to Content-type in HTTP: it indicates, when present, how data should be interpreted by the application.</p><p>Please note the Zenoh protocol does not impose any encoding value, nor it operates on it. It can be seen as some optional metadata that is carried over by Zenoh in such a way the application may perform different operations depending on the encoding value.</p><p>A set of associated constants are provided to cover the most common encodings for user convenience.</p><p>An encoding is its decomposed pair <code>(id, schema)</code> — Zenoh's own representation. This class is a plain immutable value; all conversion logic (the id↔name table and Zenoh's parse/render rules) lives in the shared bindings tier (EncodingCodec), verified against the native implementation by <code>EncodingCorrespondenceTest</code>. Nothing to close: identity, equality and rendering never touch the native side.</p><p>Sends are shaped to MINIMIZE JNI CROSSINGS. The predefined constants stay value-only: a send carries just their id inside the send call itself — no native handle ever exists for them. An encoding that already owns a native handle sends it as a bare <code>jlong</code> instead (the native side borrows and clones it, so the handle is reusable forever). Handles are born ONLY at construction of a custom (schema-carrying) encoding — construction is the one crossing. Received encodings (sample/query/reply) are always value-only <code>(id, schema)</code>: delivering a handle with each message measurably cost more than the schema re-decode it saved when one was re-sent, so a re-sent received encoding crosses through the <code>(id, schema)</code> value arm instead. Handle release is GC-managed (the JNI <code>Encoding</code> class is <code>gc_managed</code> — a shared Cleaner frees the native box once the handle is unreachable) — the value stays non-closeable either way.</p></div>
 
                     <dl>
 
@@ -271,7 +271,7 @@ public final class <span class="typeNameLabel"><a href=Encoding.html>Encoding</a
                                             </td>
                                             <th class="colSecond" scope="row"><code><a href=Encoding.html#toString()>toString</a>() </code>
                                             </th>
-                                            <td class="colLast"></td>
+                                            <td class="colLast">Canonical textual form.</td>
                                         </tr>
                                         
                                         <tr id="i2" class="altColor">
@@ -343,7 +343,7 @@ public final class <span class="typeNameLabel"><a href=Encoding.html>Encoding</a
                                     <li class="blockList">
                                         <h4>withSchema</h4>
                                         <pre class="methodSignature"> final <a href=Encoding.html>Encoding</a> <a href=Encoding.html#withSchema(java.lang.String)>withSchema</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> schema)</pre>
-                                        <div class="block"><p>Set a schema to this encoding. Zenoh does not define what a schema is and its semantics is left to the implementer. E.g. a common schema for <code>text/plain</code> encoding is <code>utf-8</code>.</p></div>
+                                        <div class="block"><p>Set a schema to this encoding. Zenoh does not define what a schema is and its semantics is left to the implementer. E.g. a common schema for <code>text/plain</code> encoding is <code>utf-8</code>.</p><p>The result is a custom encoding, so its native handle is created here — construction is the one crossing, every send after is a bare <code>jlong</code>.</p></div>
 
                                         <dl>
 
@@ -366,7 +366,7 @@ public final class <span class="typeNameLabel"><a href=Encoding.html>Encoding</a
                                     <li class="blockList">
                                         <h4>toString</h4>
                                         <pre class="methodSignature"> <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> <a href=Encoding.html#toString()>toString</a>()</pre>
-                                        <div class="block"></div>
+                                        <div class="block"><p>Canonical textual form.</p></div>
 
                                         <dl>
 

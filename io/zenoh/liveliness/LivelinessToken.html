@@ -125,7 +125,7 @@ var pathtoroot = "../../../";
 public final class <span class="typeNameLabel"><a href=LivelinessToken.html>LivelinessToken</a></span>
  implements <a href=../session/SessionDeclaration.html>SessionDeclaration</a>, <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/AutoCloseable.html>AutoCloseable</a>
                     </pre>
-                    <div class="block"><p>A token whose liveliness is tied to the Zenoh <a href=../Session.html>io.zenoh.Session</a>.</p><p>A declared liveliness token will be seen as alive by any other Zenoh application in the system that monitors it while the liveliness token is not undeclared or dropped, while the Zenoh application that declared it is alive (didn't stop or crashed) and while the Zenoh application that declared the token has Zenoh connectivity with the Zenoh application that monitors it.</p><p>Liveliness tokens are automatically undeclared when dropped.</p></div>
+                    <div class="block"><p>A token whose liveliness is tied to the Zenoh <a href=../Session.html>io.zenoh.Session</a>.</p><p>A declared liveliness token will be seen as alive by any other Zenoh application in the system that monitors it while the liveliness token is not undeclared or dropped, while the Zenoh application that declared it is alive (didn't stop or crashed) and while the Zenoh application that declared the token has Zenoh connectivity with the Zenoh application that monitors it.</p><p>A token whose last reference is dropped is undeclared by the garbage-collection backstop (non-deterministic — call <a href=LivelinessToken.html#undeclare()>undeclare</a> or <a href=LivelinessToken.html#close()>close</a> to withdraw the liveliness promptly).</p></div>
 
                     <dl>
 

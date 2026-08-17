@@ -272,7 +272,7 @@ public class <span class="typeNameLabel"><a href=Parameters.Companion.html>Param
                                             </td>
                                             <th class="colSecond" scope="row"><code><a href=Parameters.Companion.html#from(java.lang.String)>from</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> params) </code>
                                             </th>
-                                            <td class="colLast">Attempts to create a <a href=Parameters.html>Parameters</a> from a string.</td>
+                                            <td class="colLast">Creates a <a href=Parameters.html>Parameters</a> from a string in the <code>a=b;c=d|e;f=g</code> format.</td>
                                         </tr>
                                         
                                         </tbody>
@@ -374,7 +374,7 @@ public class <span class="typeNameLabel"><a href=Parameters.Companion.html>Param
                                     <li class="blockList">
                                         <h4>from</h4>
                                         <pre class="methodSignature"> final <a href=Parameters.html>Parameters</a> <a href=Parameters.Companion.html#from(java.lang.String)>from</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> params)</pre>
-                                        <div class="block"><p>Attempts to create a <a href=Parameters.html>Parameters</a> from a string.</p><p>When in string form, the <code>parameters</code> should be encoded like the query section of a URL:</p><ul><li><p>parameters are separated by <code>;</code>,</p></li><li><p>the parameter name and value are separated by the first <code>=</code>,</p></li><li><p>in the absence of <code>=</code>, the parameter value is considered to be the empty string,</p></li><li><p>both name and value should use percent-encoding to escape characters,</p></li><li><p>defining a value for the same parameter name twice is considered undefined behavior and an     error result is returned.</p></li></ul></div>
+                                        <div class="block"><p>Creates a <a href=Parameters.html>Parameters</a> from a string in the <code>a=b;c=d|e;f=g</code> format.</p><p>Construction is infallible — any string is accepted, exactly as in the Rust layer.</p></div>
 
                                         <dl>
 

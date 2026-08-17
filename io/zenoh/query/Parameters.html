@@ -120,7 +120,7 @@ var pathtoroot = "../../../";
 public final class <span class="typeNameLabel"><a href=Parameters.html>Parameters</a></span>
  implements <a href=IntoParameters.html>IntoParameters</a>
                     </pre>
-                    <div class="block"><p>Parameters of the <a href=Selector.html>Selector</a>.</p><p>When in string form, the <code>parameters</code> should be encoded like the query section of a URL:</p><ul><li><p>parameters are separated by <code>;</code>,</p></li><li><p>the parameter name and value are separated by the first <code>=</code>,</p></li><li><p>in the absence of <code>=</code>, the parameter value is considered to be the empty string,</p></li><li><p>both name and value should use percent-encoding to escape characters,</p></li><li><p>defining a value for the same parameter name twice is considered undefined behavior and an     error result is returned.</p></li></ul></div>
+                    <div class="block"><p>Parameters of the <a href=Selector.html>Selector</a>.</p><p>A thin facade over the shared string-backed implementation (io.zenoh.jni.query.Parameters), which mirrors Rust's <code>zenoh::query::Parameters</code> exactly. The string form follows the <code>a=b;c=d|e;f=g</code> format:</p><ul><li><p>parameters are separated by <code>;</code> (empty chunks are skipped),</p></li><li><p>the parameter name and value are separated by the first <code>=</code>,</p></li><li><p>in the absence of <code>=</code>, the parameter value is considered to be the empty string,</p></li><li><p>the value is taken verbatim (no percent-decoding),</p></li><li><p>a duplicated parameter name is allowed: <a href=Parameters.html#get(java.lang.String)>get</a> returns the FIRST     occurrence, and the duplicates survive round-tripping until an     <a href=Parameters.html#insert(java.lang.String,java.lang.String)>insert</a>/<a href=Parameters.html#remove(java.lang.String)>remove</a> normalizes the string.</p></li></ul></div>
 
                     <dl>
 
@@ -298,7 +298,7 @@ public final class <span class="typeNameLabel"><a href=Parameters.html>Parameter
                                             </td>
                                             <th class="colSecond" scope="row"><code><a href=Parameters.html#get(java.lang.String)>get</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> key) </code>
                                             </th>
-                                            <td class="colLast">Returns the value of the <a href=Parameters.html#get(java.lang.String)>key</a> if present.</td>
+                                            <td class="colLast">Returns the value of the <a href=Parameters.html#get(java.lang.String)>key</a> if present (the first occurrence wins).</td>
                                         </tr>
                                         
                                         <tr id="i5" class="rowColor">
@@ -355,6 +355,22 @@ public final class <span class="typeNameLabel"><a href=Parameters.html>Parameter
                                             <th class="colSecond" scope="row"><code><a href=Parameters.html#toMap()>toMap</a>() </code>
                                             </th>
                                             <td class="colLast">Returns a map with the key value pairs of the parameters.</td>
+                                        </tr>
+                                        
+                                        <tr id="i12" class="altColor">
+                                            <td class="colFirst"><code><a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Boolean.html>Boolean</a></code>
+                                            </td>
+                                            <th class="colSecond" scope="row"><code><a href=Parameters.html#equals(java.lang.Object)>equals</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Object.html>Object</a> other) </code>
+                                            </th>
+                                            <td class="colLast"></td>
+                                        </tr>
+                                        
+                                        <tr id="i13" class="rowColor">
+                                            <td class="colFirst"><code><a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Integer.html>Integer</a></code>
+                                            </td>
+                                            <th class="colSecond" scope="row"><code><a href=Parameters.html#hashCode()>hashCode</a>() </code>
+                                            </th>
+                                            <td class="colLast"></td>
                                         </tr>
                                         
                                         </tbody>
@@ -502,7 +518,7 @@ public final class <span class="typeNameLabel"><a href=Parameters.html>Parameter
                                     <li class="blockList">
                                         <h4>get</h4>
                                         <pre class="methodSignature"> final <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> <a href=Parameters.html#get(java.lang.String)>get</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> key)</pre>
-                                        <div class="block"><p>Returns the value of the <a href=Parameters.html#get(java.lang.String)>key</a> if present.</p></div>
+                                        <div class="block"><p>Returns the value of the <a href=Parameters.html#get(java.lang.String)>key</a> if present (the first occurrence wins).</p></div>
 
                                         <dl>
 
@@ -659,12 +675,58 @@ assertEquals(List.of(&quot;1&quot;, &quot;2&quot;, &quot;3&quot;), parameters.va
                                     <!--   -->
                                 </a>
                                 <ul class=
-                                              "blockListLast"
+                                              "blockList"
                                           >
                                     <li class="blockList">
                                         <h4>toMap</h4>
                                         <pre class="methodSignature"> final <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/Map.html>Map</a>&lt;<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a>, <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a>&gt; <a href=Parameters.html#toMap()>toMap</a>()</pre>
-                                        <div class="block"><p>Returns a map with the key value pairs of the parameters.</p></div>
+                                        <div class="block"><p>Returns a map with the key value pairs of the parameters. For a duplicated key the last occurrence wins (unlike <a href=Parameters.html#get(java.lang.String)>get</a>).</p></div>
+
+                                        <dl>
+
+                                        
+
+                                        
+
+                                        
+
+                                        </dl>
+                                    </li>
+                                </ul>
+                                
+                                <a id="equals(java.lang.Object)">
+                                    <!--   -->
+                                </a>
+                                <ul class=
+                                              "blockList"
+                                          >
+                                    <li class="blockList">
+                                        <h4>equals</h4>
+                                        <pre class="methodSignature"> <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Boolean.html>Boolean</a> <a href=Parameters.html#equals(java.lang.Object)>equals</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Object.html>Object</a> other)</pre>
+                                        <div class="block"></div>
+
+                                        <dl>
+
+                                        
+
+                                        
+
+                                        
+
+                                        </dl>
+                                    </li>
+                                </ul>
+                                
+                                <a id="hashCode()">
+                                    <!--   -->
+                                </a>
+                                <ul class=
+                                              "blockListLast"
+                                          >
+                                    <li class="blockList">
+                                        <h4>hashCode</h4>
+                                        <pre class="methodSignature"> <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Integer.html>Integer</a> <a href=Parameters.html#hashCode()>hashCode</a>()</pre>
+                                        <div class="block"></div>
 
                                         <dl>
 

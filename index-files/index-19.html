@@ -260,7 +260,7 @@ var pathtoroot = "../";
                 
 
             </dt>
-            <dd>A selector is the combination of a <a href=../io/zenoh/keyexpr/KeyExpr.html>KeyExpr</a>, which defines the set of keys that are relevant to an operation, and a set of parameters with a few intended uses:<ul><li><p>specifying arguments to a queryable, allowing the passing of Remote Procedure Call parameters</p></li><li><p>filtering by value,</p></li><li><p>filtering by metadata, such as the timestamp of a value,</p></li><li><p>specifying arguments to zenoh when using the REST API.</p></li></ul>When in string form, selectors look a lot like a URI, with similar semantics:<ul><li><p>the <code>key_expr</code> before the first <code>?</code> must be a valid key expression.</p></li><li><p>the <code>parameters</code> after the first <code>?</code> should be encoded like the query section of a URL:</p></li></ul>Zenoh intends to standardize the usage of a set of parameter names.</dd>
+            <dd>A selector is the combination of a <a href=../io/zenoh/keyexpr/KeyExpr.html>KeyExpr</a>, which defines the set of keys that are relevant to an operation, and a set of parameters with a few intended uses:<ul><li><p>specifying arguments to a queryable, allowing the passing of Remote Procedure Call parameters</p></li><li><p>filtering by value,</p></li><li><p>filtering by metadata, such as the timestamp of a value,</p></li><li><p>specifying arguments to zenoh when using the REST API.</p></li></ul>When in string form, selectors look a lot like a URI, with similar semantics:<ul><li><p>the <code>key_expr</code> before the first <code>?</code> must be a valid key expression.</p></li><li><p>the <code>parameters</code> after the first <code>?</code> follow the <code>a=b;c=d|e;f=g</code> format:</p></li></ul>Zenoh intends to standardize the usage of a set of parameter names.</dd>
 
         
             <dt>
@@ -1138,7 +1138,7 @@ var pathtoroot = "../";
                 
                 <span class="memberNameLink">
                 
-                    <a href="../io/zenoh/query/ReplyDelOptions.html#setTimeStamp(.&lt;Error class: unknown class&gt;)">setTimeStamp(.&lt;Error class: unknown class&gt;)</a>
+                    <a href="../io/zenoh/query/ReplyDelOptions.html#setTimeStamp(io.zenoh.time.Timestamp)">setTimeStamp(io.zenoh.time.Timestamp)</a>
                 
                 </span> - function in io.zenoh.query.<a href=../io/zenoh/query/ReplyDelOptions.html>ReplyDelOptions</a>
                 
@@ -1151,7 +1151,7 @@ var pathtoroot = "../";
                 
                 <span class="memberNameLink">
                 
-                    <a href="../io/zenoh/query/ReplyOptions.html#setTimeStamp(.&lt;Error class: unknown class&gt;)">setTimeStamp(.&lt;Error class: unknown class&gt;)</a>
+                    <a href="../io/zenoh/query/ReplyOptions.html#setTimeStamp(io.zenoh.time.Timestamp)">setTimeStamp(io.zenoh.time.Timestamp)</a>
                 
                 </span> - function in io.zenoh.query.<a href=../io/zenoh/query/ReplyOptions.html>ReplyOptions</a>
                 

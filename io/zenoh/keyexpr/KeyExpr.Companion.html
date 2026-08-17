@@ -320,7 +320,7 @@ public class <span class="typeNameLabel"><a href=KeyExpr.Companion.html>KeyExpr.
                                     <li class="blockList">
                                         <h4>tryFrom</h4>
                                         <pre class="methodSignature"> final <a href=KeyExpr.html>KeyExpr</a> <a href=KeyExpr.Companion.html#tryFrom(java.lang.String)>tryFrom</a>(<a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html>String</a> keyExpr)</pre>
-                                        <div class="block"><p>Try from.</p><p>The default way to construct a KeyExpr. This function will ensure that the passed expression is valid. It won't however try to correct expressions that aren't canon.</p><p>You may use <a href=KeyExpr.Companion.html#autocanonize(java.lang.String)>autocanonize</a> instead if you are unsure if the expression you will use for construction will be canon.</p></div>
+                                        <div class="block"><p>Try from.</p><p>The default way to construct a KeyExpr. This function will ensure that the passed expression is valid. It won't however try to correct expressions that aren't canon.</p><p>You may use <a href=KeyExpr.Companion.html#autocanonize(java.lang.String)>autocanonize</a> instead if you are unsure if the expression you will use for construction will be canon.</p><p>The result is string-backed: the expression is validated natively once and the probe handle is released — an undeclared native keyexpr carries no state beyond its string.</p></div>
 
                                         <dl>
 

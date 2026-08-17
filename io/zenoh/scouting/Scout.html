@@ -120,7 +120,7 @@ var pathtoroot = "../../../";
 public class <span class="typeNameLabel"><a href=Scout.html>Scout</a></span>
  implements <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/AutoCloseable.html>AutoCloseable</a>
                     </pre>
-                    <div class="block"><p>Scout for routers and/or peers.</p><p>Scout spawns a task that periodically sends scout messages and waits for Hello replies. Drop the returned Scout to stop the scouting task.</p><p>To launch a scout, use <a href=../Zenoh.html#scout(io.zenoh.scouting.ScoutOptions)>io.zenoh.Zenoh.scout</a>:</p><p>Example using the default blocking queue handler:</p><pre><code>var scoutOptions = new ScoutOptions();
+                    <div class="block"><p>Scout for routers and/or peers.</p><p>Scout spawns a task that periodically sends scout messages and waits for Hello replies. Call <code>stop</code> (or <code>close</code>) on the returned Scout to stop the scouting task; a Scout whose last reference is dropped is stopped by the garbage-collection backstop (non-deterministic).</p><p>To launch a scout, use <a href=../Zenoh.html#scout(io.zenoh.scouting.ScoutOptions)>io.zenoh.Zenoh.scout</a>:</p><p>Example using the default blocking queue handler:</p><pre><code>var scoutOptions = new ScoutOptions();
 scoutOptions.setWhatAmI(Set.of(WhatAmI.Peer, WhatAmI.Router));
 
 var scout = Zenoh.scout(scoutOptions);

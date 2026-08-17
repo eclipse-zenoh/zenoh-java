@@ -125,7 +125,7 @@ var pathtoroot = "../../../";
 public final class <span class="typeNameLabel"><a href=Querier.html>Querier</a></span>
  implements <a href=../session/SessionDeclaration.html>SessionDeclaration</a>, <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/AutoCloseable.html>AutoCloseable</a>
                     </pre>
-                    <div class="block"><p>A querier that allows to send queries to a <a href=Queryable.html>Queryable</a>.</p><p>Queriers are automatically undeclared when dropped.</p><p>Example:</p><pre><code>try (Session session = Zenoh.open(config)) {
+                    <div class="block"><p>A querier that allows to send queries to a <a href=Queryable.html>Queryable</a>.</p><p>A querier whose last reference is dropped is undeclared by the garbage-collection backstop (non-deterministic — call <code>close</code> for prompt effect); closing the session undeclares any querier still reachable.</p><p>Example:</p><pre><code>try (Session session = Zenoh.open(config)) {
     QuerierOptions options = new QuerierOptions();
     options.setTarget(QueryTarget.BEST_MATCHING);
     Querier querier = session.declareQuerier(selector.getKeyExpr(), options);

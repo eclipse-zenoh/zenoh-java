@@ -125,7 +125,7 @@ var pathtoroot = "../../../";
 public class <span class="typeNameLabel"><a href=Queryable.html>Queryable</a></span>
  implements <a href=https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/AutoCloseable.html>AutoCloseable</a>, <a href=../session/SessionDeclaration.html>SessionDeclaration</a>
                     </pre>
-                    <div class="block"><p>A queryable that allows to perform multiple queries on the specified <a href=../keyexpr/KeyExpr.html>KeyExpr</a>.</p><p>Its main purpose is to keep the queryable active as long as it exists.</p><p>Example using the default BlockingQueueHandler handler:</p><pre><code>try (Session session = Zenoh.open(config)) {
+                    <div class="block"><p>A queryable that allows to perform multiple queries on the specified <a href=../keyexpr/KeyExpr.html>KeyExpr</a>.</p><p>Its main purpose is to keep the queryable active as long as it exists.</p><p>The declaring session holds a <i>strong</i> reference to it: dropping your own reference does NOT stop the queryable — it stays active until <a href=HandlerQueryable.html#close()>close</a> (or <code>undeclare</code>) is called or the session is closed, whichever comes first. Only after that does it become eligible for garbage collection.</p><p>Example using the default BlockingQueueHandler handler:</p><pre><code>try (Session session = Zenoh.open(config)) {
     var queryable = session.declareQueryable(keyExpr);
     BlockingQueue&lt;Optional&lt;Query&gt;&gt; receiver = queryable.getReceiver();
     assert receiver != null;
