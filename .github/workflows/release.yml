@@ -42,6 +42,11 @@ on:
         description: Publish the package to Maven Central
         required: false
         default: true
+      github_release:
+        type: boolean
+        description: Create the GitHub release
+        required: false
+        default: true
 
 jobs:
   tag:
@@ -51,6 +56,28 @@ jobs:
       version: ${{ steps.create-release-branch.outputs.version }}
       branch: ${{ steps.create-release-branch.outputs.branch }}
     steps:
+      # First, so nothing is created when the combination is rejected.
+      #
+      # `maven_publish` suppresses the upload; it does not make a run a
+      # rehearsal. Combined with `live-run` it would cut the real release
+      # branch, force-push the real tag, and then upload, deploy and announce
+      # nothing - leaving a tag for a version that exists nowhere, which is the
+      # state a failed release leaves and that PUBLISHING.md says to avoid.
+      #
+      # Nothing is lost by refusing it. Rehearsing without uploading is
+      # `live-run` off, which does the same build and leaves a prunable
+      # dry-run branch; a GitHub-only release is the Release (GitHub) workflow,
+      # which verifies against Central instead of assuming an upload happened.
+      - name: Reject a live run with publishing disabled
+        if: ${{ (inputs.live-run || false) && contains(inputs.maven_publish, 'false') }}
+        run: |
+          echo "::error::live-run with maven_publish disabled would force-push the real tag" \
+               "and publish nothing, leaving a tag for a version that exists nowhere." \
+               "To rehearse without uploading, uncheck live-run." \
+               "To create a GitHub release for a version already on Central, run" \
+               "the 'Release (GitHub)' workflow." >&2
+          exit 1
+
       - id: create-release-branch
         uses: eclipse-zenoh/ci/create-release-branch@main
         with:
@@ -91,12 +118,22 @@ jobs:
       packages: write
     secrets: inherit
 
+  # `live-run` is ANDed with `maven_publish` rather than passed through. With
+  # uploads off the publish job still succeeds, so a live run would otherwise
+  # deploy the documentation of a version that exists nowhere but this
+  # repository, over the docs of the version people are actually using. The job
+  # still runs and still builds the site - that is the part worth exercising -
+  # it just does not publish it.
+  #
+  # The tag job now rejects that combination outright, so this is defence in
+  # depth: the invariant "nothing outward-facing without an upload" is stated
+  # where it applies, not only where it is currently enforced.
   publish-dokka:
     name: Publish documentation
     needs: [tag, publish]
     uses: ./.github/workflows/publish-dokka.yml
     with:
-      live-run: ${{ inputs.live-run || false }}
+      live-run: ${{ (inputs.live-run || false) && !contains(inputs.maven_publish, 'false') }}
       branch: ${{ needs.tag.outputs.branch }}
     # peaceiris/actions-gh-pages pushes the generated site to the gh-pages
     # branch, which the default read-only token cannot do.
@@ -104,14 +141,30 @@ jobs:
       contents: write
     secrets: inherit
 
+  # Last, because a GitHub release is the announcement: it notifies watchers,
+  # and it should not fire for a version whose artifacts failed to publish.
+  # These steps used to be inline here; they now live in `release-github.yml`,
+  # which is also dispatchable on its own, so a release that was published to
+  # Maven Central without one can be recovered without re-running the tag and
+  # publish jobs - see the comment at the top of that file.
+  #
+  # Gated on `maven_publish` as well as `github_release`. The publish job
+  # succeeds either way - with `maven_publish` off it only assembles locally -
+  # so without this a live run with uploads disabled would announce a release
+  # for a coordinate that was never published.
+  #
+  # The tag job rejects `live-run` with `maven_publish` off before anything is
+  # created, so the `maven_publish` half of this condition is defence in depth;
+  # the `github_release` half is what actually varies. A genuine GitHub-only
+  # release is the standalone workflow, which verifies against Central rather
+  # than assuming an upload happened.
   publish-github:
+    name: Create the GitHub release
     needs: [tag, publish]
-    runs-on: macos-latest
-    steps:
-      - uses: eclipse-zenoh/ci/publish-crates-github@main
-        with:
-          repo: ${{ github.repository }}
-          live-run: ${{ inputs.live-run || false }}
-          version: ${{ needs.tag.outputs.version }}
-          branch: ${{ needs.tag.outputs.branch }}
-          github-token: ${{ secrets.BOT_TOKEN_WORKFLOW }}
+    if: ${{ !contains(inputs.github_release, 'false') && !contains(inputs.maven_publish, 'false') }}
+    uses: ./.github/workflows/release-github.yml
+    with:
+      live-run: ${{ inputs.live-run || false }}
+      version: ${{ needs.tag.outputs.version }}
+      branch: ${{ needs.tag.outputs.branch }}
+    secrets: inherit
