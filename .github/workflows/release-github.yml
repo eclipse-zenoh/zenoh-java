@@ -80,8 +80,6 @@ on:
 jobs:
   publish-github:
     name: Create the GitHub release
-    # ubuntu-latest, not the macos-latest these steps ran on inline: nothing
-    # here builds anything, it creates a release from a tag.
     runs-on: ubuntu-latest
     # Three questions about the version the operator typed, answered in order.
     # `version` is used verbatim as the tag name - bump-and-tag runs
@@ -134,11 +132,6 @@ jobs:
       # have this step read version.txt from the branch while
       # publish-crates-github publishes the tag - the check failing open in the
       # one case it exists to catch.
-      #
-      # Third-party actions are pinned to a commit, with the version in a
-      # trailing comment: a tag is mutable, and a moved tag runs code nobody
-      # reviewed. The eclipse-zenoh/ci action below is ours, and stays on a
-      # branch.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: refs/tags/${{ inputs.version }}
@@ -193,11 +186,12 @@ jobs:
               ;;
           esac
 
-      # The org's shared release action, unchanged from what these steps called
-      # inline. It creates the release from the tag with generated notes, then
-      # attaches any `*-standalone.zip` / `*-debian.zip` build archives - of
-      # which this repository produces none, so that half is inert here and
-      # every release it has ever made carried notes only.
+      # The org's shared release action, as the rest of the Zenoh repositories
+      # use it, and the same call these steps made inline. It creates the
+      # release from the tag with generated notes, then attaches any
+      # `*-standalone.zip` / `*-debian.zip` build archives - of which this
+      # repository produces none, so that half is inert here and every release
+      # it has ever made carried notes only.
       #
       # Two known upstream defects are tracked in eclipse-zenoh/ci#470; neither
       # affects a normal release. They are deliberately not worked around here:

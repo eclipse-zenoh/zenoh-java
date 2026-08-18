@@ -41,10 +41,15 @@ org.eclipse.zenoh:zenoh-java:<version>          the JVM artifact
 org.eclipse.zenoh:zenoh-java-android:<version>  the Android artifact
 ```
 
-Both are **pure JVM/Kotlin**. This repository contains no Rust and builds no
-native libraries: they arrive inside the zenoh-flat-jni artifacts, already
-cross-compiled and verified by that repository's own release, and a consumer of
-`zenoh-java` gets them transitively.
+Both are **pure JVM/Kotlin**. Neither carries Rust or a native library: those
+arrive inside the zenoh-flat-jni artifacts, already cross-compiled and verified
+by that repository's own release, and a consumer of `zenoh-java` gets them
+transitively.
+
+The repository does hold one Rust crate, `zenoh-flat-jni-pin` (`Cargo.toml` and
+`ci/pin.rs`). It builds nothing that ships. It exists so the zenoh-flat-jni
+commit this SDK is tested against is recorded in `Cargo.lock`, which is the file
+the organization's lockfile sync knows how to move.
 
 `zenoh-flat-jni` is itself a Kotlin Multiplatform library, so this SDK declares
 **one** dependency on its root coordinate and Gradle resolves the variant
@@ -347,9 +352,9 @@ curl -s https://repo1.maven.org/maven2/org/eclipse/zenoh/zenoh-java/<version>/ze
 **The tag job runs first and pushes before anything is published.** So a run
 that dies in `publish` — an unresolvable dependency, a credential problem, a
 Central outage — still leaves the release branch and the tag pushed, for a
-version that has no artifacts anywhere. The failed runs of 2026-08-10 and
-2026-08-11 left exactly that: tag `1.10.0-rc1` and branch
-`release/dry-run/1.10.0-rc1`, both still on the remote.
+version that has no artifacts anywhere. The failed run of 2026-08-10 left
+exactly that: tag `1.10.0-rc1` and branch `release/dry-run/1.10.0-rc1`, both
+still on the remote.
 
 Nothing downstream runs, though. `publish-dokka` and `publish-github` both
 `need` the publish job, so no documentation is deployed and **no GitHub release

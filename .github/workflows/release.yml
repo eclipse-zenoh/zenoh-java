@@ -143,10 +143,9 @@ jobs:
 
   # Last, because a GitHub release is the announcement: it notifies watchers,
   # and it should not fire for a version whose artifacts failed to publish.
-  # These steps used to be inline here; they now live in `release-github.yml`,
-  # which is also dispatchable on its own, so a release that was published to
-  # Maven Central without one can be recovered without re-running the tag and
-  # publish jobs - see the comment at the top of that file.
+  # `release-github.yml` is also dispatchable on its own, which is how you
+  # recover a release that was published to Maven Central without one - see the
+  # comment at the top of that file.
   #
   # Gated on `maven_publish` as well as `github_release`. The publish job
   # succeeds either way - with `maven_publish` off it only assembles locally -
