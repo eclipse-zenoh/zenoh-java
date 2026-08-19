@@ -76,7 +76,10 @@ Zenoh is a communications protocol, therefore the permissions required are:
 
 ## <img src="jvm.png" alt="Java" height="50"> JVM
 
-First add the Maven central repository to your `settings.gradle.kts`:
+The Zenoh library can be added as both a Gradle dependency or a Maven dependency.
+
+### Gradle 
+To import the library as a Gradle dependency, add the Maven central repository to your `settings.gradle.kts`:
 
 ```kotlin
 dependencyResolutionManagement {
@@ -91,6 +94,27 @@ After that add to the dependencies in the app's `build.gradle.kts`:
 
 ```kotlin
 implementation("org.eclipse.zenoh:zenoh-java:1.9.0")
+```
+### Maven Dependency
+
+To add the library in a Maven project, add it as a dependency under the <dependencies> tag in the project's `pom.xml`:
+
+```xml
+    </dependencies>
+        <!-- All other dependencies -->
+
+        <!-- Added Zenoh dependency -->
+        <dependency>
+            <groupId>org.eclipse.zenoh</groupId>
+            <artifactId>zenoh-java</artifactId>
+            <version>1.9.0</version>
+            <!--  Or the latest version available at https://mvnrepository.com/artifact/org.eclipse.zenoh/zenoh-java -->
+        </dependency>
+    </dependencies>
+```
+Thereafter, recompile the project with the added dependency:
+```bash
+    mvn package
 ```
 
 ### Platforms
