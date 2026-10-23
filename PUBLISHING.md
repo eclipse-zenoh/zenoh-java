@@ -22,7 +22,10 @@ which covers them once for both repositories.
   - [Before the first run](#before-the-first-run)
   - [Rehearsal (dry run)](#rehearsal-dry-run)
   - [The real release](#the-real-release)
+  - [Creating a GitHub release on its own](#creating-a-github-release-on-its-own)
   - [After a release](#after-a-release)
+  - [If a release fails](#if-a-release-fails)
+  - [If a step after Maven Central fails](#if-a-step-after-maven-central-fails)
 - [Rehearsing before zenoh-flat-jni is released](#rehearsing-before-zenoh-flat-jni-is-released)
   - [Rehearsing the release workflow with a snapshot](#rehearsing-the-release-workflow-with-a-snapshot)
 - [How the pipeline works](#how-the-pipeline-works)
@@ -38,10 +41,15 @@ org.eclipse.zenoh:zenoh-java:<version>          the JVM artifact
 org.eclipse.zenoh:zenoh-java-android:<version>  the Android artifact
 ```
 
-Both are **pure JVM/Kotlin**. This repository contains no Rust and builds no
-native libraries: they arrive inside the zenoh-flat-jni artifacts, already
-cross-compiled and verified by that repository's own release, and a consumer of
-`zenoh-java` gets them transitively.
+Both are **pure JVM/Kotlin**. Neither carries Rust or a native library: those
+arrive inside the zenoh-flat-jni artifacts, already cross-compiled and verified
+by that repository's own release, and a consumer of `zenoh-java` gets them
+transitively.
+
+The repository does hold one Rust crate, `zenoh-flat-jni-pin` (`Cargo.toml` and
+`ci/pin.rs`). It builds nothing that ships. It exists so the zenoh-flat-jni
+commit this SDK is tested against is recorded in `Cargo.lock`, which is the file
+the organization's lockfile sync knows how to move.
 
 `zenoh-flat-jni` is itself a Kotlin Multiplatform library, so this SDK declares
 **one** dependency on its root coordinate and Gradle resolves the variant
@@ -173,6 +181,23 @@ Everything is driven from **Actions → Release → Run workflow** on the defaul
 branch. The workflow creates the release branch, bumps the version, tags it,
 builds and publishes.
 
+Two checkboxes decide what it does. `live-run` chooses what "publish" *means*;
+`maven_publish` chooses whether the upload happens at all. Three combinations
+are accepted and the fourth is refused:
+
+| `live-run` | `maven_publish` | What it does |
+| --- | --- | --- |
+| ✗ | ✓ | **The normal rehearsal.** Uploads `<version>-SNAPSHOT` to the mutable snapshot repository — a real signed upload, so credentials and signing are exercised |
+| ✗ | ✗ | Assembles both publications and their POMs, uploads nothing |
+| ✓ | ✓ | **The real release.** Permanent and immutable on Maven Central |
+| ✓ | ✗ | **Refused** by the `tag` job — it would tag a version and publish nothing |
+
+Note that `maven_publish` defaults to checked, and that a rehearsal uploading a
+snapshot is normal rather than something to avoid: the snapshot repository is
+mutable, is not on consumers' default resolution path, and is cleaned after 90
+days. A rehearsal that uploads nothing cannot tell you whether the signing key
+and credentials work, which is the half of a release most likely to fail.
+
 ### Before the first run
 
 - **Secrets are already in place.** `CENTRAL_SONATYPE_TOKEN_*` and `ORG_GPG_*`
@@ -192,15 +217,33 @@ builds and publishes.
 | `version` | a fresh provisional number, not one already used |
 | `zenoh-flat-jni-version` | a version that exists — today a snapshot, see [below](#rehearsing-the-release-workflow-with-a-snapshot). Empty falls back to `gradle.properties`, which names our own `1.9.0-java-SNAPSHOT` copy: fine for a rehearsal, refused for a live run |
 | `maven_publish` | checked — or uncheck for the very first run |
+| `github_release` | either — a rehearsal is not a live run, so no release is created regardless |
 
-`live-run` and `maven_publish` behave exactly as in zenoh-flat-jni: unchecking
+`maven_publish` suppresses the **upload**; it does not turn a run into a
+rehearsal. Combined with `live-run` it would cut the real release branch and
+force-push the real tag while publishing nothing — leaving a tag for a version
+that exists nowhere, which is what a
+[failed release](#if-a-release-fails) leaves behind. **The `tag` job rejects
+that combination before creating anything**, so `maven_publish` is only
+meaningful on a rehearsal.
+
+Nothing is lost by that. To rehearse without uploading, uncheck `live-run`: the
+same build runs, and the branch it leaves is a prunable dry-run one. To publish
+a GitHub release or the documentation for a version already on Central, use the
+standalone workflows under [If a step after Maven Central
+fails](#if-a-step-after-maven-central-fails), which verify rather than assume.
+
+`live-run` and `maven_publish` mean what they mean in zenoh-flat-jni, with one
+difference: this repository refuses a live run with `maven_publish` off, which
+zenoh-flat-jni's release workflow still accepts. Unchecking
 `live-run` publishes `<version>-SNAPSHOT` to the **mutable** snapshot repository
 and never runs `closeAndReleaseSonatypeStagingRepository`, while `maven_publish`
 decides whether any upload happens at all. **A rehearsal with `maven_publish`
 checked performs a real, signed upload** — into the snapshot repository — and is
 the only configuration that exercises the credentials.
 
-`bump-and-tag.bash` tags whatever version it is handed, rehearsals included, so
+`bump-and-tag.bash` tags whatever version it is handed, rehearsals included —
+1.10.0 was rehearsed as `1.10.0-rc1`, and that tag is still on the remote — so
 never give a rehearsal the number you intend to release.
 
 ### The real release
@@ -210,11 +253,89 @@ never give a rehearsal the number you intend to release.
 | `live-run` | **checked** |
 | `version` | the release number |
 | `zenoh-flat-jni-version` | the zenoh-flat-jni release to build against — **must already be on Central** |
-| `maven_publish` | checked |
+| `maven_publish` | checked — the only accepted value on a live run |
+| `github_release` | checked |
 
 Supplying `zenoh-flat-jni-version` rewrites `zenohFlatJniVersion` in
 `gradle.properties` and commits it, so the published POM records exactly which
 binding release the SDK was built against.
+
+### Creating a GitHub release on its own
+
+The **Release (GitHub)** workflow creates the GitHub release for a version that
+is already tagged, without re-running the tag or publish jobs. Use it when a
+release reached Maven Central without one — as zenoh-kotlin's `1.10.0` did,
+which is why these steps were pulled out of `release.yml` into a workflow of
+their own.
+
+| Field | Value |
+| --- | --- |
+| `live-run` | **checked** — without it the workflow does nothing |
+| `version` | the released number, e.g. `1.10.0` |
+| `branch` | the release branch the tag is on, e.g. `release/1.10.0` |
+| `check-maven` | checked |
+
+**The release describes the tag, not the branch.** `version` is a release number
+such as `1.10.0`, and it is used **verbatim as the Git tag name**:
+`ci/scripts/bump-and-tag.bash` — run by the `tag` job of the **Release**
+workflow, on the release branch just cut, before anything is published — writes
+`version.txt` and then runs `git tag --force "$version"`. Tag name and version
+string are the same characters.
+
+That is what makes `version` sufficient on its own. `publish-crates-github`
+creates the release by invoking `gh release create`, the GitHub CLI command for
+the job, which takes the tag name as its first argument — so the workflow passes
+`version` straight through. The action always passes that command's
+`--verify-tag` flag, which makes it abort unless a tag of exactly that name
+already exists on the remote. `branch` only names where to cut a tag that does
+not exist yet, which here it always does.
+
+A tag existing is not proof it was ever released, so two more checks run first.
+They answer different questions, and it is worth being clear which does what:
+
+| Check | Question | Catches |
+| --- | --- | --- |
+| `version.txt` at the tag equals the `version` you entered | do the tag and its commit name the same version? | a tag pointing at a commit whose `version.txt` names a different version |
+| `check-maven` | was this version ever published? | a tag for a version that never shipped — **including rehearsal tags** |
+
+The first is narrower than it looks. `bump-and-tag.bash` writes `version.txt`
+and tags it in the same run, so every tag the pipeline produced passes. What it
+rejects is a tag pointing at a commit whose `version.txt` names a different
+version — moved onto another version's commit, or created there. A tag made by
+hand on the right commit passes, so this does not establish who made the tag.
+
+In particular it does **not** catch a rehearsal. Rehearsal tags are
+self-consistent too — `version.txt` at `1.10.0-rc1` reads `1.10.0-rc1` — so
+they pass the first check and are stopped only by `check-maven`, which is why
+that box should stay ticked for a manual run.
+
+Be precise about what the pair establishes: **this tag is a release tag for this
+version, and this version exists on Central**. They do not tie the published
+artifact to this commit. Nothing published carries the commit it was built from
+— the POM has `<scm>` but no `<tag>` — so a tag force-moved onto a different
+commit carrying the same `version.txt` would still pass. Reaching that state
+means re-running a release whose version Central already accepted, which
+[If a release fails](#if-a-release-fails) says not to do.
+
+`check-maven` confirms the version is on Maven Central before the release is
+created, and reports the two ways that can fail separately:
+
+| What happened | What it means | What to do |
+| --- | --- | --- |
+| Central says the version is not there | the version is wrong, or was never published | correct it — or wait, if the release is minutes old and has not propagated |
+| Central does not answer | Maven Central is unreachable | try again later, or untick `check-maven` to release without this check |
+
+The release pipeline switches `check-maven` off, because the publish job that
+just uploaded the version is proof enough. A manual run has no such proof, so
+`check-maven` defaults to on there.
+
+This is the asymmetry worth remembering: the Maven publication cannot be undone,
+but a GitHub release can be edited (`gh release edit`) or removed (`gh release
+delete`, which leaves the tag in place), so a mistake here costs nothing to
+correct. Note that correcting it means editing or deleting the release — this
+workflow runs `gh release create`, which fails rather than replacing one that
+already exists. The one effect that cannot be taken back is that publishing
+notifies everyone watching releases.
 
 ### After a release
 
@@ -225,6 +346,86 @@ must reference a real `zenoh-flat-jni` release:
 curl -s https://repo1.maven.org/maven2/org/eclipse/zenoh/zenoh-java/<version>/zenoh-java-<version>.pom \
   | grep -A2 zenoh-flat-jni
 ```
+
+### If a release fails
+
+**The tag job runs first and pushes before anything is published.** So a run
+that dies in `publish` — an unresolvable dependency, a credential problem, a
+Central outage — still leaves the release branch and the tag pushed, for a
+version that has no artifacts anywhere. The failed run of 2026-08-10 left
+exactly that: tag `1.10.0-rc1` and branch `release/dry-run/1.10.0-rc1`, both
+still on the remote.
+
+Nothing downstream runs, though. `publish-dokka` and `publish-github` both
+`need` the publish job, so no documentation is deployed and **no GitHub release
+is created**. The whole visible residue is a tag pointing at unpublished code.
+
+**Retrying the same version is safe, as long as Central did not accept it.**
+Nothing accumulates across attempts, because every step is recreated rather than
+advanced:
+
+- `create-release-branch` does `git switch --force-create` and `git push
+  --force`, so the release branch is cut from `main` again, not extended;
+- `bump-and-tag.bash` therefore rewrites `version.txt` on a fresh branch, so its
+  bump commit applies cleanly on a retry;
+- the tag is `git tag --force` and `git push --force`.
+
+Fix the cause and run it again with the same number. Check the Central Portal
+first for a staging repository left open by the failed attempt, and drop it.
+
+**The one case where retrying the same number is wrong** is a run that got far
+enough for Central to accept the version. Maven Central is immutable: the
+version cannot be republished, and re-running would force-move the tag onto a
+new commit while Central keeps the artifact built from the old one — the tag and
+the published artifact would then describe different code. Move to a new version
+instead. This is also why the release number for a rehearsal must never be one
+you intend to release.
+
+If a version reached Central but produced no GitHub release, that is the
+recovery case for
+[Release (GitHub)](#creating-a-github-release-on-its-own) — and its
+`check-maven` check is what distinguishes it from this one, since a tag left by
+a failed publish resolves to nothing on Central and is refused.
+
+### If a step after Maven Central fails
+
+Once Central accepts the version, **re-running the release is not an option**:
+the version cannot be republished, and the tag would force-move onto a different
+commit than the artifact was built from. Everything the pipeline does after that
+point must therefore be recoverable on its own, and each piece is:
+
+| Produced | By | Recover with |
+| --- | --- | --- |
+| Maven Central coordinates | `publish` | nothing to do — immutable and done |
+| Release branch and tag | `tag` | already pushed, before `publish` ran |
+| GitHub release | `publish-github` | **Release (GitHub)**, [above](#creating-a-github-release-on-its-own) |
+| `gh-pages` documentation | `publish-dokka` | **Publish (Dokka)**, `live-run` checked and `branch` set to `refs/tags/<version>` |
+
+Both recovery workflows need `live-run` **checked** — unchecked, each builds and
+verifies but changes nothing, which is also how you rehearse one. Give
+`publish-dokka` the released tag as `branch`, written in full as
+`refs/tags/<version>`: the release branch can move afterwards, the tag cannot,
+and a bare `1.10.0` would resolve to a branch of that name before the tag.
+
+Nothing else in a release is one-shot. `main` is deliberately untouched —
+`version.txt` is bumped on the release branch only, so `main` keeps naming the
+previous version and there is no post-release commit to reconstruct.
+`update-release-project.yml` is driven by issues and pull requests, not by
+releases.
+
+Order does not matter. The documentation deploy is safe to repeat — it
+overwrites — but **Release (GitHub) is not**: it runs `gh release create`, which
+fails when a release already exists for the tag rather than replacing it. To
+change one that is already there, edit it directly:
+
+```bash
+gh release edit <version> --repo eclipse-zenoh/zenoh-java --notes-file notes.md
+gh release delete <version> --repo eclipse-zenoh/zenoh-java   # then re-run
+```
+
+`gh release delete` leaves the Git tag in place, so deleting and re-running is a
+valid way back — it just is not what re-running alone does. Verify with the
+[release checklist](#release-checklist) afterwards.
 
 ## Rehearsing before zenoh-flat-jni is released
 
@@ -326,7 +527,26 @@ in the README.
 3. **`publish-dokka`** — regenerates the API documentation and, on a live run
    only, deploys it to the `gh-pages` site README.md links to. The javadoc JAR
    attached to the Maven publications does not serve that site; this job does.
-4. **`publish-github`** — creates the GitHub release, on a live run only.
+4. **`publish-github`** — creates the GitHub release from the tag, on a live run
+   only, and only when `maven_publish` was on. It calls `release-github.yml`,
+   which is **also dispatchable on its own** — see [Creating a GitHub release on
+   its own](#creating-a-github-release-on-its-own).
+
+Jobs 3 and 4 both delegate to workflows that can be dispatched directly, which
+is what makes [recovery](#if-a-step-after-maven-central-fails) possible without
+re-running a release.
+
+The release itself is created by `eclipse-zenoh/ci/publish-crates-github`, the
+shared action the rest of the Zenoh repositories use. Despite the name it
+publishes no crate: it creates the release from the tag with generated notes,
+then attaches any `*-standalone.zip` / `*-debian.zip` build archives. This
+repository produces none, so that half is inert and every release it has made
+here carries notes and GitHub's own source archives only.
+
+Two upstream defects are known and tracked in
+[eclipse-zenoh/ci#470](https://github.com/eclipse-zenoh/ci/issues/470). Neither
+affects a normal release, and both are left upstream deliberately — a fix there
+reaches every Zenoh repository, whereas working around them here would fix one.
 
 Publishing goes through `io.github.gradle-nexus.publish-plugin` to the Central
 Portal, signed with the organization GPG key, exactly as in zenoh-flat-jni.
@@ -368,19 +588,27 @@ repository.
 
 ## Known gaps
 
-- **The rewritten release path has never run.** The workflows were repaired for
-  a repository that no longer contains Rust; no rehearsal has yet exercised
-  them.
+- **The recovery and gating paths added for this have never run.** The release
+  path itself has: 1.10.0 published from it on 2026-08-17. What is unexercised
+  is the standalone recovery of a GitHub release or of the documentation, and
+  the refusal of a live run with uploads disabled.
 - **No consumer test before a *release*.** Every snapshot publication is followed
   by `ci/consumer-smoke-test`, which resolves the published artifact from the
   snapshot repository and runs it — but a release goes to a staging repository
   and is not resolvable at that point, so nothing consumes a release candidate
   the way zenoh-flat-jni's own dry-run repository lets it consume one.
+- **The GitHub release carries generated notes only** — notes and the source
+  archives GitHub attaches itself. There are no build artifacts to add: the
+  binaries live on Maven Central.
 - **The Android artifact has no runtime test**, and its `ndkVersion` and NDK
   setup step are retained although no native code is built here — unverified
   whether the Android Gradle Plugin still needs them.
-- **`zenoh-flat-jni` itself has not been released**, so the ordering constraint
-  above has never been satisfied for a real release.
+- **The snapshot still pins a `zenoh-flat-jni` version that was never
+  released.** `gradle.properties` names `1.9.0-java-SNAPSHOT`, our own copy;
+  `zenoh-flat-jni:1.9.0` is not on Maven Central and never was. `1.10.0` is —
+  and `zenoh-java:1.10.0` was released against it — so the ordering constraint
+  is satisfiable now, but a live release still has to be given that version
+  explicitly.
 
 ## Release checklist
 
@@ -393,3 +621,4 @@ repository.
 - [ ] For an Android release: the Android POM references
       `zenoh-flat-jni-android`, not the desktop coordinate.
 - [ ] The released coordinates resolve from Maven Central.
+- [ ] The GitHub release exists and its notes start at the previous release.
