@@ -11,7 +11,30 @@ on:
         description: Target branch
         type: string
         required: false
+  # Dispatchable on its own so the documentation can be redeployed for a version
+  # that is already released - the same recovery path release-github.yml exists
+  # for. These inputs are not optional decoration: without them a dispatch got
+  # an empty `inputs`, so `live-run` was false and the deploy step below was
+  # skipped, which made a manual run build the site and silently throw it away.
   workflow_dispatch:
+    inputs:
+      live-run:
+        description: Live-run — actually deploy to gh-pages
+        type: boolean
+        required: false
+      # Required, unlike the workflow_call side that release.yml always fills.
+      # Empty here would fall back to the ref the dispatch was started from -
+      # normally `main` - and a live run would then overwrite the published
+      # documentation with the unreleased API. Recovery wants the released tag.
+      #
+      # Give it fully qualified as `refs/tags/<version>`: actions/checkout
+      # resolves a bare name to a remote branch before a tag, so a bare
+      # `1.10.0` would build a branch of that name if one existed, deploying
+      # movable content where the released tag was meant.
+      branch:
+        description: Ref to build the documentation from - use refs/tags/<version> for a released version
+        type: string
+        required: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -22,6 +45,11 @@ jobs:
   build_doc_and_deploy:
     name: Build and Deploy Documentation
     runs-on: ubuntu-latest
+    # Declared here rather than only on the caller, so a direct dispatch can
+    # push to gh-pages too. A called workflow gets the intersection of this and
+    # what the caller granted, and release.yml grants exactly this.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
