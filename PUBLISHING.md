@@ -1,35 +1,43 @@
 # Publishing zenoh-java
 
 This document describes how `zenoh-java` is built, verified, and published to
-Maven Central, and how to rehearse a release without publishing one.
+Maven Central, and how to test the release process with a dry run.
 
 It describes the pipeline as it exists in this repository. Where something is
 not yet implemented or not yet exercised, it is listed under
 [Known gaps](#known-gaps) rather than described as if it worked.
 
-If you just need to run a release, go to [Running a release](#running-a-release).
+To run a release, follow the [release checklist](#release-checklist).
 For the JVM publishing concepts — coordinates, staging, signing — see
 [zenoh-flat-jni's PUBLISHING.md](https://github.com/eclipse-zenoh/zenoh-flat-jni/blob/main/PUBLISHING.md#background-if-you-do-not-work-in-the-jvm-ecosystem),
-which covers them once for both repositories.
+which covers them once for the whole stack.
 
 ## Contents
 
 - [What this repository publishes](#what-this-repository-publishes)
 - [Relationship to zenoh-flat-jni](#relationship-to-zenoh-flat-jni)
 - [The snapshot publication](#the-snapshot-publication)
+  - [Updating the snapshot dependency](#updating-the-snapshot-dependency)
   - [What it does not guarantee](#what-it-does-not-guarantee)
 - [Running a release](#running-a-release)
-  - [Before the first run](#before-the-first-run)
-  - [Rehearsal (dry run)](#rehearsal-dry-run)
+  - [Release dry run](#release-dry-run)
+    - [Choosing a zenoh-flat-jni snapshot for a dry run](#choosing-a-zenoh-flat-jni-snapshot-for-a-dry-run)
   - [The real release](#the-real-release)
   - [After a release](#after-a-release)
-- [Rehearsing before zenoh-flat-jni is released](#rehearsing-before-zenoh-flat-jni-is-released)
-  - [Rehearsing the release workflow with a snapshot](#rehearsing-the-release-workflow-with-a-snapshot)
-- [How the pipeline works](#how-the-pipeline-works)
+  - [Checking publication status](#checking-publication-status)
+  - [If a release fails](#if-a-release-fails)
+  - [If a step after Maven Central fails](#if-a-step-after-maven-central-fails)
+    - [Creating a GitHub release by hand](#creating-a-github-release-by-hand)
+- [How the release pipeline works](#how-the-release-pipeline-works)
+  - [Maven dependency resolution](#maven-dependency-resolution)
 - [Building against zenoh-flat-jni source](#building-against-zenoh-flat-jni-source)
 - [Required secrets](#required-secrets)
 - [Known gaps](#known-gaps)
 - [Release checklist](#release-checklist)
+  - [Before the live release](#before-the-live-release)
+  - [Run the live release](#run-the-live-release)
+  - [After the live release](#after-the-live-release)
+  - [When merging back to main](#when-merging-back-to-main)
 
 ## What this repository publishes
 
@@ -38,12 +46,18 @@ org.eclipse.zenoh:zenoh-java:<version>          the JVM artifact
 org.eclipse.zenoh:zenoh-java-android:<version>  the Android artifact
 ```
 
-Both are **pure JVM/Kotlin**. This repository contains no Rust and builds no
-native libraries: they arrive inside the zenoh-flat-jni artifacts, already
-cross-compiled and verified by that repository's own release, and a consumer of
-`zenoh-java` gets them transitively.
+`<version>` comes from this repository's `version.txt`; snapshot uploads append
+`-SNAPSHOT` to it for both artifacts.
 
-`zenoh-flat-jni` is itself a Kotlin Multiplatform library, so this SDK declares
+Both are **pure JVM/Kotlin**. Neither carries Rust or a native library: those
+arrive inside the compiled zenoh-flat-jni artifacts, which a consumer of
+`zenoh-java` gets transitively.
+
+The small Rust crate in this repository supports
+[zenoh-flat-jni dependency tracking](#relationship-to-zenoh-flat-jni); it contributes
+nothing to these artifacts.
+
+`zenoh-flat-jni` is itself a Kotlin Multiplatform library, so zenoh-java declares
 **one** dependency on its root coordinate and Gradle resolves the variant
 matching each target:
 
@@ -52,11 +66,11 @@ matching each target:
 | `zenoh-java` | `zenoh-flat-jni-jvm` | six desktop targets |
 | `zenoh-java-android` | `zenoh-flat-jni-android` | four Android ABIs, as `jni/<abi>/` |
 
-Nothing selects between them by hand, so a publication cannot name the wrong one.
-And because one Gradle invocation produces both publications correctly, they are
-uploaded into a single staging repository and released together.
+Gradle selects the matching zenoh-flat-jni variant for each zenoh-java target.
+For a permanent release, both zenoh-java publications are uploaded in one
+Gradle invocation to a single staging repository and released together.
 
-That automatic resolution applies to the *dependency*, not to this SDK itself.
+That automatic resolution applies to the *dependency*, not to zenoh-java itself.
 zenoh-java keeps the two plain coordinates above: the release publishes the
 `jvm` and `androidRelease` publications only, never the Kotlin Multiplatform
 root module, so there is no module metadata for a consumer to resolve against
@@ -67,88 +81,96 @@ tasks instead of using `publishAllPublicationsTo…`: the unpublished root
 publication carries the same `zenoh-java` artifactId as the JVM one, and
 publishing both would upload two different things to one coordinate.
 
-That is the whole reason the publishing here is simple — there is no build
-matrix, no cross-compilation, and no native artifact to inspect.
-
 ## Relationship to zenoh-flat-jni
 
-```text
-zenoh-flat-jni:<version> released to Maven Central
-                  |
-                  v
-        zenoh-java built against it
-                  |
-                  v
-        zenoh-java:<version> released
-```
+zenoh-java uses the Kotlin bindings and native libraries packaged in
+zenoh-flat-jni. `zenohFlatJniVersion` in `gradle.properties` selects that Maven
+package; published zenoh-java artifacts record it as a dependency so
+installations download the zenoh-flat-jni package too.
 
-**The order is not a convention, it is a constraint.** `zenoh-java` cannot be
-released until the `zenoh-flat-jni` version it depends on is really on Maven
-Central, because a release must not depend on a snapshot:
+CI also tests zenoh-flat-jni changes before they have a Maven release. It builds
+an exact source commit recorded in `Cargo.lock`. The dummy `Cargo.toml` and empty
+`ci/pin.rs` exist so this Gradle project can reuse Zenoh's lockfile-update bot;
+they produce nothing that ships. Gradle builds the pinned zenoh-flat-jni source
+for tests, without needing a Maven publication. [CI.md](CI.md#lockfile-synchronization)
+explains how the bot advances the pin.
 
-- consumers do not have the Central *snapshot* repository configured, so the
-  dependency would simply fail to resolve for them;
-- snapshots are mutable and are eventually removed, so even where it resolved it
-  would not stay reproducible.
+Source tests do not exercise signing, uploads, or the published dependency
+metadata. To test that path, main CI first publishes its own zenoh-flat-jni copy
+from the pin, then builds and publishes zenoh-java against it. A separate
+smoke test downloads zenoh-java and runs it through zenoh-flat-jni. Publishing
+the copy ensures its bindings match the tested source, independently of
+upstream zenoh-flat-jni publications.
 
-`ci/scripts/bump-and-tag.bash` refuses to let that reach a published POM. It
-checks the value `gradle.properties` ends up with, not the workflow input:
-between releases that file names a snapshot, so *omitting* the input is the way
-a release would reach one.
-
-Rehearsals are not constrained this way — see
-[Rehearsing before zenoh-flat-jni is released](#rehearsing-before-zenoh-flat-jni-is-released).
+The copy is named `<zenoh-flat-jni base version>-java-SNAPSHOT`. `-SNAPSHOT` allows
+successive development builds to replace it; `-java` prevents collisions with
+snapshots published by zenoh-flat-jni or zenoh-kotlin, which may pin different
+commits. The base comes from the pinned zenoh-flat-jni source's `version.txt`.
 
 ## The snapshot publication
 
-Between releases, every merge to `main` uploads a mutable pre-release build to
-the [Central snapshot
-repository](https://central.sonatype.com/repository/maven-snapshots/). Its
-purpose is to keep the upload machinery exercised — signing keys, credentials,
-what Central accepts — and to give people a way to try the current `main`.
+Every merge to `main`, and a manual CI dispatch on `main`, first tests
+zenoh-java against the pinned zenoh-flat-jni source.
+If those tests pass, CI uploads a zenoh-java snapshot to the
+[Central snapshot repository](https://central.sonatype.com/repository/maven-snapshots/)
+and tests the downloaded package in a separate consumer build. Pull requests
+run tests without publishing.
 
-It publishes **five** coordinates, not two:
+The publication covers five coordinates:
 
 ```text
 org.eclipse.zenoh:zenoh-java:<version>-SNAPSHOT
 org.eclipse.zenoh:zenoh-java-android:<version>-SNAPSHOT
-org.eclipse.zenoh:zenoh-flat-jni:1.9.0-java-SNAPSHOT          (+ -jvm, -android)
+org.eclipse.zenoh:zenoh-flat-jni:1.10.1-java-SNAPSHOT        (+ -jvm, -android)
 ```
 
-The last three are **our own copy** of zenoh-flat-jni, built from the commit
-`Cargo.lock` pins. Publishing what we depend on is what makes the snapshot both
-self-sufficient and coherent:
+The last three are zenoh-java's copy of zenoh-flat-jni. CI publishes that copy
+first, when it needs rebuilding, then builds and publishes zenoh-java against
+it. Central stores successive uploads as timestamped snapshot builds under
+these fixed names.
 
-- **self-sufficient** — if zenoh-flat-jni's CI were switched off entirely, this
-  publication still works. It uses that repository's *source at a commit we
-  choose*, never an artifact its CI produced.
-- **coherent** — the dependency our POM names is the code we compiled against.
-  Pointing instead at zenoh-flat-jni's own `1.9.0-SNAPSHOT` would name the tip
-  of *its* `main` while we compiled against our pin; JNI being a binary
-  contract, that mismatch surfaces as `UnsatisfiedLinkError` at runtime rather
-  than as a build failure.
-
-The `-java` qualifier keeps our copy from overwriting the one zenoh-flat-jni
-publishes itself, or zenoh-kotlin's — the three can legitimately pin different
-commits at the same moment. The names are fixed rather than derived from a
-commit, so each is overwritten in place and storage does not grow with the
-number of builds. (Central still stores snapshots as timestamped builds and
-cleans them after 90 days, so it is the consumer-facing *name* that is constant,
-not the bytes behind it.)
-
-Rebuilding that copy means cross-compiling ten targets, on the order of half an
-hour, and the pin moves roughly once a day — so it is rebuilt only when it has
-to be. Every POM zenoh-flat-jni publishes carries the commit it was built from:
+Rebuilding the zenoh-flat-jni copy means cross-compiling ten targets, on the
+order of half an hour. CI reuses the published copy when its commit matches the pin.
+Every POM zenoh-flat-jni publishes carries the commit it was built from:
 
 ```console
-$ curl -s .../1.9.0-java-SNAPSHOT/maven-metadata.xml           # ~2.9 kB
-$ curl -s .../zenoh-flat-jni-1.9.0-java-<timestamp>-<n>.pom    # ~1.8 kB
+$ curl -s .../1.10.1-java-SNAPSHOT/maven-metadata.xml           # ~2.9 kB
+$ curl -s .../zenoh-flat-jni-1.10.1-java-<timestamp>-<n>.pom    # ~1.8 kB
 <zenoh.flatJniCommit>e75529ce…</zenoh.flatJniCommit>
 ```
 
 `ci/scripts/flat-jni-copy.bash` reads that stamp from all three coordinates and
 compares it with the pin; anything missing or different means rebuild. Run it
 locally to see the decision, or `--self-test` to check its parsers.
+
+The zenoh-java publication uses `--refresh-dependencies` so Gradle downloads
+the zenoh-flat-jni copy just published rather than reusing an older cached snapshot.
+
+Every successful snapshot upload is followed by `ci/consumer-smoke-test`, a
+separate Gradle build with no project or composite dependency on this one. It
+resolves `zenoh-java:<version>-SNAPSHOT` from the snapshot repository with
+`--refresh-dependencies` and runs a key-expression round trip through
+zenoh-flat-jni. This checks the uploaded zenoh-java metadata, its transitive
+zenoh-flat-jni dependency, and native library loading together.
+
+### Updating the snapshot dependency
+
+The zenoh-flat-jni dependency on `main` has this form in `gradle.properties`:
+
+```properties
+zenohFlatJniVersion=<zenoh-flat-jni base version>-java-SNAPSHOT
+```
+
+When [updating the zenoh-flat-jni source pin](#building-against-zenoh-flat-jni-source), read
+`version.txt` at the pinned **zenoh-flat-jni** commit to determine the base.
+For base version `1.10.1`, use `1.10.1-java-SNAPSHOT`. Leave this property
+alone when the base version stays the same; if it changes, update the property
+in the same PR as `Cargo.lock`. The zenoh-flat-jni publisher checks that the
+requested base matches the pinned source before building. Leave zenoh-java's own
+`version.txt` unchanged for an update limited to zenoh-flat-jni.
+
+Merge the tested change to `main` to start the snapshot publication
+automatically. No manual publication is needed; PRs publish nothing.
 
 ### What it does not guarantee
 
@@ -157,135 +179,346 @@ staging-and-flip, so nothing makes the pair atomic. `main`'s CI runs are
 serialized rather than cancelled — cancelling mid-publication is what splits
 them — but a failure during the second upload still leaves a split state until
 the next successful run. That is accepted for a mutable pre-release artifact;
-strict coherence would need the SDK to name an immutable, timestamped snapshot,
-which conflicts with the fixed names above.
-
-Every publication is followed by `ci/consumer-smoke-test`, a separate Gradle
-build with no connection to this one, which resolves the published
-`zenoh-java:<version>-SNAPSHOT` from the snapshot repository with
-`--refresh-dependencies` and runs a key-expression round trip through JNI. That
-is the check that the whole chain — POM, transitive zenoh-flat-jni, native
-library — works for someone who is not us.
+strict coherence would need zenoh-java to name an immutable, timestamped
+snapshot, which conflicts with the fixed names above.
 
 ## Running a release
 
-Everything is driven from **Actions → Release → Run workflow** on the default
-branch. The workflow creates the release branch, bumps the version, tags it,
-builds and publishes.
+Run the **Release** workflow from the Actions tab. Its `branch` input selects
+the source branch or commit to release; empty means the repository's default
+branch, `main`. The Actions **Use workflow from** selector chooses the workflow
+definition to run, not the source the shared release action clones. For a patch
+release based on `release/1.10.1`, explicitly enter `branch=release/1.10.1`.
+For a live release, use the [release checklist](#release-checklist).
 
-### Before the first run
+The workflow cuts `release/<version>` for a live run or
+`release/dry-run/<version>` for a release dry run, then bumps, tags, builds and
+publishes from that new branch. Always supply `version` explicitly. An empty
+input is accepted and replaced with `git describe` output, which can produce a
+tag shaped like `<last-tag>-<count>-g<commit>` even for a live run. These defaults come from
+the shared [create-release-branch action](https://github.com/eclipse-zenoh/ci/blob/main/src/create-release-branch.ts).
 
-- **Secrets are already in place.** `CENTRAL_SONATYPE_TOKEN_*` and `ORG_GPG_*`
-  are organization-level secrets on `eclipse-zenoh`, inherited automatically.
-- **The zenoh-flat-jni version must already be on Maven Central** for a live
-  run. Check before starting:
+Two checkboxes decide what it does. `live-run` chooses what "publish" *means*;
+`maven_publish` chooses whether the upload happens at all. Use one of the first
+three combinations below:
 
-  ```bash
-  curl -sfI https://repo1.maven.org/maven2/org/eclipse/zenoh/zenoh-flat-jni/<version>/zenoh-flat-jni-<version>.pom
-  ```
+| `live-run` | `maven_publish` | What it does |
+| --- | --- | --- |
+| ✗ | ✓ | **Release dry run.** Uploads `<version>-SNAPSHOT` to the mutable snapshot repository — a real signed upload, so credentials and signing are exercised |
+| ✗ | ✗ | Assembles both publications and their POMs, uploads nothing |
+| ✓ | ✓ | **The real release.** Permanent and immutable on Maven Central |
+| ✓ | ✗ | **Unsafe.** Creates the release tag, deploys documentation and creates a GitHub release without uploading the Maven artifacts |
 
-### Rehearsal (dry run)
+`maven_publish` defaults to checked so a dry run tests signing and uploading.
+The snapshot repository is mutable, is not on consumers' default resolution
+path, and is cleaned after 90 days. A dry run without uploads cannot verify the
+signing key and credentials.
+
+### Release dry run
 
 | Field | Value |
 | --- | --- |
 | `live-run` | **unchecked** |
-| `version` | a fresh provisional number, not one already used |
-| `zenoh-flat-jni-version` | a version that exists — today a snapshot, see [below](#rehearsing-the-release-workflow-with-a-snapshot). Empty falls back to `gradle.properties`, which names our own `1.9.0-java-SNAPSHOT` copy: fine for a rehearsal, refused for a live run |
-| `maven_publish` | checked — or uncheck for the very first run |
+| `branch` | `main`, or the maintenance branch for a patch release, e.g. `release/1.10.1` |
+| `version` | an explicit provisional zenoh-java number reserved for this dry run; never an already-released number or one reserved for a live release |
+| `zenoh-flat-jni-version` | empty to inherit the branch's checked-in zenoh-flat-jni version, or an available zenoh-flat-jni Maven release or snapshot |
+| `maven_publish` | checked to test a real signed upload; unchecked to assemble without uploading |
 
-`live-run` and `maven_publish` behave exactly as in zenoh-flat-jni: unchecking
-`live-run` publishes `<version>-SNAPSHOT` to the **mutable** snapshot repository
-and never runs `closeAndReleaseSonatypeStagingRepository`, while `maven_publish`
-decides whether any upload happens at all. **A rehearsal with `maven_publish`
-checked performs a real, signed upload** — into the snapshot repository — and is
-the only configuration that exercises the credentials.
+The workflow prepares a dry-run release branch and applies any explicit
+`zenoh-flat-jni-version` to `gradle.properties` there, leaving `main` unchanged.
+It publishes zenoh-java as `<version>-SNAPSHOT` when `maven_publish` is checked.
+When the run reaches tagging, `bump-and-tag.bash` creates and **force-pushes** the tag
+even with `LIVE_RUN=false`: its `[[ ${live_run} ]]` test accepts either nonempty
+string, `true` or `false`. A dry run given an already-released number can move
+the real release tag onto the dry-run commit. Use a fresh explicit number such
+as `1.10.2-rc1` and check existing tags before dispatching. Reuse a version only
+when retrying your own unpublished attempt under
+[If a release fails](#if-a-release-fails).
 
-`bump-and-tag.bash` tags whatever version it is handed, rehearsals included, so
-never give a rehearsal the number you intend to release.
+Tags from dry runs are not cleaned up automatically. The shared action prunes
+old `release/dry-run/*` branches to retain a small history, but leaves tags such
+as `1.10.0-rc1` behind. A dry run with `maven_publish` checked also
+runs the consumer smoke test described under
+[The snapshot publication](#the-snapshot-publication).
 
-### The real release
+To create documentation or a GitHub release for a zenoh-java version already
+on Central, follow the [recovery steps](#if-a-step-after-maven-central-fails)
+instead of running Release again.
 
-| Field | Value |
-| --- | --- |
-| `live-run` | **checked** |
-| `version` | the release number |
-| `zenoh-flat-jni-version` | the zenoh-flat-jni release to build against — **must already be on Central** |
-| `maven_publish` | checked |
+#### Choosing a zenoh-flat-jni snapshot for a dry run
 
-Supplying `zenoh-flat-jni-version` rewrites `zenohFlatJniVersion` in
-`gradle.properties` and commits it, so the published POM records exactly which
-binding release the SDK was built against.
+A dry run can run before the next zenoh-flat-jni release exists on Maven Central,
+provided its zenoh-flat-jni snapshot has already been published. For a dry run from
+`main`, leave `zenoh-flat-jni-version` empty to use the zenoh-flat-jni snapshot named in
+`gradle.properties`. The dry run does not build or publish that
+package; the [main CI pipeline](#the-snapshot-publication) does.
 
-### After a release
-
-Confirm the coordinates resolve, then verify the dependency is right — the POM
-must reference a real `zenoh-flat-jni` release:
-
-```bash
-curl -s https://repo1.maven.org/maven2/org/eclipse/zenoh/zenoh-java/<version>/zenoh-java-<version>.pom \
-  | grep -A2 zenoh-flat-jni
-```
-
-## Rehearsing before zenoh-flat-jni is released
-
-This is the common case during the transition, and it works — only the *live*
-release is blocked.
-
-| Rehearsal | resolves zenoh-flat-jni from | proves |
-| --- | --- | --- |
-| local build and tests | its source — the pinned commit, or your own checkout ([README](README.md#where-the-native-library-comes-from)) | the code compiles and the tests pass |
-| CI, `maven_publish` unchecked | the snapshot repository | the artifact assembles |
-| CI, snapshot publication | `zenoh-flat-jni:<version>-SNAPSHOT` | signing, credentials, a real upload |
-| live release | `zenoh-flat-jni:<version>` on Central | **blocked until that exists** |
-
-A snapshot may depend on a snapshot, because nothing published is permanent —
-which is what [The snapshot publication](#the-snapshot-publication) above rests
-on. `gradle.properties` names `1.9.0-java-SNAPSHOT`, our own copy, and every
-merge to `main` republishes it from the pinned commit. So a rehearsal needs
-nothing set: the default already resolves.
-
-Name another one on the command line to build against a different
-zenoh-flat-jni — the snapshot it publishes itself, or one from a rehearsal
-there:
-
-```bash
-./gradlew build -PzenohFlatJniVersion=1.9.0-rc8-SNAPSHOT
-```
-
-### Rehearsing the release workflow with a snapshot
-
-Find what is actually published — the list moves as zenoh-flat-jni rehearses:
+To use another zenoh-flat-jni snapshot, find an available version:
 
 ```bash
 curl -s https://central.sonatype.com/repository/maven-snapshots/org/eclipse/zenoh/zenoh-flat-jni/maven-metadata.xml
 ```
 
-```xml
-<latest>1.9.0-rc8-SNAPSHOT</latest>
+Enter the chosen version in the `zenoh-flat-jni-version` workflow input.
+For an optional local build using a published snapshot, override the Gradle
+property, for example:
+
+```bash
+./gradlew build -PzenohFlatJniVersion=1.10.1-java-SNAPSHOT
 ```
 
-Then run **Release** from the Actions tab with:
+That override changes neither the checked-in property nor the source pin used
+by [source-based tests](#building-against-zenoh-flat-jni-source).
 
-| input | value |
+### The real release
+
+First confirm that the zenoh-flat-jni release you will select is already on Maven Central.
+You can open its POM URL in a browser or check it from the command line:
+
+```bash
+curl -fsSI https://repo1.maven.org/maven2/org/eclipse/zenoh/zenoh-flat-jni/<version>/zenoh-flat-jni-<version>.pom
+```
+
+Run a [release dry run](#release-dry-run) with `maven_publish` checked, the intended
+source and zenoh-flat-jni release, and a separate provisional zenoh-java version. After that
+workflow succeeds, start the live release with:
+
+| Field | Value |
 | --- | --- |
-| `live-run` | **unchecked** — a live run refuses a `-SNAPSHOT` binding |
-| `zenoh-flat-jni-version` | the version above, e.g. `1.9.0-rc8-SNAPSHOT` |
-| `maven_publish` | checked to rehearse the upload too, unchecked to stop at assembly |
-| `version`, `branch` | leave empty unless you are rehearsing a specific one |
+| `live-run` | **checked** |
+| `branch` | `main`, or the maintenance branch for a patch release |
+| `version` | the explicit release number; never leave empty or reuse a version already published on Central |
+| `zenoh-flat-jni-version` | the zenoh-flat-jni release to build against — **must already be on Central** |
+| `maven_publish` | **checked** — required to publish the Maven artifacts |
 
-**`zenoh-flat-jni-version` decides what the rehearsal builds against.** Left
-empty it falls back to `zenohFlatJniVersion` in `gradle.properties` —
-`1.9.0-java-SNAPSHOT`, our own copy, which `main` republishes on every merge. A
-rehearsal against that is a real rehearsal — leaving the field empty is now a
-sound default rather than the guaranteed compile failure it used to be.
+Set `zenoh-flat-jni-version` to the released zenoh-flat-jni Maven version, for example
+`1.10.1`. The workflow commits `zenohFlatJniVersion=1.10.1` in
+`gradle.properties` on the **release branch** before tagging and leaves `main`
+unchanged. This selects the zenoh-flat-jni package independently of the source pin in
+`Cargo.lock`.
 
-What that fallback cannot do is reach a **live** release:
-`ci/scripts/bump-and-tag.bash` refuses a `-SNAPSHOT` binding, and it checks the
-value `gradle.properties` ends up with rather than the input, precisely because
-an omitted input now inherits one.
+`ci/scripts/bump-and-tag.bash` checks the effective property after applying the
+input and refuses a live run if it ends in `-SNAPSHOT`. Omitting the input on
+`main` therefore does not bypass the check.
 
-The Central snapshot repository is declared **conditionally** in
-`build.gradle.kts`, and this is the part worth understanding:
+### After a release
+
+Confirm both zenoh-java artifacts are available on Central and their POMs name the
+selected zenoh-flat-jni version. The JVM POM must depend on `zenoh-flat-jni-jvm`, and the
+Android POM on `zenoh-flat-jni-android`. For example:
+
+```bash
+curl -fsSL https://repo1.maven.org/maven2/org/eclipse/zenoh/zenoh-java/<version>/zenoh-java-<version>.pom \
+  | grep -A2 zenoh-flat-jni
+
+curl -fsSL https://repo1.maven.org/maven2/org/eclipse/zenoh/zenoh-java-android/<version>/zenoh-java-android-<version>.pom \
+  | grep -A2 zenoh-flat-jni
+```
+
+Confirm the GitHub release exists and its generated notes
+start at the correct previous release tag. The shared action can choose the
+wrong predecessor for a backfilled release; see
+[eclipse-zenoh/ci#470](https://github.com/eclipse-zenoh/ci/issues/470).
+
+When merging the release branch back into `main`, preserve or restore
+`zenohFlatJniVersion=<zenoh-flat-jni base version>-java-SNAPSHOT` in `gradle.properties`
+as part of that merge. Use the base from the zenoh-flat-jni pin that `main` will contain
+after the merge, following [Updating the snapshot dependency](#updating-the-snapshot-dependency).
+There is no automatic reset: carrying the plain release value back would break
+snapshot publication even if source-based tests pass.
+
+Merging the release branch can also carry zenoh-java's `version.txt` back to
+`main`. Retaining that number is accepted for the publication test: after the
+`1.10.1` release, `main` can publish `1.10.1-SNAPSHOT`. Maven orders that
+snapshot below `1.10.1`, so it is not a way to advertise `main` as newer than
+the release. The Release workflow takes the next zenoh-java version from its `version`
+input; merging that release branch back updates `main`. The ordering is defined in
+[Maven's version specification](https://maven.apache.org/pom.html#version-order-specification).
+
+### Checking publication status
+
+Before retrying a failed live release, check whether it published anything.
+Replace `<version>` with the zenoh-java release number and open these POM
+URLs in a browser, or print their HTTP status codes:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' https://repo1.maven.org/maven2/org/eclipse/zenoh/zenoh-java/<version>/zenoh-java-<version>.pom
+curl -sS -o /dev/null -w '%{http_code}\n' https://repo1.maven.org/maven2/org/eclipse/zenoh/zenoh-java-android/<version>/zenoh-java-android-<version>.pom
+```
+
+HTTP `200` for either artifact proves that version has been published; do not
+run the full Release workflow again. HTTP `404` means the file is not visible
+yet, which can also happen while publication is in progress. Other errors or a
+network failure do not establish whether publication happened.
+
+If the result is unclear, sign in to the
+[Central Portal deployments page](https://central.sonatype.com/publishing/deployments)
+with the publisher account used by CI. Find the deployment from the failed run
+and check its contents for both zenoh-java coordinates and the exact version.
+Use its status to decide what to do:
+
+| Deployment status | What to do |
+| --- | --- |
+| `PUBLISHED` | The version is published, even if the POMs are not visible yet. Use [recovery after Maven Central](#if-a-step-after-maven-central-fails). |
+| `PUBLISHING` | Wait for publication to finish; do not start another release. |
+| `PENDING`, `VALIDATING`, or `VALIDATED` | Resolve the existing deployment before retrying; it has not finished publishing. |
+| `FAILED`, or no deployment found | Check the failed workflow's upload/close/release logs and any remaining staging repository before concluding that nothing was published. |
+
+The [Sonatype status definitions](https://central.sonatype.org/publish/publish-portal-api/#verify-status-of-the-deployment)
+describe these states. An upload that failed before closing can remain only in
+the OSSRH staging compatibility service, without appearing in the Portal;
+[Sonatype's staging API guide](https://central.sonatype.org/publish/publish-portal-ossrh-staging-api/#triaging-issues)
+explains how to find and drop such repositories. Dropping a Portal deployment
+does not drop its staging repository in that service.
+
+Retry the full release only after confirming that neither artifact was
+published, no publication is still in progress, and any unpublished deployment
+or staging repository from that attempt has been cleaned up. If you cannot
+establish that, keep the existing run and investigate rather than republishing.
+
+### If a release fails
+
+**The tag job runs first and pushes before anything is published.** So a run
+that fails before uploading — for example, because a dependency cannot be
+resolved — still leaves the release branch and the tag pushed, for a version
+that has no artifacts on Central.
+
+When the publish job fails, `publish-dokka` and `publish-github` are skipped
+because both `need` that job. No documentation is deployed and **no GitHub
+release is created**, even if the Maven upload already succeeded.
+
+**Before retrying a live release, [check publication status](#checking-publication-status).**
+A failed publish job can have uploaded or released artifacts before failing.
+Retry the same version only when those checks confirm it remains unpublished.
+Dry-run snapshots can be replaced, but their provisional tag must never name
+a permanent release.
+
+A retry recreates the release branch and tag:
+
+- `create-release-branch` does `git switch --force-create` and `git push
+  --force`, recreating the release branch from the selected source ref
+  (`main` only when `branch` is empty or explicitly `main`);
+- `bump-and-tag.bash` therefore rewrites `version.txt` on a fresh branch, so its
+  bump commit applies cleanly on a retry;
+- the tag is `git tag --force` and `git push --force`.
+
+After the [publication checks and cleanup](#checking-publication-status), fix
+the cause and run it again with the same explicit version and original source
+`branch` input, rather than using the generated release branch as the source.
+
+**Never retry a version that published either artifact on Central.** Maven
+Central is immutable: the
+version cannot be republished, and re-running would force-move the tag onto a
+new commit while Central keeps the artifact built from the old one — the tag and
+the published artifact would then describe different code. Move to a new version
+instead. This is also why a dry run must never use a number reserved for a
+permanent release.
+
+If a version reached Central but produced no GitHub release, follow
+[recovery after Maven Central](#if-a-step-after-maven-central-fails).
+
+### If a step after Maven Central fails
+
+Once [publication is confirmed](#checking-publication-status), do not dispatch
+Release again or choose **Re-run all jobs**: that would repeat tagging and Maven
+publication for an immutable version.
+
+For a failed documentation or GitHub-release job, open that job in the original
+Actions run and use **Re-run this job**. Check the confirmation dialog: it must
+include only the selected job and any downstream jobs, never `tag` or `publish`.
+GitHub's [job rerun instructions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs)
+explain the UI. If Maven publication succeeded and only the later jobs failed,
+**Re-run failed jobs** also preserves the successful tagging and publication jobs.
+
+| Produced | By | Recover with |
+| --- | --- | --- |
+| Maven Central coordinates | `publish` | already published; do not upload again |
+| Release branch and tag | `tag` | already pushed, before `publish` ran |
+| GitHub release | `publish-github` | retry only this job, or [create the release by hand](#creating-a-github-release-by-hand) |
+| `gh-pages` documentation | `publish-dokka` | retry only this job; see the standalone workflow limitation under [Known gaps](#known-gaps) |
+
+If the Maven job itself failed after publishing, do not use **Re-run failed
+jobs**, because that includes the Maven job. Recover only the missing later
+steps. There is no standalone GitHub-release workflow in this repository, and
+manually dispatching **Publish (Dokka)** only builds documentation; it cannot
+select a released tag or deploy it.
+
+#### Creating a GitHub release by hand
+
+First [confirm both Maven artifacts were published](#after-a-release). Open
+[GitHub Releases](https://github.com/eclipse-zenoh/zenoh-java/releases), choose
+**Draft a new release**, and select the existing `<version>` tag. Generate the
+notes with the correct previous release tag, check them, and publish the release.
+The equivalent command is:
+
+```bash
+gh release create <version> --repo eclipse-zenoh/zenoh-java \
+  --verify-tag --title <version> --generate-notes --notes-start-tag <previous-version>
+```
+
+`--verify-tag` refuses to create a missing tag. Use the release number written
+by `bump-and-tag.bash`, not a new tag or a dry-run version. The existing tag and
+Maven artifacts must remain in place.
+
+If a GitHub release already exists, edit its notes on its GitHub page or use:
+
+```bash
+gh release edit <version> --repo eclipse-zenoh/zenoh-java --notes-file notes.md
+```
+
+Publishing a GitHub release notifies release watchers. Editing its notes does
+not require another Maven publication or another release tag.
+
+## How the release pipeline works
+
+`release.yml` runs four jobs:
+
+1. **`tag`** — `eclipse-zenoh/ci/create-release-branch` cuts the release branch,
+   then `ci/scripts/bump-and-tag.bash` writes `version.txt`, optionally rewrites
+   `zenohFlatJniVersion` in `gradle.properties`, commits and tags.
+2. **`publish`** — assembles both zenoh-java artifacts and uploads them when
+   `maven_publish` is checked. Live releases use one staging repository;
+   dry runs upload to the snapshot repository. Native libraries come from the
+   selected zenoh-flat-jni Maven dependency.
+3. **`publish-dokka`** — regenerates the API documentation and, on a live run
+   only, deploys it to the `gh-pages` site README.md links to. The javadoc JAR
+   attached to the Maven publications does not serve that site; this job does.
+4. **`publish-github`** — calls the shared GitHub-release action inline.
+   On a live run it creates a GitHub release from the tag; a dry run does not.
+
+The documentation and GitHub-release jobs both wait for `publish`. They pass
+`live-run` through unchanged, so a live run with `maven_publish` unchecked still
+deploys documentation and creates the GitHub release. Always check
+`maven_publish` for a live run; the workflow has no guard against that combination.
+
+The full pipeline [released 1.10.1 on 2026-09-07](https://github.com/eclipse-zenoh/zenoh-java/actions/runs/34136359956).
+
+The release itself is created by `eclipse-zenoh/ci/publish-crates-github`, the
+shared action the rest of the Zenoh repositories use. Despite the name it
+publishes no crate: it creates the release from the tag with generated notes,
+then attaches any `*-standalone.zip` / `*-debian.zip` build archives. This
+repository produces none, so that half is inert and every release it has made
+here carries notes and GitHub's own source archives only.
+
+The shared release action's unnecessary TOML-tool installation and incorrect
+notes range for backfilled releases are tracked in
+[eclipse-zenoh/ci#470](https://github.com/eclipse-zenoh/ci/issues/470). These
+operational fixes belong upstream so they reach every Zenoh repository.
+
+Publishing goes through `io.github.gradle-nexus.publish-plugin` to the Central
+Portal, signed with the organization GPG key, exactly as in zenoh-flat-jni.
+
+Every third-party action these workflows use is pinned to a **commit SHA**, with
+the version in a trailing comment — a tag is mutable, and a moved tag would run
+code nobody reviewed on a job that holds the signing key and the Central token.
+The `eclipse-zenoh/ci` actions are ours and stay on `@main` deliberately: the
+tagging and GitHub-release steps track whatever that branch holds at run time.
+Bumping a pin is an ordinary pull request; read the diff of the action first.
+
+### Maven dependency resolution
+
+`build.gradle.kts` enables the Central snapshot repository only when the
+requested zenoh-flat-jni version ends in `-SNAPSHOT`:
 
 ```kotlin
 if (zenohFlatJniVersion.endsWith("-SNAPSHOT")) {
@@ -301,59 +534,37 @@ coordinate, but what Gradle actually downloads is `zenoh-flat-jni-jvm` or
 `zenoh-flat-jni-android`. Naming a single module would hide those from the
 snapshot repository and the build would fail to resolve.
 
-It enters the resolution path only when a snapshot version was explicitly asked
-for, and even then serves only that one group. A release version never ends in
-`-SNAPSHOT`, so a release build cannot resolve a mutable artifact — not by
-oversight, and not by someone leaving a flag set. The guarantee is structural
-rather than procedural.
-
-While developing, prefer not to involve a repository at all — see
-[Where the native library comes from](README.md#where-the-native-library-comes-from)
-in the README.
-
-## How the pipeline works
-
-`release.yml` runs four jobs:
-
-1. **`tag`** — `eclipse-zenoh/ci/create-release-branch` cuts the release branch,
-   then `ci/scripts/bump-and-tag.bash` writes `version.txt`, optionally rewrites
-   `zenohFlatJniVersion` in `gradle.properties`, commits and tags. It refuses a
-   `-SNAPSHOT` binding version.
-2. **`publish_package`** — compiles Kotlin and publishes both artifacts in one
-   Gradle invocation, so they share one staging repository and are released
-   together. No native toolchain is installed and no Rust is built; both would
-   be pointless here.
-3. **`publish-dokka`** — regenerates the API documentation and, on a live run
-   only, deploys it to the `gh-pages` site README.md links to. The javadoc JAR
-   attached to the Maven publications does not serve that site; this job does.
-4. **`publish-github`** — creates the GitHub release, on a live run only.
-
-Publishing goes through `io.github.gradle-nexus.publish-plugin` to the Central
-Portal, signed with the organization GPG key, exactly as in zenoh-flat-jni.
-
-Every third-party action these workflows use is pinned to a **commit SHA**, with
-the version in a trailing comment — a tag is mutable, and a moved tag would run
-code nobody reviewed on a job that holds the signing key and the Central token.
-The `eclipse-zenoh/ci` actions are ours and stay on `@main` deliberately: the
-tagging and GitHub-release steps track whatever that branch holds at run time.
-Bumping a pin is an ordinary pull request; read the diff of the action first.
+For a released zenoh-flat-jni version, the snapshot repository is absent from the
+resolution path. The [live-release check](#the-real-release) ensures that a
+permanent zenoh-java release uses a released zenoh-flat-jni dependency.
 
 ## Building against zenoh-flat-jni source
 
-A build can be pointed at zenoh-flat-jni's *source* through a Gradle composite
-build, which is what CI and local development do — see
-[Where the native library comes from](README.md#where-the-native-library-comes-from) in the README,
-and [CI.md](CI.md) for the commit pin behind it.
+CI builds zenoh-flat-jni from source through a Gradle composite build.
+The [README](README.md#where-the-native-library-comes-from) describes local build
+options; [The pin](CI.md#the-pin) explains how the source commit is selected.
 
-**A release must not.** With a composite build the published artifact would be
-built from source on the builder's disk while the POM still claimed the released
-version it was supposed to be built against. Nothing opts in by default, and
+To adopt new zenoh-flat-jni code, let the bot update `Cargo.lock` or
+[move the pin by hand](CI.md#moving-the-pin-by-hand). Keep the Git dependency in
+`Cargo.toml` tracking `main` so the bot can continue advancing it. When updating
+the pin on `main`, also check the
+[snapshot dependency's base version](#updating-the-snapshot-dependency).
+
+To reproduce CI locally, run:
+
+```bash
+./gradlew jvmTest -PuseLocalJni=true
+```
+
+Pass `useLocalJni` on the command line and keep the checked-in
+`useLocalJni=false` so publication can resolve the Maven package.
+
+**Publication must use the Maven package.** With a composite build, zenoh-java
+would compile against local zenoh-flat-jni output while its metadata named a Maven
+package that might contain different bindings. Nothing opts in by default, and
 `build.gradle.kts` fails any `publish*` task while an included build is present,
 so a leftover `-PuseLocalJni`, `-PlocalJniDir` or `path = "…"` cannot reach a
 publication silently.
-
-Which `zenoh-flat-jni` *release* this SDK is built and published against is
-`zenohFlatJniVersion` in `gradle.properties`, and that is unrelated to the above.
 
 ## Required secrets
 
@@ -368,28 +579,98 @@ repository.
 
 ## Known gaps
 
-- **The rewritten release path has never run.** The workflows were repaired for
-  a repository that no longer contains Rust; no rehearsal has yet exercised
-  them.
-- **No consumer test before a *release*.** Every snapshot publication is followed
-  by `ci/consumer-smoke-test`, which resolves the published artifact from the
-  snapshot repository and runs it — but a release goes to a staging repository
-  and is not resolvable at that point, so nothing consumes a release candidate
-  the way zenoh-flat-jni's own dry-run repository lets it consume one.
-- **The Android artifact has no runtime test**, and its `ndkVersion` and NDK
-  setup step are retained although no native code is built here — unverified
-  whether the Android Gradle Plugin still needs them.
-- **`zenoh-flat-jni` itself has not been released**, so the ordering constraint
-  above has never been satisfied for a real release.
+- **A live release can publish zenoh-java without testing the zenoh-flat-jni
+  package users will download.** CI builds zenoh-flat-jni from the source commit
+  in `Cargo.lock` and tests zenoh-java against it. The release job instead
+  downloads the selected zenoh-flat-jni Maven package and compiles zenoh-java
+  against it, but runs no tests. Passing source-based CI therefore does not
+  establish that the selected Maven package works with zenoh-java. Publication
+  also starts without waiting for the release branch's CI result. A test job
+  against the selected zenoh-flat-jni Maven package is missing from the workflow.
+- **Published release artifacts have no consumer test.** Snapshot uploads,
+  including release dry runs, run a smoke test against the downloaded
+  zenoh-java and its zenoh-flat-jni dependency. Live releases skip that job and
+  have no consumer test before or after publication.
+- **The GitHub release carries generated notes only** — notes and the source
+  archives GitHub attaches itself. There are no build artifacts to add: the
+  binaries live on Maven Central.
+- **A live run can announce a version without publishing its Maven artifacts.**
+  The workflow allows `live-run` checked with `maven_publish` unchecked and still
+  deploys documentation and creates a GitHub release. The checklist avoids that
+  combination; an automatic guard is missing.
+- **Standalone documentation recovery cannot deploy a release.**
+  `publish-dokka.yml` declares no inputs under `workflow_dispatch`, so a manual
+  run cannot select the released tag or set `live-run`. It builds documentation
+  without deploying it. Retry the documentation job in the original release run
+  when possible; a dispatchable deployment workflow is missing.
+- **The Android artifact has no runtime test.** Only the JVM tests run
+  (`jvmTest`); the Android variant is assembled and published unexercised.
 
 ## Release checklist
 
-- [ ] The `zenoh-flat-jni` version to build against is on Maven Central.
-- [ ] `version.txt` and the intended tag agree.
-- [ ] A rehearsal completed under a fresh version, with publication enabled at
-      least once so signing and credentials were exercised.
-- [ ] `useLocalJni` is off — the release resolves from Central.
-- [ ] The published POM references a released `zenoh-flat-jni`, not a snapshot.
-- [ ] For an Android release: the Android POM references
-      `zenoh-flat-jni-android`, not the desktop coordinate.
-- [ ] The released coordinates resolve from Maven Central.
+Follow these steps in order. All builds and publication run through GitHub
+Actions; no local test run is required. The runtime tests missing from the
+release workflow remain listed under
+[Known gaps](#known-gaps).
+
+### Before the live release
+
+- [ ] Choose the source `branch`: `main`, or the maintenance branch for a patch
+      release. Choose the zenoh-java release number and the zenoh-flat-jni Maven release to use.
+      Confirm the zenoh-flat-jni release is already [available on Central](#the-real-release).
+- [ ] Choose a separate, unused provisional zenoh-java number for the dry run, such as
+      `1.10.2-rc1`. Check [existing tags](https://github.com/eclipse-zenoh/zenoh-java/tags)
+      and do not use a number reserved for a live release: the dry run also
+      pushes a tag. See [Release dry run](#release-dry-run).
+- [ ] Open the [Release workflow](https://github.com/eclipse-zenoh/zenoh-java/actions/workflows/release.yml)
+      and expand **Run workflow**. Select `main` under **Use workflow from**.
+      Set `branch` to the chosen source, `version` to the provisional number,
+      and `zenoh-flat-jni-version` to the chosen zenoh-flat-jni release. Leave `live-run`
+      unchecked and check `maven_publish`.
+      The [workflow selector and source branch](#running-a-release) are separate settings.
+- [ ] Click **Run workflow** and wait for the dry run to succeed, including
+      **Consume the published snapshot**. If it fails, follow
+      [If a release fails](#if-a-release-fails) before proceeding.
+
+### Run the live release
+
+- [ ] Confirm the zenoh-java release number is unused on Maven Central and has no
+      existing release tag. Never reuse the dry-run number. See
+      [Checking publication status](#checking-publication-status) for the Central
+      lookup and [The real release](#the-real-release) for the release settings.
+- [ ] Open the [Release workflow](https://github.com/eclipse-zenoh/zenoh-java/actions/workflows/release.yml)
+      and expand **Run workflow** again, with **Use workflow from** set to `main`.
+      Set `branch` to the same source used for the dry run, `version` to the
+      actual zenoh-java release number, and `zenoh-flat-jni-version` to the same zenoh-flat-jni
+      release. Check both `live-run` and `maven_publish`.
+      See the [release input table](#the-real-release) for details.
+- [ ] Click **Run workflow** and wait for Maven publication, documentation
+      deployment, and GitHub release creation to succeed. If a job fails,
+      [check publication status](#checking-publication-status) before retrying:
+      HTTP `200` for either zenoh-java POM or a Portal deployment marked
+      `PUBLISHED` means the version is published. Wait if it is `PUBLISHING`.
+      For a published version, use
+      [recovery after Maven Central](#if-a-step-after-maven-central-fails);
+      retry an unpublished version only under [If a release fails](#if-a-release-fails).
+
+### After the live release
+
+- [ ] Confirm both zenoh-java artifacts resolve from Central. The JVM POM must name
+      `zenoh-flat-jni-jvm`; the Android POM must name `zenoh-flat-jni-android`.
+      Both name the selected zenoh-flat-jni version; see [After a release](#after-a-release).
+- [ ] Check the [GitHub release](https://github.com/eclipse-zenoh/zenoh-java/releases)
+      exists and its notes start at the correct previous release tag. See
+      [After a release](#after-a-release) for the known notes-range issue and
+      [Creating a GitHub release by hand](#creating-a-github-release-by-hand)
+      for corrections or recovery.
+
+### When merging back to main
+
+- [ ] Open a PR merging `release/<version>` back into `main`. In that PR,
+      preserve or restore
+      `zenohFlatJniVersion=<zenoh-flat-jni base version>-java-SNAPSHOT` in
+      `gradle.properties`, using the base version of the zenoh-flat-jni commit that `main`
+      will pin after the merge. Follow
+      [Updating the snapshot dependency](#updating-the-snapshot-dependency).
+- [ ] Merge the PR after CI passes, then confirm `main`'s
+      [snapshot publication](#the-snapshot-publication) succeeds.
